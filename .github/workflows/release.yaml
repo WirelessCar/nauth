@@ -47,7 +47,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/WirelessCar/nauth
+          images: ghcr.io/wirelesscar/nauth
           tags: |
             type=semver,pattern={{version}},value=${{ steps.nauth.outputs.version }}
           labels: |
@@ -55,8 +55,8 @@ jobs:
             org.opencontainers.image.title=nauth-operator
             org.opencontainers.image.description=Nauth Operator
             org.opencontainers.image.url=https://nauth.io
-            org.opencontainers.image.vendor=WirelessCar
-            org.opencontainers.image.source=https://github.com/WirelessCar/nauth/blob/main/Dockerfile
+            org.opencontainers.image.vendor=wirelesscar
+            org.opencontainers.image.source=https://github.com/wirelesscar/nauth/blob/main/Dockerfile
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
@@ -100,8 +100,8 @@ jobs:
         run: helm package nauth
       - name: login to gcr using helm
         run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/WirelessCar/nauth --username ${{ github.repository_owner }} --password-stdin
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/wirelesscar/nauth --username ${{ github.repository_owner }} --password-stdin
       - name: helm push
         run: |
-          helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/WirelessCar/nauth/charts
+          helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar/nauth/charts
 
