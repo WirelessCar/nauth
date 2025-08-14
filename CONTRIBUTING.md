@@ -5,7 +5,7 @@
 
 We're glad you would like to take part of contributing to Nauth!
 
-> [!INFO]
+> [!NOTE]
 > The project is in an early phase. Contributing will be streamlined further down the road.
 
 Please note that this project is released with a [Contributor Code of Conduct][code-of-conduct]. By participating in this project you agree to abide by its terms.
@@ -51,12 +51,7 @@ for testing.
 
 ### Trying out some examples
 You can play around with permissions and such by applying examples and do publish and subscribe using the credentials.
-
-Apply the example accounts
-```bash
-kubectl apply -f account-example.yaml -n nats
-kubectl apply -f user-example.yaml -n nats
-```
+By default, both an `example-account` and an `example-user` is created.
 
 Open 3 different terminals to do port forwarding into your cluster and then do subscribe and publish.
 ```bash
