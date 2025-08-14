@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: chart/
+        working-directory: charts/
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4

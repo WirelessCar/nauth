@@ -6,7 +6,7 @@ domain: nauth.io
 layout:
 - go.kubebuilder.io/v4
 projectName: nauth
-repo: github.com/WirelessCar-WDP/nauth
+repo: github.com/WirelessCar/nauth
 resources:
 - api:
     crdVersion: v1
@@ -15,7 +15,7 @@ resources:
   domain: nauth.io
   group: nauth.io
   kind: Operator
-  path: github.com/WirelessCar-WDP/nauth/api/v1alpha1
+  path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -24,7 +24,7 @@ resources:
   domain: nauth.io
   group: nauth.io
   kind: Account
-  path: github.com/WirelessCar-WDP/nauth/api/v1alpha1
+  path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
 - api:
     crdVersion: v1
@@ -33,6 +33,6 @@ resources:
   domain: nauth.io
   group: nauth.io
   kind: User
-  path: github.com/WirelessCar-WDP/nauth/api/v1alpha1
+  path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
 version: "3"
