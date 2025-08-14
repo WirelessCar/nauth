@@ -1,0 +1,73 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ include "nauth.name" . }}
+  name: user-admin-role
+  namespace: {{ include "nauth.namespaceName" . }}
+rules:
+- apiGroups:
+  - nauth.io
+  resources:
+  - users
+  verbs:
+  - '*'
+- apiGroups:
+  - nauth.io
+  resources:
+  - users/status
+  verbs:
+  - get
+
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ include "nauth.name" . }}
+  name: user-editor-role
+  namespace: {{ include "nauth.namespaceName" . }}
+rules:
+- apiGroups:
+  - nauth.io
+  resources:
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - nauth.io
+  resources:
+  - users/status
+  verbs:
+  - get
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: {{ include "nauth.name" . }}
+  name: user-viewer-role
+  namespace: {{ include "nauth.namespaceName" . }}
+rules:
+- apiGroups:
+  - nauth.io
+  resources:
+  - users
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - nauth.io
+  resources:
+  - users/status
+  verbs:
+  - get

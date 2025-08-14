@@ -1,0 +1,39 @@
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: false
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+prometheusOperator:
+  enabled: true
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false

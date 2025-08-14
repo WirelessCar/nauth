@@ -1,0 +1,28 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+spec:
+  accountLimits:
+    conn: 100
+    exports: 10
+    imports: 10
+    leaf: 0
+    wildcards: true
+  exports:
+    - name: export-test
+      subject: foo.>
+      type: stream
+  jetStreamLimits:
+    consumer: 5
+    diskMaxStreamBytes: 209715200
+    diskStorage: 1073741824
+    maxAckPending: 5
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 1073741824
+    streams: 5
+  natsLimits:
+    data: 1024
+    payload: 500
+    subs: 100

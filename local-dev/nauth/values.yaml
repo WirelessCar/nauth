@@ -1,0 +1,16 @@
+nats:
+  url: nats://nats.nats.svc.cluster.local:4222
+
+# # Uncomment if running observability stack locally
+# monitoring:
+#   enabled: false
+#   serviceMonitor:
+#     enabled: false
+
+image:
+  registry: local
+  repository: nauth
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "test"

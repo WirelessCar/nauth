@@ -1,0 +1,18 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nauth-metrics-monitor
+  labels:
+    service: nauth-metrics-service
+    release: prometheus
+spec:
+  endpoints:
+    - path: /metrics
+      port: http-metrics
+      scheme: http
+  selector:
+    matchLabels:
+      service: nauth-metrics-service
+
+{{- end }}

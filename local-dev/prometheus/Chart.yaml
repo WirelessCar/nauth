@@ -1,0 +1,9 @@
+apiVersion: v2
+name: nats
+description: nats
+version: 0.0.1
+dependencies:
+  - repository: https://prometheus-community.github.io/helm-charts
+    name: kube-prometheus-stack
+    alias: prometheus
+    version: "72.9.1"

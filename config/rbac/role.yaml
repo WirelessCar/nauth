@@ -1,0 +1,42 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - nauth.io
+  resources:
+  - accounts
+  - users
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - nauth.io
+  resources:
+  - accounts/finalizers
+  - users/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - nauth.io
+  resources:
+  - accounts/status
+  - users/status
+  verbs:
+  - get
+  - patch
+  - update
