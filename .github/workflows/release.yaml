@@ -20,7 +20,7 @@ on:
       - 'v*'
 jobs:
   helm-test:
-    uses: ./.github/workflows/test-helm.yaml
+    uses: ./.github/workflows/helm-test.yaml
   docker-build:
     name: Build
     runs-on: ubuntu-latest
