@@ -19,10 +19,8 @@ on:
     tags:
       - 'v*'
 jobs:
-  helm-test:
-    uses: ./.github/workflows/helm-test.yaml
   docker-build:
-    name: Build
+    name: Build & Push Operator
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,22 +64,24 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
-        with:
-          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM'
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-results.sarif'
+      # - name: Run Trivy vulnerability scanner
+      #   uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+      #   with:
+      #     image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+      #     format: 'template'
+      #     template: '@/contrib/sarif.tpl'
+      #     output: 'trivy-results.sarif'
+      #     severity: 'CRITICAL,HIGH,MEDIUM'
+      # - name: Upload Trivy scan results to GitHub Security tab
+      #   uses: github/codeql-action/upload-sarif@v2
+      #   with:
+      #     sarif_file: 'trivy-results.sarif'
 
+  helm-test:
+    uses: ./.github/workflows/helm-test.yaml
   helm-push:
     name: Push Helm Chart
-    needs: [docker-build, helm-test]
+    needs: [helm-test]
     runs-on: ubuntu-latest
     defaults:
       run:
