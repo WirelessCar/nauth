@@ -8,12 +8,13 @@ NATS_RELOADER_VERSION = "0.17.2"
 NATS_BOX_VERSION = "0.17.0"
 
 [tools]
-"ubi:elastic/crd-ref-docs" = "latest"
 go = "1.24.5"
 adr-tools = "latest"
 nsc = "latest"
 helm = "latest"
 kind = "latest"
+golangci-lint = "latest"
+"ubi:elastic/crd-ref-docs" = "latest"
 "go:github.com/nats-io/natscli/nats" = "latest"
 
 [settings]
