@@ -1,6 +1,7 @@
 # Default values for nauth.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+
 # -- Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace.
 nats:
   url: nats://nats.nats.svc.cluster.local:4222
@@ -21,7 +22,6 @@ image:
 
 # -- Override the chart name
 nameOverride: ""
-fullnameOverride: ""
 
 # -- Override the namespace
 namespace:
