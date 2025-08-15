@@ -1,0 +1,86 @@
+---
+title: Getting Started with nauth
+description: Quick start guide for the nauth Kubernetes operator
+---
+
+# Getting Started with nauth
+
+This guide will help you get started with nauth, a Kubernetes operator for managing decentralized authentication & authorization for NATS.
+
+## What is nauth?
+
+NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` & `User` CRDs that conveniently package:
+
+- Account creation & updates  
+- Account exports & imports
+- User creation & credentials delivery
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- A running Kubernetes cluster
+- `kubectl` configured to access your cluster  
+- Helm 3.x installed
+- A NATS operator and system account (see [operator-bootstrap](https://github.com/wirelesscar/nauth/tree/main/operator-bootstrap))
+
+:::caution[Early Development]
+This project is in early development. There will likely be breaking changes before getting to a stable release.
+:::
+
+## Quick Start
+
+1. **Install nauth using Helm:**
+
+   ```bash
+   # Add the nauth Helm repository
+   helm repo add nauth https://wirelesscar.github.io/nauth
+   
+   # Install nauth
+   helm install nauth nauth/nauth
+   ```
+
+2. **Verify the installation:**
+
+   ```bash
+   kubectl get pods -n nauth-system
+   ```
+
+3. **Create your first Account:**
+
+   ```yaml
+   apiVersion: nauth.io/v1alpha1
+   kind: Account
+   metadata:
+     name: my-account
+     namespace: default
+   spec:
+     accountLimits:
+       conn: 100
+       exports: 10
+       imports: 10
+   ```
+
+4. **Create a User for the Account:**
+
+   ```yaml
+   apiVersion: nauth.io/v1alpha1
+   kind: User
+   metadata:
+     name: my-user
+     namespace: default
+   spec:
+     accountName: my-account
+     permissions:
+       pub:
+         allow: ["my.>"]
+       sub:
+         allow: ["my.>"]
+   ```
+
+## Next Steps
+
+- [Learn about Installation →](./installation/)
+- [Explore Account Management →](./account-management/)
+- [Understand User Management →](./user-management/)
+- [Review the API Reference →](../crds/)
