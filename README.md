@@ -18,7 +18,7 @@ NAuth allows platform teams to provide easy multi-tenancy support for developmen
 NAuth supports installation through packaged [Helm](https://helm.sh) charts.
 
 ```
-helm install nauth oci://ghcr.io/wirelesscar --create-namespace --namespace nauth
+helm install nauth oci://ghcr.io/wirelesscar/nauth --create-namespace --namespace nauth
 ```
 
 ### Pre-requisites
