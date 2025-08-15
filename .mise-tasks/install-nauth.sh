@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-NAUTH_CHART_DIR="$MISE_PROJECT_ROOT/chart"
+NAUTH_CHART_DIR="$MISE_PROJECT_ROOT/charts/nauth"
 NAUTH_LOCAL_DEV_DIR="$MISE_PROJECT_ROOT/examples/nauth"
 
 docker build -t local/nauth:test $MISE_PROJECT_ROOT
