@@ -36,9 +36,7 @@ You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a th
 Check out this video for a comprehensive description on how decentralized JWT Auth works. In order to work with NAuth,
 it's important to have an understanding of how the basics work.
 
-<p align="center">
-    <iframe width="33%" height="200" src="https://www.youtube.com/embed/5pQVjN0ym5w" frameborder="0" allowfullscreen></iframe>
-</p>
+[![NATS decentralized JWT Auth](https://i3.ytimg.com/vi/5pQVjN0ym5w/hqdefault.jpg)](https://youtu.be/5pQVjN0ym5w)
 
 ## Nauth Development
 Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide.
