@@ -11,9 +11,8 @@ NAuth allows platform teams to provide easy multi-tenancy support for developmen
 - Account exports & imports
 - User creation & credentials delivery
 
-> [!WARNING]
-> This project is in early development. There will likely be breaking changes before getting to a stable release.
-> Instructions might be lacking, but will be built as we go.
+> [!NOTE]
+> This project is still in early and active development. There will likely be breaking changes before getting to a stable release.
 
 ## Installation
 NAuth supports installation through packaged [Helm](https://helm.sh) charts.
