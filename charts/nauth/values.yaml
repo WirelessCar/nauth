@@ -1,53 +1,57 @@
 # Default values for nauth.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+# -- Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace.
 nats:
   url: nats://nats.nats.svc.cluster.local:4222
 
-# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+# -- Sets the replicaset count
 replicaCount: 1
 
-# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
+  # -- Sets the operator image registry
   registry: ghcr.io/wirelesscar
+  # -- Sets the operator repository
   repository: nauth-operator
-  # This sets the pull policy for images.
+  # -- Sets the pull policy for images.
   pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
+  # -- Overrides the image tag
+  # @default -- appVersion
   tag: ""
 
-# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-imagePullSecrets: []
-# This is to override the chart name.
+# -- Override the chart name
 nameOverride: ""
 fullnameOverride: ""
 
+# -- Override the namespace
 namespace:
   nameOverride: ""
 
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
-  # Specifies whether a service account should be created
+  # -- Specifies whether a service account should be created
   create: true
-  # Automatically mount a ServiceAccount's API credentials?
+  # -- Automatically mount a ServiceAccount's API credentials?
   automount: true
-  # Annotations to add to the service account
+  # -- Annotations to add to the service account
   annotations: {}
-  # The name of the service account to use.
+  # -- The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   nameOverride: ""
 
-# This is for setting Kubernetes Annotations to a Pod.
+# -- This is for setting Kubernetes Annotations to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 podAnnotations: {}
-# This is for setting Kubernetes Labels to a Pod.
+# -- This is for setting Kubernetes Labels to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
+# -- Pod security context
 podSecurityContext:
   runAsNonRoot: true
   # fsGroup: 2000
 
+# -- SecurityContext of the container
 securityContext:
   # This is defined by the distroless nonroot user
   runAsUser: 65532
@@ -60,15 +64,14 @@ securityContext:
     type: RuntimeDefault
 
 monitoring:
+  # -- Enables nauth to use monitoring capabilities. Requires CRD:s to be installed.
   enabled: false
+  # -- Enables serviceMonitor feature. Requies CRD to be installed beforehand.
   serviceMonitor:
     enabled: false
 
+# -- Setting resources is up to the user. Follows PodSpec.
 resources: {}
-# We usually recommend not to specify default resources and to leave this as a conscious
-# choice for the user. This also increases chances charts run on environments with little
-# resources, such as Minikube. If you do want to specify resources, uncomment the following
-# lines, adjust them as necessary, and remove the curly braces after 'resources:'.
 # limits:
 #   cpu: 100m
 #   memory: 128Mi
@@ -76,7 +79,7 @@ resources: {}
 #   cpu: 100m
 #   memory: 128Mi
 
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+# -- This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
   httpGet:
     path: /healthz
@@ -89,13 +92,6 @@ readinessProbe:
     port: 8081
   initialDelaySeconds: 5
   periodSeconds: 10
-
-autoscaling: {}
-# enabled: false
-# minReplicas: 1
-# maxReplicas: 100
-# targetCPUUtilizationPercentage: 80
-# # targetMemoryUtilizationPercentage: 80
 
 volumes: []
 

@@ -1,0 +1,77 @@
+name: Setup Helm Docs
+description: Action that installs Helm Docs, a tool for automatically generating markdown documentation for Helm charts
+branding:
+  color: blue
+  icon: download
+inputs:
+  repo:
+    description: The Helm Docs repo to use
+    default: norwoodj/helm-docs
+  token:
+    description: GitHub token
+    default: ${{ github.token }}
+  version:
+    description: The Helm Docs version to install
+    default: latest
+outputs:
+  version:
+    description: The Helm Docs version that was installed
+    value: ${{ steps.install.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: install
+      name: Install helm-docs
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ inputs.repo }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        if [[ "$VERSION" == latest ]]; then
+          VERSION=
+        fi
+
+        case "${{ runner.os }}" in
+          Linux)
+            OS=linux
+            FILENAME=helm-docs
+            ;;
+          macOS)
+            OS=darwin
+            FILENAME=helm-docs
+            ;;
+          Windows)
+            OS=windows
+            FILENAME=helm-docs.exe
+            ;;
+        esac
+
+        RELEASE="$(gh release view --json=name,assets $VERSION)"
+        VERSION="$(jq -r '.name' <<<"$RELEASE")"
+        echo "version=$VERSION" >>$GITHUB_OUTPUT
+        echo "Installing helm-docs $VERSION..."
+
+        DEST="$RUNNER_TEMP/helm-docs"
+        ASSET="$(jq -r --arg OS "$OS" \
+          '.assets[].name | select(ascii_downcase | test($OS + "_(amd64|x86_64).(tar.gz|zip)$"))' \
+          <<<"$RELEASE" \
+        )"
+
+        echo "Downloading $ASSET"
+        mkdir -p "$DEST"
+        cd "$DEST"
+        case "$ASSET" in
+          *.tar.gz)
+            gh release download "$VERSION" --pattern="$ASSET" --output=- | tar -xzf - "$FILENAME" ;;
+          *.zip)
+            gh release download "$VERSION" --pattern="$ASSET"
+            unzip -o "$ASSET" "$FILENAME"
+            rm "$ASSET"
+            ;;
+          *)
+            echo Invalid file type; exit 1;;
+        esac
+        echo "$DEST" >>$GITHUB_PATH
