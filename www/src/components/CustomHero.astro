@@ -1,57 +1,58 @@
 ---
-import { LinkButton } from '@astrojs/starlight/components';
-import { Image } from 'astro:assets';
-import KubernetesIcon from '~icons/devicon/kubernetes';
-import NatsIcon from '~icons/devicon/nats';
+import { LinkButton } from "@astrojs/starlight/components";
+import { Image } from "astro:assets";
+
+import KubernetesIcon from "~icons/devicon/kubernetes";
+import NatsIcon from "~icons/devicon/nats";
 
 const { data } = Astro.locals.starlightRoute.entry;
 const { title = data.title, tagline, image, actions = [] } = data.hero || {};
 
 // Use the same constant value as Starlight
-const PAGE_TITLE_ID = '_top';
+const _PAGE_TITLE_ID = "_top";
 
-const imageAttrs = {
-	loading: 'eager' as const,
-	decoding: 'async' as const,
+const _imageAttrs = {
+	loading: "eager" as const,
+	decoding: "async" as const,
 	width: 400,
 	height: 400,
-	alt: image?.alt || '',
+	alt: image?.alt || "",
 };
 
-let darkImage: ImageMetadata | undefined;
-let lightImage: ImageMetadata | undefined;
-let rawHtml: string | undefined;
+let _darkImage: ImageMetadata | undefined;
+let _lightImage: ImageMetadata | undefined;
+let _rawHtml: string | undefined;
 if (image) {
-	if ('file' in image) {
-		darkImage = image.file;
-	} else if ('dark' in image) {
-		darkImage = image.dark;
-		lightImage = image.light;
+	if ("file" in image) {
+		_darkImage = image.file;
+	} else if ("dark" in image) {
+		_darkImage = image.dark;
+		_lightImage = image.light;
 	} else {
-		rawHtml = image.html;
+		_rawHtml = image.html;
 	}
 }
 
 // Custom tagline with icons
-const customTagline = tagline === 'Simplify NATS Operator & Account management for Kubernetes';
+const _customTagline = tagline === "Simplify NATS Operator & Account management for Kubernetes";
 ---
 
 <div class="hero">
 	{
-		darkImage && (
+		_darkImage && (
 			<Image
-				src={darkImage}
-				{...imageAttrs}
-				class:list={{ 'light:sl-hidden': Boolean(lightImage) }}
+				src={_darkImage}
+				{..._imageAttrs}
+				class:list={{ 'light:sl-hidden': Boolean(_lightImage) }}
 			/>
 		)
 	}
-	{lightImage && <Image src={lightImage} {...imageAttrs} class="dark:sl-hidden" />}
-	{rawHtml && <div class="hero-html sl-flex" set:html={rawHtml} />}
+	{_lightImage && <Image src={_lightImage} {..._imageAttrs} class="dark:sl-hidden" />}
+	{_rawHtml && <div class="hero-html sl-flex" set:html={_rawHtml} />}
 	<div class="sl-flex stack">
 		<div class="sl-flex copy">
-			<h1 id={PAGE_TITLE_ID} data-page-title set:html={title} />
-			{customTagline ? (
+			<h1 id={_PAGE_TITLE_ID} data-page-title set:html={title} />
+			{_customTagline ? (
 				<div class="tagline">
 					Simplify <NatsIcon class="inline-icon" /> NATS Operator & Account management for <KubernetesIcon class="inline-icon" /> Kubernetes
 				</div>
@@ -119,7 +120,7 @@ const customTagline = tagline === 'Simplify NATS Operator & Account management f
 		.tagline {
 			font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
 			color: var(--sl-color-gray-2);
-      max-width: 20ch;
+      max-width: 30ch;
 		}
 
 		.actions {

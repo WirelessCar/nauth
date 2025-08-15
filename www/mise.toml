@@ -1,0 +1,52 @@
+min_version = "2024.9.5"
+
+[env]
+PROJECT_NAME = "{{ config_root | basename }}"
+
+NODE_ENV = "development"
+
+[tools]
+bun = "latest"
+"npm:@biomejs/biome" = "2.0.6"
+
+[tasks.install]
+description = "Install dependencies"
+alias = "i"
+run = "bun install"
+
+[tasks.dev]
+description = "Start development server"
+alias = "d"
+run = "bun run dev"
+
+[tasks.build]
+description = "Build the site"
+alias = "b"
+run = "bun run build"
+
+[tasks.preview]
+description = "Preview built site"
+alias = "p"
+run = "bun run preview"
+
+[tasks.clean]
+description = "Clean node_modules and dist"
+run = """
+rm -rf node_modules
+rm -rf dist
+"""
+
+[tasks.lint]
+description = "Lint code with biome"
+alias = "l"
+run = "biome lint ."
+
+[tasks.format]
+description = "Format code with biome"
+alias = "f"
+run = "biome format --write ."
+
+[tasks.check]
+description = "Run biome check (lint + format)"
+alias = "c"
+run = "biome check --write ."
