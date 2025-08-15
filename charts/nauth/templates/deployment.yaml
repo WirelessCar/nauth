@@ -7,9 +7,7 @@ metadata:
     control-plane: controller-manager
     {{- include "nauth.labels" . | nindent 4 }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
       control-plane: controller-manager
@@ -25,10 +23,6 @@ spec:
         control-plane: controller-manager
         app.kubernetes.io/name: {{ include "nauth.name" . }}
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       serviceAccountName: {{ include "nauth.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
       securityContext:
