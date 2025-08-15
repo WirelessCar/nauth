@@ -103,5 +103,5 @@ jobs:
           echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/wirelesscar/nauth --username ${{ github.repository_owner }} --password-stdin
       - name: helm push
         run: |
-          helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar/nauth/charts
+          helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar
 
