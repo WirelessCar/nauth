@@ -7,7 +7,6 @@ NODE_ENV = "development"
 
 [tools]
 bun = "latest"
-"npm:@biomejs/biome" = "2.0.6"
 
 [tasks.install]
 description = "Install dependencies"

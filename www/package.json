@@ -18,6 +18,6 @@
 		"unplugin-icons": "^22.2.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.0.6"
+		"@biomejs/biome": "2.1.1"
 	}
 }
