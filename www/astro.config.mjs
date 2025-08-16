@@ -27,8 +27,15 @@ export default defineConfig({
 				src: "./src/assets/nauth.svg",
 			},
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/wirelesscar/nauth" }],
+			// Enable edit links to make footer visible
+			editLink: {
+				baseUrl: 'https://github.com/wirelesscar/nauth/edit/main/docs/',
+			},
+			// Enable credits to show "Built with Starlight" in footer
+			credits: true,
 			components: {
 				Hero: "./src/components/CustomHero.astro",
+				Footer: "./src/components/CustomFooter.astro",
 			},
 			sidebar: [
 				{

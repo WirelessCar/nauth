@@ -75,10 +75,3 @@ This project is in early development. There will likely be breaking changes befo
        sub:
          allow: ["my.>"]
    ```
-
-## Next Steps
-
-- [Learn about Installation →](./installation/)
-- [Explore Account Management →](./account-management/)
-- [Understand User Management →](./user-management/)
-- [Review the API Reference →](../crds/)
