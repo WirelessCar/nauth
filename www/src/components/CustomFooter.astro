@@ -1,0 +1,48 @@
+---
+// Custom footer component that extends the default Starlight footer
+import EditLink from 'virtual:starlight/components/EditLink';
+import LastUpdated from 'virtual:starlight/components/LastUpdated';
+import Pagination from 'virtual:starlight/components/Pagination';
+import config from 'virtual:starlight/user-config';
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<footer class="sl-flex">
+	<div class="meta sl-flex">
+		<EditLink />
+		<LastUpdated />
+	</div>
+	<Pagination />
+
+	<div class="copyright-notice">
+		©2025 The Nauth Authors. Built with ❤️ at <a href="https://www.wirelesscar.com">WirelessCar</a>
+	</div>
+</footer>
+
+<style>
+	@layer starlight.core {
+		footer {
+			flex-direction: column;
+			gap: 1.5rem;
+		}
+	}
+
+	.copyright-notice {
+		text-align: center;
+		padding: 1rem 0;
+		border-top: 1px solid var(--sl-color-gray-5);
+		color: var(--sl-color-gray-2);
+		font-size: var(--sl-text-xs);
+	}
+
+	/* Ensure heart emoji displays properly */
+	.copyright-notice {
+		font-feature-settings: "kern" 1;
+	}
+
+	/* Dark mode adjustments for Flexoki theme */
+	[data-theme="dark"] .copyright-notice {
+		border-top-color: var(--sl-color-gray-6);
+		color: var(--sl-color-gray-3);
+	}
+</style>
