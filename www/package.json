@@ -14,6 +14,7 @@
 		"@iconify/json": "^2.2.373",
 		"astro": "^5.6.1",
 		"sharp": "^0.34.2",
+		"starlight-llms-txt": "^0.6.0",
 		"starlight-theme-flexoki": "^0.2.0",
 		"unplugin-icons": "^22.2.0"
 	},

@@ -3,6 +3,7 @@
 import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 import starlightThemeFlexoki from "starlight-theme-flexoki";
+import starlightLlmsTxt from 'starlight-llms-txt'
 import Icons from "unplugin-icons/vite";
 
 // https://astro.build/config
@@ -20,6 +21,7 @@ export default defineConfig({
 				starlightThemeFlexoki({
 					accentColor: "blue",
 				}),
+				starlightLlmsTxt()
 			],
 			title: "Nauth",
 			description: "Kubernetes operator for NATS decentralized authentication",
