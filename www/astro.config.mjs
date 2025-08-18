@@ -9,14 +9,13 @@ import Icons from "unplugin-icons/vite";
 // https://astro.build/config
 export default defineConfig({
 	site: "https://wirelesscar.github.io",
-	base: "/nauth",
-	publicDir: "../../assets",
+	base: import.meta.env.PROD ? "/nauth" : "/",
 	vite: {
 		plugins: [Icons({ compiler: "astro" })],
 	},
 	integrations: [
 		starlight({
-			favicon: "./src/assets/nauth.svg",
+			favicon: "./public/nauth.svg",
 			plugins: [
 				starlightThemeFlexoki({
 					accentColor: "blue",
@@ -26,7 +25,7 @@ export default defineConfig({
 			title: "Nauth",
 			description: "Kubernetes operator for NATS decentralized authentication",
 			logo: {
-				src: "./src/assets/nauth.svg",
+				src: "./public/nauth.svg",
 			},
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/wirelesscar/nauth" }],
 			editLink: {
