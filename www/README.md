@@ -24,28 +24,6 @@ Images can be added to `src/assets/` and embedded in Markdown with a relative li
 
 Static assets, like favicons, can be placed in the `public/` directory.
 
-## Symlinks
-
-In order to keep the docs folder in the root of the project, we add symlinks like so:
-
-```
-/assets/                        (main assets)
-└── nauth.png
-
-/docs/                          (main documentation)
-├── guides/
-├── reference/
-└── crds.md
-
-/www/src/                       (Starlight/Astro structure)
-├── assets/ → ../../assets      (symlink to main assets)
-├── content/
-│   ├── docs/
-│   │   ├── index.mdx          (landing page)
-│   │   ├── guides/ → ../../../../docs/guides (symlink)
-│   │   ├── reference/ → ../../../../docs/reference (symlink)
-│   │   └── crds.md → ../../../../docs/crds.md (symlink)
-│   └── content.config.ts
 
 ## 🧞 Commands
 
