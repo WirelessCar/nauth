@@ -1,4 +1,7 @@
-# API Reference
+---
+title: API Reference
+description: Complete API reference for nauth CRDs
+---
 
 ## Packages
 - [nauth.io/v1alpha1](#nauthiov1alpha1)

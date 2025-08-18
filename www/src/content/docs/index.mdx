@@ -1,0 +1,98 @@
+---
+title: Nauth
+description: Simplify NATS Operator & Account management for Kubernetes
+template: splash
+editUrl: false
+hero:
+  tagline: Simplify NATS Operator & Account management for Kubernetes
+  image:
+    file: ../../assets/nauth.svg
+  actions:
+    - text: Get Started
+      link: ./nauth/crds/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/wirelesscar/nauth
+      icon: github
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import IconKubernetes from "~icons/devicon/kubernetes";
+import FluentColorShieldCheckmark48 from '~icons/fluent-color/shield-checkmark-48';
+import Card from "../../components/Card.astro";
+
+{/* ## Quick Start
+
+<CardGrid stagger>
+  <LinkCard 
+    title="Quick Start" 
+    icon="rocket"
+    href="./guides/quick-start/"
+    description="Get up and running with Nauth in minutes. Perfect for testing and development environments."
+  />
+  
+  <LinkCard 
+    title="Complete Setup" 
+    icon="open-book"
+    href="./guides/installation/"
+    description="Full installation guide with production-ready configurations and security best practices."
+  />
+  
+  <LinkCard 
+    title="User Management" 
+    icon="users"
+    href="./guides/user-management/"
+    description="Create and manage NATS users with fine-grained permissions and access controls."
+  />
+  
+  <LinkCard 
+    title="Account Management" 
+    icon="setting"
+    href="./guides/account-management/"
+    description="Configure NATS accounts, set limits, and organize your messaging infrastructure."
+  />
+</CardGrid> */}
+
+## Why Nauth?
+
+<CardGrid stagger>
+  <Card title="Kubernetes Native">
+    <IconKubernetes slot="icon" class="icon" size="1.333em" /> 
+    Built specifically for Kubernetes with Custom Resource Definitions (CRDs) for seamless integration.
+  </Card>
+  
+  <Card title="Secure by Default">
+    <FluentColorShieldCheckmark48 slot="icon" class="icon" size="1.333em" />
+    Automated key rotation, secure credential management, and isolation between accounts.
+  </Card>
+  
+  <Card title="Easy to Use" icon="approve-check">
+    Simple YAML configurations that abstract away the complexity of NATS operator management.
+  </Card>
+</CardGrid>
+
+## Documentation
+
+<CardGrid>
+  <LinkCard 
+    title="API Reference" 
+    icon="document"
+    href="./nauth/crds/"
+    description="Complete API documentation for all Custom Resource Definitions."
+  />
+  
+  {/* <LinkCard 
+    title="Troubleshooting" 
+    icon="warning"
+    href="./guides/troubleshooting/"
+    description="Common issues and their solutions to keep your NATS infrastructure running smoothly."
+  />
+  
+  <LinkCard 
+    title="Advanced Scenarios" 
+    icon="rocket"
+    href="./guides/advanced-scenarios/"
+    description="Advanced configuration patterns and real-world deployment scenarios."
+  /> */}
+</CardGrid>

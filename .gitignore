@@ -35,3 +35,6 @@ go.work.sum
 # Helm
 **/*.tgz
 **/Chart.lock
+
+# MacOS
+.DS_Store
