@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="./assets/nauth.svg" alt="NAUTH" width="280" height="200">
+    <img src="./www/public/nauth.svg" alt="NAUTH" width="280" height="200">
 </p>
 
 # NAUTH
