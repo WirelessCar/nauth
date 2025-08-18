@@ -27,10 +27,12 @@ export default defineConfig({
 				src: "./src/assets/nauth.svg",
 			},
 			social: [{ icon: "github", label: "GitHub", href: "https://github.com/wirelesscar/nauth" }],
-			// Enable edit links to make footer visible
-			editLink: {
-				baseUrl: 'https://github.com/wirelesscar/nauth/edit/main/docs/',
-			},
+			// Route middleware will handle all edit links
+			routeMiddleware: './src/routeMiddleware.ts',
+			// Disable default edit link - middleware will handle everything
+			// editLink: {
+			//   baseUrl: 'https://github.com/wirelesscar/nauth/edit/main/www/src/content/docs/',
+			// },
 			// Enable credits to show "Built with Starlight" in footer
 			credits: true,
 			components: {
