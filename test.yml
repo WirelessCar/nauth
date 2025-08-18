@@ -1,0 +1,7 @@
+on:
+  pull_request_target:
+    paths-ignore:
+      - 'www/**'
+  push:
+    paths-ignore:
+      - 'www/**'
