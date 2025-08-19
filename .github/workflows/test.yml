@@ -16,11 +16,19 @@ name: Operator tests
 
 on:
   pull_request_target:
-    branches:
-      - main
+    paths:
+      - 'dir/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - Dockerfile
+      - go.*
   push:
-    branches:
-      - main
+    paths:
+      - 'dir/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - Dockerfile
+      - go.*
 
 jobs:
   test:
