@@ -8,8 +8,7 @@ import Icons from "unplugin-icons/vite";
 
 // https://astro.build/config
 export default defineConfig({
-	site: "https://wirelesscar.github.io",
-	base: import.meta.env.PROD ? "/nauth" : "/",
+	site: "https://nauth.io",
 	vite: {
 		plugins: [Icons({ compiler: "astro" })],
 	},
