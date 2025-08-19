@@ -39,6 +39,10 @@ export default defineConfig({
 			},
 			sidebar: [
 				{
+					label: "Guides",
+					items: [{ label: "Getting Started", slug: "guides/getting-started" }],
+				},
+				{
 					label: "Reference",
 					items: [{ label: "API Reference", slug: "crds" }],
 				},
