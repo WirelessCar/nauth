@@ -3,10 +3,6 @@ title: Getting Started
 description: Get started with NAuth
 ---
 
-<p align="center">
-    <img src="/public/nauth.svg" alt="NAUTH" width="200" height="150">
-</p>
-
 A Kubernetes operator for managing [decentralized authentication & authorization for NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt)
 
 NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` & `User` CRD:s that conveniently packages:
