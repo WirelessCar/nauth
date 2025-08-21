@@ -89,7 +89,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// USER MARKED FOR DELETION
-	if !user.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !user.DeletionTimestamp.IsZero() {
 		// The user is being deleted
 		meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
 			Type:    types.ControllerTypeReady,
@@ -121,7 +121,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// Nothing has changed
-	if user.Status.ObservedGeneration == user.ObjectMeta.Generation {
+	if user.Status.ObservedGeneration == user.Generation {
 		return ctrl.Result{}, nil
 	}
 

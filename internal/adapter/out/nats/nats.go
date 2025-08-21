@@ -83,10 +83,15 @@ func (n *NATSClient) EnsureConnected(namespace string, secretName string) error 
 }
 
 func (n *NATSClient) Disconnect() {
-	if n.conn != nil && n.conn.IsConnected() {
-		n.conn.Drain()
-		n.conn.Close()
-	} else if n.conn != nil {
+	if n.conn == nil {
+		return
+	}
+
+	if n.conn.IsConnected() {
+		if err := n.conn.Drain(); err != nil {
+			n.conn.Close()
+		}
+	} else {
 		n.conn.Close()
 	}
 }
