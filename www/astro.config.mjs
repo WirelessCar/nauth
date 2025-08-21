@@ -14,7 +14,7 @@ export default defineConfig({
 	},
 	integrations: [
 		starlight({
-			favicon: "./public/nauth.svg",
+			favicon: "./nauth.svg",
 			plugins: [
 				starlightThemeFlexoki({
 					accentColor: "blue",
@@ -30,8 +30,10 @@ export default defineConfig({
 			editLink: {
 				baseUrl: "https://github.com/wirelesscar/nauth/edit/main/www/src/content/docs/",
 			},
-			// Enable credits to show "Built with Starlight" in footer
-			credits: true,
+			customCss: [
+				'./src/styles/custom.css',
+			],
+			credits: false,
 			components: {
 				Hero: "./src/components/CustomHero.astro",
 				Footer: "./src/components/CustomFooter.astro",
