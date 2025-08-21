@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/nats-io/nkeys"
@@ -91,9 +91,9 @@ var _ = Describe("User manager", func() {
 			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
 
 			user.Spec.NatsLimits = &v1alpha1.NatsLimits{
-				Subs:    pointer.Int64(100),
-				Data:    pointer.Int64(1024),
-				Payload: pointer.Int64(256),
+				Subs:    ptr.To[int64](100),
+				Data:    ptr.To[int64](1024),
+				Payload: ptr.To[int64](256),
 			}
 
 			err = userManager.CreateOrUpdateUser(ctx, user)

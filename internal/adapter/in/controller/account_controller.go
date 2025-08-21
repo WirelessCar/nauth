@@ -88,7 +88,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// ACCOUNT MARKED FOR DELETION
-	if !natsAccount.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !natsAccount.DeletionTimestamp.IsZero() {
 		// The account is being deleted
 		meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
 			Type:    types.ControllerTypeReady,
@@ -136,7 +136,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Nothing has changed
-	if natsAccount.Status.ObservedGeneration == natsAccount.ObjectMeta.Generation {
+	if natsAccount.Status.ObservedGeneration == natsAccount.Generation {
 		return ctrl.Result{}, nil
 	}
 

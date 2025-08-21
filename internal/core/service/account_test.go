@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -97,11 +97,11 @@ var _ = Describe("Account manager", func() {
 
 			By("updating account")
 			account.Spec.AccountLimits = &v1alpha1.AccountLimits{
-				Imports:         pointer.Int64(10),
-				Exports:         pointer.Int64(10),
-				WildcardExports: pointer.Bool(true),
-				Conn:            pointer.Int64(100),
-				LeafNodeConn:    pointer.Int64(0),
+				Imports:         ptr.To[int64](10),
+				Exports:         ptr.To[int64](10),
+				WildcardExports: ptr.To[bool](true),
+				Conn:            ptr.To[int64](100),
+				LeafNodeConn:    ptr.To[int64](0),
 			}
 			err = accountManager.UpdateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
@@ -149,9 +149,9 @@ func GetNewAccount() *v1alpha1.Account {
 		},
 		Spec: v1alpha1.AccountSpec{
 			JetStreamLimits: &v1alpha1.JetStreamLimits{
-				MemoryStorage: pointer.Int64(unlimitedLimit),
-				DiskStorage:   pointer.Int64(unlimitedLimit),
-				Consumer:      pointer.Int64(unlimitedLimit),
+				MemoryStorage: ptr.To[int64](unlimitedLimit),
+				DiskStorage:   ptr.To[int64](unlimitedLimit),
+				Consumer:      ptr.To[int64](unlimitedLimit),
 			},
 		},
 	}

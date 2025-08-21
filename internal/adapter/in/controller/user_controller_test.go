@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -66,12 +65,13 @@ var _ = Describe("User Controller", func() {
 					Name: userNamespacedName.Namespace,
 				},
 			}
-			k8sClient.Create(ctx, ns)
+			err := k8sClient.Create(ctx, ns)
+			Expect(err).NotTo(HaveOccurred())
 
 			By("creating the custom user for the Kind User")
 			user := &natsv1alpha1.User{}
-			err := k8sClient.Get(ctx, userNamespacedName, user)
-			if err != nil && errors.IsNotFound(err) {
+			err = k8sClient.Get(ctx, userNamespacedName, user)
+			if err != nil && k8err.IsNotFound(err) {
 				user := &natsv1alpha1.User{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      userName,
@@ -96,8 +96,8 @@ var _ = Describe("User Controller", func() {
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
-
 				Expect(err).NotTo(HaveOccurred())
+
 				err = k8sClient.Get(ctx, userNamespacedName, user)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -107,7 +107,7 @@ var _ = Describe("User Controller", func() {
 				}
 
 				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(HaveLen(0))
+				Expect(fakeRecorder.Events).To(BeEmpty())
 			})
 
 			It("should fails when trying to create a new user without a valid account", func() {
@@ -137,25 +137,31 @@ var _ = Describe("User Controller", func() {
 		})
 
 		Context("User delete reconciliation", func() {
-			It("should succesfully remove the user marked for deletion", func() {
+			It("should successfully remove the user marked for deletion", func() {
 				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil)
 				userManagerMock.On("DeleteUser", mock.Anything, mock.Anything).Return(nil)
 				user := &natsv1alpha1.User{}
 
-				controllerReconciler.Reconcile(ctx, reconcile.Request{
-					NamespacedName: userNamespacedName,
-				})
-				k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(controllerutil.ContainsFinalizer(user, types.ControllerUserFinalizer)).To(BeTrue())
-
-				k8sClient.Delete(ctx, user)
-
-				k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(user.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
-
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(controllerutil.ContainsFinalizer(user, types.ControllerUserFinalizer)).To(BeTrue())
+
+				err = k8sClient.Delete(ctx, user)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(user.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: userNamespacedName,
+				})
+				Expect(err).ToNot(HaveOccurred())
 
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
@@ -167,7 +173,7 @@ var _ = Describe("User Controller", func() {
 				Expect(k8err.IsNotFound(err)).To(BeTrue())
 
 				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(HaveLen(0))
+				Expect(fakeRecorder.Events).To(BeEmpty())
 			})
 
 			It("should fail to remove the user when delete client fails", func() {
@@ -176,24 +182,30 @@ var _ = Describe("User Controller", func() {
 				userManagerMock.On("DeleteUser", mock.Anything, mock.Anything).Return(userDeleteError)
 				user := &natsv1alpha1.User{}
 
-				controllerReconciler.Reconcile(ctx, reconcile.Request{
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
-				k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
 				Expect(controllerutil.ContainsFinalizer(user, types.ControllerUserFinalizer)).To(BeTrue())
 
-				k8sClient.Delete(ctx, user)
+				err = k8sClient.Delete(ctx, user)
+				Expect(err).ToNot(HaveOccurred())
 
-				k8sClient.Get(ctx, userNamespacedName, user)
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
 				Expect(user.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring(userDeleteError.Error()))
 
-				k8sClient.Get(ctx, userNamespacedName, user)
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).ToNot(HaveOccurred())
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
 					Expect(c.Reason).To(Equal(types.ControllerReasonErrored))

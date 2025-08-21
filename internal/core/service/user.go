@@ -64,15 +64,15 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		UserLimits:  state.Spec.UserLimits,
 	}
 
-	if state.ObjectMeta.Labels == nil {
-		state.ObjectMeta.Labels = map[string]string{}
+	if state.Labels == nil {
+		state.Labels = map[string]string{}
 	}
 
 	state.GetLabels()[domain.LabelUserId] = userPublicKey
 	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountId]
 	state.GetLabels()[domain.LabelUserSignedBy] = signingKeyPublicKey
 
-	state.Status.ObservedGeneration = state.ObjectMeta.Generation
+	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
 
 	return nil
@@ -178,7 +178,7 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 			natsLimits.Payload = -1
 		}
 
-		u.claim.Limits.NatsLimits = natsLimits
+		u.claim.NatsLimits = natsLimits
 	}
 
 	return u

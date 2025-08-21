@@ -124,8 +124,8 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		return err
 	}
 
-	if state.ObjectMeta.Labels == nil {
-		state.ObjectMeta.Labels = map[string]string{}
+	if state.Labels == nil {
+		state.Labels = map[string]string{}
 	}
 	state.GetLabels()[domain.LabelAccountId] = accountPublicKey
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
@@ -163,7 +163,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.ObjectMeta.Generation
+	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
 
 	return nil
@@ -218,8 +218,8 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
-	if state.ObjectMeta.Labels == nil {
-		state.ObjectMeta.Labels = map[string]string{}
+	if state.Labels == nil {
+		state.Labels = map[string]string{}
 	}
 	state.GetLabels()[domain.LabelAccountId] = accountPublicKey
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
@@ -255,7 +255,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.ObjectMeta.Generation
+	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
 
 	return nil

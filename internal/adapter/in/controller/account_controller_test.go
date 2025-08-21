@@ -83,18 +83,20 @@ var _ = Describe("Account Controller", func() {
 					Name: accountOperatorNamespace,
 				},
 			}
-			k8sClient.Create(ctx, ns)
+			err := k8sClient.Create(ctx, ns)
+			Expect(err).ToNot(HaveOccurred())
 
 			ns = &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: accountNamespace,
 				},
 			}
-			k8sClient.Create(ctx, ns)
+			err = k8sClient.Create(ctx, ns)
+			Expect(err).ToNot(HaveOccurred())
 
 			By("creating the custom account for the Kind Account")
 			account := &natsv1alpha1.Account{}
-			err := k8sClient.Get(ctx, accountNamespacedName, account)
+			err = k8sClient.Get(ctx, accountNamespacedName, account)
 			if err != nil && k8err.IsNotFound(err) {
 				account := &natsv1alpha1.Account{
 					ObjectMeta: metav1.ObjectMeta{
@@ -131,7 +133,7 @@ var _ = Describe("Account Controller", func() {
 				}
 
 				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(HaveLen(0))
+				Expect(fakeRecorder.Events).To(BeEmpty())
 			})
 
 			It("should fail to reconcile the account", func() {
@@ -162,26 +164,31 @@ var _ = Describe("Account Controller", func() {
 		})
 
 		Context("Account delete reconciliation", func() {
-			It("should succesfully remove the account marked for deletion", func() {
+			It("should successfully remove the account marked for deletion", func() {
 				accountManagerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(nil).Once()
 				accountManagerMock.On("DeleteAccount", mock.Anything, mock.Anything).Return(nil).Once()
 				account := &natsv1alpha1.Account{}
 
-				controllerReconciler.Reconcile(ctx, reconcile.Request{
-					NamespacedName: accountNamespacedName,
-				})
-
-				k8sClient.Get(ctx, accountNamespacedName, account)
-				Expect(controllerutil.ContainsFinalizer(account, types.ControllerAccountFinalizer)).To(BeTrue())
-
-				k8sClient.Delete(ctx, account)
-
-				k8sClient.Get(ctx, accountNamespacedName, account)
-				Expect(account.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
-
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(controllerutil.ContainsFinalizer(account, types.ControllerAccountFinalizer)).To(BeTrue())
+
+				err = k8sClient.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(account.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).ToNot(HaveOccurred())
 
 				err = k8sClient.Get(ctx, accountNamespacedName, account)
 				Expect(err).To(HaveOccurred())
@@ -194,22 +201,26 @@ var _ = Describe("Account Controller", func() {
 				accountManagerMock.On("DeleteAccount", mock.Anything, mock.Anything).Return(deletionErr).Once()
 				account := &natsv1alpha1.Account{}
 
-				controllerReconciler.Reconcile(ctx, reconcile.Request{
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})
+				Expect(err).ToNot(HaveOccurred())
 
-				k8sClient.Get(ctx, accountNamespacedName, account)
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
 				Expect(controllerutil.ContainsFinalizer(account, types.ControllerAccountFinalizer)).To(BeTrue())
 
-				k8sClient.Delete(ctx, account)
+				err = k8sClient.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring(deletionErr.Error()))
 
-				k8sClient.Get(ctx, accountNamespacedName, account)
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
 				for _, c := range account.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
 					Expect(c.Reason).To(Equal(types.ControllerReasonErrored))
@@ -236,7 +247,7 @@ type AccountManagerMock struct {
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 
-	state.ObjectMeta.Labels = map[string]string{
+	state.Labels = map[string]string{
 		domain.LabelAccountId: accountPublicKey,
 	}
 
@@ -253,7 +264,7 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 
-	state.ObjectMeta.Labels = map[string]string{
+	state.Labels = map[string]string{
 		domain.LabelAccountId: accountPublicKey,
 	}
 
