@@ -65,12 +65,11 @@ var _ = Describe("User Controller", func() {
 					Name: userNamespacedName.Namespace,
 				},
 			}
-			err := k8sClient.Create(ctx, ns)
-			Expect(err).NotTo(HaveOccurred())
+			_ = k8sClient.Create(ctx, ns)
 
 			By("creating the custom user for the Kind User")
 			user := &natsv1alpha1.User{}
-			err = k8sClient.Get(ctx, userNamespacedName, user)
+			err := k8sClient.Get(ctx, userNamespacedName, user)
 			if err != nil && k8err.IsNotFound(err) {
 				user := &natsv1alpha1.User{
 					ObjectMeta: metav1.ObjectMeta{

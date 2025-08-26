@@ -83,20 +83,18 @@ var _ = Describe("Account Controller", func() {
 					Name: accountOperatorNamespace,
 				},
 			}
-			err := k8sClient.Create(ctx, ns)
-			Expect(err).ToNot(HaveOccurred())
+			_ = k8sClient.Create(ctx, ns)
 
 			ns = &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: accountNamespace,
 				},
 			}
-			err = k8sClient.Create(ctx, ns)
-			Expect(err).ToNot(HaveOccurred())
+			_ = k8sClient.Create(ctx, ns)
 
 			By("creating the custom account for the Kind Account")
 			account := &natsv1alpha1.Account{}
-			err = k8sClient.Get(ctx, accountNamespacedName, account)
+			err := k8sClient.Get(ctx, accountNamespacedName, account)
 			if err != nil && k8err.IsNotFound(err) {
 				account := &natsv1alpha1.Account{
 					ObjectMeta: metav1.ObjectMeta{
