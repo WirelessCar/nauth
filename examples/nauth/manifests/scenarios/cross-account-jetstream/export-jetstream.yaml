@@ -1,19 +1,19 @@
-# This manifest sets up NATS accounts for the `ns1` namespace which contains a JetStream `stream-a`
+# This manifest sets up NATS accounts for the `export-account` namespace which contains a JetStream `stream-a`
 # The JS API:s for this stream are exported in order to demonstrate a cross-account scenario using NAuth & NACK.
 
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ns1
+  name: export-account
 
 ---
 apiVersion: jetstream.nats.io/v1beta2
 kind: Account
 metadata:
-  name: ns1
-  namespace: ns1
+  name: export-account
+  namespace: export-account
 spec:
-  name: ns1
+  name: export-account
   creds:
     file: user.creds
     secret:
@@ -23,7 +23,8 @@ spec:
 apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
-  name: ns1
+  name: export-account
+  namespace: export-account
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 spec:
@@ -45,11 +46,11 @@ spec:
     payload: 50000
     subs: 100
   exports:
-    - name: ns2-stream-a-data
-      subject: ns1.ns2.stream-a.S.>
+    - name: import-account-stream-a-data
+      subject: export-account.import-account.stream-a.S.>
       type: stream
-    - name: ns2-stream-a-flow-control
-      subject: $JS.FC.ns1.ns2.stream-a.>
+    - name: import-account-stream-a-flow-control
+      subject: $JS.FC.export-account.import-account.stream-a.>
       type: service
     - name: stream-a-consumer-api
       subject: $JS.API.CONSUMER.CREATE.stream-a
@@ -64,9 +65,10 @@ spec:
 apiVersion: jetstream.nats.io/v1beta2
 kind: Stream
 metadata:
+  namespace: export-account
   name: stream-a
 spec:
-  account: ns1
+  account: export-account
   name: stream-a
   subjects:
     - test.>
@@ -80,9 +82,10 @@ spec:
 apiVersion: nauth.io/v1alpha1
 kind: User
 metadata:
+  namespace: export-account
   name: nack
 spec:
-  accountName: ns1
+  accountName: export-account
   permissions:
     pub:
       allow:
@@ -103,6 +106,7 @@ spec:
 apiVersion: nauth.io/v1alpha1
 kind: User
 metadata:
+  namespace: export-account
   name: myuser
 spec:
-  accountName: ns1
+  accountName: export-account
