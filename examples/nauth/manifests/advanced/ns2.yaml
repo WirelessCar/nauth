@@ -1,0 +1,138 @@
+# This manifest sets up NATS accounts for the `ns2` namespace which contains a JetStream `stream-b`
+# The stream is sourced from `stream-a` in the account `ns1`
+#
+# This creates everything needed to source from `ns1` and pulling messages from the consumer `myconsumer`
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns2
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Account
+metadata:
+  name: ns2
+spec:
+  name: ns2
+  # Credentials are reconciled by the User CR, creating the required credentials
+  creds:
+    file: user.creds
+    secret:
+      name: nack-nats-user-creds
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: ns2
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accountLimits:
+    conn: 100
+    exports: 100
+    imports: 100
+  jetStreamLimits:
+    consumer: 50
+    diskMaxStreamBytes: 209715200
+    diskStorage: 209715200
+    maxAckPending: -1
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 209715200
+    streams: 50
+  natsLimits:
+    data: 1024000
+    payload: 50000
+    subs: 100
+  imports:
+    - accountRef: 
+        name: ns1
+        namespace: ns1
+      subject: $JS.API.CONSUMER.CREATE.stream-a
+      localSubject: JS.ns1.API.CONSUMER.CREATE.stream-a
+      type: service
+    - accountRef: 
+        name: ns1
+        namespace: ns1
+      subject: $JS.API.CONSUMER.CREATE.stream-a.>
+      localSubject: JS.ns1.API.CONSUMER.CREATE.stream-a.>
+      type: service
+    - accountRef: 
+        name: ns1
+        namespace: ns1
+      subject: $JS.FC.ns1.ns2.stream-a.>
+      type: service
+    - accountRef: 
+        name: ns1
+        namespace: ns1
+      subject: ns1.ns2.stream-a.S.>
+      type: stream
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: stream-b
+spec:
+  account: ns2
+  name: stream-b
+  subjects:
+    - testme.>
+  storage: "memory"
+  replicas: 1
+  maxBytes: 10000000
+  maxMsgs: 10000
+  sources:
+    - name: stream-a
+      externalApiPrefix: "JS.ns1.API"
+      externalDeliverPrefix: "ns1.ns2.stream-a.S"
+      subjectTransforms:
+      - dest: testme.>
+        source: test.>
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: myconsumer
+spec:
+  account: ns2
+  streamName: stream-b
+  durableName: myconsumer
+  ackPolicy: explicit
+  ackWait: 5s
+  maxAckPending: 1000
+  maxDeliver: -1
+
+---
+# These are the required permissions in order for NACK to be able to reconcile CR:s properly
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: nack
+spec:
+  accountName: ns2
+  permissions:
+    pub:
+      allow:
+        - $JS.API.STREAM.INFO.>
+        - $JS.API.STREAM.CREATE.>
+        - $JS.API.STREAM.UPDATE.>
+        - $JS.API.STREAM.DELETE.>
+        - $JS.API.CONSUMER.INFO.>
+        - $JS.API.CONSUMER.CREATE.>
+        - $JS.API.CONSUMER.UPDATE.>
+        - $JS.API.CONSUMER.DELETE.>
+        - $JS.API.INFO
+    sub:
+      allow:
+        - _INBOX.>
+---
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: myuser
+spec:
+  accountName: ns2
