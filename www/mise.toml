@@ -8,44 +8,44 @@ NODE_ENV = "development"
 [tools]
 bun = "latest"
 
-[tasks.install]
+[tasks."nauth:web:install"]
 description = "Install dependencies"
-alias = "i"
+alias = "nwi"
 run = "bun install"
 
-[tasks.dev]
+[tasks."nauth:web:dev"]
 description = "Start development server"
-alias = "d"
+alias = "nwd"
 run = "bun run dev"
 
-[tasks.build]
+[tasks."nauth:web:build"]
 description = "Build the site"
-alias = "b"
+alias = "nwb"
 run = "bun run build"
 
-[tasks.preview]
+[tasks."nauth:web:preview"]
 description = "Preview built site"
-alias = "p"
+alias = "nwp"
 run = "bun run preview"
 
-[tasks.clean]
+[tasks."nauth:web:clean"]
 description = "Clean node_modules and dist"
 run = """
 rm -rf node_modules
 rm -rf dist
 """
 
-[tasks.lint]
+[tasks."nauth:web:lint"]
 description = "Lint code with biome"
-alias = "l"
+alias = "nwl"
 run = "biome lint ."
 
-[tasks.format]
+[tasks."nauth:web:format"]
 description = "Format code with biome"
-alias = "f"
+alias = "nwf"
 run = "biome format --write ."
 
-[tasks.check]
+[tasks."nauth:web:check"]
 description = "Run biome check (lint + format)"
-alias = "c"
+alias = "nwc"
 run = "biome check --write ."

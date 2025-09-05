@@ -10,7 +10,7 @@ kind create cluster
 kubectl create namespace "$NATS_NAMESPACE"
 
 # Uncomment if running the stack locally with observability
-# $MISE_PROJECT_ROOT/.mise-tasks/install-prometheus.sh
-$MISE_PROJECT_ROOT/.mise-tasks/install-nats.sh
-$MISE_PROJECT_ROOT/.mise-tasks/install-nauth.sh
+# mise run nauth:install-prometheus
+mise run nauth:install-nats
+mise run nauth:install-nauth
 
