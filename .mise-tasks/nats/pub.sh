@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-#MISE description="Publish using NATS creds - Example: mise nats:pub -- example-user foo.test 'hello there'"
+#MISE description="Publish using NATS creds from namespace - Example: mise nats:pub -- example-user foo.test 'hello there'"
 
 # Usage: <user-name> <subject> [message]
 # Example: mise nats:pub -- example-account foo "my message"
