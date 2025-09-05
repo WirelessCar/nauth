@@ -5,6 +5,9 @@ nats:
       replicas: 2
     jetstream:
       enabled: true
+      memoryStore:
+        enabled: true
+        maxSize: 100Mi
       fileStore:
         pvc:
           size: 100Mi
