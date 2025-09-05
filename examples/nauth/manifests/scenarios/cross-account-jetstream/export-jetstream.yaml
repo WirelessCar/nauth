@@ -1,0 +1,112 @@
+# This manifest sets up NATS accounts for the `export-account` namespace which contains a JetStream `stream-a`
+# The JS API:s for this stream are exported in order to demonstrate a cross-account scenario using NAuth & NACK.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: export-account
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Account
+metadata:
+  name: export-account
+  namespace: export-account
+spec:
+  name: export-account
+  creds:
+    file: user.creds
+    secret:
+      name: nack-nats-user-creds
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: export-account
+  namespace: export-account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accountLimits:
+    conn: 100
+    exports: 100
+    imports: 100
+  jetStreamLimits:
+    consumer: 50
+    diskMaxStreamBytes: 209715200
+    diskStorage: 209715200
+    maxAckPending: -1
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 209715200
+    streams: 50
+  natsLimits:
+    data: 1024000
+    payload: 50000
+    subs: 100
+  exports:
+    - name: import-account-stream-a-data
+      subject: export-account.import-account.stream-a.S.>
+      type: stream
+    - name: import-account-stream-a-flow-control
+      subject: $JS.FC.export-account.import-account.stream-a.>
+      type: service
+    - name: stream-a-consumer-api
+      subject: $JS.API.CONSUMER.CREATE.stream-a
+      responseType: Stream
+      type: service
+    - name: stream-a-consumer-api-wild
+      subject: $JS.API.CONSUMER.CREATE.stream-a.>
+      responseType: Stream
+      type: service
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  namespace: export-account
+  name: stream-a
+spec:
+  account: export-account
+  name: stream-a
+  subjects:
+    - test.>
+  storage: "file"
+  replicas: 1
+  maxBytes: 10000000
+  maxMsgs: 10000
+
+---
+# These are the required permissions in order for NACK to be able to reconcile CR:s properly
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  namespace: export-account
+  name: nack
+spec:
+  accountName: export-account
+  permissions:
+    pub:
+      allow:
+        - $JS.API.STREAM.INFO.>
+        - $JS.API.STREAM.CREATE.>
+        - $JS.API.STREAM.UPDATE.>
+        - $JS.API.STREAM.DELETE.>
+        - $JS.API.CONSUMER.INFO.>
+        - $JS.API.CONSUMER.CREATE.>
+        - $JS.API.CONSUMER.UPDATE.>
+        - $JS.API.CONSUMER.DELETE.>
+        - $JS.API.INFO
+    sub:
+      allow:
+        - _INBOX.>
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  namespace: export-account
+  name: myuser
+spec:
+  accountName: export-account

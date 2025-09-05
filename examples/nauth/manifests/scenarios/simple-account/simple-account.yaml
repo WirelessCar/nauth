@@ -1,7 +1,14 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: simple-account
+
+---
 apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
   name: example-account
+  namespace: simple-account
 spec:
   accountLimits:
     conn: 100
@@ -26,3 +33,32 @@ spec:
     data: 1024
     payload: 500
     subs: 100
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: example-user
+  namespace: simple-account
+spec:
+  accountName: example-account
+  natsLimits:
+    data: 1000000
+    payload: 1000000
+    subs: 1000000
+  permissions:
+    pub:
+      allow:
+        - foo.>
+        - bar.>
+      deny:
+        - baz
+    resp:
+      max: 100
+      ttl: 1000000000
+    sub:
+      allow:
+        - foo.>
+        - baz.>
+      deny:
+        - bar
