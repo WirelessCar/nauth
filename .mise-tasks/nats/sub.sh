@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-#MISE description="Subscribe using NATS creds - Example: mise nats:sub -- example-user foo.>"
+#MISE description="Subscribe using NATS creds from namespace - Example: mise nats:sub -- example-user foo.>"
 
 set -e
 

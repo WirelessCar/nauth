@@ -1,0 +1,144 @@
+# This manifest sets up NATS accounts for the `import-account` namespace which contains a JetStream `stream-b`
+# The stream is sourced from `stream-a` in the account `export-account`
+#
+# This creates everything needed to source from `export-account` and pulling messages from the consumer `myconsumer`
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: import-account
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Account
+metadata:
+  name: import-account
+  namespace: import-account
+spec:
+  name: import-account
+  # Credentials are reconciled by the User CR, creating the required credentials
+  creds:
+    file: user.creds
+    secret:
+      name: nack-nats-user-creds
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: import-account
+  namespace: import-account
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accountLimits:
+    conn: 100
+    exports: 100
+    imports: 100
+  jetStreamLimits:
+    consumer: 50
+    diskMaxStreamBytes: 209715200
+    diskStorage: 209715200
+    maxAckPending: -1
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 209715200
+    streams: 50
+  natsLimits:
+    data: 1024000
+    payload: 50000
+    subs: 100
+  imports:
+    - accountRef: 
+        name: export-account
+        namespace: export-account
+      subject: $JS.API.CONSUMER.CREATE.stream-a
+      localSubject: JS.export-account.API.CONSUMER.CREATE.stream-a
+      type: service
+    - accountRef: 
+        name: export-account
+        namespace: export-account
+      subject: $JS.API.CONSUMER.CREATE.stream-a.>
+      localSubject: JS.export-account.API.CONSUMER.CREATE.stream-a.>
+      type: service
+    - accountRef: 
+        name: export-account
+        namespace: export-account
+      subject: $JS.FC.export-account.import-account.stream-a.>
+      type: service
+    - accountRef: 
+        name: export-account
+        namespace: export-account
+      subject: export-account.import-account.stream-a.S.>
+      type: stream
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Stream
+metadata:
+  name: stream-b
+  namespace: import-account
+spec:
+  account: import-account
+  name: stream-b
+  subjects:
+    - testme.>
+  storage: "memory"
+  replicas: 1
+  maxBytes: 10000000
+  maxMsgs: 10000
+  sources:
+    - name: stream-a
+      externalApiPrefix: "JS.export-account.API"
+      externalDeliverPrefix: "export-account.import-account.stream-a.S"
+      subjectTransforms:
+      - dest: testme.>
+        source: test.>
+
+---
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: myconsumer
+  namespace: import-account
+spec:
+  account: import-account
+  streamName: stream-b
+  durableName: myconsumer
+  ackPolicy: explicit
+  ackWait: 5s
+  maxAckPending: 1000
+  maxDeliver: -1
+
+---
+# These are the required permissions in order for NACK to be able to reconcile CR:s properly
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: nack
+  namespace: import-account
+spec:
+  accountName: import-account
+  permissions:
+    pub:
+      allow:
+        - $JS.API.STREAM.INFO.>
+        - $JS.API.STREAM.CREATE.>
+        - $JS.API.STREAM.UPDATE.>
+        - $JS.API.STREAM.DELETE.>
+        - $JS.API.CONSUMER.INFO.>
+        - $JS.API.CONSUMER.CREATE.>
+        - $JS.API.CONSUMER.UPDATE.>
+        - $JS.API.CONSUMER.DELETE.>
+        - $JS.API.INFO
+    sub:
+      allow:
+        - _INBOX.>
+---
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: myuser
+  namespace: import-account
+spec:
+  accountName: import-account
