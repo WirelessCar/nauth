@@ -43,7 +43,7 @@ There are a couple of scripts to setup a complete local cluster with NATS as wel
 These scripts are provided as `mise` tasks, but are also possible to run standalone by running the shell scripts under `.mise-tasks`.
 
 ```bash
-mise run install
+mise nauth:install
 ```
 
 This will install both dependent resources such as `nats` but also adds a static provided `operator` which can be used
