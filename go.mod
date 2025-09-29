@@ -6,7 +6,7 @@ godebug default=go1.24
 
 require (
 	github.com/nats-io/jwt/v2 v2.8.0
-	github.com/nats-io/nats.go v1.45.0
+	github.com/nats-io/nats.go v1.46.0
 	github.com/nats-io/nkeys v0.4.11
 	github.com/onsi/ginkgo/v2 v2.25.3
 	github.com/onsi/gomega v1.38.2
