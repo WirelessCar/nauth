@@ -463,9 +463,11 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 			}
 		}
 		b.claim.Imports = imports
+
 		err := validateImports(imports)
 		if err != nil {
 			b.errs = append(b.errs, err)
+			b.claim.Imports = nil
 		}
 	}
 
@@ -478,7 +480,7 @@ func (b *accountClaimBuilder) signingKey(signingKey string) *accountClaimBuilder
 }
 
 func validateImports(imports jwt.Imports) error {
-	seenSubjects := make(map[string]bool)
+	seenSubjects := make(map[string]bool, len(imports))
 
 	for _, importClaim := range imports {
 		subject := string(importClaim.Subject)
