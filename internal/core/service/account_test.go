@@ -70,6 +70,43 @@ var _ = Describe("Account manager", func() {
 			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
 		})
 
+		It("fails to create an account with conflicting imports", func() {
+			By("providing an account specification")
+			account := GetNewAccount()
+
+			By("mocking the secret storer")
+			operatorKeyPair, _ := nkeys.CreateOperator()
+			operatorSeed, _ := operatorKeyPair.Seed()
+			secretStorerMock.secrets["operator-op-sign"] = map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}
+			secretStorerMock.On("GetSecret", ctx, nauthNamespace, "operator-op-sign").Return(nil)
+
+			By("validating that relevant keys for a base account are stored")
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, mock.Anything, mock.Anything).Return(nil).Twice()
+
+			By("providing an account with conflicting imports")
+
+			accountGetterMock.On("Get", ctx, "Account1", "default").Return(*GetExistingAccount(), nil)
+			accountGetterMock.On("Get", ctx, "Account2", "default").Return(*GetExistingAccount(), nil)
+
+			account.Spec.Imports = v1alpha1.Imports{
+				{
+					Name:       "Import1",
+					Subject:    "subject.duplicate",
+					AccountRef: v1alpha1.AccountRef{Name: "Account1", Namespace: "default"},
+				},
+				{
+					Name:       "Import2",
+					Subject:    "subject.duplicate",
+					AccountRef: v1alpha1.AccountRef{Name: "Account2", Namespace: "default"},
+				},
+			}
+
+			By("ensuring conflict detection during account processing")
+			err := accountManager.CreateAccount(ctx, account)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("conflicting import subject found"))
+		})
+
 		It("creates a new account and update it", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
