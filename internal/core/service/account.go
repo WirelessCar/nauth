@@ -463,6 +463,10 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 			}
 		}
 		b.claim.Imports = imports
+		err := validateImports(imports)
+		if err != nil {
+			b.errs = append(b.errs, err)
+		}
 	}
 
 	return b
@@ -471,6 +475,24 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 func (b *accountClaimBuilder) signingKey(signingKey string) *accountClaimBuilder {
 	b.claim.SigningKeys.Add(signingKey)
 	return b
+}
+
+func validateImports(imports jwt.Imports) error {
+	seenSubjects := make(map[string]bool)
+
+	for _, importClaim := range imports {
+		subject := string(importClaim.Subject)
+		if importClaim.LocalSubject != "" {
+			subject = string(importClaim.LocalSubject)
+		}
+
+		if seenSubjects[subject] {
+			return fmt.Errorf("conflicting import subject found: %s", subject)
+		}
+		seenSubjects[subject] = true
+	}
+
+	return nil
 }
 
 func (b *accountClaimBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (string, error) {
