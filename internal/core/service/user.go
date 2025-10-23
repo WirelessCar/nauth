@@ -24,14 +24,9 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	signingKeyMap, err := u.secretStorer.GetSecret(ctx, account.Namespace, account.GetAccountSignSecretName())
-	if err != nil {
-		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.Namespace, account.GetAccountSignSecretName(), err)
-	}
-
-	signingKey := signingKeyMap[domain.DefaultSecretKeyName]
-	signingKeyPair, _ := nkeys.FromSeed([]byte(signingKey))
-	signingKeyPublicKey, _ := signingKeyPair.PublicKey()
+	accountID := account.GetLabels()[domain.LabelAccountId]
+	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), accountID)
+	accountSigningKeyPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	userKeyPair, _ := nkeys.CreateUser()
 	userPublicKey, _ := userKeyPair.PublicKey()
@@ -42,7 +37,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		natsLimits().
 		permissions().
 		userLimits().
-		encode(signingKeyPair)
+		encode(accountSigningKeyPair)
 	if err != nil {
 		return err
 	}
@@ -52,7 +47,14 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	secretOwner := &ports.SecretOwner{
 		Owner: state,
 	}
-	err = u.secretStorer.ApplySecret(ctx, secretOwner, state.Namespace, state.GetUserSecretName(), map[string]string{domain.UserCredentialSecretKeyName: string(userCreds)})
+	secretMeta := metav1.ObjectMeta{
+		Name:      state.GetUserSecretName(),
+		Namespace: state.GetNamespace(),
+	}
+	secretValue := map[string]string{
+		domain.UserCredentialSecretKeyName: string(userCreds),
+	}
+	err = u.secretStorer.ApplySecret(ctx, secretOwner, secretMeta, secretValue)
 	if err != nil {
 		return err
 	}
@@ -70,7 +72,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 
 	state.GetLabels()[domain.LabelUserId] = userPublicKey
 	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountId]
-	state.GetLabels()[domain.LabelUserSignedBy] = signingKeyPublicKey
+	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
@@ -88,6 +90,28 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	}
 
 	return nil
+}
+
+func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountID string) (nkeys.KeyPair, error) {
+	labels := map[string]string{
+		domain.LabelAccountId:         accountID,
+		domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+	}
+	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signing secret for account: %s/%s due to %w", namespace, accountID, err)
+	}
+
+	if len(secrets.Items) < 1 {
+		return nil, fmt.Errorf("no signing secret found for account: %s/%s", namespace, accountID)
+	}
+
+	if len(secrets.Items) > 1 {
+		return nil, fmt.Errorf("more than 1 signing secret found for account: %s", accountID)
+	}
+
+	seed := string(secrets.Items[0].Data[domain.DefaultSecretKeyName])
+	return nkeys.FromSeed([]byte(seed))
 }
 
 func NewUserManager(accounts ports.AccountGetter, secretStorer ports.SecretStorer) *UserManager {

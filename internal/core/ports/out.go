@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -13,9 +14,11 @@ type SecretOwner struct {
 
 type SecretStorer interface {
 	// TODO: Keys created should be immutable
-	ApplySecret(ctx context.Context, owner *SecretOwner, namespace string, name string, valueMap map[string]string) error
+	ApplySecret(ctx context.Context, owner *SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error
 	GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error)
+	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 	DeleteSecret(ctx context.Context, namespace string, name string) error
+	DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error
 }
 
 type NATSClient interface {

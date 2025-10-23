@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,14 +87,6 @@ type Account struct {
 
 func (a *Account) GetConditions() *[]metav1.Condition {
 	return &a.Status.Conditions
-}
-
-func (a *Account) GetAccountSecretName() string {
-	return fmt.Sprintf("%s-ac-root", a.GetName())
-}
-
-func (a *Account) GetAccountSignSecretName() string {
-	return fmt.Sprintf("%s-ac-sign", a.GetName())
 }
 
 type JetStreamLimits struct {

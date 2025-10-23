@@ -3,17 +3,15 @@ package service
 import (
 	"context"
 
-	"k8s.io/utils/ptr"
-
+	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/nats-io/nkeys"
-	"github.com/stretchr/testify/mock"
-
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -53,13 +51,23 @@ var _ = Describe("User manager", func() {
 			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
 
 			By("mocking preexisting account keys & CR")
-			accountKeyPair, _ := nkeys.CreateAccount()
-			accountSeed, _ := accountKeyPair.Seed()
-			secretStorerMock.secrets[account.GetAccountSignSecretName()] = map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
-			secretStorerMock.On("GetSecret", ctx, accountNamespace, account.GetAccountSignSecretName()).Return(nil)
+			accountSigningKeyPair, _ := nkeys.CreateAccount()
+			accountSigningSeed, _ := accountSigningKeyPair.Seed()
+			secretsList := &corev1.SecretList{
+				Items: []corev1.Secret{
+					{
+						Data: map[string][]byte{
+							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+						},
+					},
+				},
+			}
+			secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, mock.Anything).Return(secretsList, nil)
 
 			By("User credentials are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, user.GetUserSecretName(), mock.AnythingOfType("map[string]string")).Return(nil)
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
+			}), mock.AnythingOfType("map[string]string")).Return(nil)
 
 			err := userManager.CreateOrUpdateUser(ctx, user)
 
@@ -67,6 +75,7 @@ var _ = Describe("User manager", func() {
 			Expect(user.GetLabels()).ToNot(BeNil())
 			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
 		})
+
 		It("creates a new user and update settigs", func() {
 			account := GetExistingAccount()
 			user := GetNewUser()
@@ -75,13 +84,23 @@ var _ = Describe("User manager", func() {
 			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil).Twice()
 
 			By("mocking preexisting account keys & CR")
-			accountKeyPair, _ := nkeys.CreateAccount()
-			accountSeed, _ := accountKeyPair.Seed()
-			secretStorerMock.secrets[account.GetAccountSignSecretName()] = map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
-			secretStorerMock.On("GetSecret", ctx, accountNamespace, account.GetAccountSignSecretName()).Return(nil)
+			accountSigningKeyPair, _ := nkeys.CreateAccount()
+			accountSigningSeed, _ := accountSigningKeyPair.Seed()
+			secretsList := &corev1.SecretList{
+				Items: []corev1.Secret{
+					{
+						Data: map[string][]byte{
+							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+						},
+					},
+				},
+			}
+			secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, mock.Anything).Return(secretsList, nil)
 
 			By("User credentials are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, user.GetUserSecretName(), mock.AnythingOfType("map[string]string")).Return(nil).Twice()
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
+			}), mock.AnythingOfType("map[string]string")).Return(nil)
 
 			err := userManager.CreateOrUpdateUser(ctx, user)
 

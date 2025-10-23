@@ -7,6 +7,7 @@ import (
 	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 /* ****************************************************
@@ -14,32 +15,40 @@ import (
 *****************************************************/
 
 func NewSecretStorerMock() *SecretStorerMock {
-	return &SecretStorerMock{
-		secrets: map[string]map[string]string{},
-	}
+	return &SecretStorerMock{}
 }
 
 type SecretStorerMock struct {
 	mock.Mock
-	secrets map[string]map[string]string
 }
 
 // ApplySecret implements ports.SecretStorer.
-func (s *SecretStorerMock) ApplySecret(ctx context.Context, secretOwner *ports.SecretOwner, namespace string, name string, valueMap map[string]string) error {
-	s.secrets[name] = valueMap
-	args := s.Called(ctx, secretOwner, namespace, name, valueMap)
+func (s *SecretStorerMock) ApplySecret(ctx context.Context, secretOwner *ports.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+	args := s.Called(ctx, secretOwner, meta, valueMap)
 	return args.Error(0)
 }
 
 // GetSecret implements ports.SecretStorer.
 func (s *SecretStorerMock) GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := s.Called(ctx, namespace, name)
-	return s.secrets[name], args.Error(0)
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+// GetSecretsByLabels implements ports.SecretStorer.
+func (s *SecretStorerMock) GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
+	args := s.Called(ctx, namespace, labels)
+	return args.Get(0).(*corev1.SecretList), args.Error(1)
 }
 
 // DeleteSecret implements ports.SecretStorer.
 func (s *SecretStorerMock) DeleteSecret(ctx context.Context, namespace string, name string) error {
 	args := s.Called(ctx, namespace, name)
+	return args.Error(0)
+}
+
+// DeleteSecret implements ports.SecretStorer.
+func (s *SecretStorerMock) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
 }
 

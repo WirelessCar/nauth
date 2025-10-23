@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -31,30 +32,31 @@ var _ = Describe("Secrets storer", func() {
 	Context("When handling secrets", func() {
 		const resourceName = "test-resource"
 		const namespace = "default"
-
-		var (
-			ctx          = context.Background()
-			secretStorer *SecretStorer
-		)
+		secretMeta := metav1.ObjectMeta{
+			Name:      resourceName,
+			Namespace: namespace,
+		}
+		ctx := context.Background()
+		var secretStorer *SecretStorer
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
 			secretStorer = &SecretStorer{
 				client:              k8sClient,
-				controllerNamespace: namespace,
+				controllerNamespace: secretMeta.Namespace,
 			}
 		})
 
 		AfterEach(func() {
 			By("Cleanup the secret")
-			err := cleanSecret(namespace, resourceName)
+			err := cleanSecret(secretMeta.Namespace, secretMeta.Name)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("should successfully create and update an existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.ApplySecret(ctx, nil, namespace, resourceName, secret)
+			err := secretStorer.ApplySecret(ctx, nil, secretMeta, secret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the secret")
@@ -65,7 +67,7 @@ var _ = Describe("Secrets storer", func() {
 
 			By("Updating the secret with a new value")
 			newSecret := map[string]string{"key": "new value"}
-			err = secretStorer.ApplySecret(ctx, nil, namespace, resourceName, newSecret)
+			err = secretStorer.ApplySecret(ctx, nil, secretMeta, newSecret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the updated secret")
@@ -88,7 +90,7 @@ var _ = Describe("Secrets storer", func() {
 		It("should return success when deleting existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.ApplySecret(ctx, nil, namespace, resourceName, secret)
+			err := secretStorer.ApplySecret(ctx, nil, secretMeta, secret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting the secret")

@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -52,8 +53,7 @@ var _ = Describe("Account manager", func() {
 			By("mocking the secret storer")
 			operatorKeyPair, _ := nkeys.CreateOperator()
 			operatorSeed, _ := operatorKeyPair.Seed()
-			secretStorerMock.secrets["operator-op-sign"] = map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}
-			secretStorerMock.On("GetSecret", ctx, nauthNamespace, "operator-op-sign").Return(nil)
+			secretStorerMock.On("GetSecret", ctx, nauthNamespace, domain.SecretNameOperatorSign).Return(map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace, "operator-sau-creds").Return(nil)
@@ -61,7 +61,16 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, mock.Anything, mock.Anything).Return(nil).Twice()
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID := s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
+			}), mock.Anything).Return(nil)
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID := s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
+			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
 			err := accountManager.CreateAccount(ctx, account)
@@ -77,11 +86,19 @@ var _ = Describe("Account manager", func() {
 			By("mocking the secret storer")
 			operatorKeyPair, _ := nkeys.CreateOperator()
 			operatorSeed, _ := operatorKeyPair.Seed()
-			secretStorerMock.secrets["operator-op-sign"] = map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}
-			secretStorerMock.On("GetSecret", ctx, nauthNamespace, "operator-op-sign").Return(nil)
+			secretStorerMock.On("GetSecret", ctx, nauthNamespace, domain.SecretNameOperatorSign).Return(map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}, nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, mock.Anything, mock.Anything).Return(nil).Twice()
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID := s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
+			}), mock.Anything).Return(nil)
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID := s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
+			}), mock.Anything).Return(nil)
 
 			By("providing an account with conflicting imports")
 
@@ -110,13 +127,12 @@ var _ = Describe("Account manager", func() {
 		It("creates a new account and update it", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
+			var accountID string
 
 			By("mocking the secret storer")
 			operatorKeyPair, _ := nkeys.CreateOperator()
 			operatorSeed, _ := operatorKeyPair.Seed()
-			secretStorerMock.secrets["operator-op-sign"] = map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}
-			secretStorerMock.On("GetSecret", ctx, nauthNamespace, "operator-op-sign").Return(nil)
-			secretStorerMock.On("GetSecret", ctx, accountNamespace, mock.Anything).Return(nil)
+			secretStorerMock.On("GetSecret", ctx, nauthNamespace, domain.SecretNameOperatorSign).Return(map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace, "operator-sau-creds").Return(nil)
@@ -124,7 +140,15 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, mock.Anything, mock.Anything).Return(nil).Twice()
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID = s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
+			}), mock.Anything).Return(nil)
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(s.GetLabels()[domain.LabelAccountId]) && secretType == domain.SecretTypeAccountSign
+			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
 			err := accountManager.CreateAccount(ctx, account)
@@ -133,10 +157,40 @@ var _ = Describe("Account manager", func() {
 			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
 
 			By("updating account")
+			accountKeyPair, _ := nkeys.CreateAccount()
+			accountSeed, _ := accountKeyPair.Seed()
+
+			accountSigningKeyPair, _ := nkeys.CreateAccount()
+			accountSigningSeed, _ := accountSigningKeyPair.Seed()
+			secretsList := &corev1.SecretList{
+				Items: []corev1.Secret{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Labels: map[string]string{
+								domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+							},
+						},
+						Data: map[string][]byte{
+							domain.DefaultSecretKeyName: []byte(accountSeed),
+						},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Labels: map[string]string{
+								domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+							},
+						},
+						Data: map[string][]byte{
+							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+						},
+					},
+				},
+			}
+			secretStorerMock.On("GetSecretsByLabels", ctx, mock.Anything, map[string]string{domain.LabelAccountId: accountID}).Return(secretsList, nil)
 			account.Spec.AccountLimits = &v1alpha1.AccountLimits{
 				Imports:         ptr.To[int64](10),
 				Exports:         ptr.To[int64](10),
-				WildcardExports: ptr.To[bool](true),
+				WildcardExports: ptr.To(true),
 				Conn:            ptr.To[int64](100),
 				LeafNodeConn:    ptr.To[int64](0),
 			}
@@ -149,12 +203,12 @@ var _ = Describe("Account manager", func() {
 		It("delete an account", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
+			var accountID string
 
 			By("mocking the secret storer")
 			operatorSignKeyPair, _ := nkeys.CreateOperator()
 			operatorSignSeed, _ := operatorSignKeyPair.Seed()
-			secretStorerMock.secrets["operator-op-sign"] = map[string]string{domain.DefaultSecretKeyName: string(operatorSignSeed)}
-			secretStorerMock.On("GetSecret", ctx, nauthNamespace, "operator-op-sign").Return(nil)
+			secretStorerMock.On("GetSecret", ctx, nauthNamespace, domain.SecretNameOperatorSign).Return(map[string]string{domain.DefaultSecretKeyName: string(operatorSignSeed)}, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace, "operator-sau-creds").Return(nil)
@@ -163,7 +217,19 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil).Once()
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, accountNamespace, mock.Anything, mock.Anything).Return(nil).Twice()
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID = s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
+			}), mock.Anything).Return(nil)
+			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				accountID = s.GetLabels()[domain.LabelAccountId]
+				secretType := s.GetLabels()[domain.LabelAccountSecretType]
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
+			}), mock.Anything).Return(nil)
+			secretStorerMock.On("DeleteSecretsByLabels", ctx, mock.Anything, mock.MatchedBy(func(s map[string]string) bool {
+				return s[domain.LabelAccountId] == accountID
+			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
 			err := accountManager.CreateAccount(ctx, account)
