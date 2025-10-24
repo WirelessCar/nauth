@@ -21,3 +21,8 @@ const (
 	SecretTypeAccountRoot = "ac-root"
 	SecretTypeAccountSign = "ac-sign"
 )
+
+const (
+	DeprecatedSecretNameAccountRoot = "%s-ac-root"
+	DeprecatedSecretNameAccountSign = "%s-ac-sign"
+)

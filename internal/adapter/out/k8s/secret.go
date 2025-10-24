@@ -175,6 +175,20 @@ func (k SecretStorer) DeleteSecretsByLabels(ctx context.Context, namespace strin
 	return nil
 }
 
+func (k SecretStorer) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
+	secret, err := k.getSecret(ctx, namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to get secret: %w", err)
+	}
+
+	if secret.GetLabels() == nil {
+		secret.Labels = make(map[string]string, len(labels))
+	}
+
+	maps.Copy(secret.Labels, labels)
+	return k.client.Update(ctx, secret)
+}
+
 func (k SecretStorer) getSecret(ctx context.Context, namespace string, name string) (*v1.Secret, error) {
 	k8sSecret := &v1.Secret{}
 

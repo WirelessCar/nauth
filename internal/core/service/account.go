@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 
 	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -28,7 +29,6 @@ type AccountManager struct {
 }
 
 func NewAccountManager(accounts ports.AccountGetter, natsClient ports.NATSClient, secretStorer ports.SecretStorer, opts ...func(*AccountManager)) *AccountManager {
-
 	manager := &AccountManager{
 		accounts:     accounts,
 		natsClient:   natsClient,
@@ -178,7 +178,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	}
 
 	accountID := state.GetLabels()[domain.LabelAccountId]
-	secrets, err := a.getAccountSecretsByAccountID(ctx, state.GetNamespace(), accountID)
+	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
 		return err
 	}
@@ -304,6 +304,19 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	return nkeys.FromSeed([]byte(seed))
 }
 
+func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
+	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountID); err == nil {
+		return secrets, nil
+	}
+
+	secrets, err := a.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	return secrets, err
+}
+
 func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountId: accountID,
@@ -333,6 +346,81 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 		}
 		secrets[secretType] = secretData
 	}
+	return secrets, nil
+}
+
+func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+	logger := logf.FromContext(ctx)
+
+	type goRoutineResult struct {
+		secret map[string]string
+		err    error
+	}
+	var wg sync.WaitGroup
+	ch := make(chan goRoutineResult, 2)
+
+	for _, s := range []struct {
+		secretName string
+		secretType string
+	}{
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretType: domain.SecretTypeAccountRoot,
+		},
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretType: domain.SecretTypeAccountSign,
+		},
+	} {
+		wg.Add(1)
+		go func(secretName, secretType string) {
+			result := goRoutineResult{}
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get %s: %v", secretType, r)
+					ch <- result
+				}
+			}()
+
+			accountSecret, err := a.secretStorer.GetSecret(ctx, namespace, secretName)
+			if err != nil {
+				result.err = err
+				ch <- result
+				return
+			}
+
+			labels := map[string]string{
+				domain.LabelAccountId:         accountID,
+				domain.LabelAccountSecretType: secretType,
+			}
+			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
+				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
+			}
+			accountSecret[domain.LabelAccountSecretType] = secretType
+			result.secret = accountSecret
+			ch <- result
+		}(s.secretName, s.secretType)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	var errs []error
+	secrets := make(map[string]map[string]string, 2)
+
+	for res := range ch {
+		if res.err != nil {
+			errs = append(errs, res.err)
+			continue
+		}
+		secrets[res.secret[domain.LabelAccountSecretType]] = res.secret
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
 	return secrets, nil
 }
 
