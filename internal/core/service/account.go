@@ -305,7 +305,7 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 }
 
 func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
-	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountID); err == nil {
+	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return secrets, nil
 	}
 
@@ -314,10 +314,10 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 		return nil, err
 	}
 
-	return secrets, err
+	return secrets, nil
 }
 
-func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountID string) (map[string]map[string]string, error) {
+func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountId: accountID,
 	}
@@ -327,18 +327,18 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 	}
 
 	if len(k8sSecrets.Items) < 2 {
-		return nil, fmt.Errorf("missing one or more secret for account: %s", accountID)
+		return nil, fmt.Errorf("missing one or more secret(s) for account: %s-%s", namespace, accountName)
 	}
 
 	if len(k8sSecrets.Items) > 2 {
-		return nil, fmt.Errorf("more than 2 secrets found for account: %s", accountID)
+		return nil, fmt.Errorf("more than 2 secrets found for account: %s-%s", namespace, accountName)
 	}
 
 	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
 	for _, secret := range k8sSecrets.Items {
 		secretType := secret.GetLabels()[domain.LabelAccountSecretType]
 		if _, ok := secrets[secretType]; ok {
-			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s", secretType, accountID)
+			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s-%s", secretType, namespace, accountName)
 		}
 		secretData := make(map[string]string, len(secret.Data))
 		for k, v := range secret.Data {
@@ -378,7 +378,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					result.err = fmt.Errorf("recovered panicked go routine from trying to get %s: %v", secretType, r)
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s-%s of type %s: %v", namespace, secretName, secretType, r)
 					ch <- result
 				}
 			}()
@@ -419,6 +419,10 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
+	}
+
+	if len(secrets) < 2 {
+		return nil, fmt.Errorf("missing one or more deprecated secret(s) for account: %s-%s", namespace, accountName)
 	}
 
 	return secrets, nil
