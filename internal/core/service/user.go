@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -24,14 +26,12 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	signingKeyMap, err := u.secretStorer.GetSecret(ctx, account.Namespace, account.GetAccountSignSecretName())
+	accountID := account.GetLabels()[domain.LabelAccountId]
+	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
-		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.Namespace, account.GetAccountSignSecretName(), err)
+		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
 	}
-
-	signingKey := signingKeyMap[domain.DefaultSecretKeyName]
-	signingKeyPair, _ := nkeys.FromSeed([]byte(signingKey))
-	signingKeyPublicKey, _ := signingKeyPair.PublicKey()
+	accountSigningKeyPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	userKeyPair, _ := nkeys.CreateUser()
 	userPublicKey, _ := userKeyPair.PublicKey()
@@ -42,7 +42,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		natsLimits().
 		permissions().
 		userLimits().
-		encode(signingKeyPair)
+		encode(accountSigningKeyPair)
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,14 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	secretOwner := &ports.SecretOwner{
 		Owner: state,
 	}
-	err = u.secretStorer.ApplySecret(ctx, secretOwner, state.Namespace, state.GetUserSecretName(), map[string]string{domain.UserCredentialSecretKeyName: string(userCreds)})
+	secretMeta := metav1.ObjectMeta{
+		Name:      state.GetUserSecretName(),
+		Namespace: state.GetNamespace(),
+	}
+	secretValue := map[string]string{
+		domain.UserCredentialSecretKeyName: string(userCreds),
+	}
+	err = u.secretStorer.ApplySecret(ctx, secretOwner, secretMeta, secretValue)
 	if err != nil {
 		return err
 	}
@@ -70,7 +77,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 
 	state.GetLabels()[domain.LabelUserId] = userPublicKey
 	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountId]
-	state.GetLabels()[domain.LabelUserSignedBy] = signingKeyPublicKey
+	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
@@ -88,6 +95,125 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	}
 
 	return nil
+}
+
+func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
+		return keyPair, nil
+	}
+
+	keyPair, err := u.getDeprecatedAccountSigningKeyPair(ctx, namespace, accountName, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	return keyPair, nil
+}
+
+func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+	labels := map[string]string{
+		domain.LabelAccountId:         accountID,
+		domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+	}
+	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signing secret for account: %s-%s due to %w", namespace, accountName, err)
+	}
+
+	if len(secrets.Items) < 1 {
+		return nil, fmt.Errorf("no signing secret found for account: %s-%s", namespace, accountName)
+	}
+
+	if len(secrets.Items) > 1 {
+		return nil, fmt.Errorf("more than 1 signing secret found for account: %s-%s", namespace, accountName)
+	}
+
+	seed := string(secrets.Items[0].Data[domain.DefaultSecretKeyName])
+	return nkeys.FromSeed([]byte(seed))
+}
+
+func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+	logger := logf.FromContext(ctx)
+
+	type goRoutineResult struct {
+		secret map[string]string
+		err    error
+	}
+	var wg sync.WaitGroup
+	ch := make(chan goRoutineResult, 2)
+
+	for _, s := range []struct {
+		secretName string
+		secretType string
+	}{
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretType: domain.SecretTypeAccountRoot,
+		},
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretType: domain.SecretTypeAccountSign,
+		},
+	} {
+		wg.Add(1)
+		go func(secretName, secretType string) {
+			result := goRoutineResult{}
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s-%s of type %s: %v", namespace, secretName, secretType, r)
+					ch <- result
+				}
+			}()
+
+			accountSecret, err := u.secretStorer.GetSecret(ctx, namespace, secretName)
+			if err != nil {
+				result.err = err
+				ch <- result
+				return
+			}
+
+			labels := map[string]string{
+				domain.LabelAccountId:         accountID,
+				domain.LabelAccountSecretType: secretType,
+			}
+			if err := u.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
+				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
+			}
+			accountSecret[domain.LabelAccountSecretType] = secretType
+			result.secret = accountSecret
+			ch <- result
+		}(s.secretName, s.secretType)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	var errs []error
+	secrets := make(map[string]map[string]string, 2)
+
+	for res := range ch {
+		if res.err != nil {
+			errs = append(errs, res.err)
+			continue
+		}
+		secrets[res.secret[domain.LabelAccountSecretType]] = res.secret
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	accountSignSecret, ok := secrets[domain.SecretTypeAccountSign]
+	if !ok {
+		return nil, fmt.Errorf("no signing key found for account %s-%s", namespace, accountName)
+	}
+
+	accountSignSecretSeed, ok := accountSignSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("no signing key seed found for account %s-%s", namespace, accountName)
+	}
+	return nkeys.FromSeed([]byte(accountSignSecretSeed))
 }
 
 func NewUserManager(accounts ports.AccountGetter, secretStorer ports.SecretStorer) *UserManager {
