@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -66,6 +67,60 @@ var _ = Describe("User manager", func() {
 
 			By("User credentials are stored")
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
+			}), mock.AnythingOfType("map[string]string")).Return(nil)
+
+			err := userManager.CreateOrUpdateUser(ctx, user)
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(user.GetLabels()).ToNot(BeNil())
+			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
+		})
+
+		It("creates a new user from an account with legacy secrets", func() {
+			By("providing a user specification")
+			user := GetNewUser()
+
+			account := GetExistingAccount()
+
+			By("mocking the secret storer")
+			secretStorerMock.On("GetSecretsByLabels", mock.Anything, account.GetNamespace(), mock.Anything).Return(&corev1.SecretList{}, nil)
+
+			accountKeyPair, _ := nkeys.CreateAccount()
+			accountPublicKey, _ := accountKeyPair.PublicKey()
+			accountSeed, _ := accountKeyPair.Seed()
+			accountSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
+			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, account.GetName())
+			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
+			accountSecretLabelsMock := map[string]string{
+				domain.LabelAccountId:         accountPublicKey,
+				domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+			}
+			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
+
+			accountSigningKeyPair, _ := nkeys.CreateAccount()
+			accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
+			accountSigningSeed, _ := accountSigningKeyPair.Seed()
+			accountSigningSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSigningSeed)}
+			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, account.GetName())
+			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
+			accountSigningSecretLabelsMock := map[string]string{
+				domain.LabelAccountId:         accountPublicKey,
+				domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+			}
+			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
+
+			By("mocking existing account")
+			account.Status.SigningKey = v1alpha1.KeyInfo{
+				Name: accountSigningPublicKey,
+			}
+			account.Labels = map[string]string{
+				domain.LabelAccountId: accountPublicKey,
+			}
+			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
+
+			By("mock storing user credentials")
+			secretStorerMock.On("ApplySecret", mock.Anything, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
 			}), mock.AnythingOfType("map[string]string")).Return(nil)
 

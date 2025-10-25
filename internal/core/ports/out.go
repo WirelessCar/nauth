@@ -19,7 +19,7 @@ type SecretStorer interface {
 	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 	DeleteSecret(ctx context.Context, namespace string, name string) error
 	DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error
-	LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error
+	LabelSecret(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
 type NATSClient interface {

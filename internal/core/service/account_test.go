@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -195,6 +196,63 @@ var _ = Describe("Account manager", func() {
 				LeafNodeConn:    ptr.To[int64](0),
 			}
 			err = accountManager.UpdateAccount(ctx, account)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(account.GetLabels()).ToNot(BeNil())
+			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+		})
+
+		It("updates an existing account with legacy secrets", func() {
+			By("providing an account specification")
+			account := GetNewAccount()
+
+			By("mocking the secret storer")
+			operatorKeyPair, _ := nkeys.CreateOperator()
+			operatorPublicKey, _ := operatorKeyPair.PublicKey()
+			operatorSeed, _ := operatorKeyPair.Seed()
+			secretStorerMock.On("GetSecret", mock.Anything, nauthNamespace, domain.SecretNameOperatorSign).Return(map[string]string{domain.DefaultSecretKeyName: string(operatorSeed)}, nil)
+			secretStorerMock.On("GetSecretsByLabels", mock.Anything, account.GetNamespace(), mock.Anything).Return(&corev1.SecretList{}, nil)
+
+			accountKeyPair, _ := nkeys.CreateAccount()
+			accountPublicKey, _ := accountKeyPair.PublicKey()
+			accountSeed, _ := accountKeyPair.Seed()
+			accountSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
+			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, account.GetName())
+			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
+			accountSecretLabelsMock := map[string]string{
+				domain.LabelAccountId:         accountPublicKey,
+				domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+			}
+			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
+
+			accountSigningKeyPair, _ := nkeys.CreateAccount()
+			accountSigningSeed, _ := accountSigningKeyPair.Seed()
+			accountSigningSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSigningSeed)}
+			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, account.GetName())
+			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
+			accountSigningSecretLabelsMock := map[string]string{
+				domain.LabelAccountId:         accountPublicKey,
+				domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+			}
+			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
+
+			By("mocking the NATS client")
+			natsClientMock.On("EnsureConnected", nauthNamespace, "operator-sau-creds").Return(nil)
+			natsClientMock.On("Disconnect").Return()
+			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil)
+
+			By("updating account")
+			account.Spec.AccountLimits = &v1alpha1.AccountLimits{
+				Imports:         ptr.To[int64](10),
+				Exports:         ptr.To[int64](10),
+				WildcardExports: ptr.To(true),
+				Conn:            ptr.To[int64](100),
+				LeafNodeConn:    ptr.To[int64](0),
+			}
+			account.Labels = map[string]string{
+				domain.LabelAccountId:       accountPublicKey,
+				domain.LabelAccountSignedBy: operatorPublicKey,
+			}
+			err := accountManager.UpdateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))

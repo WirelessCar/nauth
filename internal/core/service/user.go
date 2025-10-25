@@ -132,7 +132,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 	return nkeys.FromSeed([]byte(seed))
 }
 
-func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountID, accountName string) (nkeys.KeyPair, error) {
+func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {

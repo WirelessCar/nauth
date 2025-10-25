@@ -53,8 +53,8 @@ func (s *SecretStorerMock) DeleteSecretsByLabels(ctx context.Context, namespace 
 }
 
 // LabelSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
-	args := s.Called(ctx, namespace, labels)
+func (s *SecretStorerMock) LabelSecret(ctx context.Context, namespace, name string, labels map[string]string) error {
+	args := s.Called(ctx, namespace, name, labels)
 	return args.Error(0)
 }
 
