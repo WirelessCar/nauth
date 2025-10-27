@@ -2,10 +2,14 @@ package service
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"sync"
 
 	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -25,7 +29,6 @@ type AccountManager struct {
 }
 
 func NewAccountManager(accounts ports.AccountGetter, natsClient ports.NATSClient, secretStorer ports.SecretStorer, opts ...func(*AccountManager)) *AccountManager {
-
 	manager := &AccountManager{
 		accounts:     accounts,
 		natsClient:   natsClient,
@@ -83,50 +86,49 @@ func (a *AccountManager) RefreshState(ctx context.Context, observed *types.Accou
 }
 
 func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-
-	operatorSecret, err := a.secretStorer.GetSecret(ctx, a.nauthNamespace, "operator-op-sign")
-	if err != nil {
-		return fmt.Errorf("failed to get operator signing key: %w", err)
-	}
-
-	seed, ok := operatorSecret[domain.DefaultSecretKeyName]
-	if !ok {
-		return fmt.Errorf("secret for operator signing key seed was malformed")
-	}
-
-	operatorSigningKeyPair, err := nkeys.FromSeed([]byte(seed))
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
-	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
 	accountKeyPair, _ := nkeys.CreateAccount()
-	accountSigningKeyPair, _ := nkeys.CreateAccount()
-
 	accountPublicKey, _ := accountKeyPair.PublicKey()
+	accountSecretMeta := metav1.ObjectMeta{
+		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
+		Namespace: state.GetNamespace(),
+		Labels: map[string]string{
+			domain.LabelAccountId:         accountPublicKey,
+			domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+		},
+	}
 	accountSeed, _ := accountKeyPair.Seed()
-	secretName := state.GetAccountSecretName()
-	secretValue := map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
+	accountSecretValue := map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
 
-	err = a.secretStorer.ApplySecret(ctx, nil, state.GetNamespace(), secretName, secretValue)
-	if err != nil {
+	if err := a.secretStorer.ApplySecret(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
 		return err
 	}
 
+	accountSigningKeyPair, _ := nkeys.CreateAccount()
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
+	accountSigningSecretMeta := metav1.ObjectMeta{
+		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
+		Namespace: state.GetNamespace(),
+		Labels: map[string]string{
+			domain.LabelAccountId:         accountPublicKey,
+			domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+		},
+	}
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
-	secretName = state.GetAccountSignSecretName()
-	secretValue = map[string]string{domain.DefaultSecretKeyName: string(accountSigningSeed)}
+	accountSignSeedSecretValue := map[string]string{domain.DefaultSecretKeyName: string(accountSigningSeed)}
 
-	err = a.secretStorer.ApplySecret(ctx, nil, state.GetNamespace(), secretName, secretValue)
-	if err != nil {
+	if err := a.secretStorer.ApplySecret(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
 		return err
 	}
 
 	if state.Labels == nil {
-		state.Labels = map[string]string{}
+		state.Labels = make(map[string]string, 2)
 	}
+	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 	state.GetLabels()[domain.LabelAccountId] = accountPublicKey
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
 
@@ -139,6 +141,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		signingKey(accountSigningPublicKey).
 		encode(operatorSigningKeyPair)
 	if err != nil {
+		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
 
@@ -157,7 +160,6 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer a.natsClient.Disconnect()
-
 	err = a.natsClient.UploadAccountJWT(signedJwt)
 	if err != nil {
 		return fmt.Errorf("failed to upload account jwt: %w", err)
@@ -170,30 +172,22 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 }
 
 func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-
-	operatorSecret, err := a.secretStorer.GetSecret(ctx, a.nauthNamespace, "operator-op-sign")
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing key: %w", err)
+		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
-	seed, ok := operatorSecret[domain.DefaultSecretKeyName]
+	accountID := state.GetLabels()[domain.LabelAccountId]
+	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
+	if err != nil {
+		return err
+	}
+
+	accountSecret, ok := secrets[domain.SecretTypeAccountRoot]
 	if !ok {
-		return fmt.Errorf("secret for operator root seed was malformed")
+		return fmt.Errorf("secret for account not found")
 	}
-
-	operatorSigningKeyPair, err := nkeys.FromSeed([]byte(seed))
-	if err != nil {
-		return fmt.Errorf("failed to get operator root key pair from seed: %w", err)
-	}
-	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-
-	secretName := state.GetAccountSecretName()
-	secret, err := a.secretStorer.GetSecret(ctx, state.GetNamespace(), secretName)
-	if err != nil {
-		return fmt.Errorf("failed to get account key: %w", err)
-	}
-	accountSeed, ok := secret[domain.DefaultSecretKeyName]
+	accountSeed, ok := accountSecret[domain.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("secret for account was malformed")
 	}
@@ -203,12 +197,11 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	accountPublicKey, _ := accountKeyPair.PublicKey()
 
-	secretName = state.GetAccountSignSecretName()
-	secret, err = a.secretStorer.GetSecret(ctx, state.GetNamespace(), secretName)
-	if err != nil {
-		return fmt.Errorf("failed to get account signing key: %w", err)
+	accountSigningSecret, ok := secrets[domain.SecretTypeAccountSign]
+	if !ok {
+		return fmt.Errorf("secret for account signing not found")
 	}
-	accountSigningSeed, ok := secret[domain.DefaultSecretKeyName]
+	accountSigningSeed, ok := accountSigningSecret[domain.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("secret for account signing was malformed")
 	}
@@ -218,10 +211,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
-	if state.Labels == nil {
-		state.Labels = map[string]string{}
-	}
-	state.GetLabels()[domain.LabelAccountId] = accountPublicKey
+	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
@@ -233,6 +223,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		signingKey(accountSigningPublicKey).
 		encode(operatorSigningKeyPair)
 	if err != nil {
+		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
 
@@ -263,29 +254,19 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 
 func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-
-	operatorSecret, err := a.secretStorer.GetSecret(ctx, a.nauthNamespace, "operator-op-sign")
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing key: %w", err)
+		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
+	operatorPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	operatorSeed, ok := operatorSecret[domain.DefaultSecretKeyName]
-	if !ok {
-		return fmt.Errorf("secret for operator root seed was malformed")
-	}
-
-	operatorKeyPair, err := nkeys.FromSeed([]byte(operatorSeed))
-	if err != nil {
-		return fmt.Errorf("failed to get operator root key pair from seed: %w", err)
-	}
-
-	operatorPublicKey, _ := operatorKeyPair.PublicKey()
+	accountID := state.GetLabels()[domain.LabelAccountId]
 
 	// Delete is done by signing a jwt with a list of accounts to be deleted
 	deleteClaim := jwt.NewGenericClaims(operatorPublicKey)
-	deleteClaim.Data["accounts"] = []string{state.GetLabels()[domain.LabelAccountId]}
-	deleteJwt, err := deleteClaim.Encode(operatorKeyPair)
+	deleteClaim.Data["accounts"] = []string{accountID}
 
+	deleteJwt, err := deleteClaim.Encode(operatorSigningKeyPair)
 	if err != nil {
 		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
@@ -301,7 +282,168 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to delete account: %w", err)
 	}
 
+	labels := map[string]string{
+		domain.LabelAccountId: accountID,
+	}
+	a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+
 	return nil
+}
+
+func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
+	operatorSecret, err := a.secretStorer.GetSecret(ctx, a.nauthNamespace, domain.SecretNameOperatorSign)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operator signing key: %w", err)
+	}
+
+	seed, ok := operatorSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("secret for operator signing key seed was malformed")
+	}
+
+	return nkeys.FromSeed([]byte(seed))
+}
+
+func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
+	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
+		return secrets, nil
+	}
+
+	secrets, err := a.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	return secrets, nil
+}
+
+func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+	labels := map[string]string{
+		domain.LabelAccountId: accountID,
+	}
+	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(k8sSecrets.Items) < 2 {
+		return nil, fmt.Errorf("missing one or more secret(s) for account: %s-%s", namespace, accountName)
+	}
+
+	if len(k8sSecrets.Items) > 2 {
+		return nil, fmt.Errorf("more than 2 secrets found for account: %s-%s", namespace, accountName)
+	}
+
+	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
+	for _, secret := range k8sSecrets.Items {
+		secretType := secret.GetLabels()[domain.LabelAccountSecretType]
+		if _, ok := secrets[secretType]; ok {
+			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s-%s", secretType, namespace, accountName)
+		}
+		secretData := make(map[string]string, len(secret.Data))
+		for k, v := range secret.Data {
+			secretData[k] = string(v)
+		}
+		secrets[secretType] = secretData
+	}
+	return secrets, nil
+}
+
+func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+	logger := logf.FromContext(ctx)
+
+	type goRoutineResult struct {
+		secret map[string]string
+		err    error
+	}
+	var wg sync.WaitGroup
+	ch := make(chan goRoutineResult, 2)
+
+	for _, s := range []struct {
+		secretName string
+		secretType string
+	}{
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretType: domain.SecretTypeAccountRoot,
+		},
+		{
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretType: domain.SecretTypeAccountSign,
+		},
+	} {
+		wg.Add(1)
+		go func(secretName, secretType string) {
+			result := goRoutineResult{}
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s-%s of type %s: %v", namespace, secretName, secretType, r)
+					ch <- result
+				}
+			}()
+
+			accountSecret, err := a.secretStorer.GetSecret(ctx, namespace, secretName)
+			if err != nil {
+				result.err = err
+				ch <- result
+				return
+			}
+
+			labels := map[string]string{
+				domain.LabelAccountId:         accountID,
+				domain.LabelAccountSecretType: secretType,
+			}
+			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
+				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
+			}
+			accountSecret[domain.LabelAccountSecretType] = secretType
+			result.secret = accountSecret
+			ch <- result
+		}(s.secretName, s.secretType)
+	}
+
+	wg.Wait()
+	close(ch)
+
+	var errs []error
+	secrets := make(map[string]map[string]string, 2)
+
+	for res := range ch {
+		if res.err != nil {
+			errs = append(errs, res.err)
+			continue
+		}
+		secrets[res.secret[domain.LabelAccountSecretType]] = res.secret
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	if len(secrets) < 2 {
+		return nil, fmt.Errorf("missing one or more deprecated secret(s) for account: %s-%s", namespace, accountName)
+	}
+
+	return secrets, nil
+}
+
+func getAccountRootSecretName(accountName, accountID string) string {
+	return fmt.Sprintf(domain.SecretNameAccountRoot, accountName, generateShortHashFromID(accountID))
+}
+
+func getAccountSignSecretName(accountName, accountID string) string {
+	return fmt.Sprintf(domain.SecretNameAccountSign, accountName, generateShortHashFromID(accountID))
+}
+
+func generateShortHashFromID(ID string) string {
+	hasher := md5.New()
+	io.WriteString(hasher, ID)
+	hash := hex.EncodeToString(hasher.Sum(nil))
+	if len(hash) > 6 {
+		return hash[:6]
+	}
+	return hash
 }
 
 type accountClaimBuilder struct {

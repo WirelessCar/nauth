@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
@@ -36,24 +37,23 @@ func NewK8sSecretStorer(client client.Client) *SecretStorer {
 	return k8sSecretStorer
 }
 
-func (k SecretStorer) ApplySecret(ctx context.Context, secretOwner *ports.SecretOwner, namespace string, name string, valueMap map[string]string) error {
+func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	log := logf.FromContext(ctx)
 
 	newSecret := &v1.Secret{
+		ObjectMeta: meta,
 		StringData: valueMap,
 	}
-	newSecret.Name = name
-	newSecret.Namespace = namespace
 
-	log.Info("Trying to create secret", "namespace", namespace, "secretName", name)
+	log.Info("Trying to create secret", "namespace", meta.GetNamespace(), "secretName", meta.GetName())
 
-	if secretOwner != nil {
-		if err := controllerutil.SetControllerReference(secretOwner.Owner, newSecret, k.client.Scheme()); err != nil {
+	if owner != nil {
+		if err := controllerutil.SetControllerReference(owner.Owner, newSecret, k.client.Scheme()); err != nil {
 			return fmt.Errorf("failed to link secret to owner: %w", err)
 		}
 	}
 
-	currentSecret, err := k.getSecret(ctx, namespace, name)
+	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to get secret: %w", err)
@@ -65,7 +65,7 @@ func (k SecretStorer) ApplySecret(ctx context.Context, secretOwner *ports.Secret
 		newSecret = currentSecret
 		newSecret.StringData = valueMap
 
-		if err := addOwnerReferenceIfNotExists(newSecret, secretOwner); err != nil {
+		if err := addOwnerReferenceIfNotExists(newSecret, owner); err != nil {
 			return err
 		}
 
@@ -79,7 +79,6 @@ func (k SecretStorer) ApplySecret(ctx context.Context, secretOwner *ports.Secret
 }
 
 func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *ports.SecretOwner) error {
-
 	if secretOwner == nil {
 		return nil
 	}
@@ -132,6 +131,10 @@ func (k SecretStorer) GetSecret(ctx context.Context, namespace string, name stri
 	return secretData, nil
 }
 
+func (k SecretStorer) GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+	return k.getSecretsByLabels(ctx, namespace, labels)
+}
+
 func (k SecretStorer) DeleteSecret(ctx context.Context, namespace string, name string) error {
 	log := logf.FromContext(ctx)
 
@@ -151,6 +154,41 @@ func (k SecretStorer) DeleteSecret(ctx context.Context, namespace string, name s
 	return nil
 }
 
+func (k SecretStorer) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+	log := logf.FromContext(ctx)
+
+	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return fmt.Errorf("failed to find secrets by label for deletion due to: %w", err)
+	}
+	if len(secrets.Items) < 1 {
+		return nil
+	}
+
+	for _, secret := range secrets.Items {
+		log.Info("trying to delete secret", "secretName", secret.GetName())
+		if err := k.client.Delete(ctx, &secret); err != nil {
+			return fmt.Errorf("failed to delete secret: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (k SecretStorer) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
+	secret, err := k.getSecret(ctx, namespace, name)
+	if err != nil {
+		return fmt.Errorf("failed to get secret: %w", err)
+	}
+
+	if secret.GetLabels() == nil {
+		secret.Labels = make(map[string]string, len(labels))
+	}
+
+	maps.Copy(secret.Labels, labels)
+	return k.client.Update(ctx, secret)
+}
+
 func (k SecretStorer) getSecret(ctx context.Context, namespace string, name string) (*v1.Secret, error) {
 	k8sSecret := &v1.Secret{}
 
@@ -159,4 +197,15 @@ func (k SecretStorer) getSecret(ctx context.Context, namespace string, name stri
 		return nil, err
 	}
 	return k8sSecret, nil
+}
+
+func (k SecretStorer) getSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+	secretList := &v1.SecretList{}
+	matchingLabelsListOption := client.MatchingLabels{}
+	maps.Copy(matchingLabelsListOption, labels)
+
+	if err := k.client.List(ctx, secretList, client.InNamespace(namespace), matchingLabelsListOption); err != nil {
+		return nil, err
+	}
+	return secretList, nil
 }
