@@ -40,6 +40,8 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url | quote }}
+            - name: OPERATOR_VERSION
+              value: {{ .Chart.AppVersion | quote }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

@@ -65,6 +65,8 @@ type AccountStatus struct {
 	ReconcileTimestamp metav1.Time `json:"reconcileTimestamp,omitempty"`
 	// +optional
 	SigningKey KeyInfo `json:"signingKey"`
+	// +optional
+	OperatorVersion string `json:"operatorVersion,omitempty"`
 }
 
 type KeyInfo struct {

@@ -26,3 +26,7 @@ const (
 	DeprecatedSecretNameAccountRoot = "%s-ac-root"
 	DeprecatedSecretNameAccountSign = "%s-ac-sign"
 )
+
+const (
+	OperatorVersion = "OPERATOR_VERSION"
+)

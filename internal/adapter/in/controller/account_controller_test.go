@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"k8s.io/client-go/tools/record"
 
@@ -54,11 +55,15 @@ var _ = Describe("Account Controller", func() {
 			accountNamespacedName ktypes.NamespacedName
 			controllerReconciler  *AccountReconciler
 			fakeRecorder          *record.FakeRecorder
+			operatorVersion       string
 		)
 
 		ctx := context.Background()
 
 		BeforeEach(func() {
+			operatorVersion = "0.0-SNAPSHOT"
+			os.Setenv(domain.OperatorVersion, operatorVersion)
+
 			accountManagerMock = &AccountManagerMock{}
 
 			testIndex += 1
@@ -109,6 +114,7 @@ var _ = Describe("Account Controller", func() {
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			accountManagerMock.AssertExpectations(GinkgoT())
+			os.Unsetenv(domain.OperatorVersion)
 		})
 
 		Context("Account create reconciliation", func() {
@@ -129,6 +135,7 @@ var _ = Describe("Account Controller", func() {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
 					Expect(c.Reason).To(Equal(types.ControllerReasonReconciled))
 				}
+				Expect(account.Status.OperatorVersion).To(Equal(operatorVersion))
 
 				By("Asserting the recorded events match the condition message")
 				Expect(fakeRecorder.Events).To(BeEmpty())
@@ -233,6 +240,40 @@ var _ = Describe("Account Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("Account update reconciliation", func() {
+			It("should successfully reconcile the account when the operator version change", func() {
+				By("Reconciling the created account")
+
+				accountManagerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(nil).Once()
+				accountManagerMock.On("UpdateAccount", mock.Anything, mock.Anything).Return(nil).Once()
+				account := &natsv1alpha1.Account{}
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				// Reconcile again to verify same ObservedGeneration and Generation
+				newOperatorVersion := "1.1-SNAPSHOT"
+				os.Setenv(domain.OperatorVersion, newOperatorVersion)
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, c := range account.Status.Conditions {
+					Expect(c.Status).To(Equal(metav1.ConditionTrue))
+					Expect(c.Reason).To(Equal(types.ControllerReasonReconciled))
+				}
+				Expect(account.Status.OperatorVersion).To(Equal(newOperatorVersion))
+
+				By("Asserting the recorded events match the condition message")
+				Expect(fakeRecorder.Events).To(BeEmpty())
+			})
+		})
 	})
 })
 
@@ -249,11 +290,8 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 		domain.LabelAccountId: accountPublicKey,
 	}
 
-	state.Status = natsv1alpha1.AccountStatus{
-		SigningKey: natsv1alpha1.KeyInfo{
-			Name: accountPublicKey,
-		},
-	}
+	state.Status.ObservedGeneration = state.Generation
+	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
 	return args.Error(0)
@@ -266,11 +304,8 @@ func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alp
 		domain.LabelAccountId: accountPublicKey,
 	}
 
-	state.Status = natsv1alpha1.AccountStatus{
-		SigningKey: natsv1alpha1.KeyInfo{
-			Name: accountPublicKey,
-		},
-	}
+	state.Status.ObservedGeneration = state.Generation
+	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
 	return args.Error(0)

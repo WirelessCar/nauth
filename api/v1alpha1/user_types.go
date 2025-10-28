@@ -63,6 +63,8 @@ type UserStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// +optional
 	ReconcileTimestamp metav1.Time `json:"reconcileTimestamp,omitempty"`
+	// +optional
+	OperatorVersion string `json:"operatorVersion,omitempty"`
 }
 
 // +kubebuilder:object:root=true
