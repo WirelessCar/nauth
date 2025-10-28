@@ -5,6 +5,8 @@
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
+| crds.install | bool | `true` |  |
+| crds.keep | bool | `true` |  |
 | image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |
 | image.registry | string | `"ghcr.io/wirelesscar"` | Sets the operator image registry |
 | image.repository | string | `"nauth-operator"` | Sets the operator repository |
