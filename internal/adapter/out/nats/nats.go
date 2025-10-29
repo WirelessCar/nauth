@@ -115,6 +115,11 @@ func (n *natsClient) connect(namespace string) error {
 		return fmt.Errorf("failed to fetch admin user creds: %w", err)
 	}
 
+	userJwt, err := jwt.ParseDecoratedJWT(adminCreds)
+	if err != nil {
+		return fmt.Errorf("admin jwt invalid: %w", err)
+	}
+
 	userKey, err := jwt.ParseDecoratedUserNKey(adminCreds)
 	if err != nil {
 		return fmt.Errorf("admin creds invalid: %w", err)
@@ -123,11 +128,6 @@ func (n *natsClient) connect(namespace string) error {
 	userSeed, err := userKey.Seed()
 	if err != nil {
 		return fmt.Errorf("error extracting admin user seed: %w", err)
-	}
-
-	userJwt, err := jwt.ParseDecoratedJWT([]byte(adminCreds))
-	if err != nil {
-		return fmt.Errorf("admin jwt invalid: %w", err)
 	}
 
 	n.conn, err = nats.Connect(
