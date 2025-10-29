@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"k8s.io/client-go/tools/record"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -36,11 +38,16 @@ var _ = Describe("User Controller", func() {
 			userNamespacedName   ktypes.NamespacedName
 			fakeRecorder         *record.FakeRecorder
 			testIndex            int
+			operatorVersion      string
 		)
 
 		ctx := context.Background()
 
 		BeforeEach(func() {
+			fmt.Printf("ENV OV=%s\n", os.Getenv(domain.OperatorVersion))
+			operatorVersion = "0.0-SNAPSHOT"
+			os.Setenv(domain.OperatorVersion, operatorVersion)
+
 			userManagerMock = &UserManagerMock{}
 
 			testIndex += 1
@@ -83,6 +90,7 @@ var _ = Describe("User Controller", func() {
 
 		AfterEach(func() {
 			userManagerMock.AssertExpectations(GinkgoT())
+			os.Unsetenv(domain.OperatorVersion)
 		})
 
 		Context("User create/ update reconciliation", func() {
@@ -104,6 +112,7 @@ var _ = Describe("User Controller", func() {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
 					Expect(c.Reason).To(Equal(types.ControllerReasonReconciled))
 				}
+				Expect(user.Status.OperatorVersion).To(Equal(operatorVersion))
 
 				By("Asserting the recorded events match the condition message")
 				Expect(fakeRecorder.Events).To(BeEmpty())
@@ -219,6 +228,39 @@ var _ = Describe("User Controller", func() {
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("User update reconciliation", func() {
+			It("should successfully reconcile the user", func() {
+				By("Reconciling the created user")
+
+				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil).Twice()
+				user := &natsv1alpha1.User{}
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: userNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				// Reconcile again to verify same ObservedGeneration and Generation
+				newOperatorVersion := "1.1-SNAPSHOT"
+				os.Setenv(domain.OperatorVersion, newOperatorVersion)
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: userNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = k8sClient.Get(ctx, userNamespacedName, user)
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, c := range user.Status.Conditions {
+					Expect(c.Status).To(Equal(metav1.ConditionTrue))
+					Expect(c.Reason).To(Equal(types.ControllerReasonReconciled))
+				}
+				Expect(user.Status.OperatorVersion).To(Equal(newOperatorVersion))
+
+				By("Asserting the recorded events match the condition message")
+				Expect(fakeRecorder.Events).To(BeEmpty())
+			})
+		})
 	})
 })
 
@@ -230,6 +272,7 @@ type UserManagerMock struct {
 
 // CreateOrUpdateUser implements ports.UserManager.
 func (u *UserManagerMock) CreateOrUpdateUser(ctx context.Context, state *natsv1alpha1.User) error {
+	state.Status.ObservedGeneration = state.Generation
 	args := u.Called(state)
 	return args.Error(0)
 }

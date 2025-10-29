@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
@@ -135,8 +136,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
+	operatorVersion := os.Getenv(domain.OperatorVersion)
+
 	// Nothing has changed
-	if natsAccount.Status.ObservedGeneration == natsAccount.Generation {
+	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
@@ -174,9 +177,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
-
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := natsAccount.Status.DeepCopy()
+	status.OperatorVersion = operatorVersion
 
 	if err := r.Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account", "name", natsAccount.Name, "error", err)

@@ -19,7 +19,9 @@ package controller
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
@@ -120,8 +122,10 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, nil
 	}
 
+	operatorVersion := os.Getenv(domain.OperatorVersion)
+
 	// Nothing has changed
-	if user.Status.ObservedGeneration == user.Generation {
+	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
@@ -154,6 +158,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := user.Status.DeepCopy()
+	status.OperatorVersion = operatorVersion
 
 	user.Status = natsv1alpha1.UserStatus{}
 	if err := r.Update(ctx, user); err != nil {

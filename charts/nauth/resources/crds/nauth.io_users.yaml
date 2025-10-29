@@ -284,6 +284,8 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              operatorVersion:
+                type: string
               reconcileTimestamp:
                 format: date-time
                 type: string
