@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	NATS_MAX_TIMEOUT = 3 * time.Second
+	natsMaxTimeout = 3 * time.Second
 )
 
 type NatsResponse struct {
@@ -26,27 +27,95 @@ type NatsData struct {
 	Message string `json:"message,omitempty"`
 }
 
-type NATSClient struct {
-	natsUrl      string
+type natsClient struct {
+	natsURL      string
 	secretStorer ports.SecretStorer
 	conn         *nats.Conn
 }
 
-func NewNATSClient(natsUrl string, secretStorer ports.SecretStorer) *NATSClient {
-	return &NATSClient{
-		natsUrl:      natsUrl,
+func NewNATSClient(natsURL string, secretStorer ports.SecretStorer) ports.NATSClient {
+	return &natsClient{
+		natsURL:      natsURL,
 		secretStorer: secretStorer,
 	}
 }
 
-func (n *NATSClient) Connect(namespace string, secretName string) error {
-	credsSecretValue, err := n.secretStorer.GetSecret(context.Background(), namespace, secretName)
+func (n *natsClient) EnsureConnected(namespace string) error {
+	if n.conn != nil && n.conn.IsConnected() {
+		return nil
+	}
+	return n.connect(namespace)
+}
+
+func (n *natsClient) Disconnect() {
+	if n.conn == nil {
+		return
+	}
+
+	if n.conn.IsConnected() {
+		if err := n.conn.Drain(); err != nil {
+			n.conn.Close()
+		}
+	} else {
+		n.conn.Close()
+	}
+}
+
+func (n *natsClient) UploadAccountJWT(jwt string) error {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.UPDATE", []byte(jwt), natsMaxTimeout)
+	if err != nil {
+		return fmt.Errorf("unable to post jwt update request: %w", err)
+	}
+
+	res := &NatsResponse{}
+
+	err = json.Unmarshal(msg.Data, res)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
+	}
+
+	if res.Data.Code != 200 {
+		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
+	}
+
+	return nil
+}
+
+func (n *natsClient) DeleteAccountJWT(jwt string) error {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.DELETE", []byte(jwt), natsMaxTimeout)
+	if err != nil {
+		return fmt.Errorf("unable to post jwt update request: %w", err)
+	}
+
+	res := &NatsResponse{}
+
+	err = json.Unmarshal(msg.Data, res)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
+	}
+
+	if res.Data.Code != 200 {
+		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
+	}
+
+	return nil
+}
+
+func (n *natsClient) connect(namespace string) error {
+	adminCreds, err := n.getOperatorAdminCredentials(context.Background(), namespace)
 	if err != nil {
 		return fmt.Errorf("failed to fetch admin user creds: %w", err)
 	}
-	adminCreds := credsSecretValue[domain.DefaultSecretKeyName]
 
-	userKey, err := jwt.ParseDecoratedUserNKey([]byte(adminCreds))
+	userKey, err := jwt.ParseDecoratedUserNKey(adminCreds)
 	if err != nil {
 		return fmt.Errorf("admin creds invalid: %w", err)
 	}
@@ -62,7 +131,7 @@ func (n *NATSClient) Connect(namespace string, secretName string) error {
 	}
 
 	n.conn, err = nats.Connect(
-		n.natsUrl,
+		n.natsURL,
 		nats.UserJWTAndSeed(userJwt, string(userSeed)),
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(7),
@@ -75,71 +144,26 @@ func (n *NATSClient) Connect(namespace string, secretName string) error {
 	return err
 }
 
-func (n *NATSClient) EnsureConnected(namespace string, secretName string) error {
-	if n.conn != nil && n.conn.IsConnected() {
-		return nil
+func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+	labels := map[string]string{
+		domain.LabelSecretType: domain.SecretTypeOperatorCreds,
 	}
-	return n.Connect(namespace, secretName)
-}
-
-func (n *NATSClient) Disconnect() {
-	if n.conn == nil {
-		return
-	}
-
-	if n.conn.IsConnected() {
-		if err := n.conn.Drain(); err != nil {
-			n.conn.Close()
-		}
-	} else {
-		n.conn.Close()
-	}
-}
-
-func (n *NATSClient) UploadAccountJWT(jwt string) error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
-	}
-
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.UPDATE", []byte(jwt), NATS_MAX_TIMEOUT)
+	secrets, err := n.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
-		return fmt.Errorf("unable to post jwt update request: %w", err)
+		return nil, err
 	}
 
-	res := &NatsResponse{}
-
-	err = json.Unmarshal(msg.Data, res)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
+	if len(secrets.Items) < 1 {
+		return nil, errors.New("missing secret for operator credentials")
 	}
 
-	if res.Data.Code != 200 {
-		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
+	if len(secrets.Items) > 1 {
+		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", domain.LabelSecretType, domain.SecretTypeOperatorCreds)
 	}
 
-	return nil
-}
-
-func (n *NATSClient) DeleteAccountJWT(jwt string) error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
+	creds, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("operator credentials secret key (%s) missing", domain.DefaultSecretKeyName)
 	}
-
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.DELETE", []byte(jwt), NATS_MAX_TIMEOUT)
-	if err != nil {
-		return fmt.Errorf("unable to post jwt update request: %w", err)
-	}
-
-	res := &NatsResponse{}
-
-	err = json.Unmarshal(msg.Data, res)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
-	}
-
-	if res.Data.Code != 200 {
-		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
-	}
-
-	return nil
+	return creds, nil
 }

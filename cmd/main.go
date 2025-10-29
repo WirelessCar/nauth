@@ -206,11 +206,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	natsUrl := os.Getenv("NATS_URL")
+	natsURL := os.Getenv("NATS_URL")
 
 	secretStorer := k8s.NewK8sSecretStorer(mgr.GetClient())
 	standardAccountGetter := k8s.NewAccountGetter(mgr.GetClient())
-	natsClient := nats.NewNATSClient(natsUrl, secretStorer)
+	natsClient := nats.NewNATSClient(natsURL, secretStorer)
 
 	accountManager := service.NewAccountManager(
 		standardAccountGetter,

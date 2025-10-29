@@ -23,8 +23,7 @@ type SecretStorer interface {
 }
 
 type NATSClient interface {
-	Connect(namespace string, secretName string) error
-	EnsureConnected(namespace string, secretName string) error
+	EnsureConnected(namespace string) error
 	Disconnect()
 	UploadAccountJWT(jwt string) error
 	DeleteAccountJWT(jwt string) error

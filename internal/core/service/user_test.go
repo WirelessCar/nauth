@@ -93,8 +93,9 @@ var _ = Describe("User manager", func() {
 			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:         accountPublicKey,
-				domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelSecretType: domain.SecretTypeAccountRoot,
+				domain.LabelManaged:    "true",
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
@@ -105,8 +106,9 @@ var _ = Describe("User manager", func() {
 			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:         accountPublicKey,
-				domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelSecretType: domain.SecretTypeAccountSign,
+				domain.LabelManaged:    "true",
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 

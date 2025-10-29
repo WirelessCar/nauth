@@ -55,6 +55,10 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	secretMeta := metav1.ObjectMeta{
 		Name:      state.GetUserSecretName(),
 		Namespace: state.GetNamespace(),
+		Labels: map[string]string{
+			domain.LabelSecretType: domain.SecretTypeUserCredentials,
+			domain.LabelManaged:    "true",
+		},
 	}
 	secretValue := map[string]string{
 		domain.UserCredentialSecretKeyName: string(userCreds),
@@ -72,7 +76,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	}
 
 	if state.Labels == nil {
-		state.Labels = map[string]string{}
+		state.Labels = make(map[string]string, 3)
 	}
 
 	state.GetLabels()[domain.LabelUserId] = userPublicKey
@@ -112,8 +116,9 @@ func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, ac
 
 func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
-		domain.LabelAccountId:         accountID,
-		domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+		domain.LabelAccountId:  accountID,
+		domain.LabelSecretType: domain.SecretTypeAccountSign,
+		domain.LabelManaged:    "true",
 	}
 	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -128,8 +133,11 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 		return nil, fmt.Errorf("more than 1 signing secret found for account: %s-%s", namespace, accountName)
 	}
 
-	seed := string(secrets.Items[0].Data[domain.DefaultSecretKeyName])
-	return nkeys.FromSeed([]byte(seed))
+	seed, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("secret for user credentials seed was malformed")
+	}
+	return nkeys.FromSeed(seed)
 }
 
 func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
@@ -174,13 +182,14 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 			}
 
 			labels := map[string]string{
-				domain.LabelAccountId:         accountID,
-				domain.LabelAccountSecretType: secretType,
+				domain.LabelAccountId:  accountID,
+				domain.LabelSecretType: secretType,
+				domain.LabelManaged:    "true",
 			}
 			if err := u.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
-			accountSecret[domain.LabelAccountSecretType] = secretType
+			accountSecret[domain.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
 		}(s.secretName, s.secretType)
@@ -197,7 +206,7 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 			errs = append(errs, res.err)
 			continue
 		}
-		secrets[res.secret[domain.LabelAccountSecretType]] = res.secret
+		secrets[res.secret[domain.LabelSecretType]] = res.secret
 	}
 
 	if len(errs) > 0 {
