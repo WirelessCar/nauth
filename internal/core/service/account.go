@@ -306,7 +306,7 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	}
 
 	if len(operatorSecret.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", domain.LabelSecretType, domain.SecretTypeSystemAccountAdminCreds)
+		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", domain.LabelSecretType, domain.SecretTypeSystemAccountUserCreds)
 	}
 
 	seed, ok := operatorSecret.Items[0].Data[domain.DefaultSecretKeyName]

@@ -20,11 +20,11 @@ const (
 )
 
 const (
-	SecretTypeAccountRoot             = "account-root"
-	SecretTypeAccountSign             = "account-sign"
-	SecretTypeOperatorSign            = "operator-sign"
-	SecretTypeSystemAccountAdminCreds = "system-account-admin-creds"
-	SecretTypeUserCredentials         = "user-creds"
+	SecretTypeAccountRoot            = "account-root"
+	SecretTypeAccountSign            = "account-sign"
+	SecretTypeOperatorSign           = "operator-sign"
+	SecretTypeSystemAccountUserCreds = "system-account-user-creds"
+	SecretTypeUserCredentials        = "user-creds"
 )
 
 const (

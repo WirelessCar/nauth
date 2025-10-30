@@ -146,7 +146,7 @@ func (n *natsClient) connect(namespace string) error {
 
 func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
-		domain.LabelSecretType: domain.SecretTypeSystemAccountAdminCreds,
+		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
 	}
 	secrets, err := n.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -158,7 +158,7 @@ func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace s
 	}
 
 	if len(secrets.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", domain.LabelSecretType, domain.SecretTypeSystemAccountAdminCreds)
+		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", domain.LabelSecretType, domain.SecretTypeSystemAccountUserCreds)
 	}
 
 	creds, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
