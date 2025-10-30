@@ -61,7 +61,7 @@ func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner,
 			return fmt.Errorf("failed to create secret: %w", err)
 		}
 	} else {
-		// TODO: require nauth.io/managed: "true" label in release v0.1.3
+		// TODO: require nauth.io/managed: "true" label in future release after explicit addition of new labels
 		if currentSecret.Labels == nil {
 			currentSecret.Labels = make(map[string]string)
 		}
