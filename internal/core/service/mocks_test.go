@@ -70,13 +70,8 @@ type NATSClientMock struct {
 	mock.Mock
 }
 
-func (n *NATSClientMock) Connect(namespace string, secretName string) error {
-	args := n.Called(namespace, secretName)
-	return args.Error(0)
-}
-
-func (n *NATSClientMock) EnsureConnected(namespace string, secretName string) error {
-	args := n.Called(namespace, secretName)
+func (n *NATSClientMock) EnsureConnected(namespace string) error {
+	args := n.Called(namespace)
 	return args.Error(0)
 }
 

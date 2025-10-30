@@ -97,8 +97,9 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			domain.LabelAccountId:         accountPublicKey,
-			domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+			domain.LabelAccountId:  accountPublicKey,
+			domain.LabelSecretType: domain.SecretTypeAccountRoot,
+			domain.LabelManaged:    domain.LabelManagedValue,
 		},
 	}
 	accountSeed, _ := accountKeyPair.Seed()
@@ -114,8 +115,9 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			domain.LabelAccountId:         accountPublicKey,
-			domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+			domain.LabelAccountId:  accountPublicKey,
+			domain.LabelSecretType: domain.SecretTypeAccountSign,
+			domain.LabelManaged:    domain.LabelManagedValue,
 		},
 	}
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
@@ -155,7 +157,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 	state.Status.SigningKey.Name = accountSigningPublicKey
 	state.Status.SigningKey.CreationDate = metav1.Now()
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace, "operator-sau-creds")
+	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
@@ -235,7 +237,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		NatsLimits:      state.Spec.NatsLimits,
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace, "operator-sau-creds")
+	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
@@ -271,7 +273,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace, "operator-sau-creds")
+	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
@@ -291,17 +293,28 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 }
 
 func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
-	operatorSecret, err := a.secretStorer.GetSecret(ctx, a.nauthNamespace, domain.SecretNameOperatorSign)
+	labels := map[string]string{
+		domain.LabelSecretType: domain.SecretTypeOperatorSign,
+	}
+	operatorSecret, err := a.secretStorer.GetSecretsByLabels(ctx, a.nauthNamespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key: %w", err)
 	}
 
-	seed, ok := operatorSecret[domain.DefaultSecretKeyName]
+	if len(operatorSecret.Items) < 1 {
+		return nil, fmt.Errorf("missing operator signing key secret, make sure to label the secret with the label %s: %s", domain.LabelSecretType, domain.SecretTypeOperatorSign)
+	}
+
+	if len(operatorSecret.Items) > 1 {
+		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", domain.LabelSecretType, domain.SecretTypeSystemAccountUserCreds)
+	}
+
+	seed, ok := operatorSecret.Items[0].Data[domain.DefaultSecretKeyName]
 	if !ok {
 		return nil, fmt.Errorf("secret for operator signing key seed was malformed")
 	}
 
-	return nkeys.FromSeed([]byte(seed))
+	return nkeys.FromSeed(seed)
 }
 
 func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
@@ -320,6 +333,7 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountId: accountID,
+		domain.LabelManaged:   domain.LabelManagedValue,
 	}
 	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -336,7 +350,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 
 	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
 	for _, secret := range k8sSecrets.Items {
-		secretType := secret.GetLabels()[domain.LabelAccountSecretType]
+		secretType := secret.GetLabels()[domain.LabelSecretType]
 		if _, ok := secrets[secretType]; ok {
 			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s-%s", secretType, namespace, accountName)
 		}
@@ -364,11 +378,11 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, accountName),
 			secretType: domain.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, accountName),
 			secretType: domain.SecretTypeAccountSign,
 		},
 	} {
@@ -391,13 +405,14 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			}
 
 			labels := map[string]string{
-				domain.LabelAccountId:         accountID,
-				domain.LabelAccountSecretType: secretType,
+				domain.LabelAccountId:  accountID,
+				domain.LabelSecretType: secretType,
+				domain.LabelManaged:    domain.LabelManagedValue,
 			}
 			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
-			accountSecret[domain.LabelAccountSecretType] = secretType
+			accountSecret[domain.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
 		}(s.secretName, s.secretType)
@@ -414,7 +429,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			errs = append(errs, res.err)
 			continue
 		}
-		secrets[res.secret[domain.LabelAccountSecretType]] = res.secret
+		secrets[res.secret[domain.LabelSecretType]] = res.secret
 	}
 
 	if len(errs) > 0 {
@@ -429,11 +444,11 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountRoot, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, generateShortHashFromID(accountID))
 }
 
 func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountSign, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, generateShortHashFromID(accountID))
 }
 
 func generateShortHashFromID(ID string) string {

@@ -90,11 +90,12 @@ var _ = Describe("User manager", func() {
 			accountPublicKey, _ := accountKeyPair.PublicKey()
 			accountSeed, _ := accountKeyPair.Seed()
 			accountSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSeed)}
-			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, account.GetName())
+			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:         accountPublicKey,
-				domain.LabelAccountSecretType: domain.SecretTypeAccountRoot,
+				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelSecretType: domain.SecretTypeAccountRoot,
+				domain.LabelManaged:    domain.LabelManagedValue,
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
@@ -102,11 +103,12 @@ var _ = Describe("User manager", func() {
 			accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 			accountSigningSeed, _ := accountSigningKeyPair.Seed()
 			accountSigningSecretValueMock := map[string]string{domain.DefaultSecretKeyName: string(accountSigningSeed)}
-			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, account.GetName())
+			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:         accountPublicKey,
-				domain.LabelAccountSecretType: domain.SecretTypeAccountSign,
+				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelSecretType: domain.SecretTypeAccountSign,
+				domain.LabelManaged:    domain.LabelManagedValue,
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 

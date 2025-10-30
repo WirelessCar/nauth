@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	NATS_MAX_TIMEOUT = 3 * time.Second
+	natsMaxTimeout = 3 * time.Second
 )
 
 type NatsResponse struct {
@@ -26,63 +27,27 @@ type NatsData struct {
 	Message string `json:"message,omitempty"`
 }
 
-type NATSClient struct {
-	natsUrl      string
+type natsClient struct {
+	natsURL      string
 	secretStorer ports.SecretStorer
 	conn         *nats.Conn
 }
 
-func NewNATSClient(natsUrl string, secretStorer ports.SecretStorer) *NATSClient {
-	return &NATSClient{
-		natsUrl:      natsUrl,
+func NewNATSClient(natsURL string, secretStorer ports.SecretStorer) ports.NATSClient {
+	return &natsClient{
+		natsURL:      natsURL,
 		secretStorer: secretStorer,
 	}
 }
 
-func (n *NATSClient) Connect(namespace string, secretName string) error {
-	credsSecretValue, err := n.secretStorer.GetSecret(context.Background(), namespace, secretName)
-	if err != nil {
-		return fmt.Errorf("failed to fetch admin user creds: %w", err)
-	}
-	adminCreds := credsSecretValue[domain.DefaultSecretKeyName]
-
-	userKey, err := jwt.ParseDecoratedUserNKey([]byte(adminCreds))
-	if err != nil {
-		return fmt.Errorf("admin creds invalid: %w", err)
-	}
-
-	userSeed, err := userKey.Seed()
-	if err != nil {
-		return fmt.Errorf("error extracting admin user seed: %w", err)
-	}
-
-	userJwt, err := jwt.ParseDecoratedJWT([]byte(adminCreds))
-	if err != nil {
-		return fmt.Errorf("admin jwt invalid: %w", err)
-	}
-
-	n.conn, err = nats.Connect(
-		n.natsUrl,
-		nats.UserJWTAndSeed(userJwt, string(userSeed)),
-		nats.RetryOnFailedConnect(true),
-		nats.MaxReconnects(7),
-		nats.ReconnectWait(time.Second),
-	)
-	if err != nil {
-		return fmt.Errorf("unable to connect to NATS cluster: %w", err)
-	}
-
-	return err
-}
-
-func (n *NATSClient) EnsureConnected(namespace string, secretName string) error {
+func (n *natsClient) EnsureConnected(namespace string) error {
 	if n.conn != nil && n.conn.IsConnected() {
 		return nil
 	}
-	return n.Connect(namespace, secretName)
+	return n.connect(namespace)
 }
 
-func (n *NATSClient) Disconnect() {
+func (n *natsClient) Disconnect() {
 	if n.conn == nil {
 		return
 	}
@@ -96,12 +61,12 @@ func (n *NATSClient) Disconnect() {
 	}
 }
 
-func (n *NATSClient) UploadAccountJWT(jwt string) error {
+func (n *natsClient) UploadAccountJWT(jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
 
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.UPDATE", []byte(jwt), NATS_MAX_TIMEOUT)
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.UPDATE", []byte(jwt), natsMaxTimeout)
 	if err != nil {
 		return fmt.Errorf("unable to post jwt update request: %w", err)
 	}
@@ -120,12 +85,12 @@ func (n *NATSClient) UploadAccountJWT(jwt string) error {
 	return nil
 }
 
-func (n *NATSClient) DeleteAccountJWT(jwt string) error {
+func (n *natsClient) DeleteAccountJWT(jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
 
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.DELETE", []byte(jwt), NATS_MAX_TIMEOUT)
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.DELETE", []byte(jwt), natsMaxTimeout)
 	if err != nil {
 		return fmt.Errorf("unable to post jwt update request: %w", err)
 	}
@@ -142,4 +107,63 @@ func (n *NATSClient) DeleteAccountJWT(jwt string) error {
 	}
 
 	return nil
+}
+
+func (n *natsClient) connect(namespace string) error {
+	adminCreds, err := n.getOperatorAdminCredentials(context.Background(), namespace)
+	if err != nil {
+		return fmt.Errorf("failed to fetch admin user creds: %w", err)
+	}
+
+	userJwt, err := jwt.ParseDecoratedJWT(adminCreds)
+	if err != nil {
+		return fmt.Errorf("admin jwt invalid: %w", err)
+	}
+
+	userKey, err := jwt.ParseDecoratedUserNKey(adminCreds)
+	if err != nil {
+		return fmt.Errorf("admin creds invalid: %w", err)
+	}
+
+	userSeed, err := userKey.Seed()
+	if err != nil {
+		return fmt.Errorf("error extracting admin user seed: %w", err)
+	}
+
+	n.conn, err = nats.Connect(
+		n.natsURL,
+		nats.UserJWTAndSeed(userJwt, string(userSeed)),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(7),
+		nats.ReconnectWait(time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("unable to connect to NATS cluster: %w", err)
+	}
+
+	return err
+}
+
+func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+	labels := map[string]string{
+		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
+	}
+	secrets, err := n.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(secrets.Items) < 1 {
+		return nil, errors.New("missing secret for operator credentials")
+	}
+
+	if len(secrets.Items) > 1 {
+		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", domain.LabelSecretType, domain.SecretTypeSystemAccountUserCreds)
+	}
+
+	creds, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("operator credentials secret key (%s) missing", domain.DefaultSecretKeyName)
+	}
+	return creds, nil
 }

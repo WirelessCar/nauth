@@ -25,6 +25,13 @@ helm install nauth oci://ghcr.io/wirelesscar/nauth --create-namespace --namespac
 NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
 See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
 
+> [!IMPORTANT]
+> Nauth requires the [**NATS Managed Operator**](https://docs.nats.io/using-nats/nats-tools/nsc/managed) admin credentials and signing keys to be provided as a k8s secret with the proper labels.
+> - *nauth.io/secret-type: op-creds*
+> - *nauth.io/secret-type: op-sign*
+
+You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml).
+
 ## Getting Started
 Running a large NATS cluster requires that the operator is secured properly. If you do not already have an operator, try
 out the [operator-bootstrap](./operator-bootstrap) utility which comes with NAuth.

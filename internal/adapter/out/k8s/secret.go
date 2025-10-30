@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 
+	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
 	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
 	v1 "k8s.io/api/core/v1"
@@ -38,38 +39,43 @@ func NewK8sSecretStorer(client client.Client) *SecretStorer {
 }
 
 func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
-	log := logf.FromContext(ctx)
-
-	newSecret := &v1.Secret{
-		ObjectMeta: meta,
-		StringData: valueMap,
+	if _, ok := meta.Labels[domain.LabelManaged]; !ok {
+		return fmt.Errorf("label %s not supplied by secret %s/%s", domain.LabelManaged, meta.Namespace, meta.Name)
 	}
-
-	log.Info("Trying to create secret", "namespace", meta.GetNamespace(), "secretName", meta.GetName())
-
-	if owner != nil {
-		if err := controllerutil.SetControllerReference(owner.Owner, newSecret, k.client.Scheme()); err != nil {
-			return fmt.Errorf("failed to link secret to owner: %w", err)
-		}
-	}
-
 	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to get secret: %w", err)
 		}
+		newSecret := &v1.Secret{
+			ObjectMeta: meta,
+			StringData: valueMap,
+		}
+		if owner != nil {
+			if err := controllerutil.SetControllerReference(owner.Owner, newSecret, k.client.Scheme()); err != nil {
+				return fmt.Errorf("failed to link secret to owner: %w", err)
+			}
+		}
+
 		if err := k.client.Create(ctx, newSecret); err != nil {
 			return fmt.Errorf("failed to create secret: %w", err)
 		}
 	} else {
-		newSecret = currentSecret
-		newSecret.StringData = valueMap
+		// TODO: require nauth.io/managed: "true" label in future release after explicit addition of new labels
+		if currentSecret.Labels == nil {
+			currentSecret.Labels = make(map[string]string)
+		}
 
-		if err := addOwnerReferenceIfNotExists(newSecret, owner); err != nil {
+		if meta.Labels != nil {
+			maps.Insert(currentSecret.Labels, maps.All(meta.Labels))
+		}
+
+		currentSecret.StringData = valueMap
+		if err := addOwnerReferenceIfNotExists(currentSecret, owner); err != nil {
 			return err
 		}
 
-		err = k.client.Update(ctx, newSecret)
+		err = k.client.Update(ctx, currentSecret)
 		if err != nil {
 			return fmt.Errorf("failed to update secret: %w", err)
 		}

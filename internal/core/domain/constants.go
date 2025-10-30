@@ -4,27 +4,32 @@ const (
 	DefaultSecretKeyName        = "default"
 	LabelAccountId              = "account.nauth.io/id"
 	LabelAccountSignedBy        = "account.nauth.io/signed-by"
-	LabelAccountSecretType      = "account.nauth.io/secret-type"
 	LabelUserId                 = "user.nauth.io/id"
 	LabelUserAccountId          = "user.nauth.io/account-id"
 	LabelUserSignedBy           = "user.nauth.io/signed-by"
 	UserCredentialSecretKeyName = "user.creds"
+
+	LabelSecretType   = "nauth.io/secret-type"
+	LabelManaged      = "nauth.io/managed"
+	LabelManagedValue = "true"
 )
 
 const (
-	SecretNameAccountRoot  = "%s-ac-root-%s"
-	SecretNameAccountSign  = "%s-ac-sign-%s"
-	SecretNameOperatorSign = "operator-op-sign"
+	SecretNameAccountRootTemplate = "%s-ac-root-%s"
+	SecretNameAccountSignTemplate = "%s-ac-sign-%s"
 )
 
 const (
-	SecretTypeAccountRoot = "ac-root"
-	SecretTypeAccountSign = "ac-sign"
+	SecretTypeAccountRoot            = "account-root"
+	SecretTypeAccountSign            = "account-sign"
+	SecretTypeOperatorSign           = "operator-sign"
+	SecretTypeSystemAccountUserCreds = "system-account-user-creds"
+	SecretTypeUserCredentials        = "user-creds"
 )
 
 const (
-	DeprecatedSecretNameAccountRoot = "%s-ac-root"
-	DeprecatedSecretNameAccountSign = "%s-ac-sign"
+	DeprecatedSecretNameAccountRootTemplate = "%s-ac-root"
+	DeprecatedSecretNameAccountSignTemplate = "%s-ac-sign"
 )
 
 const (

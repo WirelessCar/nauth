@@ -19,6 +19,7 @@ package k8s
 import (
 	"context"
 
+	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -35,6 +36,9 @@ var _ = Describe("Secrets storer", func() {
 		secretMeta := metav1.ObjectMeta{
 			Name:      resourceName,
 			Namespace: namespace,
+			Labels: map[string]string{
+				domain.LabelManaged: domain.LabelManagedValue,
+			},
 		}
 		ctx := context.Background()
 		var secretStorer *SecretStorer
