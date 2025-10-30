@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 
+	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
 	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +39,9 @@ func NewK8sSecretStorer(client client.Client) *SecretStorer {
 }
 
 func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+	if _, ok := meta.Labels[domain.LabelManaged]; !ok {
+		return fmt.Errorf("label %s not supplied by secret %s/%s", domain.LabelManaged, meta.Namespace, meta.Name)
+	}
 	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -57,6 +61,7 @@ func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner,
 			return fmt.Errorf("failed to create secret: %w", err)
 		}
 	} else {
+		// TODO: require nauth.io/managed: "true" label in release v0.1.3
 		if currentSecret.Labels == nil {
 			currentSecret.Labels = make(map[string]string)
 		}

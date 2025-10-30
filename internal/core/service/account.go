@@ -99,7 +99,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Labels: map[string]string{
 			domain.LabelAccountId:  accountPublicKey,
 			domain.LabelSecretType: domain.SecretTypeAccountRoot,
-			domain.LabelManaged:    "true",
+			domain.LabelManaged:    domain.LabelManagedValue,
 		},
 	}
 	accountSeed, _ := accountKeyPair.Seed()
@@ -117,7 +117,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Labels: map[string]string{
 			domain.LabelAccountId:  accountPublicKey,
 			domain.LabelSecretType: domain.SecretTypeAccountSign,
-			domain.LabelManaged:    "true",
+			domain.LabelManaged:    domain.LabelManagedValue,
 		},
 	}
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
@@ -306,7 +306,7 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	}
 
 	if len(operatorSecret.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", domain.LabelSecretType, domain.SecretTypeOperatorCreds)
+		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", domain.LabelSecretType, domain.SecretTypeSystemAccountAdminCreds)
 	}
 
 	seed, ok := operatorSecret.Items[0].Data[domain.DefaultSecretKeyName]
@@ -333,7 +333,7 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountId: accountID,
-		domain.LabelManaged:   "true",
+		domain.LabelManaged:   domain.LabelManagedValue,
 	}
 	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -378,11 +378,11 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, accountName),
 			secretType: domain.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, accountName),
 			secretType: domain.SecretTypeAccountSign,
 		},
 	} {
@@ -407,7 +407,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			labels := map[string]string{
 				domain.LabelAccountId:  accountID,
 				domain.LabelSecretType: secretType,
-				domain.LabelManaged:    "true",
+				domain.LabelManaged:    domain.LabelManagedValue,
 			}
 			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
@@ -444,11 +444,11 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountRoot, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, generateShortHashFromID(accountID))
 }
 
 func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountSign, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, generateShortHashFromID(accountID))
 }
 
 func generateShortHashFromID(ID string) string {

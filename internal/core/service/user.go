@@ -57,7 +57,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
 			domain.LabelSecretType: domain.SecretTypeUserCredentials,
-			domain.LabelManaged:    "true",
+			domain.LabelManaged:    domain.LabelManagedValue,
 		},
 	}
 	secretValue := map[string]string{
@@ -118,7 +118,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 	labels := map[string]string{
 		domain.LabelAccountId:  accountID,
 		domain.LabelSecretType: domain.SecretTypeAccountSign,
-		domain.LabelManaged:    "true",
+		domain.LabelManaged:    domain.LabelManagedValue,
 	}
 	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -155,11 +155,11 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRoot, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, accountName),
 			secretType: domain.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSign, accountName),
+			secretName: fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, accountName),
 			secretType: domain.SecretTypeAccountSign,
 		},
 	} {
@@ -184,7 +184,7 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 			labels := map[string]string{
 				domain.LabelAccountId:  accountID,
 				domain.LabelSecretType: secretType,
-				domain.LabelManaged:    "true",
+				domain.LabelManaged:    domain.LabelManagedValue,
 			}
 			if err := u.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
