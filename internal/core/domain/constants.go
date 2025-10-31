@@ -2,7 +2,7 @@ package domain
 
 const (
 	DefaultSecretKeyName        = "default"
-	LabelAccountId              = "account.nauth.io/id"
+	LabelAccountID              = "account.nauth.io/id"
 	LabelAccountSignedBy        = "account.nauth.io/signed-by"
 	LabelUserId                 = "user.nauth.io/id"
 	LabelUserAccountId          = "user.nauth.io/account-id"

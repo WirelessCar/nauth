@@ -287,7 +287,7 @@ type AccountManagerMock struct {
 func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 
 	state.Labels = map[string]string{
-		domain.LabelAccountId: accountPublicKey,
+		domain.LabelAccountID: accountPublicKey,
 	}
 
 	state.Status.ObservedGeneration = state.Generation
@@ -301,7 +301,7 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 
 	state.Labels = map[string]string{
-		domain.LabelAccountId: accountPublicKey,
+		domain.LabelAccountID: accountPublicKey,
 	}
 
 	state.Status.ObservedGeneration = state.Generation

@@ -67,12 +67,12 @@ var _ = Describe("Account manager", func() {
 
 			By("validating that relevant keys for a base account are stored")
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID := s.GetLabels()[domain.LabelAccountId]
+				accountID := s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID := s.GetLabels()[domain.LabelAccountId]
+				accountID := s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
@@ -81,7 +81,7 @@ var _ = Describe("Account manager", func() {
 			err := accountManager.CreateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
-			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 		})
 
 		It("fails to create an account with conflicting imports", func() {
@@ -99,12 +99,12 @@ var _ = Describe("Account manager", func() {
 
 			By("validating that relevant keys for a base account are stored")
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID := s.GetLabels()[domain.LabelAccountId]
+				accountID := s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID := s.GetLabels()[domain.LabelAccountId]
+				accountID := s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
@@ -154,20 +154,20 @@ var _ = Describe("Account manager", func() {
 
 			By("validating that relevant keys for a base account are stored")
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID = s.GetLabels()[domain.LabelAccountId]
+				accountID = s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				secretType := s.GetLabels()[domain.LabelSecretType]
-				return s.GetNamespace() == accountNamespace && isAccountPubKey(s.GetLabels()[domain.LabelAccountId]) && secretType == domain.SecretTypeAccountSign
+				return s.GetNamespace() == accountNamespace && isAccountPubKey(s.GetLabels()[domain.LabelAccountID]) && secretType == domain.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
 			err := accountManager.CreateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
-			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 
 			By("updating account")
 			accountKeyPair, _ := nkeys.CreateAccount()
@@ -200,7 +200,7 @@ var _ = Describe("Account manager", func() {
 				},
 			}
 			accountSecretLabelsMock := map[string]string{
-				domain.LabelAccountId: accountID,
+				domain.LabelAccountID: accountID,
 				domain.LabelManaged:   domain.LabelManagedValue,
 			}
 			secretStorerMock.On("GetSecretsByLabels", ctx, mock.Anything, accountSecretLabelsMock).Return(secretsList, nil)
@@ -214,7 +214,7 @@ var _ = Describe("Account manager", func() {
 			err = accountManager.UpdateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
-			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 		})
 
 		It("updates an existing account with legacy secrets", func() {
@@ -239,7 +239,7 @@ var _ = Describe("Account manager", func() {
 			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelAccountID:  accountPublicKey,
 				domain.LabelSecretType: domain.SecretTypeAccountRoot,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -251,7 +251,7 @@ var _ = Describe("Account manager", func() {
 			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelAccountID:  accountPublicKey,
 				domain.LabelSecretType: domain.SecretTypeAccountSign,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -271,13 +271,13 @@ var _ = Describe("Account manager", func() {
 				LeafNodeConn:    ptr.To[int64](0),
 			}
 			account.Labels = map[string]string{
-				domain.LabelAccountId:       accountPublicKey,
+				domain.LabelAccountID:       accountPublicKey,
 				domain.LabelAccountSignedBy: operatorPublicKey,
 			}
 			err := accountManager.UpdateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
-			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 		})
 
 		It("delete an account", func() {
@@ -302,24 +302,24 @@ var _ = Describe("Account manager", func() {
 
 			By("validating that relevant keys for a base account are stored")
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID = s.GetLabels()[domain.LabelAccountId]
+				accountID = s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
-				accountID = s.GetLabels()[domain.LabelAccountId]
+				accountID = s.GetLabels()[domain.LabelAccountID]
 				secretType := s.GetLabels()[domain.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == domain.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("DeleteSecretsByLabels", ctx, mock.Anything, mock.MatchedBy(func(s map[string]string) bool {
-				return s[domain.LabelAccountId] == accountID
+				return s[domain.LabelAccountID] == accountID
 			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
 			err := accountManager.CreateAccount(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
-			Expect(account.GetLabels()[domain.LabelAccountId]).Should(Satisfy(isAccountPubKey))
+			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 
 			By("deleting the account")
 			err = accountManager.DeleteAccount(ctx, account)

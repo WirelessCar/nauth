@@ -93,7 +93,7 @@ var _ = Describe("User manager", func() {
 			accountSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelAccountID:  accountPublicKey,
 				domain.LabelSecretType: domain.SecretTypeAccountRoot,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -106,7 +106,7 @@ var _ = Describe("User manager", func() {
 			accountSigningSecretNameMock := fmt.Sprintf(domain.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				domain.LabelAccountId:  accountPublicKey,
+				domain.LabelAccountID:  accountPublicKey,
 				domain.LabelSecretType: domain.SecretTypeAccountSign,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -117,7 +117,7 @@ var _ = Describe("User manager", func() {
 				Name: accountSigningPublicKey,
 			}
 			account.Labels = map[string]string{
-				domain.LabelAccountId: accountPublicKey,
+				domain.LabelAccountID: accountPublicKey,
 			}
 			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
 

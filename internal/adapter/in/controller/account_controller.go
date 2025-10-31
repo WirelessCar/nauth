@@ -105,7 +105,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &natsv1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountId: natsAccount.GetLabels()[domain.LabelAccountId]}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountId: natsAccount.GetLabels()[domain.LabelAccountID]}, client.InNamespace(req.Namespace))
 
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
@@ -166,7 +166,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT - Create/Update the NATS Account
-	if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelAccountId] == "" {
+	if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelAccountID] == "" {
 		if err := r.CreateAccount(ctx, natsAccount); err != nil {
 			return r.Result(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}

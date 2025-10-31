@@ -58,6 +58,6 @@ func (a *AccountGetter) Get(ctx context.Context, accountRefName string, namespac
 }
 
 func isReady(account *v1alpha1.Account) bool {
-	_, ok := account.GetLabels()[domain.LabelAccountId]
+	_, ok := account.GetLabels()[domain.LabelAccountID]
 	return ok
 }

@@ -97,7 +97,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			domain.LabelAccountId:  accountPublicKey,
+			domain.LabelAccountID:  accountPublicKey,
 			domain.LabelSecretType: domain.SecretTypeAccountRoot,
 			domain.LabelManaged:    domain.LabelManagedValue,
 		},
@@ -115,7 +115,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			domain.LabelAccountId:  accountPublicKey,
+			domain.LabelAccountID:  accountPublicKey,
 			domain.LabelSecretType: domain.SecretTypeAccountSign,
 			domain.LabelManaged:    domain.LabelManagedValue,
 		},
@@ -131,7 +131,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		state.Labels = make(map[string]string, 2)
 	}
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-	state.GetLabels()[domain.LabelAccountId] = accountPublicKey
+	state.GetLabels()[domain.LabelAccountID] = accountPublicKey
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
@@ -179,7 +179,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
-	accountID := state.GetLabels()[domain.LabelAccountId]
+	accountID := state.GetLabels()[domain.LabelAccountID]
 	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
 		return err
@@ -262,7 +262,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	operatorPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	accountID := state.GetLabels()[domain.LabelAccountId]
+	accountID := state.GetLabels()[domain.LabelAccountID]
 
 	// Delete is done by signing a jwt with a list of accounts to be deleted
 	deleteClaim := jwt.NewGenericClaims(operatorPublicKey)
@@ -285,7 +285,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	}
 
 	labels := map[string]string{
-		domain.LabelAccountId: accountID,
+		domain.LabelAccountID: accountID,
 	}
 	a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
 
@@ -332,7 +332,7 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 
 func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
-		domain.LabelAccountId: accountID,
+		domain.LabelAccountID: accountID,
 		domain.LabelManaged:   domain.LabelManagedValue,
 	}
 	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
@@ -405,7 +405,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			}
 
 			labels := map[string]string{
-				domain.LabelAccountId:  accountID,
+				domain.LabelAccountID:  accountID,
 				domain.LabelSecretType: secretType,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -608,7 +608,7 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 				b.errs = append(b.errs, err)
 				log.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)
 			} else {
-				account := importAccount.Labels[domain.LabelAccountId]
+				account := importAccount.Labels[domain.LabelAccountID]
 				claim := &jwt.Import{
 					Name:         importClaim.Name,
 					Subject:      jwt.Subject(importClaim.Subject),

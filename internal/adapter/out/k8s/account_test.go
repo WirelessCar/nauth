@@ -100,7 +100,7 @@ func accountIsReady(namespace string, name string) error {
 	}
 
 	accountLabels := map[string]string{
-		domain.LabelAccountId: "account-id",
+		domain.LabelAccountID: "account-id",
 	}
 	account.SetLabels(accountLabels)
 

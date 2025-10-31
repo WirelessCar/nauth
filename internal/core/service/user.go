@@ -26,7 +26,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	accountID := account.GetLabels()[domain.LabelAccountId]
+	accountID := account.GetLabels()[domain.LabelAccountID]
 	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
@@ -80,7 +80,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	}
 
 	state.GetLabels()[domain.LabelUserId] = userPublicKey
-	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountId]
+	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountID]
 	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
@@ -116,7 +116,7 @@ func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, ac
 
 func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
-		domain.LabelAccountId:  accountID,
+		domain.LabelAccountID:  accountID,
 		domain.LabelSecretType: domain.SecretTypeAccountSign,
 		domain.LabelManaged:    domain.LabelManagedValue,
 	}
@@ -182,7 +182,7 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 			}
 
 			labels := map[string]string{
-				domain.LabelAccountId:  accountID,
+				domain.LabelAccountID:  accountID,
 				domain.LabelSecretType: secretType,
 				domain.LabelManaged:    domain.LabelManagedValue,
 			}
@@ -320,7 +320,7 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 }
 
 func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
-	u.claim.IssuerAccount = account.Labels[domain.LabelAccountId]
+	u.claim.IssuerAccount = account.Labels[domain.LabelAccountID]
 	return u
 }
 
