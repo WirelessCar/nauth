@@ -74,7 +74,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[domain.LabelUserID]).Should(Satisfy(isUserPubKey))
 		})
 
 		It("creates a new user from an account with legacy secrets", func() {
@@ -130,7 +130,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[domain.LabelUserID]).Should(Satisfy(isUserPubKey))
 		})
 
 		It("creates a new user and update settigs", func() {
@@ -164,7 +164,7 @@ var _ = Describe("User manager", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[domain.LabelUserID]).Should(Satisfy(isUserPubKey))
 
 			user.Spec.NatsLimits = &v1alpha1.NatsLimits{
 				Subs:    ptr.To[int64](100),
@@ -176,7 +176,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[domain.LabelUserId]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[domain.LabelUserID]).Should(Satisfy(isUserPubKey))
 			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.Status.Claims.NatsLimits.Subs).Should(Equal(user.Spec.NatsLimits.Subs))
 			Expect(user.Status.Claims.NatsLimits.Data).Should(Equal(user.Spec.NatsLimits.Data))

@@ -79,7 +79,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		state.Labels = make(map[string]string, 3)
 	}
 
-	state.GetLabels()[domain.LabelUserId] = userPublicKey
+	state.GetLabels()[domain.LabelUserID] = userPublicKey
 	state.GetLabels()[domain.LabelUserAccountId] = account.GetLabels()[domain.LabelAccountID]
 	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
