@@ -39,7 +39,7 @@ func NewK8sSecretStorer(client client.Client) *SecretStorer {
 }
 
 func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
-	if _, ok := meta.Labels[domain.LabelManaged]; !ok {
+	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", domain.LabelManaged, meta.Namespace, meta.Name)
 	}
 	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
@@ -61,14 +61,10 @@ func (k SecretStorer) ApplySecret(ctx context.Context, owner *ports.SecretOwner,
 			return fmt.Errorf("failed to create secret: %w", err)
 		}
 	} else {
-		// TODO: require nauth.io/managed: "true" label in future release after explicit addition of new labels
-		if currentSecret.Labels == nil {
-			currentSecret.Labels = make(map[string]string)
+		if !isManagedSecret(&currentSecret.ObjectMeta) {
+			return fmt.Errorf("existing secret %s/%s not managed by nauth", meta.Namespace, meta.Name)
 		}
-
-		if meta.Labels != nil {
-			maps.Insert(currentSecret.Labels, maps.All(meta.Labels))
-		}
+		maps.Insert(currentSecret.Labels, maps.All(meta.Labels))
 
 		currentSecret.StringData = valueMap
 		if err := addOwnerReferenceIfNotExists(currentSecret, owner); err != nil {
@@ -214,4 +210,8 @@ func (k SecretStorer) getSecretsByLabels(ctx context.Context, namespace string, 
 		return nil, err
 	}
 	return secretList, nil
+}
+
+func isManagedSecret(meta *metav1.ObjectMeta) bool {
+	return meta.Labels != nil && meta.Labels[domain.LabelManaged] == domain.LabelManagedValue
 }
