@@ -18,6 +18,8 @@ package k8s
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
@@ -80,6 +82,41 @@ var _ = Describe("Secrets storer", func() {
 			Expect(newFetchedSecret).ToNot(BeNil())
 			Expect(newFetchedSecret).To(Equal(newSecret))
 		})
+		DescribeTable("should fail to update an existing secret not managed by nauth",
+			func(existingSecretLabels map[string]string) {
+				By("Creating the existing secret from scratch without managed label")
+				existingSecret := map[string]string{"key": "value"}
+				err := k8sClient.Create(ctx, &v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      resourceName,
+						Namespace: namespace,
+						Labels:    existingSecretLabels,
+					},
+					StringData: existingSecret,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Trying to update the existing secret with a new value")
+				newSecret := map[string]string{"key": "new value"}
+				err = secretStorer.ApplySecret(ctx, nil, secretMeta, newSecret)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(Equal(errors.New(fmt.Sprintf("existing secret %s/%s not managed by nauth", namespace, resourceName))))
+
+				By("Retrieving the secret again to verify not mutated")
+				newFetchedSecret, err := secretStorer.GetSecret(ctx, namespace, resourceName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(newFetchedSecret).ToNot(BeNil())
+				Expect(newFetchedSecret).To(Equal(existingSecret))
+			},
+			Entry("due to absent labels map",
+				nil),
+			Entry("due to empty labels map",
+				map[string]string{}),
+			Entry("due to irrelevant labels",
+				map[string]string{"foo": "bar"}),
+			Entry("due to existing managed label with unexpected value",
+				map[string]string{domain.LabelManaged: "false"}))
+
 		It("should return success when deleting a non existing secret", func() {
 			By("Trying to delete a non-existing secret")
 			err := secretStorer.DeleteSecret(ctx, namespace, "non-existing-secret")
