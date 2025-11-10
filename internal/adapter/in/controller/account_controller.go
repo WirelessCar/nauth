@@ -87,6 +87,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Error(err, "Failed to get resource")
 		return r.Result(ctx, natsAccount, err)
 	}
+	accountRef := fmt.Sprintf("%s/%s", natsAccount.Namespace, natsAccount.Name)
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
@@ -99,8 +100,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		})
 
 		if err := r.Status().Update(ctx, natsAccount); err != nil {
-			log.Info("Failed to update the account status", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
+			log.Error(err, "Failed to update the account status", "account", accountRef)
+			return ctrl.Result{}, fmt.Errorf("failed to update the account status: %w", err)
 		}
 
 		// Check for connected users
@@ -108,8 +109,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: natsAccount.GetLabels()[domain.LabelAccountID]}, client.InNamespace(req.Namespace))
 
 		if err != nil {
-			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
+			log.Error(err, "Failed to list users", "account", accountRef)
+			return ctrl.Result{}, fmt.Errorf("failed to list users: %w", err)
 		}
 
 		if len(userList.Items) > 0 {
@@ -128,8 +129,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			// remove our finalizer from the list and update it.
 			controllerutil.RemoveFinalizer(natsAccount, types.ControllerAccountFinalizer)
 			if err := r.Update(ctx, natsAccount); err != nil {
-				log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
-				return ctrl.Result{}, err
+				log.Error(err, "Failed to remove finalizer", "account", accountRef)
+				return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 			}
 		}
 		// Stop reconciliation as the item is being deleted
@@ -149,8 +150,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if !controllerutil.ContainsFinalizer(natsAccount, types.ControllerAccountFinalizer) {
 		controllerutil.AddFinalizer(natsAccount, types.ControllerAccountFinalizer)
 		if err := r.Update(ctx, natsAccount); err != nil {
-			log.Info("Failed to add finalizer", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
+			log.Error(err, "Failed to add finalizer", "account", accountRef)
+			return ctrl.Result{}, fmt.Errorf("failed to add finalizer: %w", err)
 		}
 	}
 
@@ -161,8 +162,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		Message: "Reconciling account",
 	})
 	if err := r.Status().Update(ctx, natsAccount); err != nil {
-		log.Info("Failed to create the account status", "name", natsAccount.Name, "error", err)
-		return ctrl.Result{}, err
+		log.Error(err, "Failed to create the account status", "account", accountRef)
+		return ctrl.Result{}, fmt.Errorf("failed to create the account status: %w", err)
 	}
 
 	// RECONCILE ACCOUNT - Create/Update the NATS Account
@@ -182,15 +183,15 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	status.OperatorVersion = operatorVersion
 
 	if err := r.Update(ctx, natsAccount); err != nil {
-		log.Info("Failed to update the account", "name", natsAccount.Name, "error", err)
-		return ctrl.Result{}, err
+		log.Error(err, "Failed to update the account", "account", accountRef)
+		return ctrl.Result{}, fmt.Errorf("failed to update the account: %w", err)
 	}
 
 	// Get the updated status back before updating the kubernetes api
 	natsAccount.Status = *status
 	if err := r.Status().Update(ctx, natsAccount); err != nil {
-		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
-		return ctrl.Result{}, err
+		log.Error(err, "Failed to update the account status", "account", accountRef)
+		return ctrl.Result{}, fmt.Errorf("failed to update the account status: %w", err)
 	}
 
 	return r.Result(ctx, natsAccount, nil)
