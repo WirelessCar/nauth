@@ -78,10 +78,9 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	if state.Labels == nil {
 		state.Labels = make(map[string]string, 3)
 	}
-
-	state.GetLabels()[domain.LabelUserID] = userPublicKey
-	state.GetLabels()[domain.LabelUserAccountID] = account.GetLabels()[domain.LabelAccountID]
-	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
+	state.Labels[domain.LabelUserID] = userPublicKey
+	state.Labels[domain.LabelUserAccountID] = account.GetLabels()[domain.LabelAccountID]
+	state.Labels[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
