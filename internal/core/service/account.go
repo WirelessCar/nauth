@@ -287,7 +287,10 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	labels := map[string]string{
 		domain.LabelAccountID: accountID,
 	}
-	a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+	err = a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+	if err != nil {
+		return fmt.Errorf("failed to delete account secrets: %w", err)
+	}
 
 	return nil
 }
