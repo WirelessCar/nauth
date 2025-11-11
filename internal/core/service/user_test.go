@@ -133,7 +133,7 @@ var _ = Describe("User manager", func() {
 			Expect(user.GetLabels()[domain.LabelUserID]).Should(Satisfy(isUserPubKey))
 		})
 
-		It("creates a new user and update settigs", func() {
+		It("creates a new user and update settings", func() {
 			account := GetExistingAccount()
 			user := GetNewUser()
 
