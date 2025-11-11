@@ -81,7 +81,7 @@ func (a *AccountManager) valid() bool {
 	return true
 }
 
-func (a *AccountManager) RefreshState(ctx context.Context, observed *types.Account, desired *natsv1alpha1.Account) error {
+func (a *AccountManager) RefreshState(_ context.Context, _ *types.Account, _ *natsv1alpha1.Account) error {
 	return nil
 }
 
