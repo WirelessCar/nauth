@@ -26,7 +26,12 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	accountID := account.GetLabels()[domain.LabelAccountID]
+	accountLabels := account.GetLabels()
+	accountID := accountLabels[domain.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account %s is missing required label: %s", state.Spec.AccountName, domain.LabelAccountID)
+	}
+
 	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
@@ -38,6 +43,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	userSeed, _ := userKeyPair.Seed()
 
 	userJwt, err := newUserClaimsBuilder(state, userPublicKey).
+		// TODO(cleanup): Supply accountID here directly instead of account CR as issuerAccount only needs the accountID
 		issuerAccount(*account).
 		natsLimits().
 		permissions().

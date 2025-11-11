@@ -346,6 +346,11 @@ func GetNewAccount() *v1alpha1.Account {
 
 func GetExistingAccount() *v1alpha1.Account {
 	account := GetNewAccount()
+	accountKeyPair, _ := nkeys.CreateAccount()
+	accountPublicKey, _ := accountKeyPair.PublicKey()
+	account.Labels = map[string]string{
+		domain.LabelAccountID: accountPublicKey,
+	}
 	account.Status = v1alpha1.AccountStatus{
 		SigningKey: v1alpha1.KeyInfo{
 			Name: "OPERATORSIGNPUBKEY",

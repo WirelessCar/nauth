@@ -182,6 +182,20 @@ var _ = Describe("User manager", func() {
 			Expect(user.Status.Claims.NatsLimits.Data).Should(Equal(user.Spec.NatsLimits.Data))
 			Expect(user.Status.Claims.NatsLimits.Payload).Should(Equal(user.Spec.NatsLimits.Payload))
 		})
+
+		It("fails to create user when supplied account is missing Account ID label", func() {
+			account := GetExistingAccount()
+			account.Labels = map[string]string{}
+			user := GetNewUser()
+
+			By("providing a user specification without any specific configuration")
+			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
+
+			err := userManager.CreateOrUpdateUser(ctx, user)
+
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(fmt.Errorf("account test-account is missing required label: account.nauth.io/id")))
+		})
 	})
 })
 
