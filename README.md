@@ -26,9 +26,9 @@ NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAu
 See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
 
 > [!IMPORTANT]
-> Nauth requires the [**NATS Managed Operator**](https://docs.nats.io/using-nats/nats-tools/nsc/managed) admin credentials and signing keys to be provided as a k8s secret with the proper labels.
-> - *nauth.io/secret-type: op-creds*
-> - *nauth.io/secret-type: op-sign*
+> Nauth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as a k8s secret with the proper labels.
+> - *nauth.io/secret-type: system-account-user-creds*
+> - *nauth.io/secret-type: operator-sign*
 
 You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml).
 
