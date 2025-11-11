@@ -105,7 +105,7 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	return nil
 }
 
-func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return keyPair, nil
 	}
@@ -118,7 +118,7 @@ func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, ac
 	return keyPair, nil
 }
 
-func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		domain.LabelAccountID:  accountID,
 		domain.LabelSecretType: domain.SecretTypeAccountSign,
@@ -144,7 +144,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 	return nkeys.FromSeed(seed)
 }
 
-func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {

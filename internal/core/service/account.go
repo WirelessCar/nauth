@@ -292,7 +292,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	return nil
 }
 
-func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
+func (a *AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		domain.LabelSecretType: domain.SecretTypeOperatorSign,
 	}
@@ -317,7 +317,7 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	return nkeys.FromSeed(seed)
 }
 
-func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
+func (a *AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
 	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return secrets, nil
 	}
@@ -330,7 +330,7 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 	return secrets, nil
 }
 
-func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountID: accountID,
 		domain.LabelManaged:   domain.LabelManagedValue,
@@ -363,7 +363,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 	return secrets, nil
 }
 
-func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
