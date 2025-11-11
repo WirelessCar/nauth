@@ -138,7 +138,7 @@ func (k SecretStorer) GetSecretsByLabels(ctx context.Context, namespace string, 
 }
 
 func (k SecretStorer) DeleteSecret(ctx context.Context, namespace string, name string) error {
-	log := logf.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
 	secret, err := k.getSecret(ctx, namespace, name)
 	if err != nil {
@@ -148,7 +148,7 @@ func (k SecretStorer) DeleteSecret(ctx context.Context, namespace string, name s
 		return fmt.Errorf("failed to get secret while deleting: %w", err)
 	}
 
-	log.Info("Trying to delete secret", "secretName", name)
+	logger.Info("Trying to delete secret", "secretName", name)
 	if err := k.client.Delete(ctx, secret); err != nil {
 		return fmt.Errorf("failed to delete secret: %w", err)
 	}
@@ -157,7 +157,7 @@ func (k SecretStorer) DeleteSecret(ctx context.Context, namespace string, name s
 }
 
 func (k SecretStorer) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
-	log := logf.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
 	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -168,7 +168,7 @@ func (k SecretStorer) DeleteSecretsByLabels(ctx context.Context, namespace strin
 	}
 
 	for _, secret := range secrets.Items {
-		log.Info("trying to delete secret", "secretName", secret.GetName())
+		logger.Info("trying to delete secret", "secretName", secret.GetName())
 		if err := k.client.Delete(ctx, &secret); err != nil {
 			return fmt.Errorf("failed to delete secret: %w", err)
 		}
