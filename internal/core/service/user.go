@@ -43,8 +43,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	userSeed, _ := userKeyPair.Seed()
 
 	userJwt, err := newUserClaimsBuilder(state, userPublicKey).
-		// TODO(cleanup): Supply accountID here directly instead of account CR as issuerAccount only needs the accountID
-		issuerAccount(*account).
+		issuerAccount(accountID).
 		natsLimits().
 		permissions().
 		userLimits().
@@ -324,8 +323,8 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 	return u
 }
 
-func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
-	u.claim.IssuerAccount = account.Labels[domain.LabelAccountID]
+func (u *userClaimBuilder) issuerAccount(accountID string) *userClaimBuilder {
+	u.claim.IssuerAccount = accountID
 	return u
 }
 
