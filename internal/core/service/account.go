@@ -93,8 +93,12 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 
 	accountKeyPair, _ := nkeys.CreateAccount()
 	accountPublicKey, _ := accountKeyPair.PublicKey()
+	accountRootSecretName, err := getAccountRootSecretName(state.GetName(), accountPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get account root secret name: %w", err)
+	}
 	accountSecretMeta := metav1.ObjectMeta{
-		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
+		Name:      accountRootSecretName,
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
 			domain.LabelAccountID:  accountPublicKey,
@@ -111,8 +115,12 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 
 	accountSigningKeyPair, _ := nkeys.CreateAccount()
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
+	accountSigningSecretName, err := getAccountSignSecretName(state.GetName(), accountPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get account signing secret name: %w", err)
+	}
 	accountSigningSecretMeta := metav1.ObjectMeta{
-		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
+		Name:      accountSigningSecretName,
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
 			domain.LabelAccountID:  accountPublicKey,
@@ -446,22 +454,33 @@ func (a *AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, 
 	return secrets, nil
 }
 
-func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, generateShortHashFromID(accountID))
+func getAccountRootSecretName(accountName, accountID string) (string, error) {
+	hash, err := generateShortHashFromID(accountID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate account root secret name: %s", err)
+	}
+	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, hash), nil
 }
 
-func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, generateShortHashFromID(accountID))
+func getAccountSignSecretName(accountName, accountID string) (string, error) {
+	hash, err := generateShortHashFromID(accountID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate account signing secret name: %s", err)
+	}
+	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, hash), nil
 }
 
-func generateShortHashFromID(ID string) string {
+func generateShortHashFromID(ID string) (string, error) {
 	hasher := md5.New()
-	io.WriteString(hasher, ID)
+	_, err := io.WriteString(hasher, ID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate short hash for account ID: %s", err)
+	}
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	if len(hash) > 6 {
-		return hash[:6]
+		return hash[:6], nil
 	}
-	return hash
+	return hash, nil
 }
 
 type accountClaimBuilder struct {
