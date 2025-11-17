@@ -26,7 +26,12 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	accountID := account.GetLabels()[domain.LabelAccountID]
+	accountLabels := account.GetLabels()
+	accountID := accountLabels[domain.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account %s is missing required label: %s", state.Spec.AccountName, domain.LabelAccountID)
+	}
+
 	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
@@ -38,7 +43,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	userSeed, _ := userKeyPair.Seed()
 
 	userJwt, err := newUserClaimsBuilder(state, userPublicKey).
-		issuerAccount(*account).
+		issuerAccount(accountID).
 		natsLimits().
 		permissions().
 		userLimits().
@@ -78,10 +83,9 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	if state.Labels == nil {
 		state.Labels = make(map[string]string, 3)
 	}
-
-	state.GetLabels()[domain.LabelUserID] = userPublicKey
-	state.GetLabels()[domain.LabelUserAccountID] = account.GetLabels()[domain.LabelAccountID]
-	state.GetLabels()[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
+	state.Labels[domain.LabelUserID] = userPublicKey
+	state.Labels[domain.LabelUserAccountID] = account.GetLabels()[domain.LabelAccountID]
+	state.Labels[domain.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
@@ -101,7 +105,7 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	return nil
 }
 
-func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return keyPair, nil
 	}
@@ -114,7 +118,7 @@ func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, ac
 	return keyPair, nil
 }
 
-func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		domain.LabelAccountID:  accountID,
 		domain.LabelSecretType: domain.SecretTypeAccountSign,
@@ -140,7 +144,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 	return nkeys.FromSeed(seed)
 }
 
-func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -319,8 +323,8 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 	return u
 }
 
-func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
-	u.claim.IssuerAccount = account.Labels[domain.LabelAccountID]
+func (u *userClaimBuilder) issuerAccount(accountID string) *userClaimBuilder {
+	u.claim.IssuerAccount = accountID
 	return u
 }
 

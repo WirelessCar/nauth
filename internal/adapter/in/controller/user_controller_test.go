@@ -44,7 +44,6 @@ var _ = Describe("User Controller", func() {
 		ctx := context.Background()
 
 		BeforeEach(func() {
-			fmt.Printf("ENV OV=%s\n", os.Getenv(domain.OperatorVersion))
 			operatorVersion = "0.0-SNAPSHOT"
 			os.Setenv(domain.OperatorVersion, operatorVersion)
 
