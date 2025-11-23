@@ -16,6 +16,7 @@
 | monitoring.serviceMonitor | object | `{"enabled":false}` | Enables serviceMonitor feature. Requies CRD to be installed beforehand. |
 | nameOverride | string | `""` | Override the chart name |
 | namespace | object | `{"nameOverride":""}` | Override the namespace |
+| namespaced | bool | `false` | If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched. |
 | nats | object | `{"url":"nats://nats.nats.svc.cluster.local:4222"}` | Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace. |
 | nodeSelector | object | `{}` |  |
 | podAnnotations | object | `{}` | This is for setting Kubernetes Annotations to a Pod. For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |

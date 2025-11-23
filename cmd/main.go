@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/service"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -60,6 +61,7 @@ func init() {
 
 // nolint:gocyclo
 func main() {
+	var namespace string
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -68,6 +70,8 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
+	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
+		"If not specified, all namespaces will be watched.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -200,10 +204,20 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				namespace: {},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
+	}
+	if namespace != "" {
+		setupLog.Info("manager configured to watch and manage resources in a single namespace",
+			"namespace", namespace)
 	}
 
 	natsURL := os.Getenv("NATS_URL")

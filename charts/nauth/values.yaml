@@ -27,6 +27,9 @@ nameOverride: ""
 namespace:
   nameOverride: ""
 
+# -- If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched.
+namespaced: false
+
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # -- Specifies whether a service account should be created
