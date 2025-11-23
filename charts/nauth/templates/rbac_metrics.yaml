@@ -1,8 +1,11 @@
 {{- if .Values.monitoring.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
   name: metrics-auth-role
+  {{- if .Values.namespaced }}
+  namespace: {{ include "nauth.namespaceName" . }}
+  {{- end }}
 rules:
 - apiGroups:
   - authentication.k8s.io
@@ -19,9 +22,12 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
   name: metrics-reader
+  {{- if .Values.namespaced }}
+  namespace: {{ include "nauth.namespaceName" . }}
+  {{- end }}
 rules:
 - nonResourceURLs:
   - "/metrics"
@@ -30,12 +36,15 @@ rules:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: {{ if not .Values.namespaced }}Cluster{{ end }}RoleBinding
 metadata:
   name: metrics-auth-rolebinding
+  {{- if .Values.namespaced }}
+  namespace: {{ include "nauth.namespaceName" . }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
   name: metrics-auth-role
 subjects:
 - kind: ServiceAccount
