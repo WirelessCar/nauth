@@ -15,7 +15,7 @@
 name: Operator tests
 
 on:
-  pull_request_target:
+  pull_request:
     paths:
       - 'dir/**'
       - 'cmd/**'
@@ -37,8 +37,6 @@ jobs:
     steps:
       - name: Clone the code
         uses: actions/checkout@v4
-        with:
-          ref: "${{ github.head_ref || github.ref }}"
 
       - name: Setup Go
         uses: actions/setup-go@v5
