@@ -1,0 +1,95 @@
+suite: CRDs rendering
+templates:
+  - templates/crds.yaml
+
+tests:
+  - it: "renders CRDs when crds.install=true"
+    set:
+      crds:
+        install: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 0
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: accounts.nauth.io
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: users.nauth.io
+        documentIndex: 1
+
+  - it: "renders both CRDs when crds.install=false and CRDs do not exist"
+    set:
+      crds:
+        install: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 0
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 1
+
+  - it: "skips rendering CRDs when crds.install=false and CRDs already exist"
+    set:
+      crds:
+        install: false
+    kubernetesProvider:
+      scheme:
+        "apiextensions.k8s.io/v1/CustomResourceDefinition":
+          gvr:
+            group: "apiextensions.k8s.io"
+            version: "v1"
+            resource: "customresourcedefinitions"
+          namespaced: false
+      objects:
+        - apiVersion: apiextensions.k8s.io/v1
+          kind: CustomResourceDefinition
+          metadata:
+            name: accounts.nauth.io
+        - apiVersion: apiextensions.k8s.io/v1
+          kind: CustomResourceDefinition
+          metadata:
+            name: users.nauth.io
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "adds keep annotation when crds.keep=true"
+    set:
+      crds:
+        keep: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        documentIndex: 0
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+        documentIndex: 1
+
+  - it: "does not add keep annotation when crds.keep=false"
+    set:
+      crds:
+        keep: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 0
+      - notExists:
+          path: metadata.annotations["helm.sh/resource-policy"]
+        documentIndex: 1
