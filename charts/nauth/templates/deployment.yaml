@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "nauth.name" . }}
+  name: {{ include "nauth.fullname" . }}
   namespace: {{ include "nauth.namespaceName" . }}
   labels:
     control-plane: controller-manager
