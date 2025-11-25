@@ -7,6 +7,7 @@
 | affinity | object | `{}` |  |
 | crds.install | bool | `true` |  |
 | crds.keep | bool | `true` |  |
+| fullnameOverride | string | `""` | Override the chart fullName (Release.name + Chart.name) |
 | image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |
 | image.registry | string | `"ghcr.io/wirelesscar"` | Sets the operator image registry |
 | image.repository | string | `"nauth-operator"` | Sets the operator repository |
