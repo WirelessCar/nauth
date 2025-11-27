@@ -287,9 +287,8 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	labels := map[string]string{
 		domain.LabelAccountID: accountID,
 	}
-	a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
 
-	return nil
+	return a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
 }
 
 func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
@@ -444,16 +443,21 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
 func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, generateShortHashFromID(accountID))
+	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
-func generateShortHashFromID(ID string) string {
+func mustGenerateShortHashFromID(ID string) string {
 	hasher := md5.New()
-	io.WriteString(hasher, ID)
+	_, err := io.WriteString(hasher, ID)
+
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate hash from ID: %v", err))
+	}
+
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	if len(hash) > 6 {
 		return hash[:6]

@@ -61,6 +61,16 @@ mise nats:pub -- example-user foo.test 'hello there'
 ```
 You can of course do more advanced stuff, but this should get you started.
 
+## Documentation
+### Helm chart
+Whenever updating Helm values, follow format of [`helm-docs`](https://github.com/norwoodj/helm-docs).
+
+Then run:
+```bash
+helm-docs
+```
+(with `mise` this should be available immediately, otherwise follow the instructions on [`helm-docs`](https://github.com/norwoodj/helm-docs))
+
 ## Releasing
 When building a release for the operator:
 

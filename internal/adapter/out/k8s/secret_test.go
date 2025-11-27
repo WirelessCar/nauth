@@ -18,7 +18,6 @@ package k8s
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
@@ -100,7 +99,7 @@ var _ = Describe("Secrets storer", func() {
 				newSecret := map[string]string{"key": "new value"}
 				err = secretStorer.ApplySecret(ctx, nil, secretMeta, newSecret)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(errors.New(fmt.Sprintf("existing secret %s/%s not managed by nauth", namespace, resourceName))))
+				Expect(err).To(Equal(fmt.Errorf("existing secret %s/%s not managed by nauth", namespace, resourceName)))
 
 				By("Retrieving the secret again to verify not mutated")
 				newFetchedSecret, err := secretStorer.GetSecret(ctx, namespace, resourceName)
