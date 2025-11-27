@@ -32,7 +32,7 @@ jobs:
 
       - name: Setup Helm Unittest
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --verify=false
 
       - name: Run Helm Unittest
         run: |
