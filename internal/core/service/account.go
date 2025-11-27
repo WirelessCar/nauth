@@ -81,7 +81,7 @@ func (a *AccountManager) valid() bool {
 	return true
 }
 
-func (a *AccountManager) RefreshState(ctx context.Context, observed *types.Account, desired *natsv1alpha1.Account) error {
+func (a *AccountManager) RefreshState(_ context.Context, _ *types.Account, _ *natsv1alpha1.Account) error {
 	return nil
 }
 
@@ -93,8 +93,12 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 
 	accountKeyPair, _ := nkeys.CreateAccount()
 	accountPublicKey, _ := accountKeyPair.PublicKey()
+	accountRootSecretName, err := getAccountRootSecretName(state.GetName(), accountPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get account root secret name: %w", err)
+	}
 	accountSecretMeta := metav1.ObjectMeta{
-		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
+		Name:      accountRootSecretName,
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
 			domain.LabelAccountID:  accountPublicKey,
@@ -111,8 +115,12 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 
 	accountSigningKeyPair, _ := nkeys.CreateAccount()
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
+	accountSigningSecretName, err := getAccountSignSecretName(state.GetName(), accountPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to get account signing secret name: %w", err)
+	}
 	accountSigningSecretMeta := metav1.ObjectMeta{
-		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
+		Name:      accountSigningSecretName,
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
 			domain.LabelAccountID:  accountPublicKey,
@@ -287,12 +295,15 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	labels := map[string]string{
 		domain.LabelAccountID: accountID,
 	}
-	a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+	err = a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+	if err != nil {
+		return fmt.Errorf("failed to delete account secrets: %w", err)
+	}
 
 	return nil
 }
 
-func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
+func (a *AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		domain.LabelSecretType: domain.SecretTypeOperatorSign,
 	}
@@ -317,7 +328,7 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	return nkeys.FromSeed(seed)
 }
 
-func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
+func (a *AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
 	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return secrets, nil
 	}
@@ -330,7 +341,7 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 	return secrets, nil
 }
 
-func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		domain.LabelAccountID: accountID,
 		domain.LabelManaged:   domain.LabelManagedValue,
@@ -363,7 +374,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 	return secrets, nil
 }
 
-func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -443,22 +454,33 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 	return secrets, nil
 }
 
-func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, generateShortHashFromID(accountID))
+func getAccountRootSecretName(accountName, accountID string) (string, error) {
+	hash, err := generateShortHashFromID(accountID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate account root secret name: %s", err)
+	}
+	return fmt.Sprintf(domain.SecretNameAccountRootTemplate, accountName, hash), nil
 }
 
-func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, generateShortHashFromID(accountID))
+func getAccountSignSecretName(accountName, accountID string) (string, error) {
+	hash, err := generateShortHashFromID(accountID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate account signing secret name: %s", err)
+	}
+	return fmt.Sprintf(domain.SecretNameAccountSignTemplate, accountName, hash), nil
 }
 
-func generateShortHashFromID(ID string) string {
+func generateShortHashFromID(ID string) (string, error) {
 	hasher := md5.New()
-	io.WriteString(hasher, ID)
+	_, err := io.WriteString(hasher, ID)
+	if err != nil {
+		return "", fmt.Errorf("unable to generate short hash for account ID: %s", err)
+	}
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	if len(hash) > 6 {
-		return hash[:6]
+		return hash[:6], nil
 	}
-	return hash
+	return hash, nil
 }
 
 type accountClaimBuilder struct {
@@ -597,7 +619,7 @@ func (b *accountClaimBuilder) exports() *accountClaimBuilder {
 
 func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *AccountManager) *accountClaimBuilder {
 	state := b.accountState
-	log := logf.FromContext(ctx)
+	logger := logf.FromContext(ctx)
 
 	if state.Spec.Imports != nil {
 		imports := jwt.Imports{}
@@ -606,7 +628,7 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 			importAccount, err := accountManager.accounts.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
 			if err != nil {
 				b.errs = append(b.errs, err)
-				log.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)
+				logger.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)
 			} else {
 				account := importAccount.Labels[domain.LabelAccountID]
 				claim := &jwt.Import{
