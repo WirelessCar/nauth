@@ -5,8 +5,8 @@
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
-| crds.install | bool | `true` |  |
-| crds.keep | bool | `true` |  |
+| crds.install | bool | `true` | Indicates if Custom Resource Definitions should be installed and upgraded as part of the release. |
+| crds.keep | bool | `true` | Indicates if Custom Resource Definitions should be kept when a release is uninstalled. |
 | image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |
 | image.registry | string | `"ghcr.io/wirelesscar"` | Sets the operator image registry |
 | image.repository | string | `"nauth-operator"` | Sets the operator repository |
