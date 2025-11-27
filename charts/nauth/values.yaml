@@ -27,6 +27,9 @@ nameOverride: ""
 namespace:
   nameOverride: ""
 
+# -- If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched.
+namespaced: false
+
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
   # -- Specifies whether a service account should be created
@@ -105,9 +108,8 @@ tolerations: []
 
 affinity: {}
 
-## @section CRDs
 crds:
-  ## @param crds.install Indicates if Custom Resource Definitions should be installed and upgraded as part of the release. If set to `false`, the CRDs will only be installed if they do not already exist.
+  # -- Indicates if Custom Resource Definitions should be installed and upgraded as part of the release.
   install: true
-  ## @param crds.keep Indicates if Custom Resource Definitions should be kept when a release is uninstalled.
+  # -- Indicates if Custom Resource Definitions should be kept when a release is uninstalled.
   keep: true
