@@ -31,8 +31,9 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Setup Helm Unittest
+        # TODO: re-add verification when https://github.com/helm-unittest/helm-unittest/issues/777 is resolved
         run: |
-          helm plugin install https://github.com/helm-unittest/helm-unittest.git
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --verify=false
 
       - name: Run Helm Unittest
         run: |
