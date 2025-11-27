@@ -65,7 +65,8 @@ You can of course do more advanced stuff, but this should get you started.
 When building a release for the operator:
 
 - Update the `.image_version` to new version
-- Update the `chart/Chart.yaml` with updated `version` & `appVersion`
+- Update the `charts/nauth/Chart.yaml` and `charts/nauth-crds/Chart.yaml`
+  with updated `version` & `appVersion` (keep versions in sync).
 
 Make sure to follow valid [SemVer](https://semver.org) rules.
 

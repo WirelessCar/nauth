@@ -96,12 +96,15 @@ jobs:
         run: |
           VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')
           echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
-      - name: Helm package
+      - name: Helm package nauth
         run: helm package nauth
-      - name: login to gcr using helm
+      - name: Helm package nauth-crds
+        run: helm package nauth-crds
+      - name: Authenticate Helm to ghcr.io
         run: |
-          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io/wirelesscar/nauth --username ${{ github.repository_owner }} --password-stdin
-      - name: helm push
-        run: |
-          helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io --username ${{ github.repository_owner }} --password-stdin
+      - name: Helm push nauth
+        run: helm push nauth-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar
+      - name: Helm push nauth-crds
+        run: helm push nauth-crds-${{ steps.semver.outputs.version }}.tgz oci://ghcr.io/wirelesscar
 
