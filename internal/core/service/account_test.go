@@ -184,7 +184,7 @@ var _ = Describe("Account manager", func() {
 							},
 						},
 						Data: map[string][]byte{
-							domain.DefaultSecretKeyName: []byte(accountSeed),
+							domain.DefaultSecretKeyName: accountSeed,
 						},
 					},
 					{
@@ -194,7 +194,7 @@ var _ = Describe("Account manager", func() {
 							},
 						},
 						Data: map[string][]byte{
-							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+							domain.DefaultSecretKeyName: accountSigningSeed,
 						},
 					},
 				},

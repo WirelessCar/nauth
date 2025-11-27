@@ -58,7 +58,7 @@ var _ = Describe("User manager", func() {
 				Items: []corev1.Secret{
 					{
 						Data: map[string][]byte{
-							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+							domain.DefaultSecretKeyName: accountSigningSeed,
 						},
 					},
 				},
@@ -147,7 +147,7 @@ var _ = Describe("User manager", func() {
 				Items: []corev1.Secret{
 					{
 						Data: map[string][]byte{
-							domain.DefaultSecretKeyName: []byte(accountSigningSeed),
+							domain.DefaultSecretKeyName: accountSigningSeed,
 						},
 					},
 				},
