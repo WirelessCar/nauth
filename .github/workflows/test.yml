@@ -15,14 +15,7 @@
 name: Operator tests
 
 on:
-  pull_request_target:
-    paths:
-      - 'dir/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - Dockerfile
-      - go.*
-  push:
+  pull_request:
     paths:
       - 'dir/**'
       - 'cmd/**'
@@ -36,9 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
-        uses: actions/checkout@v4
-        with:
-          ref: "${{ github.head_ref || github.ref }}"
+        uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -46,6 +37,9 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: |
             go.sum
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8.0.0
 
       - name: Cache envtest binaries
         uses: actions/cache@v3

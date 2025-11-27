@@ -46,7 +46,7 @@ var _ = Describe("User Controller", func() {
 		BeforeEach(func() {
 			fmt.Printf("ENV OV=%s\n", os.Getenv(domain.OperatorVersion))
 			operatorVersion = "0.0-SNAPSHOT"
-			os.Setenv(domain.OperatorVersion, operatorVersion)
+			_ = os.Setenv(domain.OperatorVersion, operatorVersion)
 
 			userManagerMock = &UserManagerMock{}
 
@@ -90,7 +90,7 @@ var _ = Describe("User Controller", func() {
 
 		AfterEach(func() {
 			userManagerMock.AssertExpectations(GinkgoT())
-			os.Unsetenv(domain.OperatorVersion)
+			_ = os.Unsetenv(domain.OperatorVersion)
 		})
 
 		Context("User create/ update reconciliation", func() {
@@ -243,7 +243,7 @@ var _ = Describe("User Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				os.Setenv(domain.OperatorVersion, newOperatorVersion)
+				_ = os.Setenv(domain.OperatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
