@@ -21,6 +21,9 @@ NAuth supports installation through packaged [Helm](https://helm.sh) charts.
 helm install nauth oci://ghcr.io/wirelesscar/nauth --create-namespace --namespace nauth
 ```
 
+A [`nauth-crds`](./charts/nauth-crds) chart is also available for installing CRDs separately, which works 
+alongside the main chart with `crds.install=false`.
+
 ### Pre-requisites
 NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
 See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
