@@ -34,7 +34,7 @@ Create the name of the namespace to use
 Create the name of the service account to use
 */}}
 {{- define "nauth.serviceAccountName" -}}
-{{- default (include "nauth.name" .) .Values.serviceAccount.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- default (include "nauth.fullname" .) .Values.serviceAccount.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
 {{/*

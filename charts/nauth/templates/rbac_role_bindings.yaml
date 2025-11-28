@@ -3,14 +3,14 @@ kind: {{ if not .Values.namespaced }}Cluster{{ end }}RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: manager-rolebinding
+  name: {{ include "nauth.fullname" . }}-manager
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
-  name: manager-role
+  name: {{ include "nauth.fullname" . }}-manager
 subjects:
   - kind: ServiceAccount
     name: {{ include "nauth.serviceAccountName" . }}
@@ -22,14 +22,14 @@ kind: {{ if not .Values.namespaced }}Cluster{{ end }}RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: manager-secret-rolebinding
+  name: {{ include "nauth.fullname" . }}-manager-secret
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
-  name: manager-secret-role
+  name: {{ include "nauth.fullname" . }}-manager-secret
 subjects:
   - kind: ServiceAccount
     name: {{ include "nauth.serviceAccountName" . }}
@@ -41,12 +41,12 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: leader-election-rolebinding
+  name: {{ include "nauth.fullname" . }}-leader-election
   namespace: {{ include "nauth.namespaceName" . }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: leader-election-role
+  name: {{ include "nauth.fullname" . }}-leader-election
 subjects:
 - kind: ServiceAccount
   name: {{ include "nauth.serviceAccountName" . }}

@@ -1,9 +1,10 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: account-admin-role
+  name: {{ include "nauth.fullname" . }}-account-admin
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -27,7 +28,7 @@ kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: account-editor-role
+  name: {{ include "nauth.fullname" . }}-account-editor
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -57,7 +58,7 @@ kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
   labels:
     app.kubernetes.io/name: {{ include "nauth.name" . }}
-  name: account-viewer-role
+  name: {{ include "nauth.fullname" . }}-account-viewer
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
