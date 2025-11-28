@@ -23,6 +23,9 @@ image:
 # -- Override the chart name
 nameOverride: ""
 
+# -- Override the chart fullName (Release.name + Chart.name)
+fullnameOverride: ""
+
 # -- Override the namespace
 namespace:
   nameOverride: ""

@@ -1,8 +1,9 @@
 {{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: {{ include "nauth.name" . }}-reconcile-errors
+  name: {{ include "nauth.fullname" . }}-monitor-alarms
   labels:
     service: nauth-metrics-service
     release: prometheus

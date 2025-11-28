@@ -1,8 +1,9 @@
 {{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: nauth-metrics-monitor
+  name: {{ include "nauth.fullname" . }}-metrics-monitor
   labels:
     service: nauth-metrics-service
     release: prometheus

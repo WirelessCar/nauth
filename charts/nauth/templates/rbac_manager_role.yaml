@@ -2,7 +2,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
-  name: manager-role
+  name: {{ include "nauth.fullname" . }}-manager
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
