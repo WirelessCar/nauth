@@ -6,8 +6,8 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
+	"github.com/WirelessCar/nauth/internal/core/domain/errs"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

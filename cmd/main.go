@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/service"
+	"github.com/WirelessCar/nauth/internal/core/service"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -40,10 +40,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/adapter/in/controller"
-	"github.com/WirelessCar-WDP/nauth/internal/adapter/out/k8s"
-	"github.com/WirelessCar-WDP/nauth/internal/adapter/out/nats"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/adapter/in/controller"
+	"github.com/WirelessCar/nauth/internal/adapter/out/k8s"
+	"github.com/WirelessCar/nauth/internal/adapter/out/nats"
 	// +kubebuilder:scaffold:imports
 )
 

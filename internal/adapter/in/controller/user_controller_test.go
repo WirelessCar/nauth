@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain"
 	"k8s.io/client-go/tools/record"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -19,9 +19,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain/errs"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
 )
 
 var _ = Describe("User Controller", func() {
@@ -140,7 +140,6 @@ var _ = Describe("User Controller", func() {
 				By("Asserting the recorded events match the condition message")
 				Expect(fakeRecorder.Events).To(HaveLen(1))
 				Expect(<-fakeRecorder.Events).To(ContainSubstring(errs.ErrNoAccountFound.Error()))
-
 			})
 		})
 

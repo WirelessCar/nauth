@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/errs"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )

@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
-	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
+	"github.com/WirelessCar/nauth/internal/core/ports"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -34,7 +34,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -106,7 +106,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		// Check for connected users
 		userList := &natsv1alpha1.UserList{}
 		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: natsAccount.GetLabels()[domain.LabelAccountID]}, client.InNamespace(req.Namespace))
-
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err

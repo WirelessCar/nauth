@@ -1,4 +1,4 @@
-module github.com/WirelessCar-WDP/nauth
+module github.com/WirelessCar/nauth
 
 go 1.24.5
 

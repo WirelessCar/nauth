@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
 	"github.com/nats-io/nkeys"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,9 +15,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-var (
-	userName = "user"
-)
+var userName = "user"
 
 const (
 	accountNameThatIsNotReady = "test-account-not-ready"

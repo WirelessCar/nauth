@@ -33,9 +33,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
 )
 
 const (
@@ -285,7 +285,6 @@ type AccountManagerMock struct {
 
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-
 	state.Labels = map[string]string{
 		domain.LabelAccountID: accountPublicKey,
 	}
@@ -299,7 +298,6 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-
 	state.Labels = map[string]string{
 		domain.LabelAccountID: accountPublicKey,
 	}

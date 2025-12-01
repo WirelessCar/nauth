@@ -3,8 +3,8 @@ package k8s
 import (
 	"context"
 
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,12 +20,9 @@ var _ = Describe("Account getter", func() {
 			resourceName = "test-resource"
 		)
 
-		var (
-			ctx = context.Background()
-		)
+		ctx := context.Background()
 
 		BeforeEach(func() {
-
 			By("creating account to fetch")
 			err := createAccount(namespace, accountName)
 			Expect(err).ToNot(HaveOccurred())

@@ -11,10 +11,10 @@ import (
 	"os"
 	"sync"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
-	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
+	"github.com/WirelessCar/nauth/internal/core/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -453,7 +453,6 @@ func getAccountSignSecretName(accountName, accountID string) string {
 func mustGenerateShortHashFromID(ID string) string {
 	hasher := md5.New()
 	_, err := io.WriteString(hasher, ID)
-
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate hash from ID: %v", err))
 	}
