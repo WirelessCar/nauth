@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

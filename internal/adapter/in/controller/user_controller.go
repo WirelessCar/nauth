@@ -21,12 +21,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
+	"github.com/WirelessCar/nauth/internal/core/ports"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	natsv1alpha1 "github.com/WirelessCar-WDP/nauth/api/v1alpha1"
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
 // UserReconciler reconciles a User object

@@ -7,9 +7,9 @@ import (
 	"maps"
 	"os"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/errs"
-	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/errs"
+	"github.com/WirelessCar/nauth/internal/core/ports"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

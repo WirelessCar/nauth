@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/ports"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 )

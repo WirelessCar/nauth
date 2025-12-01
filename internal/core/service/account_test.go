@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar-WDP/nauth/api/v1alpha1"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain"
-	"github.com/WirelessCar-WDP/nauth/internal/core/domain/types"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/core/domain"
+	"github.com/WirelessCar/nauth/internal/core/domain/types"
 	"github.com/nats-io/nkeys"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
