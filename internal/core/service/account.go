@@ -270,9 +270,19 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 	if _, ok := secrets[domain.SecretTypeAccountRoot]; !ok {
 		return fmt.Errorf("account root secret not found for account %s", accountID)
 	}
-	if _, ok := secrets[domain.SecretTypeAccountSign]; !ok {
+	accountSigningSecret, ok := secrets[domain.SecretTypeAccountSign]
+	if !ok {
 		return fmt.Errorf("account sign secret not found for account %s", accountID)
 	}
+	accountSigningSeed, ok := accountSigningSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return fmt.Errorf("account sign secret for account %s is malformed", accountID)
+	}
+	accountSigningKeyPair, err := nkeys.FromSeed([]byte(accountSigningSeed))
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for signing from seed for account %s: %w", accountID, err)
+	}
+	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	accountJWT, err := a.natsClient.LookupAccountJWT(accountID)
 	if err != nil {
@@ -288,6 +298,7 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 
 	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
 	state.Status.Claims = convertNatsAccountClaims(accountClaims)
+	state.Status.SigningKey.Name = accountSigningPublicKey
 
 	return nil
 }
