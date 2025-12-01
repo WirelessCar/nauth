@@ -21,6 +21,10 @@ type NatsResponse struct {
 	Data NatsData `json:"data"`
 }
 
+type NatsListResponse struct {
+	Data []string `json:"data"`
+}
+
 type NatsData struct {
 	Account string `json:"account,omitempty"`
 	Code    int    `json:"code,omitempty"`
@@ -59,6 +63,37 @@ func (n *natsClient) Disconnect() {
 	} else {
 		n.conn.Close()
 	}
+}
+
+func (n *natsClient) LookupAccountJWT(accountID string) (string, error) {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return "", fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	msg, err := n.conn.Request(fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountID), []byte{}, natsMaxTimeout)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup account JWT: %w", err)
+	}
+
+	return string(msg.Data), nil
+}
+
+func (n *natsClient) ListAccountJWTs() ([]string, error) {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return []string{}, fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.LIST", []byte{}, natsMaxTimeout)
+	if err != nil {
+		return []string{}, fmt.Errorf("failed to list account JWTs: %w", err)
+	}
+
+	res := &NatsListResponse{}
+	if err := json.Unmarshal(msg.Data, res); err != nil {
+		return []string{}, fmt.Errorf("failed to unmarshal account JWT response: %w", err)
+	}
+
+	return res.Data, nil
 }
 
 func (n *natsClient) UploadAccountJWT(jwt string) error {
@@ -144,7 +179,7 @@ func (n *natsClient) connect(namespace string) error {
 	return err
 }
 
-func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+func (n *natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
 		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
 	}
@@ -167,3 +202,5 @@ func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace s
 	}
 	return creds, nil
 }
+
+var _ ports.NATSClient = (*natsClient)(nil)
