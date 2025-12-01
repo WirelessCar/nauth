@@ -164,8 +164,22 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// RECONCILE ACCOUNT - Create/Update the NATS Account
-	if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelAccountID] == "" {
+	var accountID string
+	var managementPolicy string
+	{
+		labels := natsAccount.GetLabels()
+		if labels != nil {
+			accountID = labels[domain.LabelAccountID]
+			managementPolicy = labels[domain.LabelManagementPolicy]
+		}
+	}
+
+	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
+	if managementPolicy == domain.LabelManagementPolicyObserveValue {
+		if err := r.ImportAccount(ctx, natsAccount); err != nil {
+			return r.Result(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
+		}
+	} else if accountID == "" {
 		if err := r.CreateAccount(ctx, natsAccount); err != nil {
 			return r.Result(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
@@ -176,6 +190,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
+	natsAccount.Status.ObservedGeneration = natsAccount.Generation
+	natsAccount.Status.ReconcileTimestamp = metav1.Now()
+
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := natsAccount.Status.DeepCopy()
 	status.OperatorVersion = operatorVersion

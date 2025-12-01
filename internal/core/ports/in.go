@@ -9,6 +9,7 @@ import (
 type AccountManager interface {
 	CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error
 	UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error
+	ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error
 	DeleteAccount(ctx context.Context, desired *natsv1alpha1.Account) error
 }
 

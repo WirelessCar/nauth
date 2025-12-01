@@ -309,6 +309,18 @@ func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alp
 	return args.Error(0)
 }
 
+func (o *AccountManagerMock) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+	state.Labels = map[string]string{
+		domain.LabelAccountID: accountPublicKey,
+	}
+
+	state.Status.ObservedGeneration = state.Generation
+	state.Status.SigningKey.Name = accountPublicKey
+
+	args := o.Called(state)
+	return args.Error(0)
+}
+
 // DeleteAccount implements AccountManager.
 func (o *AccountManagerMock) DeleteAccount(ctx context.Context, desired *natsv1alpha1.Account) error {
 	args := o.Called(desired)

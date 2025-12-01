@@ -162,9 +162,6 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.Generation
-	state.Status.ReconcileTimestamp = metav1.Now()
-
 	return nil
 }
 
@@ -243,8 +240,46 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.Generation
-	state.Status.ReconcileTimestamp = metav1.Now()
+	return nil
+}
+
+func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
+	}
+	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
+
+	accountID := state.GetLabels()[domain.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account ID is missing for account %s", state.GetName())
+	}
+
+	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
+	if err != nil {
+		return fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
+	}
+	if _, ok := secrets[domain.SecretTypeAccountRoot]; !ok {
+		return fmt.Errorf("account root secret not found for account %s", accountID)
+	}
+	if _, ok := secrets[domain.SecretTypeAccountSign]; !ok {
+		return fmt.Errorf("account sign secret not found for account %s", accountID)
+	}
+
+	accountJWT, err := a.natsClient.LookupAccountJWT(accountID)
+	if err != nil {
+		return fmt.Errorf("failed to lookup account jwt for account %s: %w", accountID, err)
+	}
+	if len(accountJWT) == 0 {
+		return fmt.Errorf("account jwt for account %s not found", accountID)
+	}
+	accountClaims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
+	}
+
+	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
+	state.Status.Claims = convertNatsAccountClaims(accountClaims)
 
 	return nil
 }
@@ -663,4 +698,136 @@ func (b *accountClaimBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (stri
 	}
 
 	return signedJwt, nil
+}
+
+func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountClaims {
+	if claims == nil {
+		return natsv1alpha1.AccountClaims{}
+	}
+
+	out := natsv1alpha1.AccountClaims{}
+
+	// AccountLimits
+	{
+		imports := claims.Limits.AccountLimits.Imports
+		exports := claims.Limits.AccountLimits.Exports
+		wildcards := claims.Limits.AccountLimits.WildcardExports
+		conn := claims.Limits.AccountLimits.Conn
+		leaf := claims.Limits.AccountLimits.LeafNodeConn
+		out.AccountLimits = &natsv1alpha1.AccountLimits{
+			Imports:         &imports,
+			Exports:         &exports,
+			WildcardExports: &wildcards,
+			Conn:            &conn,
+			LeafNodeConn:    &leaf,
+		}
+	}
+
+	// NatsLimits
+	{
+		subs := claims.Limits.NatsLimits.Subs
+		data := claims.Limits.NatsLimits.Data
+		payload := claims.Limits.NatsLimits.Payload
+		out.NatsLimits = &natsv1alpha1.NatsLimits{
+			Subs:    &subs,
+			Data:    &data,
+			Payload: &payload,
+		}
+	}
+
+	// JetStreamLimits
+	{
+		mem := claims.Limits.JetStreamLimits.MemoryStorage
+		disk := claims.Limits.JetStreamLimits.DiskStorage
+		streams := claims.Limits.JetStreamLimits.Streams
+		consumer := claims.Limits.JetStreamLimits.Consumer
+		maxAck := claims.Limits.JetStreamLimits.MaxAckPending
+		memMax := claims.Limits.JetStreamLimits.MemoryMaxStreamBytes
+		diskMax := claims.Limits.JetStreamLimits.DiskMaxStreamBytes
+		out.JetStreamLimits = &natsv1alpha1.JetStreamLimits{
+			MemoryStorage:        &mem,
+			DiskStorage:          &disk,
+			Streams:              &streams,
+			Consumer:             &consumer,
+			MaxAckPending:        &maxAck,
+			MemoryMaxStreamBytes: &memMax,
+			DiskMaxStreamBytes:   &diskMax,
+			MaxBytesRequired:     claims.Limits.JetStreamLimits.MaxBytesRequired,
+		}
+	}
+
+	// Exports
+	if len(claims.Exports) > 0 {
+		exports := make(natsv1alpha1.Exports, 0, len(claims.Exports))
+		for _, e := range claims.Exports {
+			if e == nil {
+				continue
+			}
+			var et natsv1alpha1.ExportType
+			switch e.Type {
+			case jwt.Stream:
+				et = natsv1alpha1.Stream
+			case jwt.Service:
+				et = natsv1alpha1.Service
+			default:
+				et = natsv1alpha1.Stream
+			}
+
+			var latency *natsv1alpha1.ServiceLatency
+			if e.Latency != nil {
+				latency = &natsv1alpha1.ServiceLatency{
+					Sampling: natsv1alpha1.SamplingRate(e.Latency.Sampling),
+					Results:  natsv1alpha1.Subject(e.Latency.Results),
+				}
+			}
+
+			export := &natsv1alpha1.Export{
+				Name:                 e.Name,
+				Subject:              natsv1alpha1.Subject(e.Subject),
+				Type:                 et,
+				TokenReq:             e.TokenReq,
+				Revocations:          natsv1alpha1.RevocationList(e.Revocations),
+				ResponseType:         natsv1alpha1.ResponseType(e.ResponseType),
+				ResponseThreshold:    e.ResponseThreshold,
+				Latency:              latency,
+				AccountTokenPosition: e.AccountTokenPosition,
+				Advertise:            e.Advertise,
+				AllowTrace:           e.AllowTrace,
+			}
+			exports = append(exports, export)
+		}
+		out.Exports = exports
+	}
+
+	// Imports
+	if len(claims.Imports) > 0 {
+		imports := make(natsv1alpha1.Imports, 0, len(claims.Imports))
+		for _, i := range claims.Imports {
+			if i == nil {
+				continue
+			}
+			var it natsv1alpha1.ExportType
+			switch i.Type {
+			case jwt.Stream:
+				it = natsv1alpha1.Stream
+			case jwt.Service:
+				it = natsv1alpha1.Service
+			default:
+				it = natsv1alpha1.Stream
+			}
+			imp := &natsv1alpha1.Import{
+				Name:         i.Name,
+				Subject:      natsv1alpha1.Subject(i.Subject),
+				Account:      i.Account,
+				LocalSubject: natsv1alpha1.RenamingSubject(i.LocalSubject),
+				Type:         it,
+				Share:        i.Share,
+				AllowTrace:   i.AllowTrace,
+			}
+			imports = append(imports, imp)
+		}
+		out.Imports = imports
+	}
+
+	return out
 }

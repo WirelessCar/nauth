@@ -1,17 +1,19 @@
 package service
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
+    "time"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/core/domain"
-	"github.com/WirelessCar/nauth/internal/core/domain/types"
-	"github.com/nats-io/nkeys"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/stretchr/testify/mock"
-	corev1 "k8s.io/api/core/v1"
+    "github.com/WirelessCar/nauth/api/v1alpha1"
+    "github.com/WirelessCar/nauth/internal/core/domain"
+    "github.com/WirelessCar/nauth/internal/core/domain/types"
+    "github.com/nats-io/jwt/v2"
+    "github.com/nats-io/nkeys"
+    . "github.com/onsi/ginkgo/v2"
+    . "github.com/onsi/gomega"
+    "github.com/stretchr/testify/mock"
+    corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -82,9 +84,9 @@ var _ = Describe("Account manager", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[domain.LabelAccountID]).Should(Satisfy(isAccountPubKey))
-		})
+  })
 
-		It("fails to create an account with conflicting imports", func() {
+  It("fails to create an account with conflicting imports", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
 
@@ -131,7 +133,166 @@ var _ = Describe("Account manager", func() {
 			err := accountManager.CreateAccount(ctx, account)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("conflicting import subject found"))
-		})
+  })
+
+  It("converts jwt.AccountClaims to natsv1alpha1.AccountClaims correctly", func() {
+      // Build a fully populated jwt.AccountClaims
+      kp, err := nkeys.CreateAccount()
+      Expect(err).ToNot(HaveOccurred())
+      pub, err := kp.PublicKey()
+      Expect(err).ToNot(HaveOccurred())
+
+      claims := jwt.NewAccountClaims(pub)
+      // Fill limits
+      claims.Limits.AccountLimits = jwt.AccountLimits{
+          Imports:         3,
+          Exports:         4,
+          WildcardExports: false,
+          Conn:            123,
+          LeafNodeConn:    7,
+      }
+      claims.Limits.NatsLimits = jwt.NatsLimits{
+          Subs:    111,
+          Data:    222,
+          Payload: 333,
+      }
+      claims.Limits.JetStreamLimits = jwt.JetStreamLimits{
+          MemoryStorage:        10,
+          DiskStorage:          20,
+          Streams:              30,
+          Consumer:             40,
+          MaxAckPending:        50,
+          MemoryMaxStreamBytes: 60,
+          DiskMaxStreamBytes:   70,
+          MaxBytesRequired:     true,
+      }
+
+      // Exports
+      claims.Exports = jwt.Exports{
+          &jwt.Export{ // stream export
+              Name:        "stream-exp",
+              Subject:     jwt.Subject("a.>"),
+              Type:        jwt.Stream,
+              TokenReq:    true,
+              Revocations: jwt.RevocationList{"UABC": 12345},
+              Advertise:   true,
+          },
+          &jwt.Export{ // service export
+              Name:              "svc-exp",
+              Subject:           jwt.Subject("req.svc"),
+              Type:              jwt.Service,
+              ResponseType:      jwt.ResponseTypeStream,
+              ResponseThreshold: 250 * time.Millisecond,
+              Latency: &jwt.ServiceLatency{
+                  Sampling: 42,
+                  Results:  jwt.Subject("results.latency"),
+              },
+              AccountTokenPosition: 2,
+              AllowTrace:           true,
+          },
+      }
+
+      // Imports
+      claims.Imports = jwt.Imports{
+          &jwt.Import{ // stream import
+              Name:         "imp-stream",
+              Subject:      jwt.Subject("b.>"),
+              Account:      "ACCEXP1",
+              LocalSubject: jwt.RenamingSubject("local.b.>"),
+              Type:         jwt.Stream,
+              Share:        false,
+              AllowTrace:   false,
+          },
+          &jwt.Import{ // service import
+              Name:         "imp-svc",
+              Subject:      jwt.Subject("svc.api"),
+              Account:      "ACCEXP2",
+              LocalSubject: jwt.RenamingSubject("local.svc.api"),
+              Type:         jwt.Service,
+              Share:        true,
+              AllowTrace:   false,
+          },
+      }
+
+      // Convert
+      out := convertNatsAccountClaims(claims)
+
+      // Assert AccountLimits
+      Expect(out.AccountLimits).ToNot(BeNil())
+      Expect(*out.AccountLimits.Imports).To(Equal(int64(3)))
+      Expect(*out.AccountLimits.Exports).To(Equal(int64(4)))
+      Expect(*out.AccountLimits.WildcardExports).To(BeFalse())
+      Expect(*out.AccountLimits.Conn).To(Equal(int64(123)))
+      Expect(*out.AccountLimits.LeafNodeConn).To(Equal(int64(7)))
+
+      // Assert NatsLimits
+      Expect(out.NatsLimits).ToNot(BeNil())
+      Expect(*out.NatsLimits.Subs).To(Equal(int64(111)))
+      Expect(*out.NatsLimits.Data).To(Equal(int64(222)))
+      Expect(*out.NatsLimits.Payload).To(Equal(int64(333)))
+
+      // Assert JetStreamLimits
+      Expect(out.JetStreamLimits).ToNot(BeNil())
+      Expect(*out.JetStreamLimits.MemoryStorage).To(Equal(int64(10)))
+      Expect(*out.JetStreamLimits.DiskStorage).To(Equal(int64(20)))
+      Expect(*out.JetStreamLimits.Streams).To(Equal(int64(30)))
+      Expect(*out.JetStreamLimits.Consumer).To(Equal(int64(40)))
+      Expect(*out.JetStreamLimits.MaxAckPending).To(Equal(int64(50)))
+      Expect(*out.JetStreamLimits.MemoryMaxStreamBytes).To(Equal(int64(60)))
+      Expect(*out.JetStreamLimits.DiskMaxStreamBytes).To(Equal(int64(70)))
+      Expect(out.JetStreamLimits.MaxBytesRequired).To(BeTrue())
+
+      // Assert Exports
+      Expect(out.Exports).To(HaveLen(2))
+      var streamExp, svcExp *v1alpha1.Export
+      for _, e := range out.Exports {
+          if e.Name == "stream-exp" {
+              streamExp = e
+          } else if e.Name == "svc-exp" {
+              svcExp = e
+          }
+      }
+      Expect(streamExp).ToNot(BeNil())
+      Expect(string(streamExp.Subject)).To(Equal("a.>"))
+      Expect(streamExp.Type).To(Equal(v1alpha1.Stream))
+      Expect(streamExp.TokenReq).To(BeTrue())
+      Expect(streamExp.Advertise).To(BeTrue())
+      Expect(streamExp.Revocations).To(HaveKeyWithValue("UABC", int64(12345)))
+      Expect(svcExp).ToNot(BeNil())
+      Expect(svcExp.Type).To(Equal(v1alpha1.Service))
+      Expect(svcExp.Name).To(Equal("svc-exp"))
+      Expect(string(svcExp.Subject)).To(Equal("req.svc"))
+      Expect(string(svcExp.ResponseType)).To(Equal(string(jwt.ResponseTypeStream)))
+      Expect(svcExp.ResponseThreshold).To(Equal(250 * time.Millisecond))
+      Expect(svcExp.Latency).ToNot(BeNil())
+      Expect(int(svcExp.Latency.Sampling)).To(Equal(42))
+      Expect(string(svcExp.Latency.Results)).To(Equal("results.latency"))
+      Expect(svcExp.AccountTokenPosition).To(Equal(uint(2)))
+      Expect(svcExp.AllowTrace).To(BeTrue())
+
+      // Assert Imports
+      Expect(out.Imports).To(HaveLen(2))
+      var impStream, impSvc *v1alpha1.Import
+      for _, im := range out.Imports {
+          if im.Name == "imp-stream" {
+              impStream = im
+          } else if im.Name == "imp-svc" {
+              impSvc = im
+          }
+      }
+      Expect(impStream).ToNot(BeNil())
+      Expect(string(impStream.Subject)).To(Equal("b.>"))
+      Expect(impStream.Account).To(Equal("ACCEXP1"))
+      Expect(string(impStream.LocalSubject)).To(Equal("local.b.>"))
+      Expect(impStream.Type).To(Equal(v1alpha1.Stream))
+      Expect(impSvc).ToNot(BeNil())
+      Expect(impSvc.Name).To(Equal("imp-svc"))
+      Expect(string(impSvc.Subject)).To(Equal("svc.api"))
+      Expect(impSvc.Account).To(Equal("ACCEXP2"))
+      Expect(string(impSvc.LocalSubject)).To(Equal("local.svc.api"))
+      Expect(impSvc.Type).To(Equal(v1alpha1.Service))
+      Expect(impSvc.Share).To(BeTrue())
+  })
 
 		It("creates a new account and update it", func() {
 			By("providing an account specification")
