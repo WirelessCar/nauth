@@ -120,8 +120,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, types.ControllerAccountFinalizer) {
-			if err := r.DeleteAccount(ctx, natsAccount); err != nil {
-				return r.Result(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+			if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelManagementPolicy] != domain.LabelManagementPolicyObserveValue {
+				if err := r.DeleteAccount(ctx, natsAccount); err != nil {
+					return r.Result(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+				}
 			}
 
 			// remove our finalizer from the list and update it.

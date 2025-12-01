@@ -177,6 +177,14 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return err
 	}
 
+	if sysAccountID, err := a.getSysemAccountID(ctx, a.nauthNamespace); err != nil || sysAccountID == accountID {
+		if err != nil {
+			return fmt.Errorf("failed to get system account ID: %w", err)
+		}
+
+		return fmt.Errorf("updating system account is not supported, consider '%s: %s'", domain.LabelManagementPolicy, domain.LabelManagementPolicyObserveValue)
+	}
+
 	accountSecret, ok := secrets[domain.SecretTypeAccountRoot]
 	if !ok {
 		return fmt.Errorf("secret for account not found")
@@ -470,6 +478,35 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 	}
 
 	return secrets, nil
+}
+
+func (a *AccountManager) getSysemAccountID(ctx context.Context, namespace string) (string, error) {
+	labels := map[string]string{
+		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
+	}
+	secrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return "", fmt.Errorf("unable to get system account creds by labels: %w", err)
+	}
+	if len(secrets.Items) != 1 {
+		return "", fmt.Errorf("single system account creds secret required, %d found for account: %s", len(secrets.Items), namespace)
+	}
+
+	creds, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
+	if !ok {
+		return "", fmt.Errorf("operator credentials secret key (%s) missing", domain.DefaultSecretKeyName)
+	}
+
+	sysUserJwt, err := jwt.ParseDecoratedJWT(creds)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse system user JWT from creds: %w", err)
+	}
+	sysUserJwtClaims, err := jwt.DecodeUserClaims(sysUserJwt)
+	if err != nil {
+		return "", fmt.Errorf("couldn't decode system user JWT claims: %w", err)
+	}
+
+	return sysUserJwtClaims.IssuerAccount, nil
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
