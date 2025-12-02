@@ -307,6 +307,20 @@ var _ = Describe("Account manager", func() {
 				Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: operatorSeed}}},
 			}
 			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			sysAccKP, _ := nkeys.CreateAccount()
+			sysAccPubKey, _ := sysAccKP.PublicKey()
+			sysUserKP, _ := nkeys.CreateUser()
+			sysUserPubKey, _ := sysUserKP.PublicKey()
+			sysUserSeed, _ := sysUserKP.Seed()
+			sysUserClaims := jwt.NewUserClaims(sysUserPubKey)
+			sysUserClaims.IssuerAccount = sysAccPubKey
+			sysUserJWT, _ := sysUserClaims.Encode(sysAccKP)
+			sysUserCreds := fmt.Sprintf("-----BEGIN NATS USER JWT-----\n%s\n------END NATS USER JWT------\n\n-----BEGIN USER NKEY SEED-----\n%s\n------END USER NKEY SEED------\n", sysUserJWT, string(sysUserSeed))
+			sysAccCredsLabelMock := map[string]string{domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds}
+			sysAccCredsSecretMock := &corev1.SecretList{
+				Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: []byte(sysUserCreds)}}},
+			}
+			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
@@ -392,6 +406,20 @@ var _ = Describe("Account manager", func() {
 			}
 			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
 			secretStorerMock.On("GetSecretsByLabels", mock.Anything, account.GetNamespace(), mock.Anything).Return(&corev1.SecretList{}, nil)
+			sysAccKP, _ := nkeys.CreateAccount()
+			sysAccPubKey, _ := sysAccKP.PublicKey()
+			sysUserKP, _ := nkeys.CreateUser()
+			sysUserPubKey, _ := sysUserKP.PublicKey()
+			sysUserSeed, _ := sysUserKP.Seed()
+			sysUserClaims := jwt.NewUserClaims(sysUserPubKey)
+			sysUserClaims.IssuerAccount = sysAccPubKey
+			sysUserJWT, _ := sysUserClaims.Encode(sysAccKP)
+			sysUserCreds := fmt.Sprintf("-----BEGIN NATS USER JWT-----\n%s\n------END NATS USER JWT------\n\n-----BEGIN USER NKEY SEED-----\n%s\n------END USER NKEY SEED------\n", sysUserJWT, string(sysUserSeed))
+			sysAccCredsLabelMock := map[string]string{domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds}
+			sysAccCredsSecretMock := &corev1.SecretList{
+				Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: []byte(sysUserCreds)}}},
+			}
+			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
 
 			accountKeyPair, _ := nkeys.CreateAccount()
 			accountPublicKey, _ := accountKeyPair.PublicKey()

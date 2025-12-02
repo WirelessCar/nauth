@@ -288,8 +288,6 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 	state.Labels = map[string]string{
 		domain.LabelAccountID: accountPublicKey,
 	}
-
-	state.Status.ObservedGeneration = state.Generation
 	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
@@ -301,8 +299,6 @@ func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alp
 	state.Labels = map[string]string{
 		domain.LabelAccountID: accountPublicKey,
 	}
-
-	state.Status.ObservedGeneration = state.Generation
 	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
@@ -313,8 +309,6 @@ func (o *AccountManagerMock) ImportAccount(ctx context.Context, state *natsv1alp
 	state.Labels = map[string]string{
 		domain.LabelAccountID: accountPublicKey,
 	}
-
-	state.Status.ObservedGeneration = state.Generation
 	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
