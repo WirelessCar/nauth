@@ -25,7 +25,7 @@ type Object interface {
 }
 
 type StatusReporter struct {
-	client.Client
+	client   client.Client
 	Recorder record.EventRecorder
 }
 
@@ -40,7 +40,7 @@ func (s *StatusReporter) Result(ctx context.Context, object Object, err error) (
 			Message: "Successfully reconciled",
 		})
 
-		if updateErr := s.Status().Update(ctx, object); updateErr != nil {
+		if updateErr := s.client.Status().Update(ctx, object); updateErr != nil {
 			log.Info("Failed to update reconciled condition", "name", object.GetGenerateName(), "updateError", updateErr)
 			return ctrl.Result{}, updateErr
 		}
@@ -64,7 +64,7 @@ func (s *StatusReporter) Result(ctx context.Context, object Object, err error) (
 		Message: err.Error(),
 	})
 
-	if updateErr := s.Status().Update(ctx, object); updateErr != nil {
+	if updateErr := s.client.Status().Update(ctx, object); updateErr != nil {
 		log.Info("Failed to update error condition", "name", object.GetGenerateName(), "updateError", updateErr, "originalError", err)
 		return ctrl.Result{}, updateErr
 	}
