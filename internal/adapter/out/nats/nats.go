@@ -70,7 +70,7 @@ func (n *natsClient) LookupAccountJWT(accountID string) (string, error) {
 		return "", fmt.Errorf("NATS connection is not established or lost")
 	}
 
-	msg, err := n.conn.Request(fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountID), []byte{}, natsMaxTimeout)
+	msg, err := n.conn.Request(fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountID), nil, natsMaxTimeout)
 	if err != nil {
 		return "", fmt.Errorf("failed to lookup account JWT: %w", err)
 	}
@@ -83,7 +83,7 @@ func (n *natsClient) ListAccountJWTs() ([]string, error) {
 		return []string{}, fmt.Errorf("NATS connection is not established or lost")
 	}
 
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.LIST", []byte{}, natsMaxTimeout)
+	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.LIST", nil, natsMaxTimeout)
 	if err != nil {
 		return []string{}, fmt.Errorf("failed to list account JWTs: %w", err)
 	}
