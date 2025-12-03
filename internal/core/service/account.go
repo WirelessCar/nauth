@@ -13,7 +13,6 @@ import (
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/core/domain"
-	"github.com/WirelessCar/nauth/internal/core/domain/types"
 	"github.com/WirelessCar/nauth/internal/core/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -79,10 +78,6 @@ func (a *AccountManager) valid() bool {
 	}
 
 	return true
-}
-
-func (a *AccountManager) RefreshState(ctx context.Context, observed *types.Account, desired *natsv1alpha1.Account) error {
-	return nil
 }
 
 func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {

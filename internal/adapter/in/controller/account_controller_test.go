@@ -314,9 +314,3 @@ func (o *AccountManagerMock) DeleteAccount(ctx context.Context, desired *natsv1a
 	args := o.Called(desired)
 	return args.Error(0)
 }
-
-// RefreshState implements AccountManager.
-func (o *AccountManagerMock) RefreshState(ctx context.Context, observed *types.Account, desired *natsv1alpha1.Account) error {
-	args := o.Called(observed, desired)
-	return args.Error(0)
-}
