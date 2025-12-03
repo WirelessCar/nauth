@@ -45,7 +45,7 @@ type AccountReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
 	accountManager ports.AccountManager
-	reporter       *StatusReporter
+	reporter       *statusReporter
 }
 
 func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accountManager ports.AccountManager, recorder record.EventRecorder) *AccountReconciler {
@@ -53,10 +53,7 @@ func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accou
 		Client:         k8sClient,
 		Scheme:         scheme,
 		accountManager: accountManager,
-		reporter: &StatusReporter{
-			client:   k8sClient,
-			Recorder: recorder,
-		},
+		reporter:       newStatusReporter(k8sClient, recorder),
 	}
 }
 

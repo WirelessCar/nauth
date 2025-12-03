@@ -22,12 +22,19 @@ type Object interface {
 	GetConditions() *[]metav1.Condition
 }
 
-type StatusReporter struct {
+type statusReporter struct {
 	client   client.Client
 	Recorder record.EventRecorder
 }
 
-func (s *StatusReporter) status(ctx context.Context, object Object) (ctrl.Result, error) {
+func newStatusReporter(k8sClient client.Client, recorder record.EventRecorder) *statusReporter {
+	return &statusReporter{
+		client:   k8sClient,
+		Recorder: recorder,
+	}
+}
+
+func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	meta.SetStatusCondition(object.GetConditions(), metav1.Condition{
@@ -48,7 +55,7 @@ func (s *StatusReporter) status(ctx context.Context, object Object) (ctrl.Result
 	}, nil
 }
 
-func (s *StatusReporter) error(ctx context.Context, object Object, err error) (ctrl.Result, error) {
+func (s *statusReporter) error(ctx context.Context, object Object, err error) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	s.Recorder.Eventf(object, v1.EventTypeWarning, types.ControllerReasonErrored, err.Error())
