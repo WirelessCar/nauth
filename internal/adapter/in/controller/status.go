@@ -23,11 +23,11 @@ type Object interface {
 }
 
 type statusReporter struct {
-	client   client.Client
+	client   client.StatusClient
 	Recorder record.EventRecorder
 }
 
-func newStatusReporter(k8sClient client.Client, recorder record.EventRecorder) *statusReporter {
+func newStatusReporter(k8sClient client.StatusClient, recorder record.EventRecorder) *statusReporter {
 	return &statusReporter{
 		client:   k8sClient,
 		Recorder: recorder,
