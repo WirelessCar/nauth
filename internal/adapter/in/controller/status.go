@@ -2,11 +2,9 @@ package controller
 
 import (
 	"context"
-	"errors"
 	"math/rand/v2"
 	"time"
 
-	"github.com/WirelessCar/nauth/internal/core/domain/errs"
 	"github.com/WirelessCar/nauth/internal/core/domain/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -24,36 +22,41 @@ type Object interface {
 	GetConditions() *[]metav1.Condition
 }
 
-type StatusReporter struct {
-	client.Client
+type statusReporter struct {
+	client   client.StatusClient
 	Recorder record.EventRecorder
 }
 
-func (s *StatusReporter) Result(ctx context.Context, object Object, err error) (ctrl.Result, error) {
+func newStatusReporter(k8sClient client.StatusClient, recorder record.EventRecorder) *statusReporter {
+	return &statusReporter{
+		client:   k8sClient,
+		Recorder: recorder,
+	}
+}
+
+func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	if err == nil {
-		meta.SetStatusCondition(object.GetConditions(), metav1.Condition{
-			Type:    types.ControllerTypeReady,
-			Status:  metav1.ConditionTrue,
-			Reason:  types.ControllerReasonReconciled,
-			Message: "Successfully reconciled",
-		})
+	meta.SetStatusCondition(object.GetConditions(), metav1.Condition{
+		Type:    types.ControllerTypeReady,
+		Status:  metav1.ConditionTrue,
+		Reason:  types.ControllerReasonReconciled,
+		Message: "Successfully reconciled",
+	})
 
-		if updateErr := s.Status().Update(ctx, object); updateErr != nil {
-			log.Info("Failed to update reconciled condition", "name", object.GetGenerateName(), "updateError", updateErr)
-			return ctrl.Result{}, updateErr
-		}
-
-		// Spreading out the requeue to avoid all being queued at the same time
-		return ctrl.Result{
-			RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
-		}, nil
-	}
-
-	if errors.Is(err, errs.ErrUpdateFailed) {
+	if err := s.client.Status().Update(ctx, object); err != nil {
+		log.Info("Failed to update reconciled condition", "name", object.GetGenerateName(), "updateError", err)
 		return ctrl.Result{}, err
 	}
+
+	// Spreading out the requeue to avoid all being queued at the same time
+	return ctrl.Result{
+		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
+	}, nil
+}
+
+func (s *statusReporter) error(ctx context.Context, object Object, err error) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
 
 	s.Recorder.Eventf(object, v1.EventTypeWarning, types.ControllerReasonErrored, err.Error())
 
@@ -64,7 +67,7 @@ func (s *StatusReporter) Result(ctx context.Context, object Object, err error) (
 		Message: err.Error(),
 	})
 
-	if updateErr := s.Status().Update(ctx, object); updateErr != nil {
+	if updateErr := s.client.Status().Update(ctx, object); updateErr != nil {
 		log.Info("Failed to update error condition", "name", object.GetGenerateName(), "updateError", updateErr, "originalError", err)
 		return ctrl.Result{}, updateErr
 	}

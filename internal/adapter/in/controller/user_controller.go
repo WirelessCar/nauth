@@ -44,19 +44,18 @@ import (
 
 // UserReconciler reconciles a User object
 type UserReconciler struct {
-	ports.UserManager
-	Scheme *runtime.Scheme
-	*StatusReporter
+	client.Client
+	Scheme      *runtime.Scheme
+	userManager ports.UserManager
+	reporter    *statusReporter
 }
 
 func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, userManager ports.UserManager, recorder record.EventRecorder) *UserReconciler {
 	return &UserReconciler{
+		Client:      k8sClient,
 		Scheme:      scheme,
-		UserManager: userManager,
-		StatusReporter: &StatusReporter{
-			Client:   k8sClient,
-			Recorder: recorder,
-		},
+		userManager: userManager,
+		reporter:    newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -87,7 +86,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get resource")
-		return r.Result(ctx, user, err)
+		return r.reporter.error(ctx, user, err)
 	}
 
 	// USER MARKED FOR DELETION
@@ -107,8 +106,8 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 		// The user is being deleted
 		if controllerutil.ContainsFinalizer(user, types.ControllerUserFinalizer) {
-			if err := r.DeleteUser(ctx, user); err != nil {
-				return r.Result(ctx, user, fmt.Errorf("failed to delete user: %w", err))
+			if err := r.userManager.DeleteUser(ctx, user); err != nil {
+				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
 			}
 
 			// remove our finalizer from the list and update it.
@@ -150,8 +149,8 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	if err := r.CreateOrUpdateUser(ctx, user); err != nil {
-		return r.Result(ctx, user, err)
+	if err := r.userManager.CreateOrUpdateUser(ctx, user); err != nil {
+		return r.reporter.error(ctx, user, err)
 	}
 
 	// UPDATE USER STATUS
@@ -173,7 +172,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	return r.Result(ctx, user, nil)
+	return r.reporter.status(ctx, user)
 }
 
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
