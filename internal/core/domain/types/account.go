@@ -2,6 +2,8 @@ package types
 
 import (
 	"fmt"
+
+	"github.com/nats-io/jwt/v2"
 )
 
 type AccountIn struct {
@@ -57,27 +59,8 @@ type AccountClaims struct {
 	Imports         AccountImports
 }
 
-type AccountLimits struct {
-	Imports         *int64
-	Exports         *int64
-	WildcardExports *bool
-	Conn            *int64
-	LeafNodeConn    *int64
-}
+type AccountLimits jwt.AccountLimits
 
-type JetStreamLimits struct {
-	MemoryStorage        *int64
-	DiskStorage          *int64
-	Streams              *int64
-	Consumer             *int64
-	MaxAckPending        *int64
-	MemoryMaxStreamBytes *int64
-	DiskMaxStreamBytes   *int64
-	MaxBytesRequired     *bool
-}
+type JetStreamLimits jwt.JetStreamLimits
 
-type NatsLimits struct {
-	Subs    *int64
-	Data    *int64
-	Payload *int64
-}
+type NatsLimits jwt.NatsLimits
