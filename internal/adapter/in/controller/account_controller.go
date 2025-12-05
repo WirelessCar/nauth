@@ -75,6 +75,15 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log := logf.FromContext(ctx)
 
 	natsAccount := &natsv1alpha1.Account{}
+	var accountID string
+	var managementPolicy string
+	{
+		labels := natsAccount.GetLabels()
+		if labels != nil {
+			accountID = labels[domain.LabelAccountID]
+			managementPolicy = labels[domain.LabelManagementPolicy]
+		}
+	}
 
 	err := r.Get(ctx, req.NamespacedName, natsAccount)
 	if err != nil {
@@ -104,7 +113,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &natsv1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: natsAccount.GetLabels()[domain.LabelAccountID]}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
@@ -119,7 +128,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, types.ControllerAccountFinalizer) {
-			if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelManagementPolicy] != domain.LabelManagementPolicyObserveValue {
+			if managementPolicy != domain.LabelManagementPolicyObserveValue {
 				if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
@@ -163,16 +172,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.Status().Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to create the account status", "name", natsAccount.Name, "error", err)
 		return ctrl.Result{}, err
-	}
-
-	var accountID string
-	var managementPolicy string
-	{
-		labels := natsAccount.GetLabels()
-		if labels != nil {
-			accountID = labels[domain.LabelAccountID]
-			managementPolicy = labels[domain.LabelManagementPolicy]
-		}
 	}
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
