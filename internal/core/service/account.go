@@ -177,7 +177,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return err
 	}
 
-	if sysAccountID, err := a.getSysemAccountID(ctx, a.nauthNamespace); err != nil || sysAccountID == accountID {
+	if sysAccountID, err := a.getSystemAccountID(ctx, a.nauthNamespace); err != nil || sysAccountID == accountID {
 		if err != nil {
 			return fmt.Errorf("failed to get system account ID: %w", err)
 		}
@@ -491,7 +491,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 	return secrets, nil
 }
 
-func (a *AccountManager) getSysemAccountID(ctx context.Context, namespace string) (string, error) {
+func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
 	labels := map[string]string{
 		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
 	}
