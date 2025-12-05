@@ -267,9 +267,27 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 	if err != nil {
 		return fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
 	}
-	if _, ok := secrets[domain.SecretTypeAccountRoot]; !ok {
+
+	accountRootSecret, ok := secrets[domain.SecretTypeAccountRoot]
+	if !ok {
 		return fmt.Errorf("account root secret not found for account %s", accountID)
 	}
+	accountRootSeed, ok := accountRootSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return fmt.Errorf("account root seed secret for account %s is malformed", accountID)
+	}
+	accountRootKeyPair, err := nkeys.FromSeed([]byte(accountRootSeed))
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+	}
+	accountRootPublicKey, err := accountRootKeyPair.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+	}
+	if accountRootPublicKey != accountID {
+		return fmt.Errorf("account root seed does not match account ID: expected %s, got %s", accountID, accountRootPublicKey)
+	}
+
 	accountSigningSecret, ok := secrets[domain.SecretTypeAccountSign]
 	if !ok {
 		return fmt.Errorf("account sign secret not found for account %s", accountID)

@@ -538,32 +538,34 @@ var _ = Describe("Account manager", func() {
 			}
 
 			It("successfully imports an account from NATS", func() {
-				By("preparing account and labels")
 				account := GetNewAccount()
-				accKP, _ := nkeys.CreateAccount()
-				accPub, _ := accKP.PublicKey()
-				account.Labels = map[string]string{domain.LabelAccountID: accPub}
 
-				By("mocking the secret storer")
+				By("preparing keys")
 				opKP, _ := nkeys.CreateOperator()
 				opSeed, _ := opKP.Seed()
 				opPub, _ := opKP.PublicKey()
+
+				accRootKP, _ := nkeys.CreateAccount()
+				accRootSeed, _ := accRootKP.Seed()
+				accRootPub, _ := accRootKP.PublicKey()
+				account.Labels = map[string]string{domain.LabelAccountID: accRootPub}
+
+				accSignKP, _ := nkeys.CreateAccount()
+				accSignSeed, _ := accSignKP.Seed()
+
+				By("mocking the secret storer")
 				opSignLabels := map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}
 				opSignSecrets := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}
 				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
-				accRootKP, _ := nkeys.CreateAccount()
-				accRootSeed, _ := accRootKP.Seed()
-				accSignKP, _ := nkeys.CreateAccount()
-				accSignSeed, _ := accSignKP.Seed()
 				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accRootSeed}},
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
 				}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accPub, domain.LabelManaged: domain.LabelManagedValue}).Return(accSecrets, nil)
+				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accRootPub, domain.LabelManaged: domain.LabelManagedValue}).Return(accSecrets, nil)
 
 				By("mocking the NATS client")
-				accountJWT := createAccountClaims(accPub)
-				natsClientMock.On("LookupAccountJWT", accPub).Return(accountJWT, nil)
+				accountJWT := createAccountClaims(accRootPub)
+				natsClientMock.On("LookupAccountJWT", accRootPub).Return(accountJWT, nil)
 
 				By("importing the account from NATS")
 				err := accountManager.ImportAccount(ctx, account)
@@ -615,9 +617,8 @@ var _ = Describe("Account manager", func() {
 				// return two secrets but none of them root
 				accSignKP, _ := nkeys.CreateAccount()
 				accSignSeed, _ := accSignKP.Seed()
-				other := &corev1.Secret{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: "other"}}}
 				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
-					*other,
+					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: "other"}}},
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
 				}}
 				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accPub, domain.LabelManaged: domain.LabelManagedValue}).Return(accSecrets, nil)
@@ -629,48 +630,91 @@ var _ = Describe("Account manager", func() {
 
 			It("fails when account signing secret is not found", func() {
 				account := GetNewAccount()
-				accKP, _ := nkeys.CreateAccount()
-				accPub, _ := accKP.PublicKey()
-				account.Labels = map[string]string{domain.LabelAccountID: accPub}
+
+				By("preparing keys")
 				opKP, _ := nkeys.CreateOperator()
 				opSeed, _ := opKP.Seed()
-				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}).Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}, nil)
-				// return two secrets but none of them sign
-				accRootKP, _ := nkeys.CreateAccount()
-				accRootSeed, _ := accRootKP.Seed()
-				other := &corev1.Secret{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: "other"}}}
-				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
-					*other,
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accRootSeed}},
-				}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accPub, domain.LabelManaged: domain.LabelManagedValue}).Return(accSecrets, nil)
+				accKP, _ := nkeys.CreateAccount()
+				accRootSeed, _ := accKP.Seed()
+				accRootPub, _ := accKP.PublicKey()
+				account.Labels = map[string]string{domain.LabelAccountID: accRootPub}
+
+				By("mocking the secret storer")
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}, nil)
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accRootPub, domain.LabelManaged: domain.LabelManagedValue}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{
+						// return two secrets but none of them sign
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: "other"}}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accRootSeed}},
+					}}, nil)
 
 				err := accountManager.ImportAccount(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("account sign secret not found"))
 			})
 
-			It("fails when NATS has no user with such ID", func() {
+			It("fails when account root secret does not match account ID", func() {
 				account := GetNewAccount()
-				accKP, _ := nkeys.CreateAccount()
-				accPub, _ := accKP.PublicKey()
-				account.Labels = map[string]string{domain.LabelAccountID: accPub}
+
+				By("preparing keys")
 				opKP, _ := nkeys.CreateOperator()
 				opSeed, _ := opKP.Seed()
-				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}).Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}, nil)
-				// provide both required secrets
-				accRootKP, _ := nkeys.CreateAccount()
-				accRootSeed, _ := accRootKP.Seed()
+
+				accKP, _ := nkeys.CreateAccount()
+				accPub, _ := accKP.PublicKey()
+				accSignSeed, _ := accKP.Seed()
+				account.Labels = map[string]string{domain.LabelAccountID: accPub}
+
+				otherAccKP, _ := nkeys.CreateAccount()
+				otherAccRootSeed, _ := otherAccKP.Seed()
+
+				By("mocking the secret storer")
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}, nil)
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accPub, domain.LabelManaged: domain.LabelManagedValue}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: otherAccRootSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
+					}}, nil)
+
+				err := accountManager.ImportAccount(ctx, account)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("match"))
+			})
+
+			It("fails when NATS has no user with such ID", func() {
+				account := GetNewAccount()
+
+				By("preparing keys")
+				opKP, _ := nkeys.CreateOperator()
+				opSeed, _ := opKP.Seed()
+
+				accKP, _ := nkeys.CreateAccount()
+				accRootSeed, _ := accKP.Seed()
+				accRootPub, _ := accKP.PublicKey()
+				account.Labels = map[string]string{domain.LabelAccountID: accRootPub}
+
 				accSignKP, _ := nkeys.CreateAccount()
 				accSignSeed, _ := accSignKP.Seed()
-				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accRootSeed}},
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
-				}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accPub, domain.LabelManaged: domain.LabelManagedValue}).Return(accSecrets, nil)
+
+				By("mocking the secret storer")
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{domain.LabelSecretType: domain.SecretTypeOperatorSign}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{domain.DefaultSecretKeyName: opSeed}}}}, nil)
+				secretStorerMock.
+					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{domain.LabelAccountID: accRootPub, domain.LabelManaged: domain.LabelManagedValue}).
+					Return(&corev1.SecretList{Items: []corev1.Secret{
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountRoot}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accRootSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
+					}}, nil)
 
 				// NATS has no such account
-				natsClientMock.On("LookupAccountJWT", accPub).Return("", nil)
+				natsClientMock.On("LookupAccountJWT", accRootPub).Return("", nil)
 
 				err := accountManager.ImportAccount(ctx, account)
 				Expect(err).To(HaveOccurred())
