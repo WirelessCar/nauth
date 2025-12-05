@@ -180,5 +180,3 @@ func (n *natsClient) getOperatorAdminCredentials(ctx context.Context, namespace 
 	}
 	return creds, nil
 }
-
-var _ ports.NATSClient = (*natsClient)(nil)
