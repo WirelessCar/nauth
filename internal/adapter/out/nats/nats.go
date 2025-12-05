@@ -61,6 +61,19 @@ func (n *natsClient) Disconnect() {
 	}
 }
 
+func (n *natsClient) LookupAccountJWT(accountID string) (string, error) {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return "", fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	msg, err := n.conn.Request(fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountID), nil, natsMaxTimeout)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup account JWT: %w", err)
+	}
+
+	return string(msg.Data), nil
+}
+
 func (n *natsClient) UploadAccountJWT(jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
@@ -144,7 +157,7 @@ func (n *natsClient) connect(namespace string) error {
 	return err
 }
 
-func (n natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+func (n *natsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
 		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
 	}

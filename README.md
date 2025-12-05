@@ -47,5 +47,29 @@ it's important to have an understanding of how the basics work.
 
 [![NATS decentralized JWT Auth](https://i3.ytimg.com/vi/5pQVjN0ym5w/hqdefault.jpg)](https://youtu.be/5pQVjN0ym5w)
 
+## Import an existing NATS Account
+Use this to "observe" an account that already exists in the NATS cluster. NAuth will fetch the JWT from NATS and update 
+the account status, but it will never push a new JWT.
+
+#### Required Secrets
+ - Account root seed secret labeled: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-root` and 
+`nauth.io/managed=true`. 
+ - Account signing seed secret labeled: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-sign` 
+and `nauth.io/managed=true`. 
+
+#### Account CR example
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-acc
+  labels:
+    account.nauth.io/id: $ACCOUNT_PUBKEY
+    nauth.io/management-policy: observe        # observe-only
+```
+
+Note: the System Account required by NAuth itself can only be observed and reconciliation of such an Account CRD without
+`nauth.io/management-policy: observe` label will fail.
+
 ## Nauth Development
 Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide.

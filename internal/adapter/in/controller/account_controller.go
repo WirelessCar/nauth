@@ -87,6 +87,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
+	var accountID string
+	var managementPolicy string
+	{
+		labels := natsAccount.GetLabels()
+		if labels != nil {
+			accountID = labels[domain.LabelAccountID]
+			managementPolicy = labels[domain.LabelManagementPolicy]
+		}
+	}
+
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
 		// The account is being deleted
@@ -104,7 +114,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &natsv1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: natsAccount.GetLabels()[domain.LabelAccountID]}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{domain.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
@@ -119,8 +129,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, types.ControllerAccountFinalizer) {
-			if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
-				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+			if managementPolicy != domain.LabelManagementPolicyObserveValue {
+				if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
+					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+				}
 			}
 
 			// remove our finalizer from the list and update it.
@@ -163,8 +175,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// RECONCILE ACCOUNT - Create/Update the NATS Account
-	if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelAccountID] == "" {
+	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
+	if managementPolicy == domain.LabelManagementPolicyObserveValue {
+		if err := r.accountManager.ImportAccount(ctx, natsAccount); err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
+		}
+	} else if accountID == "" {
 		if err := r.accountManager.CreateAccount(ctx, natsAccount); err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
@@ -175,6 +191,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
+	natsAccount.Status.ObservedGeneration = natsAccount.Generation
+	natsAccount.Status.ReconcileTimestamp = metav1.Now()
+
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := natsAccount.Status.DeepCopy()
 	status.OperatorVersion = operatorVersion

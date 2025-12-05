@@ -70,6 +70,16 @@ type NATSClientMock struct {
 	mock.Mock
 }
 
+func (n *NATSClientMock) LookupAccountJWT(accountID string) (string, error) {
+	args := n.Called(accountID)
+	return args.String(0), args.Error(1)
+}
+
+func (n *NATSClientMock) HasAccount(accountID string) (bool, error) {
+	args := n.Called(accountID)
+	return args.Bool(0), args.Error(1)
+}
+
 func (n *NATSClientMock) EnsureConnected(namespace string) error {
 	args := n.Called(namespace)
 	return args.Error(0)

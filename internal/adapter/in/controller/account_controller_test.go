@@ -169,6 +169,40 @@ var _ = Describe("Account Controller", func() {
 		})
 
 		Context("Account delete reconciliation", func() {
+			It("should not remove account from manager in observe mode", func() {
+				accountManagerMock.On("ImportAccount", mock.Anything, mock.Anything).Return(nil).Once()
+
+				account := &natsv1alpha1.Account{}
+				err := k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				account.Labels = map[string]string{
+					domain.LabelManagementPolicy: domain.LabelManagementPolicyObserveValue,
+				}
+				err = k8sClient.Update(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(account.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				err = k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).To(HaveOccurred())
+				Expect(k8err.IsNotFound(err)).To(BeTrue())
+			})
 			It("should successfully remove the account marked for deletion", func() {
 				accountManagerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(nil).Once()
 				accountManagerMock.On("DeleteAccount", mock.Anything, mock.Anything).Return(nil).Once()
@@ -241,6 +275,27 @@ var _ = Describe("Account Controller", func() {
 			})
 		})
 
+		Context("Account observe reconciliation", func() {
+			It("should import account in observe mode", func() {
+				accountManagerMock.On("ImportAccount", mock.Anything, mock.Anything).Return(nil).Once()
+
+				account := &natsv1alpha1.Account{}
+				err := k8sClient.Get(ctx, accountNamespacedName, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				account.Labels = map[string]string{
+					domain.LabelManagementPolicy: domain.LabelManagementPolicyObserveValue,
+				}
+				err = k8sClient.Update(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
 		Context("Account update reconciliation", func() {
 			It("should successfully reconcile the account when the operator version change", func() {
 				By("Reconciling the created account")
@@ -285,11 +340,11 @@ type AccountManagerMock struct {
 
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-	state.Labels = map[string]string{
-		domain.LabelAccountID: accountPublicKey,
+	if state.Labels == nil {
+		state.Labels = make(map[string]string)
 	}
+	state.Labels[domain.LabelAccountID] = accountPublicKey
 
-	state.Status.ObservedGeneration = state.Generation
 	state.Status.SigningKey.Name = accountPublicKey
 
 	args := o.Called(state)
@@ -298,13 +353,18 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 
 // CreateAccount implements AccountManager.
 func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
-	state.Labels = map[string]string{
-		domain.LabelAccountID: accountPublicKey,
+	if state.Labels == nil {
+		state.Labels = make(map[string]string)
 	}
+	state.Labels[domain.LabelAccountID] = accountPublicKey
 
-	state.Status.ObservedGeneration = state.Generation
 	state.Status.SigningKey.Name = accountPublicKey
 
+	args := o.Called(state)
+	return args.Error(0)
+}
+
+func (o *AccountManagerMock) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	args := o.Called(state)
 	return args.Error(0)
 }

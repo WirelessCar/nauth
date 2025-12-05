@@ -162,9 +162,6 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.Generation
-	state.Status.ReconcileTimestamp = metav1.Now()
-
 	return nil
 }
 
@@ -178,6 +175,14 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
 		return err
+	}
+
+	if sysAccountID, err := a.getSystemAccountID(ctx, a.nauthNamespace); err != nil || sysAccountID == accountID {
+		if err != nil {
+			return fmt.Errorf("failed to get system account ID: %w", err)
+		}
+
+		return fmt.Errorf("updating system account is not supported, consider '%s: %s'", domain.LabelManagementPolicy, domain.LabelManagementPolicyObserveValue)
 	}
 
 	accountSecret, ok := secrets[domain.SecretTypeAccountRoot]
@@ -243,8 +248,80 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	state.Status.ObservedGeneration = state.Generation
-	state.Status.ReconcileTimestamp = metav1.Now()
+	return nil
+}
+
+func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
+	}
+	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
+
+	accountID := state.GetLabels()[domain.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account ID is missing for account %s", state.GetName())
+	}
+
+	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
+	if err != nil {
+		return fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
+	}
+
+	accountRootSecret, ok := secrets[domain.SecretTypeAccountRoot]
+	if !ok {
+		return fmt.Errorf("account root secret not found for account %s", accountID)
+	}
+	accountRootSeed, ok := accountRootSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return fmt.Errorf("account root seed secret for account %s is malformed", accountID)
+	}
+	accountRootKeyPair, err := nkeys.FromSeed([]byte(accountRootSeed))
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+	}
+	accountRootPublicKey, err := accountRootKeyPair.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+	}
+	if accountRootPublicKey != accountID {
+		return fmt.Errorf("account root seed does not match account ID: expected %s, got %s", accountID, accountRootPublicKey)
+	}
+
+	accountSigningSecret, ok := secrets[domain.SecretTypeAccountSign]
+	if !ok {
+		return fmt.Errorf("account sign secret not found for account %s", accountID)
+	}
+	accountSigningSeed, ok := accountSigningSecret[domain.DefaultSecretKeyName]
+	if !ok {
+		return fmt.Errorf("account sign secret for account %s is malformed", accountID)
+	}
+	accountSigningKeyPair, err := nkeys.FromSeed([]byte(accountSigningSeed))
+	if err != nil {
+		return fmt.Errorf("failed to get account key pair for signing from seed for account %s: %w", accountID, err)
+	}
+	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
+
+	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	if err != nil {
+		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
+	}
+	defer a.natsClient.Disconnect()
+	accountJWT, err := a.natsClient.LookupAccountJWT(accountID)
+	if err != nil {
+		return fmt.Errorf("failed to lookup account jwt for account %s: %w", accountID, err)
+	}
+	if len(accountJWT) == 0 {
+		return fmt.Errorf("account jwt for account %s not found", accountID)
+	}
+	accountClaims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
+	}
+
+	state.GetLabels()[domain.LabelAccountSignedBy] = operatorSigningPublicKey
+	state.Status.Claims = convertNatsAccountClaims(accountClaims)
+	state.Status.SigningKey.Name = accountSigningPublicKey
 
 	return nil
 }
@@ -435,6 +512,35 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 	}
 
 	return secrets, nil
+}
+
+func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
+	labels := map[string]string{
+		domain.LabelSecretType: domain.SecretTypeSystemAccountUserCreds,
+	}
+	secrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	if err != nil {
+		return "", fmt.Errorf("unable to get system account creds by labels: %w", err)
+	}
+	if len(secrets.Items) != 1 {
+		return "", fmt.Errorf("single system account creds secret required, %d found for account: %s", len(secrets.Items), namespace)
+	}
+
+	creds, ok := secrets.Items[0].Data[domain.DefaultSecretKeyName]
+	if !ok {
+		return "", fmt.Errorf("operator credentials secret key (%s) missing", domain.DefaultSecretKeyName)
+	}
+
+	sysUserJwt, err := jwt.ParseDecoratedJWT(creds)
+	if err != nil {
+		return "", fmt.Errorf("couldn't parse system user JWT from creds: %w", err)
+	}
+	sysUserJwtClaims, err := jwt.DecodeUserClaims(sysUserJwt)
+	if err != nil {
+		return "", fmt.Errorf("couldn't decode system user JWT claims: %w", err)
+	}
+
+	return sysUserJwtClaims.IssuerAccount, nil
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
@@ -663,4 +769,136 @@ func (b *accountClaimBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (stri
 	}
 
 	return signedJwt, nil
+}
+
+func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountClaims {
+	if claims == nil {
+		return natsv1alpha1.AccountClaims{}
+	}
+
+	out := natsv1alpha1.AccountClaims{}
+
+	// AccountLimits
+	{
+		imports := claims.Limits.Imports
+		exports := claims.Limits.Exports
+		wildcards := claims.Limits.WildcardExports
+		conn := claims.Limits.Conn
+		leaf := claims.Limits.LeafNodeConn
+		out.AccountLimits = &natsv1alpha1.AccountLimits{
+			Imports:         &imports,
+			Exports:         &exports,
+			WildcardExports: &wildcards,
+			Conn:            &conn,
+			LeafNodeConn:    &leaf,
+		}
+	}
+
+	// NatsLimits
+	{
+		subs := claims.Limits.Subs
+		data := claims.Limits.Data
+		payload := claims.Limits.Payload
+		out.NatsLimits = &natsv1alpha1.NatsLimits{
+			Subs:    &subs,
+			Data:    &data,
+			Payload: &payload,
+		}
+	}
+
+	// JetStreamLimits
+	{
+		mem := claims.Limits.MemoryStorage
+		disk := claims.Limits.DiskStorage
+		streams := claims.Limits.Streams
+		consumer := claims.Limits.Consumer
+		maxAck := claims.Limits.MaxAckPending
+		memMax := claims.Limits.MemoryMaxStreamBytes
+		diskMax := claims.Limits.DiskMaxStreamBytes
+		out.JetStreamLimits = &natsv1alpha1.JetStreamLimits{
+			MemoryStorage:        &mem,
+			DiskStorage:          &disk,
+			Streams:              &streams,
+			Consumer:             &consumer,
+			MaxAckPending:        &maxAck,
+			MemoryMaxStreamBytes: &memMax,
+			DiskMaxStreamBytes:   &diskMax,
+			MaxBytesRequired:     claims.Limits.MaxBytesRequired,
+		}
+	}
+
+	// Exports
+	if len(claims.Exports) > 0 {
+		exports := make(natsv1alpha1.Exports, 0, len(claims.Exports))
+		for _, e := range claims.Exports {
+			if e == nil {
+				continue
+			}
+			var et natsv1alpha1.ExportType
+			switch e.Type {
+			case jwt.Stream:
+				et = natsv1alpha1.Stream
+			case jwt.Service:
+				et = natsv1alpha1.Service
+			default:
+				et = natsv1alpha1.Stream
+			}
+
+			var latency *natsv1alpha1.ServiceLatency
+			if e.Latency != nil {
+				latency = &natsv1alpha1.ServiceLatency{
+					Sampling: natsv1alpha1.SamplingRate(e.Latency.Sampling),
+					Results:  natsv1alpha1.Subject(e.Latency.Results),
+				}
+			}
+
+			export := &natsv1alpha1.Export{
+				Name:                 e.Name,
+				Subject:              natsv1alpha1.Subject(e.Subject),
+				Type:                 et,
+				TokenReq:             e.TokenReq,
+				Revocations:          natsv1alpha1.RevocationList(e.Revocations),
+				ResponseType:         natsv1alpha1.ResponseType(e.ResponseType),
+				ResponseThreshold:    e.ResponseThreshold,
+				Latency:              latency,
+				AccountTokenPosition: e.AccountTokenPosition,
+				Advertise:            e.Advertise,
+				AllowTrace:           e.AllowTrace,
+			}
+			exports = append(exports, export)
+		}
+		out.Exports = exports
+	}
+
+	// Imports
+	if len(claims.Imports) > 0 {
+		imports := make(natsv1alpha1.Imports, 0, len(claims.Imports))
+		for _, i := range claims.Imports {
+			if i == nil {
+				continue
+			}
+			var it natsv1alpha1.ExportType
+			switch i.Type {
+			case jwt.Stream:
+				it = natsv1alpha1.Stream
+			case jwt.Service:
+				it = natsv1alpha1.Service
+			default:
+				it = natsv1alpha1.Stream
+			}
+			imp := &natsv1alpha1.Import{
+				Name:         i.Name,
+				Subject:      natsv1alpha1.Subject(i.Subject),
+				Account:      i.Account,
+				LocalSubject: natsv1alpha1.RenamingSubject(i.LocalSubject),
+				Type:         it,
+				Share:        i.Share,
+				AllowTrace:   i.AllowTrace,
+			}
+			imports = append(imports, imp)
+		}
+		out.Imports = imports
+	}
+
+	return out
 }
