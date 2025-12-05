@@ -566,6 +566,8 @@ var _ = Describe("Account manager", func() {
 				By("mocking the NATS client")
 				accountJWT := createAccountClaims(accRootPub)
 				natsClientMock.On("LookupAccountJWT", accRootPub).Return(accountJWT, nil)
+				natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
 
 				By("importing the account from NATS")
 				err := accountManager.ImportAccount(ctx, account)
@@ -713,8 +715,10 @@ var _ = Describe("Account manager", func() {
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{domain.LabelSecretType: domain.SecretTypeAccountSign}}, Data: map[string][]byte{domain.DefaultSecretKeyName: accSignSeed}},
 					}}, nil)
 
-				// NATS has no such account
+				By("mocking the NATS client")
 				natsClientMock.On("LookupAccountJWT", accRootPub).Return("", nil)
+				natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
 
 				err := accountManager.ImportAccount(ctx, account)
 				Expect(err).To(HaveOccurred())
