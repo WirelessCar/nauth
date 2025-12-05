@@ -42,19 +42,18 @@ import (
 
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
-	ports.AccountManager
-	Scheme *runtime.Scheme
-	*StatusReporter
+	client.Client
+	Scheme         *runtime.Scheme
+	accountManager ports.AccountManager
+	reporter       *statusReporter
 }
 
 func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accountManager ports.AccountManager, recorder record.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
+		Client:         k8sClient,
 		Scheme:         scheme,
-		AccountManager: accountManager,
-		StatusReporter: &StatusReporter{
-			Client:   k8sClient,
-			Recorder: recorder,
-		},
+		accountManager: accountManager,
+		reporter:       newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -85,7 +84,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get resource")
-		return r.Result(ctx, natsAccount, err)
+		return r.reporter.error(ctx, natsAccount, err)
 	}
 
 	// ACCOUNT MARKED FOR DELETION
@@ -112,7 +111,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if len(userList.Items) > 0 {
-			return r.Result(
+			return r.reporter.error(
 				ctx,
 				natsAccount,
 				fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items)),
@@ -121,8 +120,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, types.ControllerAccountFinalizer) {
 			if labels := natsAccount.GetLabels(); labels == nil || labels[domain.LabelManagementPolicy] != domain.LabelManagementPolicyObserveValue {
-				if err := r.DeleteAccount(ctx, natsAccount); err != nil {
-					return r.Result(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+				if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
+					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
 
@@ -178,16 +177,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
 	if managementPolicy == domain.LabelManagementPolicyObserveValue {
-		if err := r.ImportAccount(ctx, natsAccount); err != nil {
-			return r.Result(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
+		if err := r.accountManager.ImportAccount(ctx, natsAccount); err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else if accountID == "" {
-		if err := r.CreateAccount(ctx, natsAccount); err != nil {
-			return r.Result(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
+		if err := r.accountManager.CreateAccount(ctx, natsAccount); err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
 	} else {
-		if err := r.UpdateAccount(ctx, natsAccount); err != nil {
-			return r.Result(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
+		if err := r.accountManager.UpdateAccount(ctx, natsAccount); err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
 		}
 	}
 
@@ -211,7 +210,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	return r.Result(ctx, natsAccount, nil)
+	return r.reporter.status(ctx, natsAccount)
 }
 
 // SetupWithManager sets up the controller with the Manager.
