@@ -246,10 +246,10 @@ var _ = Describe("Account manager", func() {
 			Expect(out.Exports).To(HaveLen(2))
 			var streamExp, svcExp *v1alpha1.Export
 			for _, e := range out.Exports {
-				switch {
-				case e.Name == "stream-exp":
+				switch e.Name {
+				case "stream-exp":
 					streamExp = e
-				case e.Name == "svc-exp":
+				case "svc-exp":
 					svcExp = e
 				}
 			}
@@ -275,10 +275,10 @@ var _ = Describe("Account manager", func() {
 			Expect(out.Imports).To(HaveLen(2))
 			var impStream, impSvc *v1alpha1.Import
 			for _, im := range out.Imports {
-				switch {
-				case im.Name == "imp-stream":
+				switch im.Name {
+				case "imp-stream":
 					impStream = im
-				case im.Name == "imp-svc":
+				case "imp-svc":
 					impSvc = im
 				}
 			}
