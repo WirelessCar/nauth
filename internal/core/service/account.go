@@ -301,7 +301,12 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to get account key pair for signing from seed for account %s: %w", accountID, err)
 	}
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
-
+	
+	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	if err != nil {
+		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
+	}
+	defer a.natsClient.Disconnect()
 	accountJWT, err := a.natsClient.LookupAccountJWT(accountID)
 	if err != nil {
 		return fmt.Errorf("failed to lookup account jwt for account %s: %w", accountID, err)
