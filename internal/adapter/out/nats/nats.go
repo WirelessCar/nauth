@@ -21,10 +21,6 @@ type NatsResponse struct {
 	Data NatsData `json:"data"`
 }
 
-type NatsListResponse struct {
-	Data []string `json:"data"`
-}
-
 type NatsData struct {
 	Account string `json:"account,omitempty"`
 	Code    int    `json:"code,omitempty"`
@@ -76,24 +72,6 @@ func (n *natsClient) LookupAccountJWT(accountID string) (string, error) {
 	}
 
 	return string(msg.Data), nil
-}
-
-func (n *natsClient) ListAccountJWTs() ([]string, error) {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return []string{}, fmt.Errorf("NATS connection is not established or lost")
-	}
-
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.LIST", nil, natsMaxTimeout)
-	if err != nil {
-		return []string{}, fmt.Errorf("failed to list account JWTs: %w", err)
-	}
-
-	res := &NatsListResponse{}
-	if err := json.Unmarshal(msg.Data, res); err != nil {
-		return []string{}, fmt.Errorf("failed to unmarshal account JWT response: %w", err)
-	}
-
-	return res.Data, nil
 }
 
 func (n *natsClient) UploadAccountJWT(jwt string) error {
