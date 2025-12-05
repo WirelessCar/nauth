@@ -75,15 +75,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log := logf.FromContext(ctx)
 
 	natsAccount := &natsv1alpha1.Account{}
-	var accountID string
-	var managementPolicy string
-	{
-		labels := natsAccount.GetLabels()
-		if labels != nil {
-			accountID = labels[domain.LabelAccountID]
-			managementPolicy = labels[domain.LabelManagementPolicy]
-		}
-	}
 
 	err := r.Get(ctx, req.NamespacedName, natsAccount)
 	if err != nil {
@@ -94,6 +85,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get resource")
 		return r.reporter.error(ctx, natsAccount, err)
+	}
+
+	var accountID string
+	var managementPolicy string
+	{
+		labels := natsAccount.GetLabels()
+		if labels != nil {
+			accountID = labels[domain.LabelAccountID]
+			managementPolicy = labels[domain.LabelManagementPolicy]
+		}
 	}
 
 	// ACCOUNT MARKED FOR DELETION
