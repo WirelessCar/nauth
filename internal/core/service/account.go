@@ -780,11 +780,11 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// AccountLimits
 	{
-		imports := claims.Limits.AccountLimits.Imports
-		exports := claims.Limits.AccountLimits.Exports
-		wildcards := claims.Limits.AccountLimits.WildcardExports
-		conn := claims.Limits.AccountLimits.Conn
-		leaf := claims.Limits.AccountLimits.LeafNodeConn
+		imports := claims.Limits.Imports
+		exports := claims.Limits.Exports
+		wildcards := claims.Limits.WildcardExports
+		conn := claims.Limits.Conn
+		leaf := claims.Limits.LeafNodeConn
 		out.AccountLimits = &natsv1alpha1.AccountLimits{
 			Imports:         &imports,
 			Exports:         &exports,
@@ -796,9 +796,9 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// NatsLimits
 	{
-		subs := claims.Limits.NatsLimits.Subs
-		data := claims.Limits.NatsLimits.Data
-		payload := claims.Limits.NatsLimits.Payload
+		subs := claims.Limits.Subs
+		data := claims.Limits.Data
+		payload := claims.Limits.Payload
 		out.NatsLimits = &natsv1alpha1.NatsLimits{
 			Subs:    &subs,
 			Data:    &data,
@@ -808,13 +808,13 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// JetStreamLimits
 	{
-		mem := claims.Limits.JetStreamLimits.MemoryStorage
-		disk := claims.Limits.JetStreamLimits.DiskStorage
-		streams := claims.Limits.JetStreamLimits.Streams
-		consumer := claims.Limits.JetStreamLimits.Consumer
-		maxAck := claims.Limits.JetStreamLimits.MaxAckPending
-		memMax := claims.Limits.JetStreamLimits.MemoryMaxStreamBytes
-		diskMax := claims.Limits.JetStreamLimits.DiskMaxStreamBytes
+		mem := claims.Limits.MemoryStorage
+		disk := claims.Limits.DiskStorage
+		streams := claims.Limits.Streams
+		consumer := claims.Limits.Consumer
+		maxAck := claims.Limits.MaxAckPending
+		memMax := claims.Limits.MemoryMaxStreamBytes
+		diskMax := claims.Limits.DiskMaxStreamBytes
 		out.JetStreamLimits = &natsv1alpha1.JetStreamLimits{
 			MemoryStorage:        &mem,
 			DiskStorage:          &disk,
@@ -823,7 +823,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 			MaxAckPending:        &maxAck,
 			MemoryMaxStreamBytes: &memMax,
 			DiskMaxStreamBytes:   &diskMax,
-			MaxBytesRequired:     claims.Limits.JetStreamLimits.MaxBytesRequired,
+			MaxBytesRequired:     claims.Limits.MaxBytesRequired,
 		}
 	}
 
