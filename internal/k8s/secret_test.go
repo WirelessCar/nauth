@@ -41,11 +41,11 @@ var _ = Describe("Secrets storer", func() {
 			},
 		}
 		ctx := context.Background()
-		var secretStorer *SecretStorer
+		var secretStorer *SecretClient
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
-			secretStorer = &SecretStorer{
+			secretStorer = &SecretClient{
 				client:              k8sClient,
 				controllerNamespace: secretMeta.Namespace,
 			}

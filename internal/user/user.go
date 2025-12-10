@@ -17,21 +17,11 @@ import (
 )
 
 type SecretStorer interface {
-	// TODO: Keys created should be immutable
 	ApplySecret(ctx context.Context, owner *k8s.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error
 	GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 	DeleteSecret(ctx context.Context, namespace string, name string) error
-	DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error
 	LabelSecret(ctx context.Context, namespace, name string, labels map[string]string) error
-}
-
-type NatsClient interface {
-	EnsureConnected(namespace string) error
-	Disconnect()
-	LookupAccountJWT(string) (string, error)
-	UploadAccountJWT(jwt string) error
-	DeleteAccountJWT(jwt string) error
 }
 
 type AccountGetter interface {
@@ -131,7 +121,7 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	return nil
 }
 
-func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return keyPair, nil
 	}
@@ -144,7 +134,7 @@ func (u UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, ac
 	return keyPair, nil
 }
 
-func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		types.LabelAccountID:  accountID,
 		types.LabelSecretType: types.SecretTypeAccountSign,
@@ -171,7 +161,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 }
 
 // Todo: Almost identical to the one in account/account.go - refactor ?
-func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -254,105 +244,4 @@ func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, nam
 		return nil, fmt.Errorf("no signing key seed found for account %s-%s", namespace, accountName)
 	}
 	return nkeys.FromSeed([]byte(accountSignSecretSeed))
-}
-
-type userClaimBuilder struct {
-	userState *v1alpha1.User
-	claim     *jwt.UserClaims
-}
-
-func newUserClaimsBuilder(state *v1alpha1.User, userPublicKey string) *userClaimBuilder {
-	claim := jwt.NewUserClaims(userPublicKey)
-	userState := state
-
-	return &userClaimBuilder{
-		userState: userState,
-		claim:     claim,
-	}
-}
-
-func (u *userClaimBuilder) permissions() *userClaimBuilder {
-	if u.userState.Spec.Permissions != nil {
-		permissions := jwt.Permissions{}
-
-		permissions.Pub = jwt.Permission{
-			Allow: jwt.StringList(u.userState.Spec.Permissions.Pub.Allow),
-			Deny:  jwt.StringList(u.userState.Spec.Permissions.Pub.Deny),
-		}
-		permissions.Sub = jwt.Permission{
-			Allow: jwt.StringList(u.userState.Spec.Permissions.Sub.Allow),
-			Deny:  jwt.StringList(u.userState.Spec.Permissions.Sub.Deny),
-		}
-		if u.userState.Spec.Permissions.Resp != nil {
-			permissions.Resp = &jwt.ResponsePermission{
-				MaxMsgs: u.userState.Spec.Permissions.Resp.MaxMsgs,
-				Expires: u.userState.Spec.Permissions.Resp.Expires,
-			}
-		}
-		u.claim.Permissions = permissions
-	}
-
-	return u
-}
-
-func (u *userClaimBuilder) userLimits() *userClaimBuilder {
-	if u.userState.Spec.UserLimits != nil {
-		userLimits := jwt.UserLimits{}
-
-		for _, src := range u.userState.Spec.UserLimits.Src {
-			userLimits.Src = append(userLimits.Src, src)
-		}
-		for _, times := range u.userState.Spec.UserLimits.Times {
-			time := jwt.TimeRange{
-				Start: times.Start,
-				End:   times.End,
-			}
-			userLimits.Times = append(userLimits.Times, time)
-		}
-		userLimits.Locale = u.userState.Spec.UserLimits.Locale
-
-		u.claim.UserLimits = userLimits
-	}
-
-	return u
-}
-
-func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
-	if u.userState.Spec.NatsLimits != nil {
-		natsLimits := jwt.NatsLimits{}
-
-		if u.userState.Spec.NatsLimits.Subs != nil {
-			natsLimits.Subs = *u.userState.Spec.NatsLimits.Subs
-		} else {
-			natsLimits.Subs = -1
-		}
-		if u.userState.Spec.NatsLimits.Data != nil {
-			natsLimits.Data = *u.userState.Spec.NatsLimits.Data
-		} else {
-			natsLimits.Data = -1
-		}
-		if u.userState.Spec.NatsLimits.Payload != nil {
-			natsLimits.Payload = *u.userState.Spec.NatsLimits.Payload
-		} else {
-			natsLimits.Payload = -1
-		}
-
-		u.claim.NatsLimits = natsLimits
-	}
-
-	return u
-}
-
-func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
-	u.claim.IssuerAccount = account.Labels[types.LabelAccountID]
-	return u
-}
-
-func (u *userClaimBuilder) encode(accountSigningKeyPair nkeys.KeyPair) (string, error) {
-	signedJwt, err := u.claim.Encode(accountSigningKeyPair)
-	if err != nil {
-		return "", err
-	}
-
-	return signedJwt, nil
 }

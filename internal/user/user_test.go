@@ -208,24 +208,6 @@ func GetNewUser() *v1alpha1.User {
 	}
 }
 
-func GetNewUserWithNotReadyAccount() *v1alpha1.User {
-	return &v1alpha1.User{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      userName,
-			Namespace: accountNamespace,
-		},
-		Spec: v1alpha1.UserSpec{
-			AccountName: accountNameThatIsNotReady,
-			Permissions: &v1alpha1.Permissions{
-				Pub: v1alpha1.Permission{},
-				Sub: v1alpha1.Permission{},
-			},
-			UserLimits: &v1alpha1.UserLimits{},
-			NatsLimits: &v1alpha1.NatsLimits{},
-		},
-	}
-}
-
 func GetNewAccount() *v1alpha1.Account {
 	return &v1alpha1.Account{
 		ObjectMeta: v1.ObjectMeta{

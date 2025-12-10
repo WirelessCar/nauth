@@ -10,35 +10,22 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type AccountGetter struct {
+type AccountClient struct {
 	client  client.Client
 	lenient bool
 }
 
-func NewAccountGetter(client client.Client, opts ...AccountGetterOption) *AccountGetter {
-	ag := &AccountGetter{
+func NewAccountClient(client client.Client) *AccountClient {
+	ag := &AccountClient{
 		client: client,
-	}
-
-	for _, opt := range opts {
-		opt(ag)
 	}
 
 	return ag
 }
 
-type AccountGetterOption func(*AccountGetter)
-
-// Does not enforce that the account is ready.
-func WithLenient() AccountGetterOption {
-	return func(ag *AccountGetter) {
-		ag.lenient = true
-	}
-}
-
 // Gets the referenced Account
 // Requires the account to be reconciled and ready unless client is `lenient`
-func (a *AccountGetter) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	log := logf.FromContext(ctx)
 	key := client.ObjectKey{Namespace: namespace, Name: accountRefName}
 

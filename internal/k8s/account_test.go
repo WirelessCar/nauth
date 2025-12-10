@@ -36,7 +36,7 @@ var _ = Describe("Account getter", func() {
 
 		It("does not allow non-ready accounts by default", func() {
 			By("setting up a default account getter")
-			accountGetter := NewAccountGetter(k8sClient)
+			accountGetter := NewAccountClient(k8sClient)
 			By("getting the account")
 			fetchedAccount, err := accountGetter.Get(ctx, accountName, namespace)
 
@@ -47,24 +47,12 @@ var _ = Describe("Account getter", func() {
 
 		It("fetches the relevant ready account", func() {
 			By("setting up a default account getter")
-			accountGetter := NewAccountGetter(k8sClient)
+			accountGetter := NewAccountClient(k8sClient)
 
 			By("reconciling target account successfully")
 			err := accountIsReady(namespace, accountName)
 			Expect(err).ToNot(HaveOccurred())
 
-			By("getting the account")
-			fetchedAccount, err := accountGetter.Get(ctx, accountName, namespace)
-
-			By("verifying the fetched account")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fetchedAccount).ToNot(BeNil())
-			Expect(fetchedAccount.Name).To(Equal(accountName))
-		})
-
-		It("should fetch the relevant account even if not ready if lenient", func() {
-			By("setting up a lenient account getter")
-			accountGetter := NewAccountGetter(k8sClient, WithLenient())
 			By("getting the account")
 			fetchedAccount, err := accountGetter.Get(ctx, accountName, namespace)
 

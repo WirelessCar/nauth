@@ -223,14 +223,14 @@ func main() {
 
 	natsURL := os.Getenv("NATS_URL")
 
-	secretStorer := k8s.NewK8sSecretStorer(mgr.GetClient())
-	standardAccountGetter := k8s.NewAccountGetter(mgr.GetClient())
-	natsClient := natsc.NewNATSClient(natsURL, secretStorer)
+	secretClient := k8s.NewSecretClient(mgr.GetClient())
+	accountClient := k8s.NewAccountClient(mgr.GetClient())
+	natsClient := natsc.NewNATSClient(natsURL, secretClient)
 
 	accountManager := account.NewAccountManager(
-		standardAccountGetter,
+		accountClient,
 		natsClient,
-		secretStorer,
+		secretClient,
 	)
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
@@ -243,7 +243,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewUserManager(standardAccountGetter, secretStorer)
+	userManager := user.NewUserManager(accountClient, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
