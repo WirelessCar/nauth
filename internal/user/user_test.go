@@ -19,10 +19,6 @@ import (
 var userName = "user"
 
 const (
-	accountNameThatIsNotReady = "test-account-not-ready"
-)
-
-const (
 	accountName      = "test-account"
 	accountNamespace = "default"
 	unlimitedLimit   = -1

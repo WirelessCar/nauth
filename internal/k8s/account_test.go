@@ -15,9 +15,8 @@ import (
 var _ = Describe("Account getter", func() {
 	Context("When getting account CRs", func() {
 		const (
-			accountName  = "test-account"
-			namespace    = "default"
-			resourceName = "test-resource"
+			accountName = "test-account"
+			namespace   = "default"
 		)
 
 		ctx := context.Background()
