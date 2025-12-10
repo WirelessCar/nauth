@@ -170,6 +170,7 @@ func (u UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, na
 	return nkeys.FromSeed(seed)
 }
 
+// Todo: Almost identical to the one in account/account.go - refactor ?
 func (u UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 

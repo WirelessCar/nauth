@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/types"
 	"k8s.io/client-go/tools/record"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -123,7 +122,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(types.OperatorVersion)
+	operatorVersion := os.Getenv(OperatorVersion)
 
 	// Nothing has changed
 	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {

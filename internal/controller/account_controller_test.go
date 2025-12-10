@@ -61,7 +61,7 @@ var _ = Describe("Account Controller", func() {
 
 		BeforeEach(func() {
 			operatorVersion = "0.0-SNAPSHOT"
-			_ = os.Setenv(types.OperatorVersion, operatorVersion)
+			_ = os.Setenv(OperatorVersion, operatorVersion)
 
 			accountManagerMock = &AccountManagerMock{}
 
@@ -113,7 +113,7 @@ var _ = Describe("Account Controller", func() {
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			accountManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(types.OperatorVersion)
+			_ = os.Unsetenv(OperatorVersion)
 		})
 
 		Context("Account create reconciliation", func() {
@@ -310,7 +310,7 @@ var _ = Describe("Account Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(types.OperatorVersion, newOperatorVersion)
+				_ = os.Setenv(OperatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})

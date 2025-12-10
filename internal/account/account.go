@@ -457,6 +457,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 	return secrets, nil
 }
 
+// Todo: Almost identical to the one in user/account.go - refactor ?
 func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	logger := logf.FromContext(ctx)
 
@@ -567,11 +568,11 @@ func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace strin
 }
 
 func getAccountRootSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(types.SecretNameAccountRootTemplate, accountName, mustGenerateShortHashFromID(accountID))
+	return fmt.Sprintf(SecretNameAccountRootTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
 func getAccountSignSecretName(accountName, accountID string) string {
-	return fmt.Sprintf(types.SecretNameAccountSignTemplate, accountName, mustGenerateShortHashFromID(accountID))
+	return fmt.Sprintf(SecretNameAccountSignTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
 func mustGenerateShortHashFromID(ID string) string {

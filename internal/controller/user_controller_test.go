@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/types"
 	"k8s.io/client-go/tools/record"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -43,9 +42,9 @@ var _ = Describe("User Controller", func() {
 		ctx := context.Background()
 
 		BeforeEach(func() {
-			fmt.Printf("ENV OV=%s\n", os.Getenv(types.OperatorVersion))
+			fmt.Printf("ENV OV=%s\n", os.Getenv(OperatorVersion))
 			operatorVersion = "0.0-SNAPSHOT"
-			_ = os.Setenv(types.OperatorVersion, operatorVersion)
+			_ = os.Setenv(OperatorVersion, operatorVersion)
 
 			userManagerMock = &UserManagerMock{}
 
@@ -89,7 +88,7 @@ var _ = Describe("User Controller", func() {
 
 		AfterEach(func() {
 			userManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(types.OperatorVersion)
+			_ = os.Unsetenv(OperatorVersion)
 		})
 
 		Context("User create/ update reconciliation", func() {
@@ -241,7 +240,7 @@ var _ = Describe("User Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(types.OperatorVersion, newOperatorVersion)
+				_ = os.Setenv(OperatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})

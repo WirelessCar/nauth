@@ -11,3 +11,7 @@ const (
 	ControllerReasonReconciled     = "Reconciled"
 	ControllerReasonErrored        = "Errored"
 )
+
+const (
+	OperatorVersion = "OPERATOR_VERSION"
+)

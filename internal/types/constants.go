@@ -18,11 +18,6 @@ const (
 )
 
 const (
-	SecretNameAccountRootTemplate = "%s-ac-root-%s"
-	SecretNameAccountSignTemplate = "%s-ac-sign-%s"
-)
-
-const (
 	SecretTypeAccountRoot            = "account-root"
 	SecretTypeAccountSign            = "account-sign"
 	SecretTypeOperatorSign           = "operator-sign"
@@ -33,8 +28,4 @@ const (
 const (
 	DeprecatedSecretNameAccountRootTemplate = "%s-ac-root"
 	DeprecatedSecretNameAccountSignTemplate = "%s-ac-sign"
-)
-
-const (
-	OperatorVersion = "OPERATOR_VERSION"
 )
