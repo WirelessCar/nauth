@@ -10,8 +10,7 @@ import (
 )
 
 type AccountClient struct {
-	client  client.Client
-	lenient bool
+	client client.Client
 }
 
 func NewAccountClient(client client.Client) *AccountClient {
@@ -23,7 +22,7 @@ func NewAccountClient(client client.Client) *AccountClient {
 }
 
 // Gets the referenced Account
-// Requires the account to be reconciled and ready unless client is `lenient`
+// Requires the account to be reconciled and ready
 func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	log := logf.FromContext(ctx)
 	key := client.ObjectKey{Namespace: namespace, Name: accountRefName}
@@ -34,7 +33,7 @@ func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespac
 		return nil, err
 	}
 
-	if !isReady(account) && !a.lenient {
+	if !isReady(account) {
 		log.Error(err, "account is not ready", "namespace", namespace, "accountName", accountRefName)
 		return nil, errors.Join(ErrAccountNotReady, err)
 	}
