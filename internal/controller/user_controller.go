@@ -1,0 +1,189 @@
+/*
+Copyright 2025.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/WirelessCar/nauth/internal/types"
+	"k8s.io/client-go/tools/record"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+)
+
+type UserManager interface {
+	CreateOrUpdateUser(ctx context.Context, state *natsv1alpha1.User) error
+	DeleteUser(ctx context.Context, desired *natsv1alpha1.User) error
+}
+
+// UserReconciler reconciles a User object
+type UserReconciler struct {
+	client.Client
+	Scheme      *runtime.Scheme
+	userManager UserManager
+	reporter    *statusReporter
+}
+
+func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, userManager UserManager, recorder record.EventRecorder) *UserReconciler {
+	return &UserReconciler{
+		Client:      k8sClient,
+		Scheme:      scheme,
+		userManager: userManager,
+		reporter:    newStatusReporter(k8sClient, recorder),
+	}
+}
+
+// +kubebuilder:rbac:groups=nauth.io,resources=users,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=nauth.io,resources=users/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=nauth.io,resources=users/finalizers,verbs=update
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+// TODO(user): Modify the Reconcile function to compare the state specified by
+// the User object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile
+func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	user := &natsv1alpha1.User{}
+
+	err := r.Get(ctx, req.NamespacedName, user)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("resource not found. Ignoring since object must be deleted")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		log.Error(err, "Failed to get resource")
+		return r.reporter.error(ctx, user, err)
+	}
+
+	// USER MARKED FOR DELETION
+	if !user.DeletionTimestamp.IsZero() {
+		// The user is being deleted
+		meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
+			Type:    ControllerTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  ControllerReasonReconciling,
+			Message: "Deleting user",
+		})
+
+		if err := r.Status().Update(ctx, user); err != nil {
+			log.Info("Failed to update the user status", "name", user.Name, "error", err)
+			return ctrl.Result{}, err
+		}
+
+		// The user is being deleted
+		if controllerutil.ContainsFinalizer(user, ControllerUserFinalizer) {
+			if err := r.userManager.DeleteUser(ctx, user); err != nil {
+				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
+			}
+
+			// remove our finalizer from the list and update it.
+			controllerutil.RemoveFinalizer(user, ControllerUserFinalizer)
+			if err := r.Update(ctx, user); err != nil {
+				log.Info("failed to remove finalizer", "name", user.Name, "error", err)
+				return ctrl.Result{}, err
+			}
+		}
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
+	}
+
+	operatorVersion := os.Getenv(types.OperatorVersion)
+
+	// Nothing has changed
+	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
+		return ctrl.Result{}, nil
+	}
+
+	// RECONCILE USER - Set status & base properties
+
+	// Add finalizer if not present
+	if !controllerutil.ContainsFinalizer(user, ControllerUserFinalizer) {
+		controllerutil.AddFinalizer(user, ControllerUserFinalizer)
+		if err := r.Update(ctx, user); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
+		Type:    ControllerTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  ControllerReasonReconciling,
+		Message: "Reconciling user",
+	})
+	if err := r.Status().Update(ctx, user); err != nil {
+		log.Info("Failed to create the user status", "name", user.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.userManager.CreateOrUpdateUser(ctx, user); err != nil {
+		return r.reporter.error(ctx, user, err)
+	}
+
+	// UPDATE USER STATUS
+
+	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
+	status := user.Status.DeepCopy()
+	status.OperatorVersion = operatorVersion
+
+	user.Status = natsv1alpha1.UserStatus{}
+	if err := r.Update(ctx, user); err != nil {
+		log.Info("Failed to update the user", "name", user.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	// Get the updated status back before updating the kubernetes api
+	user.Status = *status
+	if err := r.Status().Update(ctx, user); err != nil {
+		log.Info("Failed to update the user status", "name", user.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	return r.reporter.status(ctx, user)
+}
+
+func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&natsv1alpha1.User{}).
+		Named("user").
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: 1,
+		}).
+		Complete(r)
+}

@@ -22,7 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WirelessCar/nauth/internal/core/service"
+	"github.com/WirelessCar/nauth/internal/account"
+	"github.com/WirelessCar/nauth/internal/user"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -41,9 +42,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/in/controller"
-	"github.com/WirelessCar/nauth/internal/adapter/out/k8s"
-	"github.com/WirelessCar/nauth/internal/adapter/out/nats"
+	"github.com/WirelessCar/nauth/internal/controller"
+	"github.com/WirelessCar/nauth/internal/k8s"
+	natsc "github.com/WirelessCar/nauth/internal/nats"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -224,9 +225,9 @@ func main() {
 
 	secretStorer := k8s.NewK8sSecretStorer(mgr.GetClient())
 	standardAccountGetter := k8s.NewAccountGetter(mgr.GetClient())
-	natsClient := nats.NewNATSClient(natsURL, secretStorer)
+	natsClient := natsc.NewNATSClient(natsURL, secretStorer)
 
-	accountManager := service.NewAccountManager(
+	accountManager := account.NewAccountManager(
 		standardAccountGetter,
 		natsClient,
 		secretStorer,
@@ -242,7 +243,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := service.NewUserManager(standardAccountGetter, secretStorer)
+	userManager := user.NewUserManager(standardAccountGetter, secretStorer)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
