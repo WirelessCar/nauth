@@ -2,7 +2,7 @@ package user
 
 import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/types"
+	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -95,7 +95,7 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 }
 
 func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
-	u.claim.IssuerAccount = account.Labels[types.LabelAccountID]
+	u.claim.IssuerAccount = account.Labels[k8s.LabelAccountID]
 	return u
 }
 

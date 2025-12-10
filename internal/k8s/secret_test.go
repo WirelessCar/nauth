@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar/nauth/internal/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -37,7 +36,7 @@ var _ = Describe("Secrets storer", func() {
 			Name:      resourceName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				types.LabelManaged: types.LabelManagedValue,
+				LabelManaged: LabelManagedValue,
 			},
 		}
 		ctx := context.Background()
@@ -113,7 +112,7 @@ var _ = Describe("Secrets storer", func() {
 			Entry("due to irrelevant labels",
 				map[string]string{"foo": "bar"}),
 			Entry("due to existing managed label with unexpected value",
-				map[string]string{types.LabelManaged: "false"}))
+				map[string]string{LabelManaged: "false"}))
 
 		It("should return success when deleting a non existing secret", func() {
 			By("Trying to delete a non-existing secret")

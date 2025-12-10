@@ -8,7 +8,6 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/types"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	v1 "k8s.io/api/core/v1"
@@ -46,7 +45,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		return err
 	}
 
-	accountID := account.GetLabels()[types.LabelAccountID]
+	accountID := account.GetLabels()[k8s.LabelAccountID]
 	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
@@ -76,12 +75,12 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		Name:      state.GetUserSecretName(),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			types.LabelSecretType: types.SecretTypeUserCredentials,
-			types.LabelManaged:    types.LabelManagedValue,
+			k8s.LabelSecretType: k8s.SecretTypeUserCredentials,
+			k8s.LabelManaged:    k8s.LabelManagedValue,
 		},
 	}
 	secretValue := map[string]string{
-		types.UserCredentialSecretKeyName: string(userCreds),
+		k8s.UserCredentialSecretKeyName: string(userCreds),
 	}
 	err = u.secretStorer.ApplySecret(ctx, secretOwner, secretMeta, secretValue)
 	if err != nil {
@@ -99,9 +98,9 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 		state.Labels = make(map[string]string, 3)
 	}
 
-	state.GetLabels()[types.LabelUserID] = userPublicKey
-	state.GetLabels()[types.LabelUserAccountID] = account.GetLabels()[types.LabelAccountID]
-	state.GetLabels()[types.LabelUserSignedBy] = accountSigningKeyPublicKey
+	state.GetLabels()[k8s.LabelUserID] = userPublicKey
+	state.GetLabels()[k8s.LabelUserAccountID] = account.GetLabels()[k8s.LabelAccountID]
+	state.GetLabels()[k8s.LabelUserSignedBy] = accountSigningKeyPublicKey
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()
@@ -136,9 +135,9 @@ func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, a
 
 func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
-		types.LabelAccountID:  accountID,
-		types.LabelSecretType: types.SecretTypeAccountSign,
-		types.LabelManaged:    types.LabelManagedValue,
+		k8s.LabelAccountID:  accountID,
+		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+		k8s.LabelManaged:    k8s.LabelManagedValue,
 	}
 	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -153,7 +152,7 @@ func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, n
 		return nil, fmt.Errorf("more than 1 signing secret found for account: %s-%s", namespace, accountName)
 	}
 
-	seed, ok := secrets.Items[0].Data[types.DefaultSecretKeyName]
+	seed, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
 	if !ok {
 		return nil, fmt.Errorf("secret for user credentials seed was malformed")
 	}
@@ -176,12 +175,12 @@ func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, na
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(types.DeprecatedSecretNameAccountRootTemplate, accountName),
-			secretType: types.SecretTypeAccountRoot,
+			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountName),
+			secretType: k8s.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(types.DeprecatedSecretNameAccountSignTemplate, accountName),
-			secretType: types.SecretTypeAccountSign,
+			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountName),
+			secretType: k8s.SecretTypeAccountSign,
 		},
 	} {
 		wg.Add(1)
@@ -203,14 +202,14 @@ func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, na
 			}
 
 			labels := map[string]string{
-				types.LabelAccountID:  accountID,
-				types.LabelSecretType: secretType,
-				types.LabelManaged:    types.LabelManagedValue,
+				k8s.LabelAccountID:  accountID,
+				k8s.LabelSecretType: secretType,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			if err := u.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
-			accountSecret[types.LabelSecretType] = secretType
+			accountSecret[k8s.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
 		}(s.secretName, s.secretType)
@@ -227,19 +226,19 @@ func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, na
 			errs = append(errs, res.err)
 			continue
 		}
-		secrets[res.secret[types.LabelSecretType]] = res.secret
+		secrets[res.secret[k8s.LabelSecretType]] = res.secret
 	}
 
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
 
-	accountSignSecret, ok := secrets[types.SecretTypeAccountSign]
+	accountSignSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
 		return nil, fmt.Errorf("no signing key found for account %s-%s", namespace, accountName)
 	}
 
-	accountSignSecretSeed, ok := accountSignSecret[types.DefaultSecretKeyName]
+	accountSignSecretSeed, ok := accountSignSecret[k8s.DefaultSecretKeyName]
 	if !ok {
 		return nil, fmt.Errorf("no signing key seed found for account %s-%s", namespace, accountName)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -84,7 +83,7 @@ func accountIsReady(namespace string, name string) error {
 	}
 
 	accountLabels := map[string]string{
-		types.LabelAccountID: "account-id",
+		LabelAccountID: "account-id",
 	}
 	account.SetLabels(accountLabels)
 

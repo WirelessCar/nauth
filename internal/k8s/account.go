@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -44,6 +43,6 @@ func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespac
 }
 
 func isReady(account *v1alpha1.Account) bool {
-	_, ok := account.GetLabels()[types.LabelAccountID]
+	_, ok := account.GetLabels()[LabelAccountID]
 	return ok
 }

@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/types"
+	"github.com/WirelessCar/nauth/internal/k8s"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -92,8 +92,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	{
 		labels := natsAccount.GetLabels()
 		if labels != nil {
-			accountID = labels[types.LabelAccountID]
-			managementPolicy = labels[types.LabelManagementPolicy]
+			accountID = labels[k8s.LabelAccountID]
+			managementPolicy = labels[k8s.LabelManagementPolicy]
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &natsv1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{types.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
@@ -129,7 +129,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, ControllerAccountFinalizer) {
-			if managementPolicy != types.LabelManagementPolicyObserveValue {
+			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
 				if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
@@ -176,7 +176,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
-	if managementPolicy == types.LabelManagementPolicyObserveValue {
+	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
 		if err := r.accountManager.ImportAccount(ctx, natsAccount); err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}

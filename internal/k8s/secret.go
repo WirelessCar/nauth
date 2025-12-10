@@ -7,7 +7,6 @@ import (
 	"maps"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/types"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +41,7 @@ func NewSecretClient(client client.Client) *SecretClient {
 
 func (k *SecretClient) ApplySecret(ctx context.Context, owner *SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
-		return fmt.Errorf("label %s not supplied by secret %s/%s", types.LabelManaged, meta.Namespace, meta.Name)
+		return fmt.Errorf("label %s not supplied by secret %s/%s", LabelManaged, meta.Namespace, meta.Name)
 	}
 	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
 	if err != nil {
@@ -215,5 +214,5 @@ func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace string,
 }
 
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
-	return meta.Labels != nil && meta.Labels[types.LabelManaged] == types.LabelManagedValue
+	return meta.Labels != nil && meta.Labels[LabelManaged] == LabelManagedValue
 }

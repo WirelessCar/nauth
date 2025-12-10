@@ -20,7 +20,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/types"
+	"github.com/WirelessCar/nauth/internal/k8s"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,7 +29,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
-	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -176,7 +176,7 @@ var _ = Describe("Account Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				account.Labels = map[string]string{
-					types.LabelManagementPolicy: types.LabelManagementPolicyObserveValue,
+					k8s.LabelManagementPolicy: k8s.LabelManagementPolicyObserveValue,
 				}
 				err = k8sClient.Update(ctx, account)
 				Expect(err).ToNot(HaveOccurred())
@@ -283,7 +283,7 @@ var _ = Describe("Account Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				account.Labels = map[string]string{
-					types.LabelManagementPolicy: types.LabelManagementPolicyObserveValue,
+					k8s.LabelManagementPolicy: k8s.LabelManagementPolicyObserveValue,
 				}
 				err = k8sClient.Update(ctx, account)
 				Expect(err).ToNot(HaveOccurred())
@@ -342,7 +342,7 @@ func (o *AccountManagerMock) CreateAccount(ctx context.Context, state *natsv1alp
 	if state.Labels == nil {
 		state.Labels = make(map[string]string)
 	}
-	state.Labels[types.LabelAccountID] = accountPublicKey
+	state.Labels[k8s.LabelAccountID] = accountPublicKey
 
 	state.Status.SigningKey.Name = accountPublicKey
 
@@ -355,7 +355,7 @@ func (o *AccountManagerMock) UpdateAccount(ctx context.Context, state *natsv1alp
 	if state.Labels == nil {
 		state.Labels = make(map[string]string)
 	}
-	state.Labels[types.LabelAccountID] = accountPublicKey
+	state.Labels[k8s.LabelAccountID] = accountPublicKey
 
 	state.Status.SigningKey.Name = accountPublicKey
 

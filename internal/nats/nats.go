@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WirelessCar/nauth/internal/types"
+	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
 	v1 "k8s.io/api/core/v1"
@@ -163,7 +163,7 @@ func (n *NatsClient) connect(namespace string) error {
 
 func (n *NatsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
-		types.LabelSecretType: types.SecretTypeSystemAccountUserCreds,
+		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
 	secrets, err := n.secretGetter.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -175,12 +175,12 @@ func (n *NatsClient) getOperatorAdminCredentials(ctx context.Context, namespace 
 	}
 
 	if len(secrets.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", types.LabelSecretType, types.SecretTypeSystemAccountUserCreds)
+		return nil, fmt.Errorf("multiple operator user credentials found, make sure only one secret has the %s: %s label", k8s.LabelSecretType, k8s.SecretTypeSystemAccountUserCreds)
 	}
 
-	creds, ok := secrets.Items[0].Data[types.DefaultSecretKeyName]
+	creds, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
 	if !ok {
-		return nil, fmt.Errorf("operator credentials secret key (%s) missing", types.DefaultSecretKeyName)
+		return nil, fmt.Errorf("operator credentials secret key (%s) missing", k8s.DefaultSecretKeyName)
 	}
 	return creds, nil
 }

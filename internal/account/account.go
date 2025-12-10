@@ -13,7 +13,6 @@ import (
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/types"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	v1 "k8s.io/api/core/v1"
@@ -115,13 +114,13 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			types.LabelAccountID:  accountPublicKey,
-			types.LabelSecretType: types.SecretTypeAccountRoot,
-			types.LabelManaged:    types.LabelManagedValue,
+			k8s.LabelAccountID:  accountPublicKey,
+			k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
+			k8s.LabelManaged:    k8s.LabelManagedValue,
 		},
 	}
 	accountSeed, _ := accountKeyPair.Seed()
-	accountSecretValue := map[string]string{types.DefaultSecretKeyName: string(accountSeed)}
+	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 
 	if err := a.secretStorer.ApplySecret(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
 		return err
@@ -133,13 +132,13 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			types.LabelAccountID:  accountPublicKey,
-			types.LabelSecretType: types.SecretTypeAccountSign,
-			types.LabelManaged:    types.LabelManagedValue,
+			k8s.LabelAccountID:  accountPublicKey,
+			k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+			k8s.LabelManaged:    k8s.LabelManagedValue,
 		},
 	}
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
-	accountSignSeedSecretValue := map[string]string{types.DefaultSecretKeyName: string(accountSigningSeed)}
+	accountSignSeedSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 
 	if err := a.secretStorer.ApplySecret(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
 		return err
@@ -149,8 +148,8 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		state.Labels = make(map[string]string, 2)
 	}
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-	state.GetLabels()[types.LabelAccountID] = accountPublicKey
-	state.GetLabels()[types.LabelAccountSignedBy] = operatorSigningPublicKey
+	state.GetLabels()[k8s.LabelAccountID] = accountPublicKey
+	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
 		accountLimits().
@@ -194,7 +193,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
-	accountID := state.GetLabels()[types.LabelAccountID]
+	accountID := state.GetLabels()[k8s.LabelAccountID]
 	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
 		return err
@@ -205,14 +204,14 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 			return fmt.Errorf("failed to get system account ID: %w", err)
 		}
 
-		return fmt.Errorf("updating system account is not supported, consider '%s: %s'", types.LabelManagementPolicy, types.LabelManagementPolicyObserveValue)
+		return fmt.Errorf("updating system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
 	}
 
-	accountSecret, ok := secrets[types.SecretTypeAccountRoot]
+	accountSecret, ok := secrets[k8s.SecretTypeAccountRoot]
 	if !ok {
 		return fmt.Errorf("secret for account not found")
 	}
-	accountSeed, ok := accountSecret[types.DefaultSecretKeyName]
+	accountSeed, ok := accountSecret[k8s.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("secret for account was malformed")
 	}
@@ -222,11 +221,11 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	accountPublicKey, _ := accountKeyPair.PublicKey()
 
-	accountSigningSecret, ok := secrets[types.SecretTypeAccountSign]
+	accountSigningSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
 		return fmt.Errorf("secret for account signing not found")
 	}
-	accountSigningSeed, ok := accountSigningSecret[types.DefaultSecretKeyName]
+	accountSigningSeed, ok := accountSigningSecret[k8s.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("secret for account signing was malformed")
 	}
@@ -237,7 +236,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-	state.GetLabels()[types.LabelAccountSignedBy] = operatorSigningPublicKey
+	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
 		accountLimits().
@@ -281,7 +280,7 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	accountID := state.GetLabels()[types.LabelAccountID]
+	accountID := state.GetLabels()[k8s.LabelAccountID]
 	if accountID == "" {
 		return fmt.Errorf("account ID is missing for account %s", state.GetName())
 	}
@@ -291,11 +290,11 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
 	}
 
-	accountRootSecret, ok := secrets[types.SecretTypeAccountRoot]
+	accountRootSecret, ok := secrets[k8s.SecretTypeAccountRoot]
 	if !ok {
 		return fmt.Errorf("account root secret not found for account %s", accountID)
 	}
-	accountRootSeed, ok := accountRootSecret[types.DefaultSecretKeyName]
+	accountRootSeed, ok := accountRootSecret[k8s.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("account root seed secret for account %s is malformed", accountID)
 	}
@@ -311,11 +310,11 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("account root seed does not match account ID: expected %s, got %s", accountID, accountRootPublicKey)
 	}
 
-	accountSigningSecret, ok := secrets[types.SecretTypeAccountSign]
+	accountSigningSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
 		return fmt.Errorf("account sign secret not found for account %s", accountID)
 	}
-	accountSigningSeed, ok := accountSigningSecret[types.DefaultSecretKeyName]
+	accountSigningSeed, ok := accountSigningSecret[k8s.DefaultSecretKeyName]
 	if !ok {
 		return fmt.Errorf("account sign secret for account %s is malformed", accountID)
 	}
@@ -342,7 +341,7 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 		return fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
 	}
 
-	state.GetLabels()[types.LabelAccountSignedBy] = operatorSigningPublicKey
+	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 	state.Status.Claims = convertNatsAccountClaims(accountClaims)
 	state.Status.SigningKey.Name = accountSigningPublicKey
 
@@ -357,7 +356,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	}
 	operatorPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	accountID := state.GetLabels()[types.LabelAccountID]
+	accountID := state.GetLabels()[k8s.LabelAccountID]
 
 	// Delete is done by signing a jwt with a list of accounts to be deleted
 	deleteClaim := jwt.NewGenericClaims(operatorPublicKey)
@@ -380,7 +379,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	}
 
 	labels := map[string]string{
-		types.LabelAccountID: accountID,
+		k8s.LabelAccountID: accountID,
 	}
 
 	return a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
@@ -388,7 +387,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 
 func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
-		types.LabelSecretType: types.SecretTypeOperatorSign,
+		k8s.LabelSecretType: k8s.SecretTypeOperatorSign,
 	}
 	operatorSecret, err := a.secretStorer.GetSecretsByLabels(ctx, a.nauthNamespace, labels)
 	if err != nil {
@@ -396,14 +395,14 @@ func (a AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.Ke
 	}
 
 	if len(operatorSecret.Items) < 1 {
-		return nil, fmt.Errorf("missing operator signing key secret, make sure to label the secret with the label %s: %s", types.LabelSecretType, types.SecretTypeOperatorSign)
+		return nil, fmt.Errorf("missing operator signing key secret, make sure to label the secret with the label %s: %s", k8s.LabelSecretType, k8s.SecretTypeOperatorSign)
 	}
 
 	if len(operatorSecret.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", types.LabelSecretType, types.SecretTypeSystemAccountUserCreds)
+		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", k8s.LabelSecretType, k8s.SecretTypeSystemAccountUserCreds)
 	}
 
-	seed, ok := operatorSecret.Items[0].Data[types.DefaultSecretKeyName]
+	seed, ok := operatorSecret.Items[0].Data[k8s.DefaultSecretKeyName]
 	if !ok {
 		return nil, fmt.Errorf("secret for operator signing key seed was malformed")
 	}
@@ -426,8 +425,8 @@ func (a AccountManager) getAccountSecrets(ctx context.Context, namespace, accoun
 
 func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
-		types.LabelAccountID: accountID,
-		types.LabelManaged:   types.LabelManagedValue,
+		k8s.LabelAccountID: accountID,
+		k8s.LabelManaged:   k8s.LabelManagedValue,
 	}
 	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -444,7 +443,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 
 	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
 	for _, secret := range k8sSecrets.Items {
-		secretType := secret.GetLabels()[types.LabelSecretType]
+		secretType := secret.GetLabels()[k8s.LabelSecretType]
 		if _, ok := secrets[secretType]; ok {
 			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s-%s", secretType, namespace, accountName)
 		}
@@ -457,7 +456,7 @@ func (a AccountManager) getAccountSecretsByAccountID(ctx context.Context, namesp
 	return secrets, nil
 }
 
-// Todo: Almost identical to the one in user/account.go - refactor ?
+// Todo: Almost identical to the one in user/user.go - refactor ?
 func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	logger := logf.FromContext(ctx)
 
@@ -473,12 +472,12 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(types.DeprecatedSecretNameAccountRootTemplate, accountName),
-			secretType: types.SecretTypeAccountRoot,
+			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountName),
+			secretType: k8s.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(types.DeprecatedSecretNameAccountSignTemplate, accountName),
-			secretType: types.SecretTypeAccountSign,
+			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountName),
+			secretType: k8s.SecretTypeAccountSign,
 		},
 	} {
 		wg.Add(1)
@@ -500,14 +499,14 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			}
 
 			labels := map[string]string{
-				types.LabelAccountID:  accountID,
-				types.LabelSecretType: secretType,
-				types.LabelManaged:    types.LabelManagedValue,
+				k8s.LabelAccountID:  accountID,
+				k8s.LabelSecretType: secretType,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
-			accountSecret[types.LabelSecretType] = secretType
+			accountSecret[k8s.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
 		}(s.secretName, s.secretType)
@@ -524,7 +523,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 			errs = append(errs, res.err)
 			continue
 		}
-		secrets[res.secret[types.LabelSecretType]] = res.secret
+		secrets[res.secret[k8s.LabelSecretType]] = res.secret
 	}
 
 	if len(errs) > 0 {
@@ -540,7 +539,7 @@ func (a AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, n
 
 func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
 	labels := map[string]string{
-		types.LabelSecretType: types.SecretTypeSystemAccountUserCreds,
+		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
 	secrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -550,9 +549,9 @@ func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace strin
 		return "", fmt.Errorf("single system account creds secret required, %d found for account: %s", len(secrets.Items), namespace)
 	}
 
-	creds, ok := secrets.Items[0].Data[types.DefaultSecretKeyName]
+	creds, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
 	if !ok {
-		return "", fmt.Errorf("operator credentials secret key (%s) missing", types.DefaultSecretKeyName)
+		return "", fmt.Errorf("operator credentials secret key (%s) missing", k8s.DefaultSecretKeyName)
 	}
 
 	sysUserJwt, err := jwt.ParseDecoratedJWT(creds)
@@ -736,7 +735,7 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 				b.errs = append(b.errs, err)
 				log.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)
 			} else {
-				account := importAccount.Labels[types.LabelAccountID]
+				account := importAccount.Labels[k8s.LabelAccountID]
 				claim := &jwt.Import{
 					Name:         importClaim.Name,
 					Subject:      jwt.Subject(importClaim.Subject),

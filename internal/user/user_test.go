@@ -6,7 +6,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
-	"github.com/WirelessCar/nauth/internal/types"
+	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/nkeys"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -59,7 +59,7 @@ var _ = Describe("User manager", func() {
 				Items: []corev1.Secret{
 					{
 						Data: map[string][]byte{
-							types.DefaultSecretKeyName: accountSigningSeed,
+							k8s.DefaultSecretKeyName: accountSigningSeed,
 						},
 					},
 				},
@@ -75,7 +75,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[types.LabelUserID]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
 		})
 
 		It("creates a new user from an account with legacy secrets", func() {
@@ -90,26 +90,26 @@ var _ = Describe("User manager", func() {
 			accountKeyPair, _ := nkeys.CreateAccount()
 			accountPublicKey, _ := accountKeyPair.PublicKey()
 			accountSeed, _ := accountKeyPair.Seed()
-			accountSecretValueMock := map[string]string{types.DefaultSecretKeyName: string(accountSeed)}
-			accountSecretNameMock := fmt.Sprintf(types.DeprecatedSecretNameAccountRootTemplate, account.GetName())
+			accountSecretValueMock := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
+			accountSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				types.LabelAccountID:  accountPublicKey,
-				types.LabelSecretType: types.SecretTypeAccountRoot,
-				types.LabelManaged:    types.LabelManagedValue,
+				k8s.LabelAccountID:  accountPublicKey,
+				k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
 			accountSigningKeyPair, _ := nkeys.CreateAccount()
 			accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 			accountSigningSeed, _ := accountSigningKeyPair.Seed()
-			accountSigningSecretValueMock := map[string]string{types.DefaultSecretKeyName: string(accountSigningSeed)}
-			accountSigningSecretNameMock := fmt.Sprintf(types.DeprecatedSecretNameAccountSignTemplate, account.GetName())
+			accountSigningSecretValueMock := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
+			accountSigningSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				types.LabelAccountID:  accountPublicKey,
-				types.LabelSecretType: types.SecretTypeAccountSign,
-				types.LabelManaged:    types.LabelManagedValue,
+				k8s.LabelAccountID:  accountPublicKey,
+				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 
@@ -118,7 +118,7 @@ var _ = Describe("User manager", func() {
 				Name: accountSigningPublicKey,
 			}
 			account.Labels = map[string]string{
-				types.LabelAccountID: accountPublicKey,
+				k8s.LabelAccountID: accountPublicKey,
 			}
 			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
 
@@ -131,7 +131,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[types.LabelUserID]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
 		})
 
 		It("creates a new user and update settigs", func() {
@@ -148,7 +148,7 @@ var _ = Describe("User manager", func() {
 				Items: []corev1.Secret{
 					{
 						Data: map[string][]byte{
-							types.DefaultSecretKeyName: accountSigningSeed,
+							k8s.DefaultSecretKeyName: accountSigningSeed,
 						},
 					},
 				},
@@ -165,7 +165,7 @@ var _ = Describe("User manager", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[types.LabelUserID]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
 
 			user.Spec.NatsLimits = &v1alpha1.NatsLimits{
 				Subs:    ptr.To[int64](100),
@@ -177,7 +177,7 @@ var _ = Describe("User manager", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
-			Expect(user.GetLabels()[types.LabelUserID]).Should(Satisfy(isUserPubKey))
+			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
 			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.Status.Claims.NatsLimits.Subs).Should(Equal(user.Spec.NatsLimits.Subs))
 			Expect(user.Status.Claims.NatsLimits.Data).Should(Equal(user.Spec.NatsLimits.Data))
