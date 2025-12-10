@@ -42,9 +42,9 @@ var _ = Describe("User Controller", func() {
 		ctx := context.Background()
 
 		BeforeEach(func() {
-			fmt.Printf("ENV OV=%s\n", os.Getenv(OperatorVersion))
+			fmt.Printf("ENV OV=%s\n", os.Getenv(operatorVersion))
 			operatorVersion = "0.0-SNAPSHOT"
-			_ = os.Setenv(OperatorVersion, operatorVersion)
+			_ = os.Setenv(operatorVersion, operatorVersion)
 
 			userManagerMock = &UserManagerMock{}
 
@@ -88,7 +88,7 @@ var _ = Describe("User Controller", func() {
 
 		AfterEach(func() {
 			userManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(OperatorVersion)
+			_ = os.Unsetenv(operatorVersion)
 		})
 
 		Context("User create/ update reconciliation", func() {
@@ -108,7 +108,7 @@ var _ = Describe("User Controller", func() {
 
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(ControllerReasonReconciled))
+					Expect(c.Reason).To(Equal(controllerReasonReconciled))
 				}
 				Expect(user.Status.OperatorVersion).To(Equal(operatorVersion))
 
@@ -132,7 +132,7 @@ var _ = Describe("User Controller", func() {
 
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(ControllerReasonErrored))
+					Expect(c.Reason).To(Equal(controllerReasonErrored))
 				}
 
 				By("Asserting the recorded events match the condition message")
@@ -154,7 +154,7 @@ var _ = Describe("User Controller", func() {
 
 				err = k8sClient.Get(ctx, userNamespacedName, user)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(user, ControllerUserFinalizer)).To(BeTrue())
+				Expect(controllerutil.ContainsFinalizer(user, controllerUserFinalizer)).To(BeTrue())
 
 				err = k8sClient.Delete(ctx, user)
 				Expect(err).ToNot(HaveOccurred())
@@ -170,7 +170,7 @@ var _ = Describe("User Controller", func() {
 
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(ControllerReasonReconciled))
+					Expect(c.Reason).To(Equal(controllerReasonReconciled))
 				}
 
 				err = k8sClient.Get(ctx, userNamespacedName, user)
@@ -194,7 +194,7 @@ var _ = Describe("User Controller", func() {
 
 				err = k8sClient.Get(ctx, userNamespacedName, user)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(user, ControllerUserFinalizer)).To(BeTrue())
+				Expect(controllerutil.ContainsFinalizer(user, controllerUserFinalizer)).To(BeTrue())
 
 				err = k8sClient.Delete(ctx, user)
 				Expect(err).ToNot(HaveOccurred())
@@ -213,7 +213,7 @@ var _ = Describe("User Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(ControllerReasonErrored))
+					Expect(c.Reason).To(Equal(controllerReasonErrored))
 				}
 
 				By("Asserting the recorded events match the condition message")
@@ -240,7 +240,7 @@ var _ = Describe("User Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(OperatorVersion, newOperatorVersion)
+				_ = os.Setenv(operatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
 				})
@@ -250,7 +250,7 @@ var _ = Describe("User Controller", func() {
 
 				for _, c := range user.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(ControllerReasonReconciled))
+					Expect(c.Reason).To(Equal(controllerReasonReconciled))
 				}
 				Expect(user.Status.OperatorVersion).To(Equal(newOperatorVersion))
 

@@ -61,7 +61,7 @@ var _ = Describe("Account Controller", func() {
 
 		BeforeEach(func() {
 			operatorVersion = "0.0-SNAPSHOT"
-			_ = os.Setenv(OperatorVersion, operatorVersion)
+			_ = os.Setenv(operatorVersion, operatorVersion)
 
 			accountManagerMock = &AccountManagerMock{}
 
@@ -113,7 +113,7 @@ var _ = Describe("Account Controller", func() {
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			accountManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(OperatorVersion)
+			_ = os.Unsetenv(operatorVersion)
 		})
 
 		Context("Account create reconciliation", func() {
@@ -132,7 +132,7 @@ var _ = Describe("Account Controller", func() {
 
 				for _, c := range account.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(ControllerReasonReconciled))
+					Expect(c.Reason).To(Equal(controllerReasonReconciled))
 				}
 				Expect(account.Status.OperatorVersion).To(Equal(operatorVersion))
 
@@ -158,7 +158,7 @@ var _ = Describe("Account Controller", func() {
 
 				for _, c := range account.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(ControllerReasonErrored))
+					Expect(c.Reason).To(Equal(controllerReasonErrored))
 				}
 
 				By("Asserting the recorded events match the condition message")
@@ -214,7 +214,7 @@ var _ = Describe("Account Controller", func() {
 
 				err = k8sClient.Get(ctx, accountNamespacedName, account)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(account, ControllerAccountFinalizer)).To(BeTrue())
+				Expect(controllerutil.ContainsFinalizer(account, controllerAccountFinalizer)).To(BeTrue())
 
 				err = k8sClient.Delete(ctx, account)
 				Expect(err).ToNot(HaveOccurred())
@@ -246,7 +246,7 @@ var _ = Describe("Account Controller", func() {
 
 				err = k8sClient.Get(ctx, accountNamespacedName, account)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(account, ControllerAccountFinalizer)).To(BeTrue())
+				Expect(controllerutil.ContainsFinalizer(account, controllerAccountFinalizer)).To(BeTrue())
 
 				err = k8sClient.Delete(ctx, account)
 				Expect(err).ToNot(HaveOccurred())
@@ -261,7 +261,7 @@ var _ = Describe("Account Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				for _, c := range account.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(ControllerReasonErrored))
+					Expect(c.Reason).To(Equal(controllerReasonErrored))
 				}
 
 				By("Asserting the recorded events match the condition message")
@@ -310,7 +310,7 @@ var _ = Describe("Account Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(OperatorVersion, newOperatorVersion)
+				_ = os.Setenv(operatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})
@@ -320,7 +320,7 @@ var _ = Describe("Account Controller", func() {
 
 				for _, c := range account.Status.Conditions {
 					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(ControllerReasonReconciled))
+					Expect(c.Reason).To(Equal(controllerReasonReconciled))
 				}
 				Expect(account.Status.OperatorVersion).To(Equal(newOperatorVersion))
 

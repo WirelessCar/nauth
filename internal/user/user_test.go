@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/nkeys"
 	. "github.com/onsi/ginkgo/v2"
@@ -221,6 +220,7 @@ func GetNewAccount() *v1alpha1.Account {
 }
 
 func GetExistingAccount() *v1alpha1.Account {
+	const ControllerTypeReady = "Ready"
 	account := GetNewAccount()
 	account.Status = v1alpha1.AccountStatus{
 		SigningKey: v1alpha1.KeyInfo{
@@ -228,7 +228,7 @@ func GetExistingAccount() *v1alpha1.Account {
 		},
 		Conditions: []v1.Condition{
 			{
-				Type:   controller.ControllerTypeReady,
+				Type:   ControllerTypeReady,
 				Status: v1.ConditionTrue,
 			},
 		},
