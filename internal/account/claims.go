@@ -146,7 +146,7 @@ func (b *accountClaimBuilder) exports() *accountClaimBuilder {
 	return b
 }
 
-func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *AccountManager) *accountClaimBuilder {
+func (b *accountClaimBuilder) imports(ctx context.Context, accountGetter AccountGetter) *accountClaimBuilder {
 	state := b.accountState
 	log := logf.FromContext(ctx)
 
@@ -154,7 +154,7 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountManager *Accou
 		imports := jwt.Imports{}
 
 		for _, importClaim := range state.Spec.Imports {
-			importAccount, err := accountManager.accounts.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
+			importAccount, err := accountGetter.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
 			if err != nil {
 				b.errs = append(b.errs, err)
 				log.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)

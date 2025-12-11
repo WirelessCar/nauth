@@ -156,7 +156,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 		natsLimits().
 		jetStreamLimits().
 		exports().
-		imports(ctx, a).
+		imports(ctx, a.accounts).
 		signingKey(accountSigningPublicKey).
 		encode(operatorSigningKeyPair)
 	if err != nil {
@@ -243,7 +243,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 		natsLimits().
 		jetStreamLimits().
 		exports().
-		imports(ctx, a).
+		imports(ctx, a.accounts).
 		signingKey(accountSigningPublicKey).
 		encode(operatorSigningKeyPair)
 	if err != nil {
