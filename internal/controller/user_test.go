@@ -88,7 +88,7 @@ var _ = Describe("User Controller", func() {
 
 		AfterEach(func() {
 			userManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(operatorVersion)
+			_ = os.Unsetenv(EnvOperatorVersion)
 		})
 
 		Context("User create/ update reconciliation", func() {

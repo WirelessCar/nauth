@@ -113,7 +113,7 @@ var _ = Describe("Account Controller", func() {
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			accountManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(operatorVersion)
+			_ = os.Unsetenv(EnvOperatorVersion)
 		})
 
 		Context("Account create reconciliation", func() {
