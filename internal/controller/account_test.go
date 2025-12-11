@@ -61,7 +61,7 @@ var _ = Describe("Account Controller", func() {
 
 		BeforeEach(func() {
 			operatorVersion = "0.0-SNAPSHOT"
-			_ = os.Setenv(operatorVersion, operatorVersion)
+			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
 
 			accountManagerMock = &AccountManagerMock{}
 
@@ -310,7 +310,7 @@ var _ = Describe("Account Controller", func() {
 
 				// Reconcile again to verify same ObservedGeneration and Generation
 				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(operatorVersion, newOperatorVersion)
+				_ = os.Setenv(EnvOperatorVersion, newOperatorVersion)
 				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
 				})

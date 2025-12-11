@@ -13,5 +13,5 @@ const (
 )
 
 const (
-	operatorVersion = "OPERATOR_VERSION"
+	EnvOperatorVersion = "OPERATOR_VERSION"
 )

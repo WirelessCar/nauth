@@ -118,7 +118,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(operatorVersion)
+	operatorVersion := os.Getenv(EnvOperatorVersion)
 
 	// Nothing has changed
 	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {

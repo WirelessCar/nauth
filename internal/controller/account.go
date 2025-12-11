@@ -146,7 +146,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(operatorVersion)
+	operatorVersion := os.Getenv(EnvOperatorVersion)
 
 	// Nothing has changed
 	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
