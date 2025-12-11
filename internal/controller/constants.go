@@ -6,7 +6,6 @@ const (
 	controllerAccountFinalizer = "account.nauth.io/finalizer"
 	controllerUserFinalizer    = "user.nauth.io/finalizer"
 
-	//ControllerReasonNoAccountFound = "NoAccountFound"
 	controllerReasonReconciling = "Reconciling"
 	controllerReasonReconciled  = "Reconciled"
 	controllerReasonErrored     = "Errored"
