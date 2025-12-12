@@ -7,22 +7,22 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-type userClaimBuilder struct {
+type claimsBuilder struct {
 	userState *v1alpha1.User
 	claim     *jwt.UserClaims
 }
 
-func newUserClaimsBuilder(state *v1alpha1.User, userPublicKey string) *userClaimBuilder {
+func newClaimsBuilder(state *v1alpha1.User, userPublicKey string) *claimsBuilder {
 	claim := jwt.NewUserClaims(userPublicKey)
 	userState := state
 
-	return &userClaimBuilder{
+	return &claimsBuilder{
 		userState: userState,
 		claim:     claim,
 	}
 }
 
-func (u *userClaimBuilder) permissions() *userClaimBuilder {
+func (u *claimsBuilder) permissions() *claimsBuilder {
 	if u.userState.Spec.Permissions != nil {
 		permissions := jwt.Permissions{}
 
@@ -46,7 +46,7 @@ func (u *userClaimBuilder) permissions() *userClaimBuilder {
 	return u
 }
 
-func (u *userClaimBuilder) userLimits() *userClaimBuilder {
+func (u *claimsBuilder) userLimits() *claimsBuilder {
 	if u.userState.Spec.UserLimits != nil {
 		userLimits := jwt.UserLimits{}
 
@@ -68,7 +68,7 @@ func (u *userClaimBuilder) userLimits() *userClaimBuilder {
 	return u
 }
 
-func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
+func (u *claimsBuilder) natsLimits() *claimsBuilder {
 	if u.userState.Spec.NatsLimits != nil {
 		natsLimits := jwt.NatsLimits{}
 
@@ -94,12 +94,12 @@ func (u *userClaimBuilder) natsLimits() *userClaimBuilder {
 	return u
 }
 
-func (u *userClaimBuilder) issuerAccount(account v1alpha1.Account) *userClaimBuilder {
+func (u *claimsBuilder) issuerAccount(account v1alpha1.Account) *claimsBuilder {
 	u.claim.IssuerAccount = account.Labels[k8s.LabelAccountID]
 	return u
 }
 
-func (u *userClaimBuilder) encode(accountSigningKeyPair nkeys.KeyPair) (string, error) {
+func (u *claimsBuilder) encode(accountSigningKeyPair nkeys.KeyPair) (string, error) {
 	signedJwt, err := u.claim.Encode(accountSigningKeyPair)
 	if err != nil {
 		return "", err

@@ -56,7 +56,7 @@ func (u *Manager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) 
 	userPublicKey, _ := userKeyPair.PublicKey()
 	userSeed, _ := userKeyPair.Seed()
 
-	userJwt, err := newUserClaimsBuilder(state, userPublicKey).
+	userJwt, err := newClaimsBuilder(state, userPublicKey).
 		issuerAccount(*account).
 		natsLimits().
 		permissions().
