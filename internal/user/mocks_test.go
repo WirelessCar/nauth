@@ -34,7 +34,7 @@ func (s *SecretStorerMock) Get(ctx context.Context, namespace string, name strin
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-// GetSecretsByLabels implements ports.SecretStorer.
+// GetByLabels implements ports.SecretStorer.
 func (s *SecretStorerMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
 	args := s.Called(ctx, namespace, labels)
 	return args.Get(0).(*corev1.SecretList), args.Error(1)

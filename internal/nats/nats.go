@@ -18,40 +18,40 @@ const (
 )
 
 type SecretGetter interface {
-	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
+	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 }
 
-type NatsResponse struct {
-	Data NatsData `json:"data"`
+type Response struct {
+	Data Data `json:"data"`
 }
 
-type NatsData struct {
+type Data struct {
 	Account string `json:"account,omitempty"`
 	Code    int    `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 
-type NatsClient struct {
+type Client struct {
 	natsURL      string
 	secretGetter SecretGetter
 	conn         *nats.Conn
 }
 
-func NewNATSClient(natsURL string, secretGetter SecretGetter) *NatsClient {
-	return &NatsClient{
+func NewClient(natsURL string, secretGetter SecretGetter) *Client {
+	return &Client{
 		natsURL:      natsURL,
 		secretGetter: secretGetter,
 	}
 }
 
-func (n *NatsClient) EnsureConnected(namespace string) error {
+func (n *Client) EnsureConnected(namespace string) error {
 	if n.conn != nil && n.conn.IsConnected() {
 		return nil
 	}
 	return n.connect(namespace)
 }
 
-func (n *NatsClient) Disconnect() {
+func (n *Client) Disconnect() {
 	if n.conn == nil {
 		return
 	}
@@ -65,7 +65,7 @@ func (n *NatsClient) Disconnect() {
 	}
 }
 
-func (n *NatsClient) LookupAccountJWT(accountID string) (string, error) {
+func (n *Client) LookupAccountJWT(accountID string) (string, error) {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return "", fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -78,7 +78,7 @@ func (n *NatsClient) LookupAccountJWT(accountID string) (string, error) {
 	return string(msg.Data), nil
 }
 
-func (n *NatsClient) UploadAccountJWT(jwt string) error {
+func (n *Client) UploadAccountJWT(jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -88,7 +88,7 @@ func (n *NatsClient) UploadAccountJWT(jwt string) error {
 		return fmt.Errorf("unable to post jwt update request: %w", err)
 	}
 
-	res := &NatsResponse{}
+	res := &Response{}
 
 	err = json.Unmarshal(msg.Data, res)
 	if err != nil {
@@ -102,7 +102,7 @@ func (n *NatsClient) UploadAccountJWT(jwt string) error {
 	return nil
 }
 
-func (n *NatsClient) DeleteAccountJWT(jwt string) error {
+func (n *Client) DeleteAccountJWT(jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -112,7 +112,7 @@ func (n *NatsClient) DeleteAccountJWT(jwt string) error {
 		return fmt.Errorf("unable to post jwt update request: %w", err)
 	}
 
-	res := &NatsResponse{}
+	res := &Response{}
 
 	err = json.Unmarshal(msg.Data, res)
 	if err != nil {
@@ -126,7 +126,7 @@ func (n *NatsClient) DeleteAccountJWT(jwt string) error {
 	return nil
 }
 
-func (n *NatsClient) connect(namespace string) error {
+func (n *Client) connect(namespace string) error {
 	adminCreds, err := n.getOperatorAdminCredentials(context.Background(), namespace)
 	if err != nil {
 		return fmt.Errorf("failed to fetch admin user creds: %w", err)
@@ -161,11 +161,11 @@ func (n *NatsClient) connect(namespace string) error {
 	return err
 }
 
-func (n *NatsClient) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+func (n *Client) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
-	secrets, err := n.secretGetter.GetSecretsByLabels(ctx, namespace, labels)
+	secrets, err := n.secretGetter.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, err
 	}
