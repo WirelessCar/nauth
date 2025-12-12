@@ -1,0 +1,16 @@
+name: Require Signed-Off Commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  signed_off:
+    name: Validate Signed-off Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce Signed-off-by
+        uses: ./.github/actions/require-signed-off
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha }}
+          head_sha: ${{ github.event.pull_request.head.sha }}
