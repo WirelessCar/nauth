@@ -42,15 +42,15 @@ type AccountGetter interface {
 	Get(ctx context.Context, accountRefName string, namespace string) (account *natsv1alpha1.Account, err error)
 }
 
-type AccountManager struct {
+type Manager struct {
 	accounts       AccountGetter
 	natsClient     NatsClient
 	secretStorer   SecretStorer
 	nauthNamespace string
 }
 
-func NewAccountManager(accounts AccountGetter, natsClient NatsClient, secretStorer SecretStorer, opts ...func(*AccountManager)) *AccountManager {
-	manager := &AccountManager{
+func NewManager(accounts AccountGetter, natsClient NatsClient, secretStorer SecretStorer, opts ...func(*Manager)) *Manager {
+	manager := &Manager{
 		accounts:     accounts,
 		natsClient:   natsClient,
 		secretStorer: secretStorer,
@@ -76,13 +76,13 @@ func NewAccountManager(accounts AccountGetter, natsClient NatsClient, secretStor
 	return manager
 }
 
-func WithNamespace(namespace string) func(*AccountManager) {
-	return func(manager *AccountManager) {
+func WithNamespace(namespace string) func(*Manager) {
+	return func(manager *Manager) {
 		manager.nauthNamespace = namespace
 	}
 }
 
-func (a *AccountManager) valid() bool {
+func (a *Manager) valid() bool {
 	if a.accounts == nil {
 		return false
 	}
@@ -102,7 +102,7 @@ func (a *AccountManager) valid() bool {
 	return true
 }
 
-func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -187,7 +187,7 @@ func (a *AccountManager) CreateAccount(ctx context.Context, state *natsv1alpha1.
 	return nil
 }
 
-func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -273,7 +273,7 @@ func (a *AccountManager) UpdateAccount(ctx context.Context, state *natsv1alpha1.
 	return nil
 }
 
-func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -348,7 +348,7 @@ func (a *AccountManager) ImportAccount(ctx context.Context, state *natsv1alpha1.
 	return nil
 }
 
-func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) DeleteAccount(ctx context.Context, state *natsv1alpha1.Account) error {
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
@@ -385,7 +385,7 @@ func (a *AccountManager) DeleteAccount(ctx context.Context, state *natsv1alpha1.
 	return a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
 }
 
-func (a *AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
+func (a *Manager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeOperatorSign,
 	}
@@ -410,7 +410,7 @@ func (a *AccountManager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.K
 	return nkeys.FromSeed(seed)
 }
 
-func (a *AccountManager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
+func (a *Manager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
 	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return secrets, nil
 	}
@@ -423,7 +423,7 @@ func (a *AccountManager) getAccountSecrets(ctx context.Context, namespace, accou
 	return secrets, nil
 }
 
-func (a *AccountManager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID: accountID,
 		k8s.LabelManaged:   k8s.LabelManagedValue,
@@ -457,7 +457,7 @@ func (a *AccountManager) getAccountSecretsByAccountID(ctx context.Context, names
 }
 
 // Todo: Almost identical to the one in user/user.go - refactor ?
-func (a *AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -537,7 +537,7 @@ func (a *AccountManager) getDeprecatedAccountSecretsByName(ctx context.Context, 
 	return secrets, nil
 }
 
-func (a *AccountManager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
+func (a *Manager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}

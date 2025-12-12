@@ -28,7 +28,7 @@ var _ = Describe("Account manager", func() {
 	Context("When handling NATS account resources", func() {
 		var (
 			ctx               = context.Background()
-			accountManager    *AccountManager
+			accountManager    *Manager
 			accountGetterMock *AccountGetterMock
 			natsClientMock    *NATSClientMock
 			secretStorerMock  *SecretStorerMock
@@ -39,7 +39,7 @@ var _ = Describe("Account manager", func() {
 			accountGetterMock = NewAccountGetterMock()
 			natsClientMock = NewNATSClientMock()
 			secretStorerMock = NewSecretStorerMock()
-			accountManager = NewAccountManager(accountGetterMock, natsClientMock, secretStorerMock, WithNamespace("nauth"))
+			accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, WithNamespace("nauth"))
 		})
 
 		AfterEach(func() {

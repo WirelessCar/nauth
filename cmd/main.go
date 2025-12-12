@@ -227,7 +227,7 @@ func main() {
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClient := natsc.NewNATSClient(natsURL, secretClient)
 
-	accountManager := account.NewAccountManager(
+	accountManager := account.NewManager(
 		accountClient,
 		natsClient,
 		secretClient,
