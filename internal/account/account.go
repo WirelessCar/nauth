@@ -103,7 +103,7 @@ func (a *Manager) valid() bool {
 	return true
 }
 
-func (a *Manager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -188,7 +188,7 @@ func (a *Manager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account
 	return nil
 }
 
-func (a *Manager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -274,7 +274,7 @@ func (a *Manager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account
 	return nil
 }
 
-func (a *Manager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) error {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
@@ -349,7 +349,7 @@ func (a *Manager) ImportAccount(ctx context.Context, state *natsv1alpha1.Account
 	return nil
 }
 
-func (a *Manager) DeleteAccount(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error {
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {

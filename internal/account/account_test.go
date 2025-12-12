@@ -79,7 +79,7 @@ var _ = Describe("Account manager", func() {
 			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
-			err := accountManager.CreateAccount(ctx, account)
+			err := accountManager.Create(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[k8s.LabelAccountID]).Should(Satisfy(isAccountPubKey))
@@ -129,7 +129,7 @@ var _ = Describe("Account manager", func() {
 			}
 
 			By("ensuring conflict detection during account processing")
-			err := accountManager.CreateAccount(ctx, account)
+			err := accountManager.Create(ctx, account)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("conflicting import subject found"))
 		})
@@ -340,7 +340,7 @@ var _ = Describe("Account manager", func() {
 			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
-			err := accountManager.CreateAccount(ctx, account)
+			err := accountManager.Create(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[k8s.LabelAccountID]).Should(Satisfy(isAccountPubKey))
@@ -387,7 +387,7 @@ var _ = Describe("Account manager", func() {
 				Conn:            ptr.To[int64](100),
 				LeafNodeConn:    ptr.To[int64](0),
 			}
-			err = accountManager.UpdateAccount(ctx, account)
+			err = accountManager.Update(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[k8s.LabelAccountID]).Should(Satisfy(isAccountPubKey))
@@ -464,7 +464,7 @@ var _ = Describe("Account manager", func() {
 				k8s.LabelAccountID:       accountPublicKey,
 				k8s.LabelAccountSignedBy: operatorPublicKey,
 			}
-			err := accountManager.UpdateAccount(ctx, account)
+			err := accountManager.Update(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[k8s.LabelAccountID]).Should(Satisfy(isAccountPubKey))
@@ -506,17 +506,17 @@ var _ = Describe("Account manager", func() {
 			}), mock.Anything).Return(nil)
 
 			By("creating a new account")
-			err := accountManager.CreateAccount(ctx, account)
+			err := accountManager.Create(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(account.GetLabels()).ToNot(BeNil())
 			Expect(account.GetLabels()[k8s.LabelAccountID]).Should(Satisfy(isAccountPubKey))
 
 			By("deleting the account")
-			err = accountManager.DeleteAccount(ctx, account)
+			err = accountManager.Delete(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		Context("ImportAccount", func() {
+		Context("Import", func() {
 			createAccountClaims := func(subject string) string {
 				claims := jwt.NewAccountClaims(subject)
 				claims.Limits.AccountLimits = jwt.AccountLimits{
@@ -571,7 +571,7 @@ var _ = Describe("Account manager", func() {
 				natsClientMock.On("Disconnect").Return()
 
 				By("importing the account from NATS")
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(account.Labels[k8s.LabelAccountSignedBy]).To(Equal(opPub))
 				Expect(account.Status.SigningKey.Name).ToNot(BeEmpty())
@@ -604,7 +604,7 @@ var _ = Describe("Account manager", func() {
 				opSignSecrets := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}
 				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
 
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("account ID"))
 			})
@@ -626,7 +626,7 @@ var _ = Describe("Account manager", func() {
 				}}
 				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
 
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("account root secret not found"))
 			})
@@ -654,7 +654,7 @@ var _ = Describe("Account manager", func() {
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
 					}}, nil)
 
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("account sign secret not found"))
 			})
@@ -685,7 +685,7 @@ var _ = Describe("Account manager", func() {
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 					}}, nil)
 
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("match"))
 			})
@@ -721,7 +721,7 @@ var _ = Describe("Account manager", func() {
 				natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
 				natsClientMock.On("Disconnect").Return()
 
-				err := accountManager.ImportAccount(ctx, account)
+				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("jwt"))
 			})

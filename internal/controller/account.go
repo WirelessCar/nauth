@@ -38,10 +38,10 @@ import (
 )
 
 type AccountManager interface {
-	CreateAccount(ctx context.Context, state *natsv1alpha1.Account) error
-	UpdateAccount(ctx context.Context, state *natsv1alpha1.Account) error
-	ImportAccount(ctx context.Context, state *natsv1alpha1.Account) error
-	DeleteAccount(ctx context.Context, desired *natsv1alpha1.Account) error
+	Create(ctx context.Context, state *natsv1alpha1.Account) error
+	Update(ctx context.Context, state *natsv1alpha1.Account) error
+	Import(ctx context.Context, state *natsv1alpha1.Account) error
+	Delete(ctx context.Context, desired *natsv1alpha1.Account) error
 }
 
 // AccountReconciler reconciles an Account object
@@ -130,7 +130,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
 			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
-				if err := r.accountManager.DeleteAccount(ctx, natsAccount); err != nil {
+				if err := r.accountManager.Delete(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
@@ -177,15 +177,15 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
-		if err := r.accountManager.ImportAccount(ctx, natsAccount); err != nil {
+		if err := r.accountManager.Import(ctx, natsAccount); err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else if accountID == "" {
-		if err := r.accountManager.CreateAccount(ctx, natsAccount); err != nil {
+		if err := r.accountManager.Create(ctx, natsAccount); err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
 	} else {
-		if err := r.accountManager.UpdateAccount(ctx, natsAccount); err != nil {
+		if err := r.accountManager.Update(ctx, natsAccount); err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
 		}
 	}
