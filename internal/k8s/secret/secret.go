@@ -17,7 +17,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type SecretOwner struct {
+type Owner struct {
 	Owner metav1.Object
 }
 
@@ -54,7 +54,7 @@ func NewClient(client client.Client, opts ...Option) *Client {
 	return secretClient
 }
 
-func (k *Client) ApplySecret(ctx context.Context, owner *SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) ApplySecret(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
@@ -96,7 +96,7 @@ func (k *Client) ApplySecret(ctx context.Context, owner *SecretOwner, meta metav
 	return nil
 }
 
-func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *SecretOwner) error {
+func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *Owner) error {
 	if secretOwner == nil {
 		return nil
 	}

@@ -17,7 +17,7 @@ import (
 )
 
 type SecretStorer interface {
-	ApplySecret(ctx context.Context, owner *secret.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error
+	ApplySecret(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
 	GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 	DeleteSecret(ctx context.Context, namespace string, name string) error
@@ -69,7 +69,7 @@ func (u *Manager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) 
 
 	userCreds, _ := jwt.FormatUserConfig(userJwt, userSeed)
 
-	secretOwner := &secret.SecretOwner{
+	secretOwner := &secret.Owner{
 		Owner: state,
 	}
 	secretMeta := metav1.ObjectMeta{
