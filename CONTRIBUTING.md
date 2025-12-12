@@ -16,6 +16,17 @@ If you have suggestions for how this project could be improved, or want to repor
 
 We'd also love PRs. If you're thinking of a large PR, we advise opening up an issue first to talk about it, though! Look at the links below if you're not sure how to open a PR.
 
+## Developer’s Certificate of Origin
+The sign-off is a simple line at the end of the explanation for the commit, which certifies that you wrote it or otherwise have the right to pass it on as open-source work. The rules are pretty simple: if you can certify the [Developer Certificate of Origin](https://developercertificate.org) then just add a line saying:
+```
+Signed-off-by: Random J Developer <random@developer.example.org>
+```
+This is easiest accomplished by committing using the `-s` flag:
+```bash
+git commit -s
+```
+If you need to add your sign off to a commit you have already made, please see this [article](https://docs.github.com/en/desktop/contributing-and-collaborating-using-github-desktop/managing-commits/amending-a-commit).
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository.

@@ -1,3 +1,2 @@
-By submitting a request, you represent that you have the right to license
-your contribution to the community, and agree that your contributions are
-licensed under the [License](LICENSE).
+<!-- Write a clear title using https://conventionalcommits.org -->
+<!-- Write a summary with intention about the pull request.-->
