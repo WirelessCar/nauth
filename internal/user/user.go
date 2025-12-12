@@ -27,19 +27,19 @@ type AccountGetter interface {
 	Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error)
 }
 
-type UserManager struct {
+type Manager struct {
 	accounts     AccountGetter
 	secretStorer SecretStorer
 }
 
-func NewUserManager(accounts AccountGetter, secretStorer SecretStorer) *UserManager {
-	return &UserManager{
+func NewManager(accounts AccountGetter, secretStorer SecretStorer) *Manager {
+	return &Manager{
 		accounts:     accounts,
 		secretStorer: secretStorer,
 	}
 }
 
-func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) error {
+func (u *Manager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) error {
 	account, err := u.accounts.Get(ctx, state.Spec.AccountName, state.Namespace)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (u *UserManager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.Us
 	return nil
 }
 
-func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) error {
+func (u *Manager) DeleteUser(ctx context.Context, state *v1alpha1.User) error {
 	log := logf.FromContext(ctx)
 	log.Info("Delete user", "userName", state.GetName())
 
@@ -120,7 +120,7 @@ func (u *UserManager) DeleteUser(ctx context.Context, state *v1alpha1.User) erro
 	return nil
 }
 
-func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
 		return keyPair, nil
 	}
@@ -133,7 +133,7 @@ func (u *UserManager) getAccountSigningKeyPair(ctx context.Context, namespace, a
 	return keyPair, nil
 }
 
-func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID:  accountID,
 		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
@@ -160,7 +160,7 @@ func (u *UserManager) getAccountSigningKeyPairByAccountID(ctx context.Context, n
 }
 
 // Todo: Almost identical to the one in account/account.go - refactor ?
-func (u *UserManager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
