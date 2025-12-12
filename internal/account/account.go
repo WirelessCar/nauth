@@ -21,14 +21,14 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type SecretStorer interface {
+type SecretClient interface {
 	// TODO: Keys created should be immutable
-	ApplySecret(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
-	GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error)
-	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
-	DeleteSecret(ctx context.Context, namespace string, name string) error
-	DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error
-	LabelSecret(ctx context.Context, namespace, name string, labels map[string]string) error
+	Apply(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
+	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
+	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
+	Delete(ctx context.Context, namespace string, name string) error
+	DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error
+	Label(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
 type NatsClient interface {
@@ -46,15 +46,15 @@ type AccountGetter interface {
 type Manager struct {
 	accounts       AccountGetter
 	natsClient     NatsClient
-	secretStorer   SecretStorer
+	secretClient   SecretClient
 	nauthNamespace string
 }
 
-func NewManager(accounts AccountGetter, natsClient NatsClient, secretStorer SecretStorer, opts ...func(*Manager)) *Manager {
+func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
 	manager := &Manager{
 		accounts:     accounts,
 		natsClient:   natsClient,
-		secretStorer: secretStorer,
+		secretClient: secretClient,
 	}
 
 	for _, opt := range opts {
@@ -92,7 +92,7 @@ func (a *Manager) valid() bool {
 		return false
 	}
 
-	if a.secretStorer == nil {
+	if a.secretClient == nil {
 		return false
 	}
 
@@ -123,7 +123,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error
 	accountSeed, _ := accountKeyPair.Seed()
 	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 
-	if err := a.secretStorer.ApplySecret(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
+	if err := a.secretClient.Apply(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
 	accountSignSeedSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 
-	if err := a.secretStorer.ApplySecret(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
+	if err := a.secretClient.Apply(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
 		return err
 	}
 
@@ -383,14 +383,14 @@ func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error
 		k8s.LabelAccountID: accountID,
 	}
 
-	return a.secretStorer.DeleteSecretsByLabels(ctx, state.GetNamespace(), labels)
+	return a.secretClient.DeleteByLabels(ctx, state.GetNamespace(), labels)
 }
 
 func (a *Manager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeOperatorSign,
 	}
-	operatorSecret, err := a.secretStorer.GetSecretsByLabels(ctx, a.nauthNamespace, labels)
+	operatorSecret, err := a.secretClient.GetByLabels(ctx, a.nauthNamespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key: %w", err)
 	}
@@ -429,7 +429,7 @@ func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, a
 		k8s.LabelAccountID: accountID,
 		k8s.LabelManaged:   k8s.LabelManagedValue,
 	}
-	k8sSecrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	k8sSecrets, err := a.secretClient.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +492,7 @@ func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespa
 				}
 			}()
 
-			accountSecret, err := a.secretStorer.GetSecret(ctx, namespace, secretName)
+			accountSecret, err := a.secretClient.Get(ctx, namespace, secretName)
 			if err != nil {
 				result.err = err
 				ch <- result
@@ -504,7 +504,7 @@ func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespa
 				k8s.LabelSecretType: secretType,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			if err := a.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
+			if err := a.secretClient.Label(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
 			accountSecret[k8s.LabelSecretType] = secretType
@@ -542,7 +542,7 @@ func (a *Manager) getSystemAccountID(ctx context.Context, namespace string) (str
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
-	secrets, err := a.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	secrets, err := a.secretClient.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return "", fmt.Errorf("unable to get system account creds by labels: %w", err)
 	}

@@ -54,7 +54,7 @@ func NewClient(client client.Client, opts ...Option) *Client {
 	return secretClient
 }
 
-func (k *Client) ApplySecret(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
@@ -132,7 +132,7 @@ func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *Owner) error {
 	return nil
 }
 
-func (k *Client) GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (k *Client) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	secret, err := k.getSecret(ctx, namespace, name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -149,11 +149,11 @@ func (k *Client) GetSecret(ctx context.Context, namespace string, name string) (
 	return secretData, nil
 }
 
-func (k *Client) GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+func (k *Client) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
 	return k.getSecretsByLabels(ctx, namespace, labels)
 }
 
-func (k *Client) DeleteSecret(ctx context.Context, namespace string, name string) error {
+func (k *Client) Delete(ctx context.Context, namespace string, name string) error {
 	log := logf.FromContext(ctx)
 
 	secret, err := k.getSecret(ctx, namespace, name)
@@ -172,7 +172,7 @@ func (k *Client) DeleteSecret(ctx context.Context, namespace string, name string
 	return nil
 }
 
-func (k *Client) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (k *Client) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
 	log := logf.FromContext(ctx)
 
 	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
@@ -193,7 +193,7 @@ func (k *Client) DeleteSecretsByLabels(ctx context.Context, namespace string, la
 	return nil
 }
 
-func (k *Client) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
+func (k *Client) Label(ctx context.Context, namespace string, name string, labels map[string]string) error {
 	secret, err := k.getSecret(ctx, namespace, name)
 	if err != nil {
 		return fmt.Errorf("failed to get secret: %w", err)

@@ -59,7 +59,7 @@ var _ = Describe("Account manager", func() {
 			operatorSignSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSeed}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
@@ -67,12 +67,12 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID := s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID := s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountSign
@@ -96,15 +96,15 @@ var _ = Describe("Account manager", func() {
 			operatorSignSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSeed}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID := s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID := s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountSign
@@ -307,7 +307,7 @@ var _ = Describe("Account manager", func() {
 			operatorSignSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSeed}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
 			sysAccKP, _ := nkeys.CreateAccount()
 			sysAccPubKey, _ := sysAccKP.PublicKey()
 			sysUserKP, _ := nkeys.CreateUser()
@@ -321,7 +321,7 @@ var _ = Describe("Account manager", func() {
 			sysAccCredsSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: []byte(sysUserCreds)}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
@@ -329,12 +329,12 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil)
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID = s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(s.GetLabels()[k8s.LabelAccountID]) && secretType == k8s.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
@@ -379,7 +379,7 @@ var _ = Describe("Account manager", func() {
 				k8s.LabelAccountID: accountID,
 				k8s.LabelManaged:   k8s.LabelManagedValue,
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, mock.Anything, accountSecretLabelsMock).Return(secretsList, nil)
+			secretStorerMock.On("GetByLabels", ctx, mock.Anything, accountSecretLabelsMock).Return(secretsList, nil)
 			account.Spec.AccountLimits = &v1alpha1.AccountLimits{
 				Imports:         ptr.To[int64](10),
 				Exports:         ptr.To[int64](10),
@@ -405,8 +405,8 @@ var _ = Describe("Account manager", func() {
 			operatorSignSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSeed}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
-			secretStorerMock.On("GetSecretsByLabels", mock.Anything, account.GetNamespace(), mock.Anything).Return(&corev1.SecretList{}, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			secretStorerMock.On("GetByLabels", mock.Anything, account.GetNamespace(), mock.Anything).Return(&corev1.SecretList{}, nil)
 			sysAccKP, _ := nkeys.CreateAccount()
 			sysAccPubKey, _ := sysAccKP.PublicKey()
 			sysUserKP, _ := nkeys.CreateUser()
@@ -420,32 +420,32 @@ var _ = Describe("Account manager", func() {
 			sysAccCredsSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: []byte(sysUserCreds)}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, sysAccCredsLabelMock).Return(sysAccCredsSecretMock, nil)
 
 			accountKeyPair, _ := nkeys.CreateAccount()
 			accountPublicKey, _ := accountKeyPair.PublicKey()
 			accountSeed, _ := accountKeyPair.Seed()
 			accountSecretValueMock := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 			accountSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, account.GetName())
-			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
+			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
 				k8s.LabelAccountID:  accountPublicKey,
 				k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
+			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
 			accountSigningKeyPair, _ := nkeys.CreateAccount()
 			accountSigningSeed, _ := accountSigningKeyPair.Seed()
 			accountSigningSecretValueMock := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 			accountSigningSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, account.GetName())
-			secretStorerMock.On("GetSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
+			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
 				k8s.LabelAccountID:  accountPublicKey,
 				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			secretStorerMock.On("LabelSecret", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
+			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
@@ -482,7 +482,7 @@ var _ = Describe("Account manager", func() {
 			operatorSignSecretMock := &corev1.SecretList{
 				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSignSeed}}},
 			}
-			secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil)
 
 			By("mocking the NATS client")
 			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil)
@@ -491,17 +491,17 @@ var _ = Describe("Account manager", func() {
 			natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil).Once()
 
 			By("validating that relevant keys for a base account are stored")
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID = s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountRoot
 			}), mock.Anything).Return(nil)
-			secretStorerMock.On("ApplySecret", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
 				accountID = s.GetLabels()[k8s.LabelAccountID]
 				secretType := s.GetLabels()[k8s.LabelSecretType]
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
-			secretStorerMock.On("DeleteSecretsByLabels", ctx, mock.Anything, mock.MatchedBy(func(s map[string]string) bool {
+			secretStorerMock.On("DeleteByLabels", ctx, mock.Anything, mock.MatchedBy(func(s map[string]string) bool {
 				return s[k8s.LabelAccountID] == accountID
 			}), mock.Anything).Return(nil)
 
@@ -557,12 +557,12 @@ var _ = Describe("Account manager", func() {
 				By("mocking the secret storer")
 				opSignLabels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
 				opSignSecrets := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
+				secretStorerMock.On("GetByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
 				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 				}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
+				secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
 
 				By("mocking the NATS client")
 				accountJWT := createAccountClaims(accRootPub)
@@ -602,7 +602,7 @@ var _ = Describe("Account manager", func() {
 				opSeed, _ := opKP.Seed()
 				opSignLabels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
 				opSignSecrets := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
+				secretStorerMock.On("GetByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
 
 				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
@@ -616,7 +616,7 @@ var _ = Describe("Account manager", func() {
 				account.Labels = map[string]string{k8s.LabelAccountID: accPub}
 				opKP, _ := nkeys.CreateOperator()
 				opSeed, _ := opKP.Seed()
-				secretStorerMock.On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}, nil)
+				secretStorerMock.On("GetByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}, nil)
 				// return two secrets but none of them root
 				accSignKP, _ := nkeys.CreateAccount()
 				accSignSeed, _ := accSignKP.Seed()
@@ -624,7 +624,7 @@ var _ = Describe("Account manager", func() {
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other"}}},
 					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 				}}
-				secretStorerMock.On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
+				secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
 
 				err := accountManager.Import(ctx, account)
 				Expect(err).To(HaveOccurred())
@@ -644,10 +644,10 @@ var _ = Describe("Account manager", func() {
 
 				By("mocking the secret storer")
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
+					On("GetByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}, nil)
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
+					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
 						// return two secrets but none of them sign
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other"}}},
@@ -676,10 +676,10 @@ var _ = Describe("Account manager", func() {
 
 				By("mocking the secret storer")
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
+					On("GetByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}, nil)
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).
+					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: otherAccRootSeed}},
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
@@ -707,10 +707,10 @@ var _ = Describe("Account manager", func() {
 
 				By("mocking the secret storer")
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
+					On("GetByLabels", ctx, nauthNamespace, map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}, nil)
 				secretStorerMock.
-					On("GetSecretsByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
+					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
 						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},

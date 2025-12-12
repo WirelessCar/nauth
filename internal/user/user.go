@@ -17,11 +17,11 @@ import (
 )
 
 type SecretStorer interface {
-	ApplySecret(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
-	GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error)
-	GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
-	DeleteSecret(ctx context.Context, namespace string, name string) error
-	LabelSecret(ctx context.Context, namespace, name string, labels map[string]string) error
+	Apply(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
+	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
+	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
+	Delete(ctx context.Context, namespace string, name string) error
+	Label(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
 type AccountGetter interface {
@@ -83,7 +83,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	secretValue := map[string]string{
 		k8s.UserCredentialSecretKeyName: string(userCreds),
 	}
-	err = u.secretStorer.ApplySecret(ctx, secretOwner, secretMeta, secretValue)
+	err = u.secretStorer.Apply(ctx, secretOwner, secretMeta, secretValue)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (u *Manager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	log := logf.FromContext(ctx)
 	log.Info("Delete user", "userName", state.GetName())
 
-	err := u.secretStorer.DeleteSecret(ctx, state.Namespace, state.GetUserSecretName())
+	err := u.secretStorer.Delete(ctx, state.Namespace, state.GetUserSecretName())
 	if err != nil {
 		return fmt.Errorf("failed to delete user secret %s/%s: %w", state.Namespace, state.GetUserSecretName(), err)
 	}
@@ -140,7 +140,7 @@ func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, names
 		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	}
-	secrets, err := u.secretStorer.GetSecretsByLabels(ctx, namespace, labels)
+	secrets, err := u.secretStorer.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get signing secret for account: %s-%s due to %w", namespace, accountName, err)
 	}
@@ -195,7 +195,7 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 				}
 			}()
 
-			accountSecret, err := u.secretStorer.GetSecret(ctx, namespace, secretName)
+			accountSecret, err := u.secretStorer.Get(ctx, namespace, secretName)
 			if err != nil {
 				result.err = err
 				ch <- result
@@ -207,7 +207,7 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 				k8s.LabelSecretType: secretType,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			if err := u.secretStorer.LabelSecret(ctx, namespace, secretName, labels); err != nil {
+			if err := u.secretStorer.Label(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
 			}
 			accountSecret[k8s.LabelSecretType] = secretType

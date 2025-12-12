@@ -41,22 +41,22 @@ var _ = Describe("Secrets storer", func() {
 		It("should successfully create and update an existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.ApplySecret(ctx, nil, secretMeta, secret)
+			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the secret")
-			fetchedSecret, err := secretStorer.GetSecret(ctx, namespace, resourceName)
+			fetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(fetchedSecret).ToNot(BeNil())
 			Expect(fetchedSecret).To(Equal(secret))
 
 			By("Updating the secret with a new value")
 			newSecret := map[string]string{"key": "new value"}
-			err = secretStorer.ApplySecret(ctx, nil, secretMeta, newSecret)
+			err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the updated secret")
-			newFetchedSecret, err := secretStorer.GetSecret(ctx, namespace, resourceName)
+			newFetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(newFetchedSecret).ToNot(BeNil())
 			Expect(newFetchedSecret).To(Equal(newSecret))
@@ -77,12 +77,12 @@ var _ = Describe("Secrets storer", func() {
 
 				By("Trying to update the existing secret with a new value")
 				newSecret := map[string]string{"key": "new value"}
-				err = secretStorer.ApplySecret(ctx, nil, secretMeta, newSecret)
+				err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(Equal(fmt.Errorf("existing secret %s/%s not managed by nauth", namespace, resourceName)))
 
 				By("Retrieving the secret again to verify not mutated")
-				newFetchedSecret, err := secretStorer.GetSecret(ctx, namespace, resourceName)
+				newFetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(newFetchedSecret).ToNot(BeNil())
 				Expect(newFetchedSecret).To(Equal(existingSecret))
@@ -98,27 +98,27 @@ var _ = Describe("Secrets storer", func() {
 
 		It("should return success when deleting a non existing secret", func() {
 			By("Trying to delete a non-existing secret")
-			err := secretStorer.DeleteSecret(ctx, namespace, "non-existing-secret")
+			err := secretStorer.Delete(ctx, namespace, "non-existing-secret")
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("should return an error when the secret does not exist", func() {
 			By("Trying to retrieve a non-existing secret")
-			_, err := secretStorer.GetSecret(ctx, namespace, "non-existing-secret")
+			_, err := secretStorer.Get(ctx, namespace, "non-existing-secret")
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
 		It("should return success when deleting existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.ApplySecret(ctx, nil, secretMeta, secret)
+			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting the secret")
-			err = secretStorer.DeleteSecret(ctx, namespace, resourceName)
+			err = secretStorer.Delete(ctx, namespace, resourceName)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the deleted secret")
-			_, err = secretStorer.GetSecret(ctx, namespace, resourceName)
+			_, err = secretStorer.Get(ctx, namespace, resourceName)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
