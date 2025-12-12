@@ -151,7 +151,7 @@ func (a *Manager) CreateAccount(ctx context.Context, state *natsv1alpha1.Account
 	state.GetLabels()[k8s.LabelAccountID] = accountPublicKey
 	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
-	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
+	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
 		natsLimits().
 		jetStreamLimits().
@@ -238,7 +238,7 @@ func (a *Manager) UpdateAccount(ctx context.Context, state *natsv1alpha1.Account
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
-	signedJwt, err := newAccountClaimsBuilder(state, accountPublicKey).
+	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
 		natsLimits().
 		jetStreamLimits().

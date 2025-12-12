@@ -12,24 +12,24 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type accountClaimBuilder struct {
+type claimsBuilder struct {
 	accountState *natsv1alpha1.Account
 	claim        *jwt.AccountClaims
 	errs         []error
 }
 
-func newAccountClaimsBuilder(accountState *natsv1alpha1.Account, accountPublicKey string) *accountClaimBuilder {
+func newClaimsBuilder(accountState *natsv1alpha1.Account, accountPublicKey string) *claimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Limits = jwt.OperatorLimits{}
 
-	return &accountClaimBuilder{
+	return &claimsBuilder{
 		accountState: accountState,
 		claim:        claim,
 		errs:         make([]error, 0),
 	}
 }
 
-func (b *accountClaimBuilder) accountLimits() *accountClaimBuilder {
+func (b *claimsBuilder) accountLimits() *claimsBuilder {
 	state := b.accountState
 	accountLimits := jwt.AccountLimits{}
 	accountLimits.Imports = -1
@@ -60,7 +60,7 @@ func (b *accountClaimBuilder) accountLimits() *accountClaimBuilder {
 	return b
 }
 
-func (b *accountClaimBuilder) natsLimits() *accountClaimBuilder {
+func (b *claimsBuilder) natsLimits() *claimsBuilder {
 	state := b.accountState
 
 	natsLimits := jwt.NatsLimits{}
@@ -84,7 +84,7 @@ func (b *accountClaimBuilder) natsLimits() *accountClaimBuilder {
 	return b
 }
 
-func (b *accountClaimBuilder) jetStreamLimits() *accountClaimBuilder {
+func (b *claimsBuilder) jetStreamLimits() *claimsBuilder {
 	state := b.accountState
 	jetStreamLimits := jwt.JetStreamLimits{}
 	jetStreamLimits.MemoryStorage = -1
@@ -124,7 +124,7 @@ func (b *accountClaimBuilder) jetStreamLimits() *accountClaimBuilder {
 	return b
 }
 
-func (b *accountClaimBuilder) exports() *accountClaimBuilder {
+func (b *claimsBuilder) exports() *claimsBuilder {
 	state := b.accountState
 
 	if state.Spec.Exports != nil {
@@ -146,7 +146,7 @@ func (b *accountClaimBuilder) exports() *accountClaimBuilder {
 	return b
 }
 
-func (b *accountClaimBuilder) imports(ctx context.Context, accountGetter AccountGetter) *accountClaimBuilder {
+func (b *claimsBuilder) imports(ctx context.Context, accountGetter AccountGetter) *claimsBuilder {
 	state := b.accountState
 	log := logf.FromContext(ctx)
 
@@ -182,7 +182,7 @@ func (b *accountClaimBuilder) imports(ctx context.Context, accountGetter Account
 	return b
 }
 
-func (b *accountClaimBuilder) signingKey(signingKey string) *accountClaimBuilder {
+func (b *claimsBuilder) signingKey(signingKey string) *claimsBuilder {
 	b.claim.SigningKeys.Add(signingKey)
 	return b
 }
@@ -205,7 +205,7 @@ func validateImports(imports jwt.Imports) error {
 	return nil
 }
 
-func (b *accountClaimBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (string, error) {
+func (b *claimsBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (string, error) {
 	if err := errors.Join(b.errs...); err != nil {
 		return "", err
 	}
