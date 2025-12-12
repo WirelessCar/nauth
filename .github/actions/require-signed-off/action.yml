@@ -54,6 +54,7 @@ runs:
             echo " - $sha"
           done
           echo "Please sign off your commits with 'git commit -s'."
+          echo "See more: https://github.com/WirelessCar/nauth/blob/main/CONTRIBUTING.md"
           exit 1
         fi
 
