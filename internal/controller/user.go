@@ -39,8 +39,8 @@ import (
 )
 
 type UserManager interface {
-	CreateOrUpdateUser(ctx context.Context, state *natsv1alpha1.User) error
-	DeleteUser(ctx context.Context, desired *natsv1alpha1.User) error
+	CreateOrUpdate(ctx context.Context, state *natsv1alpha1.User) error
+	Delete(ctx context.Context, desired *natsv1alpha1.User) error
 }
 
 // UserReconciler reconciles a User object
@@ -103,7 +103,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 		// The user is being deleted
 		if controllerutil.ContainsFinalizer(user, controllerUserFinalizer) {
-			if err := r.userManager.DeleteUser(ctx, user); err != nil {
+			if err := r.userManager.Delete(ctx, user); err != nil {
 				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
 			}
 
@@ -146,7 +146,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	if err := r.userManager.CreateOrUpdateUser(ctx, user); err != nil {
+	if err := r.userManager.CreateOrUpdate(ctx, user); err != nil {
 		return r.reporter.error(ctx, user, err)
 	}
 

@@ -70,7 +70,7 @@ var _ = Describe("User manager", func() {
 				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
 			}), mock.AnythingOfType("map[string]string")).Return(nil)
 
-			err := userManager.CreateOrUpdateUser(ctx, user)
+			err := userManager.CreateOrUpdate(ctx, user)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
@@ -126,7 +126,7 @@ var _ = Describe("User manager", func() {
 				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
 			}), mock.AnythingOfType("map[string]string")).Return(nil)
 
-			err := userManager.CreateOrUpdateUser(ctx, user)
+			err := userManager.CreateOrUpdate(ctx, user)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
@@ -159,7 +159,7 @@ var _ = Describe("User manager", func() {
 				return s.GetName() == user.GetUserSecretName() && s.GetNamespace() == accountNamespace
 			}), mock.AnythingOfType("map[string]string")).Return(nil)
 
-			err := userManager.CreateOrUpdateUser(ctx, user)
+			err := userManager.CreateOrUpdate(ctx, user)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
@@ -172,7 +172,7 @@ var _ = Describe("User manager", func() {
 				Payload: ptr.To[int64](256),
 			}
 
-			err = userManager.CreateOrUpdateUser(ctx, user)
+			err = userManager.CreateOrUpdate(ctx, user)
 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())

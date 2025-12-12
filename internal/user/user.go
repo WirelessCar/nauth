@@ -40,7 +40,7 @@ func NewManager(accounts AccountGetter, secretStorer SecretStorer) *Manager {
 	}
 }
 
-func (u *Manager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) error {
+func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
 	account, err := u.accounts.Get(ctx, state.Spec.AccountName, state.Namespace)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func (u *Manager) CreateOrUpdateUser(ctx context.Context, state *v1alpha1.User) 
 	return nil
 }
 
-func (u *Manager) DeleteUser(ctx context.Context, state *v1alpha1.User) error {
+func (u *Manager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	log := logf.FromContext(ctx)
 	log.Info("Delete user", "userName", state.GetName())
 

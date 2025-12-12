@@ -95,7 +95,7 @@ var _ = Describe("User Controller", func() {
 			It("should successfully reconcile the user", func() {
 				By("Reconciling the created user")
 
-				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil)
+				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
 				user := &natsv1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -119,7 +119,7 @@ var _ = Describe("User Controller", func() {
 			It("should fails when trying to create a new user without a valid account", func() {
 				By("Not able to reconcile the created user due to missing account")
 
-				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(k8s.ErrNoAccountFound)
+				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(k8s.ErrNoAccountFound)
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: userNamespacedName,
@@ -143,8 +143,8 @@ var _ = Describe("User Controller", func() {
 
 		Context("User delete reconciliation", func() {
 			It("should successfully remove the user marked for deletion", func() {
-				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil)
-				userManagerMock.On("DeleteUser", mock.Anything, mock.Anything).Return(nil)
+				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
+				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(nil)
 				user := &natsv1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -183,8 +183,8 @@ var _ = Describe("User Controller", func() {
 
 			It("should fail to remove the user when delete client fails", func() {
 				userDeleteError := fmt.Errorf("unable to remove the user")
-				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil)
-				userManagerMock.On("DeleteUser", mock.Anything, mock.Anything).Return(userDeleteError)
+				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
+				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(userDeleteError)
 				user := &natsv1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -230,7 +230,7 @@ var _ = Describe("User Controller", func() {
 			It("should successfully reconcile the user", func() {
 				By("Reconciling the created user")
 
-				userManagerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(nil).Twice()
+				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Twice()
 				user := &natsv1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
@@ -268,14 +268,14 @@ type UserManagerMock struct {
 }
 
 // CreateOrUpdateUser implements ports.UserManager.
-func (u *UserManagerMock) CreateOrUpdateUser(ctx context.Context, state *natsv1alpha1.User) error {
+func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, state *natsv1alpha1.User) error {
 	state.Status.ObservedGeneration = state.Generation
 	args := u.Called(state)
 	return args.Error(0)
 }
 
 // DeleteUser implements ports.UserManager.
-func (u *UserManagerMock) DeleteUser(ctx context.Context, desired *natsv1alpha1.User) error {
+func (u *UserManagerMock) Delete(ctx context.Context, desired *natsv1alpha1.User) error {
 	args := u.Called(desired)
 	return args.Error(0)
 }
