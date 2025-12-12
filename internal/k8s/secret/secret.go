@@ -1,4 +1,4 @@
-package k8s
+package secret
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/k8s"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,28 +21,42 @@ type SecretOwner struct {
 	Owner metav1.Object
 }
 
-type SecretClient struct {
+type Client struct {
 	client              client.Client
 	controllerNamespace string
 }
 
-func NewSecretClient(client client.Client) *SecretClient {
-	secretClient := &SecretClient{}
+type Option func(*Client)
 
-	namespacePath, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-	if err != nil {
-		log.Fatalf("Failed to read namespace: %v", err)
+func WithControllerNamespace(namespace string) Option {
+	return func(client *Client) {
+		client.controllerNamespace = namespace
+	}
+}
+
+func NewClient(client client.Client, opts ...Option) *Client {
+	secretClient := &Client{
+		client: client,
 	}
 
-	secretClient.controllerNamespace = string(namespacePath)
-	secretClient.client = client
+	for _, opt := range opts {
+		opt(secretClient)
+	}
+
+	if secretClient.controllerNamespace == "" {
+		namespacePath, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		if err != nil {
+			log.Fatalf("Failed to read namespace: %v", err)
+		}
+		secretClient.controllerNamespace = string(namespacePath)
+	}
 
 	return secretClient
 }
 
-func (k *SecretClient) ApplySecret(ctx context.Context, owner *SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) ApplySecret(ctx context.Context, owner *SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
-		return fmt.Errorf("label %s not supplied by secret %s/%s", LabelManaged, meta.Namespace, meta.Name)
+		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
 	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
 	if err != nil {
@@ -117,28 +132,28 @@ func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *SecretOwner) e
 	return nil
 }
 
-func (k *SecretClient) GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (k *Client) GetSecret(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	secret, err := k.getSecret(ctx, namespace, name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, ErrNotFound
+			return nil, k8s.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get secret: %w", err)
 	}
 
 	secretData := make(map[string]string)
-	for k, v := range secret.Data {
-		secretData[k] = string(v)
+	for key, value := range secret.Data {
+		secretData[key] = string(value)
 	}
 
 	return secretData, nil
 }
 
-func (k *SecretClient) GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+func (k *Client) GetSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
 	return k.getSecretsByLabels(ctx, namespace, labels)
 }
 
-func (k *SecretClient) DeleteSecret(ctx context.Context, namespace string, name string) error {
+func (k *Client) DeleteSecret(ctx context.Context, namespace string, name string) error {
 	log := logf.FromContext(ctx)
 
 	secret, err := k.getSecret(ctx, namespace, name)
@@ -157,7 +172,7 @@ func (k *SecretClient) DeleteSecret(ctx context.Context, namespace string, name 
 	return nil
 }
 
-func (k *SecretClient) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (k *Client) DeleteSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) error {
 	log := logf.FromContext(ctx)
 
 	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
@@ -178,7 +193,7 @@ func (k *SecretClient) DeleteSecretsByLabels(ctx context.Context, namespace stri
 	return nil
 }
 
-func (k *SecretClient) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
+func (k *Client) LabelSecret(ctx context.Context, namespace string, name string, labels map[string]string) error {
 	secret, err := k.getSecret(ctx, namespace, name)
 	if err != nil {
 		return fmt.Errorf("failed to get secret: %w", err)
@@ -192,7 +207,7 @@ func (k *SecretClient) LabelSecret(ctx context.Context, namespace string, name s
 	return k.client.Update(ctx, secret)
 }
 
-func (k *SecretClient) getSecret(ctx context.Context, namespace string, name string) (*v1.Secret, error) {
+func (k *Client) getSecret(ctx context.Context, namespace string, name string) (*v1.Secret, error) {
 	k8sSecret := &v1.Secret{}
 
 	key := client.ObjectKey{Namespace: namespace, Name: name}
@@ -202,7 +217,7 @@ func (k *SecretClient) getSecret(ctx context.Context, namespace string, name str
 	return k8sSecret, nil
 }
 
-func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+func (k *Client) getSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
 	secretList := &v1.SecretList{}
 	matchingLabelsListOption := client.MatchingLabels{}
 	maps.Copy(matchingLabelsListOption, labels)
@@ -214,5 +229,5 @@ func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace string,
 }
 
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
-	return meta.Labels != nil && meta.Labels[LabelManaged] == LabelManagedValue
+	return meta.Labels != nil && meta.Labels[k8s.LabelManaged] == k8s.LabelManagedValue
 }

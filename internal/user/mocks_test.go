@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/secret"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +23,7 @@ type SecretStorerMock struct {
 }
 
 // ApplySecret implements ports.SecretStorer.
-func (s *SecretStorerMock) ApplySecret(ctx context.Context, secretOwner *k8s.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (s *SecretStorerMock) ApplySecret(ctx context.Context, secretOwner *secret.SecretOwner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	args := s.Called(ctx, secretOwner, meta, valueMap)
 	return args.Error(0)
 }
@@ -128,7 +128,7 @@ func NewConfigManagerMock() *ConfigManagerMock {
 
 // Get implements ports.AccountGetter.
 
-func (a *ConfigManagerMock) ApplyConfiguration(ctx context.Context, owner *k8s.SecretOwner, cm *corev1.ConfigMap) error {
+func (a *ConfigManagerMock) ApplyConfiguration(ctx context.Context, owner *secret.SecretOwner, cm *corev1.ConfigMap) error {
 	args := a.Called(owner, cm)
 	return args.Error(0)
 }

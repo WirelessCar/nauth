@@ -1,25 +1,10 @@
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package k8s
+package secret
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -36,18 +21,15 @@ var _ = Describe("Secrets storer", func() {
 			Name:      resourceName,
 			Namespace: namespace,
 			Labels: map[string]string{
-				LabelManaged: LabelManagedValue,
+				k8s.LabelManaged: k8s.LabelManagedValue,
 			},
 		}
 		ctx := context.Background()
-		var secretStorer *SecretClient
+		var secretStorer *Client
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
-			secretStorer = &SecretClient{
-				client:              k8sClient,
-				controllerNamespace: secretMeta.Namespace,
-			}
+			secretStorer = NewClient(k8sClient, WithControllerNamespace(secretMeta.Namespace))
 		})
 
 		AfterEach(func() {
@@ -112,7 +94,7 @@ var _ = Describe("Secrets storer", func() {
 			Entry("due to irrelevant labels",
 				map[string]string{"foo": "bar"}),
 			Entry("due to existing managed label with unexpected value",
-				map[string]string{LabelManaged: "false"}))
+				map[string]string{k8s.LabelManaged: "false"}))
 
 		It("should return success when deleting a non existing secret", func() {
 			By("Trying to delete a non-existing secret")
@@ -123,7 +105,7 @@ var _ = Describe("Secrets storer", func() {
 			By("Trying to retrieve a non-existing secret")
 			_, err := secretStorer.GetSecret(ctx, namespace, "non-existing-secret")
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNotFound))
+			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
 		It("should return success when deleting existing secret", func() {
 			By("Creating a new secret from scratch")
@@ -138,7 +120,7 @@ var _ = Describe("Secrets storer", func() {
 			By("Retrieving the deleted secret")
 			_, err = secretStorer.GetSecret(ctx, namespace, resourceName)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNotFound))
+			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
 	})
 })

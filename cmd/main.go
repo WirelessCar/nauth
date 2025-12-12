@@ -44,6 +44,7 @@ import (
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/secret"
 	natsc "github.com/WirelessCar/nauth/internal/nats"
 	// +kubebuilder:scaffold:imports
 )
@@ -223,7 +224,7 @@ func main() {
 
 	natsURL := os.Getenv("NATS_URL")
 
-	secretClient := k8s.NewSecretClient(mgr.GetClient())
+	secretClient := secret.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClient := natsc.NewNATSClient(natsURL, secretClient)
 
