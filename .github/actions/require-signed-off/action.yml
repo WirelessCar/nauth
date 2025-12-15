@@ -4,13 +4,13 @@ description: Ensure every commit in the range carries at least one Signed-off-by
 
 inputs:
   base_sha:
-    description: 'Base commit SHA to compare against (defaults to the pull request base)'
+    description: "Base commit SHA to compare against (defaults to the pull request base)"
     required: false
-    default: ''
+    default: ""
   head_sha:
-    description: 'Head commit SHA to compare (defaults to the workflow SHA)'
+    description: "Head commit SHA to compare (defaults to the workflow SHA)"
     required: false
-    default: ''
+    default: ""
 
 runs:
   using: composite
@@ -30,7 +30,7 @@ runs:
 
         if [[ -z "$BASE_SHA" || -z "$HEAD_SHA" ]]; then
           echo "::warning::Base or head SHA unavailable; skipping signed-off check."
-          exit 0
+          exit 1
         fi
 
         range="$BASE_SHA..$HEAD_SHA"
