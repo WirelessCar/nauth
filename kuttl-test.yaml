@@ -1,0 +1,15 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+testDirs:
+  - test/e2e/
+commands:
+  - command: kubectl create namespace nats
+  - command: helm dependency update examples/nats
+  - command: helm install nats examples/nats --wait -n nats -f test/config/nats-values.yaml
+  - command: docker build -t local/nauth:test .
+  - command: kind load docker-image local/nauth:test
+  - command: helm dependency update charts/nauth
+  - command: helm install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "examples/nauth/values.yaml"
+  - command: kubectl apply -n nats -f "examples/nauth/manifests/operator.yaml"
+
+timeout: 180

@@ -1,0 +1,23 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account
+    ref: example_account
+assertAll:
+  - celExpr: matches(example_account.metadata.labels.'account.nauth.io/id', "^A.{55}$")
+  - celExpr: matches(example_account.metadata.labels.'account.nauth.io/signed-by', "^O.{55}$")
