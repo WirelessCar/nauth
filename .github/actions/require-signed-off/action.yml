@@ -1,0 +1,61 @@
+name: Require Signed-Off Commits
+
+description: Ensure every commit in the range carries at least one Signed-off-by line.
+
+inputs:
+  base_sha:
+    description: "Base commit SHA to compare against (defaults to the pull request base)"
+    required: false
+    default: ""
+  head_sha:
+    description: "Head commit SHA to compare (defaults to the workflow SHA)"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check Signed-off-by in commits
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        BASE_SHA=${{ inputs.base_sha != '' && inputs.base_sha || github.event.pull_request.base.sha }}
+        HEAD_SHA=${{ inputs.head_sha != '' && inputs.head_sha || github.sha }}
+
+        if [[ -z "$BASE_SHA" || -z "$HEAD_SHA" ]]; then
+          echo "::warning::Base or head SHA unavailable; skipping signed-off check."
+          exit 1
+        fi
+
+        range="$BASE_SHA..$HEAD_SHA"
+        commits=($(git rev-list --reverse "$range"))
+        if [[ ${#commits[@]} -eq 0 ]]; then
+          echo "No new commits to check between $BASE_SHA and $HEAD_SHA."
+          exit 0
+        fi
+
+        missing=()
+        for commit in "${commits[@]}"; do
+          message="$(git show -s --format=%B "$commit")"
+          if ! grep -q '^Signed-off-by: ' <<<"$message"; then
+            missing+=("$commit")
+          fi
+        done
+
+        if [[ ${#missing[@]} -gt 0 ]]; then
+          echo "::error::The following commits do not include a Signed-off-by line:" 
+          for sha in "${missing[@]}"; do
+            echo " - $sha"
+          done
+          echo "Please sign off your commits with 'git commit -s'."
+          echo "See more: https://github.com/WirelessCar/nauth/blob/main/CONTRIBUTING.md"
+          exit 1
+        fi
+
+        echo "All commits between $BASE_SHA and $HEAD_SHA include a Signed-off-by line."
