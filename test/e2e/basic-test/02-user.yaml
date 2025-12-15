@@ -1,0 +1,10 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: example-user
+spec:
+  accountName: example-account
+  natsLimits:
+    data: 1000000
+    payload: 1000000
+    subs: 1000000

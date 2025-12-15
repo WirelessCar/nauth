@@ -1,0 +1,9 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: example-user
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled

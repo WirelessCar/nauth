@@ -18,6 +18,7 @@ helm-docs = "latest"
 golangci-lint = "latest"
 "ubi:elastic/crd-ref-docs" = "latest"
 "go:github.com/nats-io/natscli/nats" = "latest"
+kubectl-kuttl = "latest"
 
 [settings]
 experimental = true
@@ -32,3 +33,7 @@ run = "ginkgo run"
 description = "Run all Ginkgo tests in project"
 alias = "gtga"
 run = "ginkgo run -r"
+
+[tasks.e2e-test]
+description = "Run end-to-end tests"
+run = "kubectl kuttl test --artifacts-dir kind-logs/ --start-kind=true"
