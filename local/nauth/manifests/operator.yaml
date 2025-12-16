@@ -1,3 +1,6 @@
+# DO NOT MODIFY THIS FILE
+# The values in this file is bound to the secrets used in `local/nauth/values.yaml`
+
 apiVersion: v1
 kind: Secret
 type: Opaque

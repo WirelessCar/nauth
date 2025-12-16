@@ -1,4 +1,6 @@
-# Example deployment / Local development setup
+# Example setup
+
+FIXME: TBD!
 
 This provides an example of how NAuth can be configured together with NATS.
 They are designed to work together with the `mise` installation tasks (but can be found as scripts under `.mise-tasks`).
