@@ -42,4 +42,4 @@ go.work.sum
 
 # Kuttl
 kubeconfig
-kind-logs*/
+test/logs/

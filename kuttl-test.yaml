@@ -1,5 +1,8 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
+startKIND: true
+kindNodeCache: true
+artifactsDir: test/logs
 testDirs:
   - test/e2e/
 commands:
