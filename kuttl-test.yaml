@@ -5,14 +5,22 @@ kindNodeCache: true
 artifactsDir: test/logs
 testDirs:
   - test/e2e/
+kind-containers:
+  # NATS and NACK versions defined in mise.toml
+  - nats:$NATS_VERSION
+  - docker.io/library/nats:2.11.3-alpine$NATS_VERSION
+  - natsio/nats-server-config-reloader:$NATS_RELOADER_VERSION
+  - natsio/nats-box:$NATS_BOX_VERSION
+  - natsio/jetstream-controller:$NACK_VERSION
 commands:
   - command: kubectl create namespace nats
-  - command: helm dependency update examples/nats
-  - command: helm install nats examples/nats --wait -n nats -f test/config/nats-values.yaml
+  - command: helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+  - command: helm dependency update test/config/nats
+  - command: helm install nats test/config/nats --wait -n nats -f test/config/nats/values.yaml
   - command: docker build -t local/nauth:test .
   - command: kind load docker-image local/nauth:test
   - command: helm dependency update charts/nauth
-  - command: helm install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "examples/nauth/values.yaml"
-  - command: kubectl apply -n nats -f "examples/nauth/manifests/operator.yaml"
+  - command: helm install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "test/config/nauth/values.yaml"
+  - command: kubectl apply -n nats -f "test/config/nauth/manifests/operator.yaml"
 
-timeout: 180
+timeout: 60
