@@ -36,4 +36,4 @@ run = "ginkgo run -r"
 
 [tasks.e2e-test]
 description = "Run end-to-end tests"
-run = "kubectl kuttl test --artifacts-dir kind-logs/ --start-kind=true"
+run = "kubectl kuttl test"
