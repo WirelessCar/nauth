@@ -19,18 +19,5 @@ load_apps natsio/nats-box:$NATS_BOX_VERSION  > /dev/null 2>&1 &
 load_apps natsio/jetstream-controller:$NACK_VERSION > /dev/null 2>&1 &
 
 # Install NATS and NACK
-helm dependency update "$MISE_PROJECT_ROOT/examples/nats"
-helm install nats "$MISE_PROJECT_ROOT/examples/nats" -n "$NATS_NAMESPACE" -f "$MISE_PROJECT_ROOT/examples/nats/values.yaml"
-
-echo "Waiting for NATS and NACK to become stable..."
-sleep 5
-while true; do
-  pod_phase=$(kubectl get pods -n "$NATS_NAMESPACE" | grep -v "NAME\|Running" | wc -l)
-  if [[ $pod_phase -eq 0 ]] ; then
-    echo "NATS and NACK are running"
-    break
-  else
-    echo "Waiting for NATS and NACK to become stable..."
-    sleep 5
-  fi
-done
+helm dependency update "$MISE_PROJECT_ROOT/local/nats"
+helm install nats "$MISE_PROJECT_ROOT/local/nats" --wait -n "$NATS_NAMESPACE" -f "$MISE_PROJECT_ROOT/local/nats/values.yaml"

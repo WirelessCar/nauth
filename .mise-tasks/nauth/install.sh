@@ -13,4 +13,5 @@ kubectl create namespace "$NATS_NAMESPACE"
 # mise run nauth:install-prometheus
 mise run nauth:install-nats
 mise run nauth:install-nauth
+mise run nauth:install-examples
 
