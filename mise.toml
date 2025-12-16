@@ -1,9 +1,7 @@
 [env]
 NATS_NAMESPACE = "nats"
 NATS_VERSION = "2.11.3-alpine"
-NATS_HELM_VERSION = "1.3.3"
 NACK_VERSION = "0.17.2"
-NACK_HELM_VERSION = "0.28.1"
 NATS_RELOADER_VERSION = "0.17.2"
 NATS_BOX_VERSION = "0.17.0"
 
@@ -34,6 +32,13 @@ description = "Run all Ginkgo tests in project"
 alias = "gtga"
 run = "ginkgo run -r"
 
-[tasks.e2e-test]
+[tasks."nauth:e2e-test"]
+silent = true
 description = "Run end-to-end tests"
 run = "kubectl kuttl test"
+
+[tasks."nauth:kuttle-k9s"]
+silent = true
+alias = "kk9s"
+description = "Run K9s in the test environment (kind)"
+run = "KUBECONFIG=kubeconfig k9s"

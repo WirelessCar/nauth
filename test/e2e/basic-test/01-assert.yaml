@@ -20,4 +20,4 @@ resourceRefs:
     ref: example_account
 assertAll:
   - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
-  - celExpr: matches(example_account.metadata.labels["account.nauth.io/signed-by"], "^O.{55}$")
+  - celExpr: example_account.metadata.labels["account.nauth.io/signed-by"] == "OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4"
