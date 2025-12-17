@@ -1,0 +1,7 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+spec:
+  accountLimits:
+    conn: 100
