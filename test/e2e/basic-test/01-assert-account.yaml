@@ -16,6 +16,10 @@ status:
       imports: 10
       leaf: 0
       wildcards: true
+    exports:
+      - name: export-test
+        subject: foo.>
+        type: stream
     jetStreamLimits:
       consumer: 5
       diskMaxStreamBytes: 209715200
