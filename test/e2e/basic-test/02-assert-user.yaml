@@ -2,8 +2,63 @@ apiVersion: nauth.io/v1alpha1
 kind: User
 metadata:
   name: example-user
+  finalizers:
+    - user.nauth.io/finalizer
 status:
   conditions:
     - type: Ready
       status: "True"
       reason: Reconciled
+  claims:
+    accountName: example-account
+    natsLimits:
+      data: 1000000
+      payload: 1000000
+      subs: 1000000
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account
+    ref: example_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: example-user
+    ref: example_user
+assertAll:
+  - celExpr: matches(example_user.metadata.labels["user.nauth.io/id"], "^U.{55}$")
+  - celExpr: example_user.metadata.labels["user.nauth.io/account-id"] == example_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: example_user.metadata.labels["user.nauth.io/signed-by"] == example_account.status.signingKey.name
+  - celExpr: example_user.status.claims.accountName == "example-account"
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+commands:
+  - script: |
+      set -eu
+
+      uid="$(kubectl get users.nauth.io example-user -n "$NAMESPACE" -o jsonpath='{.metadata.labels.user\.nauth\.io/id}')"
+      test -n "$uid"
+
+      secret_name="example-user-nats-user-creds"
+
+      # fetch secret once and verify all fields
+      secret_json="$(kubectl get secret "$secret_name" -n "$NAMESPACE" -o json)"
+
+      creds="$(printf '%s' "$secret_json" | jq -r '.data["user.creds"]')"
+      test -n "$creds"
+
+      secret_type="$(printf '%s' "$secret_json" | jq -r '.metadata.labels["nauth.io/secret-type"]')"
+      test "$secret_type" = "user-creds"
+
+      managed="$(printf '%s' "$secret_json" | jq -r '.metadata.labels["nauth.io/managed"]')"
+      test "$managed" = "true"
+
+      owner_name="$(printf '%s' "$secret_json" | jq -r '.metadata.ownerReferences[0].name')"
+      test "$owner_name" = "example-user"
