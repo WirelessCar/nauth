@@ -1,6 +1,6 @@
 #!/bin/bash
-# Usage: nats-upload-account-jwt.sh <jwt-file>
-# Example: ./nats-upload-account-jwt.sh /tmp/account.jwt
+# Usage: nats-jwt-upload.sh <jwt-file>
+# Example: ./nats-jwt-upload.sh /tmp/account.jwt
 #
 # This script uploads an account JWT to the NATS server using the system account credentials.
 # It mimics what the nauth operator does when it calls UploadAccountJWT().
