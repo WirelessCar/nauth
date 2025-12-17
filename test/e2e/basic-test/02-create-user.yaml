@@ -8,4 +8,19 @@ spec:
     data: 1000000
     payload: 1000000
     subs: 1000000
-
+  permissions:
+    pub:
+      allow:
+        - foo.>
+        - bar.>
+      deny:
+        - baz
+    resp:
+      max: 100
+      ttl: 1000000000
+    sub:
+      allow:
+        - foo.>
+        - baz.>
+      deny:
+        - bar

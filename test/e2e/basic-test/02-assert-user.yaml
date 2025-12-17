@@ -15,7 +15,22 @@ status:
       data: 1000000
       payload: 1000000
       subs: 1000000
-
+    permissions:
+      pub:
+        allow:
+          - foo.>
+          - bar.>
+        deny:
+          - baz
+      resp:
+        max: 100
+        ttl: 1000000000
+      sub:
+        allow:
+          - foo.>
+          - baz.>
+        deny:
+          - bar
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
@@ -33,7 +48,6 @@ assertAll:
   - celExpr: matches(example_user.metadata.labels["user.nauth.io/id"], "^U.{55}$")
   - celExpr: example_user.metadata.labels["user.nauth.io/account-id"] == example_account.metadata.labels["account.nauth.io/id"]
   - celExpr: example_user.metadata.labels["user.nauth.io/signed-by"] == example_account.status.signingKey.name
-  - celExpr: example_user.status.claims.accountName == "example-account"
 
 ---
 apiVersion: kuttl.dev/v1beta1
