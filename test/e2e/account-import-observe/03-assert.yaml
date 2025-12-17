@@ -1,0 +1,42 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  labels:
+    account.nauth.io/id: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO
+    account.nauth.io/signed-by: OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  claims:
+    accountLimits:
+      conn: 100
+      exports: 10
+      imports: 10
+      leaf: 0
+      wildcards: true
+    exports:
+      - name: export-test
+        subject: foo.>
+        type: stream
+    jetStreamLimits:
+      consumer: 5
+      diskMaxStreamBytes: 209715200
+      diskStorage: 1073741824
+      maxAckPending: 5
+      maxBytesRequired: true
+      memMaxStreamBytes: 209715200
+      memStorage: 1073741824
+      streams: 5
+    natsLimits:
+      data: 1024
+      payload: 500
+      subs: 100
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 10

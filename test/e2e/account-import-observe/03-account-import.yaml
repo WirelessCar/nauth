@@ -1,0 +1,7 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  labels:
+    account.nauth.io/id: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO
+    nauth.io/management-policy: observe
