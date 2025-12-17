@@ -27,8 +27,6 @@ fi
 # Extract JWT filename for use in temporary file names
 JWT_FILENAME=$(basename "$JWT_FILE")
 
-echo "[$0] Uploading account JWT to NATS server" >&2
-
 # Get the system account credentials from the secret in the nats namespace
 CREDS_SECRET=$(kubectl get secret -n "$NATS_NAMESPACE" \
   -l "nauth.io/secret-type=system-account-user-creds" \
@@ -42,8 +40,6 @@ if [ $CREDS_SECRET_EXIT_CODE -ne 0 ] || [ -z "$CREDS_SECRET" ] || echo "$CREDS_S
   exit 3
 fi
 
-echo "[$0] Found credentials secret: $CREDS_SECRET" >&2
-
 # Extract the credentials to a temp file
 CREDS_FILE=$(mktemp)
 trap 'rm -f "$CREDS_FILE"' EXIT
@@ -53,7 +49,6 @@ kubectl get secret -n "$NATS_NAMESPACE" "$CREDS_SECRET" -o jsonpath='{.data.defa
 
 # Instead of running nats CLI locally, we'll use kubectl exec to run it inside a pod
 # This avoids DNS and networking issues when running outside the cluster
-echo "[$0] Looking for nats-box pod..." >&2
 
 # Find nats-box pod by name pattern (it has nats CLI installed)
 EXEC_POD=$(kubectl get pods -n "$NATS_NAMESPACE" --field-selector=status.phase=Running -o name 2>&1 | grep "pod/nats-box" | head -1 | cut -d'/' -f2)
@@ -66,8 +61,6 @@ if [ -z "$EXEC_POD" ]; then
   exit 6
 fi
 
-echo "[$0] Using pod: $EXEC_POD" >&2
-
 # Copy credentials to the pod (using PID and JWT filename for unique identification)
 REMOTE_CREDS_PATH="/tmp/nauth-upload-creds-$$-${JWT_FILENAME%.jwt}.default"
 kubectl cp "$CREDS_FILE" "$NATS_NAMESPACE/$EXEC_POD:$REMOTE_CREDS_PATH" 2>&1 | grep -v "tar:" || true
@@ -78,8 +71,6 @@ kubectl cp "$JWT_FILE" "$NATS_NAMESPACE/$EXEC_POD:$REMOTE_JWT_PATH" 2>&1 | grep 
 
 # Use the cluster-internal DNS name
 NATS_URL="nats://nats.${NATS_NAMESPACE}.svc.cluster.local:4222"
-
-echo "[$0] Uploading JWT to NATS..." >&2
 
 # Use nats CLI inside the pod to publish the JWT to $SYS.REQ.CLAIMS.UPDATE
 # Note: JWT must be passed as an argument, not via stdin
@@ -100,7 +91,6 @@ fi
 
 # Check if the response indicates success (code 200)
 if echo "$RESPONSE" | grep -q '"code":200'; then
-  echo "[$0] SUCCESS: Account JWT uploaded successfully" >&2
   exit 0
 else
   echo "[$0] ERROR: Failed to upload account JWT" >&2
