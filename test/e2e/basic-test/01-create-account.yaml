@@ -22,3 +22,7 @@ spec:
     data: 1024
     payload: 500
     subs: 100
+  exports:
+    - name: export-test
+      subject: foo.>
+      type: stream
