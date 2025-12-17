@@ -17,6 +17,7 @@ golangci-lint = "latest"
 "ubi:elastic/crd-ref-docs" = "latest"
 "go:github.com/nats-io/natscli/nats" = "latest"
 kubectl-kuttl = "latest"
+jq = "latest"
 
 [settings]
 experimental = true
@@ -35,14 +36,7 @@ run = "ginkgo run -r"
 [tasks."nauth:e2e-test"]
 silent = true
 description = "Run end-to-end tests (usage: mise run nauth:e2e-test [test-name])"
-run = """
-#!/usr/bin/env bash
-if [ -n "${1:-}" ]; then
-  kubectl kuttl test --test "$1"
-else
-  kubectl kuttl test
-fi
-"""
+run = "kubectl kuttl test"
 
 [tasks."nauth:kuttle-k9s"]
 silent = true
