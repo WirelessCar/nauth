@@ -1,0 +1,6 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+delete:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account

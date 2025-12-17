@@ -1,0 +1,47 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 10
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  labels:
+    account.nauth.io/signed-by: OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4
+  finalizers:
+    - account.nauth.io/finalizer
+spec:
+  accountLimits:
+    conn: 100
+status:
+  claims:
+    accountLimits:
+      conn: 100
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    nauth.io/managed: "true"
+    nauth.io/secret-type: account-root
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    nauth.io/managed: "true"
+    nauth.io/secret-type: account-sign
+type: Opaque
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - command: ../../script/nauth-account-id.sh SAVE $NAMESPACE example-account
+  - command: ../../script/nauth-secret-assert-count.sh $NAMESPACE account-root 1
+  - command: ../../script/nauth-secret-assert-count.sh $NAMESPACE account-sign 1
+  - command: ../../script/nats-jwt-assert.sh $NAMESPACE example-account TRUE

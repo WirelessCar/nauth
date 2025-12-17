@@ -1,0 +1,8 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+  - command: ../../script/nauth-account-resource-absent.sh $NAMESPACE example-account
+  - command: ../../script/nauth-secret-assert-count.sh $NAMESPACE account-root 0
+  - command: ../../script/nauth-secret-assert-count.sh $NAMESPACE account-sign 0
+  - command: ../../script/nats-jwt-assert.sh $NAMESPACE example-account FALSE
