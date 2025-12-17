@@ -1,0 +1,65 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  claims:
+    accountLimits:
+      conn: 100
+      exports: 10
+      imports: 10
+      leaf: 0
+      wildcards: true
+    jetStreamLimits:
+      consumer: 5
+      diskMaxStreamBytes: 209715200
+      diskStorage: 1073741824
+      maxAckPending: 5
+      maxBytesRequired: true
+      memMaxStreamBytes: 209715200
+      memStorage: 1073741824
+      streams: 5
+    natsLimits:
+      data: 1024
+      payload: 500
+      subs: 100
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account
+    ref: example_account
+assertAll:
+  - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
+  - celExpr: example_account.metadata.labels["account.nauth.io/signed-by"] == "OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4"
+  - celExpr: matches(example_account.status.signingKey.name, "^.{56}$")
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+commands:
+  - script: |
+      set -eu
+      
+      # read account id from account
+      aid="$(kubectl get accounts.nauth.io example-account -n "$NAMESPACE" -o jsonpath='{.metadata.labels.account\.nauth\.io/id}')"
+      test -n "$aid"
+      
+      # verify account root secret exists
+      sec="$(kubectl get secret -n "$NAMESPACE" -l account.nauth.io/id="$aid",nauth.io/secret-type=account-root -o jsonpath='{.items[0].data.default}')"
+      test -n "$sec"
+
+      # verify account sign secret exists
+      sec="$(kubectl get secret -n "$NAMESPACE" -l account.nauth.io/id="$aid",nauth.io/secret-type=account-sign -o jsonpath='{.items[0].data.default}')"
+      test -n "$sec"
