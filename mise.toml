@@ -35,7 +35,7 @@ run = "ginkgo run -r"
 
 [tasks."nauth:e2e-test"]
 silent = true
-description = "Run end-to-end tests (usage: mise run nauth:e2e-test [test-name])"
+description = "Run end-to-end tests"
 run = "kubectl kuttl test"
 
 [tasks."nauth:kuttle-k9s"]
