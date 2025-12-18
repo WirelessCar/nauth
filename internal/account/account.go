@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
 	"github.com/nats-io/jwt/v2"
@@ -103,10 +104,10 @@ func (a *Manager) valid() bool {
 	return true
 }
 
-func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
+		return nil, fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
 	accountKeyPair, _ := nkeys.CreateAccount()
@@ -124,7 +125,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error
 	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 
 	if err := a.secretClient.Apply(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
-		return err
+		return nil, err
 	}
 
 	accountSigningKeyPair, _ := nkeys.CreateAccount()
@@ -142,15 +143,10 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error
 	accountSignSeedSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 
 	if err := a.secretClient.Apply(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
-		return err
+		return nil, err
 	}
 
-	if state.Labels == nil {
-		state.Labels = make(map[string]string, 2)
-	}
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-	state.GetLabels()[k8s.LabelAccountID] = accountPublicKey
-	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
@@ -162,82 +158,82 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) error
 		encode(operatorSigningKeyPair)
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
+		return nil, fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
-
-	state.Status.Claims = natsv1alpha1.AccountClaims{
-		AccountLimits:   state.Spec.AccountLimits,
-		Exports:         state.Spec.Exports,
-		Imports:         state.Spec.Imports,
-		JetStreamLimits: state.Spec.JetStreamLimits,
-		NatsLimits:      state.Spec.NatsLimits,
-	}
-	state.Status.SigningKey.Name = accountSigningPublicKey
-	state.Status.SigningKey.CreationDate = metav1.Now()
 
 	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer a.natsClient.Disconnect()
 	err = a.natsClient.UploadAccountJWT(signedJwt)
 	if err != nil {
-		return fmt.Errorf("failed to upload account jwt: %w", err)
+		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	return nil
+	// Return immutable result - controller will apply to state
+	return &controller.AccountResult{
+		AccountID:       accountPublicKey,
+		AccountSignedBy: operatorSigningPublicKey,
+		Claims: &natsv1alpha1.AccountClaims{
+			AccountLimits:   state.Spec.AccountLimits,
+			Exports:         state.Spec.Exports,
+			Imports:         state.Spec.Imports,
+			JetStreamLimits: state.Spec.JetStreamLimits,
+			NatsLimits:      state.Spec.NatsLimits,
+		},
+	}, nil
 }
 
-func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
+		return nil, fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
 	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if sysAccountID, err := a.getSystemAccountID(ctx, a.nauthNamespace); err != nil || sysAccountID == accountID {
 		if err != nil {
-			return fmt.Errorf("failed to get system account ID: %w", err)
+			return nil, fmt.Errorf("failed to get system account ID: %w", err)
 		}
 
-		return fmt.Errorf("updating system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
+		return nil, fmt.Errorf("updating system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
 	}
 
 	accountSecret, ok := secrets[k8s.SecretTypeAccountRoot]
 	if !ok {
-		return fmt.Errorf("secret for account not found")
+		return nil, fmt.Errorf("secret for account not found")
 	}
 	accountSeed, ok := accountSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return fmt.Errorf("secret for account was malformed")
+		return nil, fmt.Errorf("secret for account was malformed")
 	}
 	accountKeyPair, err := nkeys.FromSeed([]byte(accountSeed))
 	if err != nil {
-		return fmt.Errorf("failed to get account key pair from seed: %w", err)
+		return nil, fmt.Errorf("failed to get account key pair from seed: %w", err)
 	}
 	accountPublicKey, _ := accountKeyPair.PublicKey()
 
 	accountSigningSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
-		return fmt.Errorf("secret for account signing not found")
+		return nil, fmt.Errorf("secret for account signing not found")
 	}
 	accountSigningSeed, ok := accountSigningSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return fmt.Errorf("secret for account signing was malformed")
+		return nil, fmt.Errorf("secret for account signing was malformed")
 	}
 	accountSigningKeyPair, err := nkeys.FromSeed([]byte(accountSigningSeed))
 	if err != nil {
-		return fmt.Errorf("failed to get account key pair for signing from seed: %w", err)
+		return nil, fmt.Errorf("failed to get account key pair for signing from seed: %w", err)
 	}
 	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
-	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
 
 	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
@@ -249,104 +245,108 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) error
 		encode(operatorSigningKeyPair)
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
-	}
-
-	state.Status.Claims = natsv1alpha1.AccountClaims{
-		AccountLimits:   state.Spec.AccountLimits,
-		Exports:         state.Spec.Exports,
-		Imports:         state.Spec.Imports,
-		JetStreamLimits: state.Spec.JetStreamLimits,
-		NatsLimits:      state.Spec.NatsLimits,
+		return nil, fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
 	}
 
 	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer a.natsClient.Disconnect()
 
 	err = a.natsClient.UploadAccountJWT(signedJwt)
 	if err != nil {
-		return fmt.Errorf("failed to upload account jwt: %w", err)
+		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	return nil
+	// Return immutable result - controller will apply to state
+	return &controller.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: operatorSigningPublicKey,
+		Claims: &natsv1alpha1.AccountClaims{
+			AccountLimits:   state.Spec.AccountLimits,
+			Exports:         state.Spec.Exports,
+			Imports:         state.Spec.Imports,
+			JetStreamLimits: state.Spec.JetStreamLimits,
+			NatsLimits:      state.Spec.NatsLimits,
+		},
+	}, nil
 }
 
-func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
+		return nil, fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
 	if accountID == "" {
-		return fmt.Errorf("account ID is missing for account %s", state.GetName())
+		return nil, fmt.Errorf("account ID is missing for account %s", state.GetName())
 	}
 
 	secrets, err := a.getAccountSecrets(ctx, state.GetNamespace(), accountID, state.GetName())
 	if err != nil {
-		return fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
+		return nil, fmt.Errorf("failed to get secrets for account %s: %w", accountID, err)
 	}
 
 	accountRootSecret, ok := secrets[k8s.SecretTypeAccountRoot]
 	if !ok {
-		return fmt.Errorf("account root secret not found for account %s", accountID)
+		return nil, fmt.Errorf("account root secret not found for account %s", accountID)
 	}
 	accountRootSeed, ok := accountRootSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return fmt.Errorf("account root seed secret for account %s is malformed", accountID)
+		return nil, fmt.Errorf("account root seed secret for account %s is malformed", accountID)
 	}
 	accountRootKeyPair, err := nkeys.FromSeed([]byte(accountRootSeed))
 	if err != nil {
-		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+		return nil, fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
 	}
 	accountRootPublicKey, err := accountRootKeyPair.PublicKey()
 	if err != nil {
-		return fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
+		return nil, fmt.Errorf("failed to get account key pair for account %s from seed: %w", accountID, err)
 	}
 	if accountRootPublicKey != accountID {
-		return fmt.Errorf("account root seed does not match account ID: expected %s, got %s", accountID, accountRootPublicKey)
+		return nil, fmt.Errorf("account root seed does not match account ID: expected %s, got %s", accountID, accountRootPublicKey)
 	}
 
 	accountSigningSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
-		return fmt.Errorf("account sign secret not found for account %s", accountID)
+		return nil, fmt.Errorf("account sign secret not found for account %s", accountID)
 	}
 	accountSigningSeed, ok := accountSigningSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return fmt.Errorf("account sign secret for account %s is malformed", accountID)
+		return nil, fmt.Errorf("account sign secret for account %s is malformed", accountID)
 	}
-	accountSigningKeyPair, err := nkeys.FromSeed([]byte(accountSigningSeed))
+	_, err = nkeys.FromSeed([]byte(accountSigningSeed))
 	if err != nil {
-		return fmt.Errorf("failed to get account key pair for signing from seed for account %s: %w", accountID, err)
+		return nil, fmt.Errorf("failed to get account key pair for signing from seed for account %s: %w", accountID, err)
 	}
-	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 
 	err = a.natsClient.EnsureConnected(a.nauthNamespace)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer a.natsClient.Disconnect()
 	accountJWT, err := a.natsClient.LookupAccountJWT(accountID)
 	if err != nil {
-		return fmt.Errorf("failed to lookup account jwt for account %s: %w", accountID, err)
+		return nil, fmt.Errorf("failed to lookup account jwt for account %s: %w", accountID, err)
 	}
 	if len(accountJWT) == 0 {
-		return fmt.Errorf("account jwt for account %s not found", accountID)
+		return nil, fmt.Errorf("account jwt for account %s not found", accountID)
 	}
 	accountClaims, err := jwt.DecodeAccountClaims(accountJWT)
 	if err != nil {
-		return fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
+		return nil, fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
 	}
 
-	state.GetLabels()[k8s.LabelAccountSignedBy] = operatorSigningPublicKey
-	state.Status.Claims = convertNatsAccountClaims(accountClaims)
-	state.Status.SigningKey.Name = accountSigningPublicKey
-
-	return nil
+	// Return immutable result - controller will apply to state
+	claims := convertNatsAccountClaims(accountClaims)
+	return &controller.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: operatorSigningPublicKey,
+		Claims:          &claims,
+	}, nil
 }
 
 func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error {
