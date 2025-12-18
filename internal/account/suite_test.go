@@ -20,10 +20,10 @@ var (
 	cancel context.CancelFunc
 )
 
-func TestK8sSecrets(t *testing.T) {
+func TestAccount(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Nauth services")
+	RunSpecs(t, "Account Suite")
 }
 
 var _ = BeforeSuite(func() {
