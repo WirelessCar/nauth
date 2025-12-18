@@ -8,7 +8,6 @@ import (
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -205,17 +204,12 @@ func validateImports(imports jwt.Imports) error {
 	return nil
 }
 
-func (b *claimsBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (string, error) {
+func (b *claimsBuilder) build() (*jwt.AccountClaims, error) {
 	if err := errors.Join(b.errs...); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	signedJwt, err := b.claim.Encode(operatorSigningKeyPair)
-	if err != nil {
-		return "", err
-	}
-
-	return signedJwt, nil
+	return b.claim, nil
 }
 
 func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountClaims {
