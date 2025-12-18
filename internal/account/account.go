@@ -148,14 +148,19 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
+	natsClaims, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
 		natsLimits().
 		jetStreamLimits().
 		exports().
 		imports(ctx, a.accounts).
 		signingKey(accountSigningPublicKey).
-		encode(operatorSigningKeyPair)
+		build()
+	if err != nil {
+		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
+		return nil, fmt.Errorf("failed to build NATS account claims for %s: %w", accountName, err)
+	}
+	signedJwt, err := natsClaims.Encode(operatorSigningKeyPair)
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return nil, fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
@@ -172,16 +177,11 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	}
 
 	// Return immutable result - controller will apply to state
+	nauthClaims := convertNatsAccountClaims(natsClaims)
 	return &controller.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
-		Claims: &natsv1alpha1.AccountClaims{
-			AccountLimits:   state.Spec.AccountLimits,
-			Exports:         state.Spec.Exports,
-			Imports:         state.Spec.Imports,
-			JetStreamLimits: state.Spec.JetStreamLimits,
-			NatsLimits:      state.Spec.NatsLimits,
-		},
+		Claims:          &nauthClaims,
 	}, nil
 }
 
@@ -235,14 +235,19 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*con
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	signedJwt, err := newClaimsBuilder(state, accountPublicKey).
+	natsClaims, err := newClaimsBuilder(state, accountPublicKey).
 		accountLimits().
 		natsLimits().
 		jetStreamLimits().
 		exports().
 		imports(ctx, a.accounts).
 		signingKey(accountSigningPublicKey).
-		encode(operatorSigningKeyPair)
+		build()
+	if err != nil {
+		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
+		return nil, fmt.Errorf("failed to build NATS account claims for %s: %w", accountName, err)
+	}
+	signedJwt, err := natsClaims.Encode(operatorSigningKeyPair)
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return nil, fmt.Errorf("failed to sign account jwt for %s: %w", accountName, err)
@@ -259,17 +264,11 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	// Return immutable result - controller will apply to state
+	nauthClaims := convertNatsAccountClaims(natsClaims)
 	return &controller.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: operatorSigningPublicKey,
-		Claims: &natsv1alpha1.AccountClaims{
-			AccountLimits:   state.Spec.AccountLimits,
-			Exports:         state.Spec.Exports,
-			Imports:         state.Spec.Imports,
-			JetStreamLimits: state.Spec.JetStreamLimits,
-			NatsLimits:      state.Spec.NatsLimits,
-		},
+		Claims:          &nauthClaims,
 	}, nil
 }
 
@@ -335,17 +334,16 @@ func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) (*con
 	if len(accountJWT) == 0 {
 		return nil, fmt.Errorf("account jwt for account %s not found", accountID)
 	}
-	accountClaims, err := jwt.DecodeAccountClaims(accountJWT)
+	natsClaims, err := jwt.DecodeAccountClaims(accountJWT)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode account jwt for account %s: %w", accountID, err)
 	}
 
-	// Return immutable result - controller will apply to state
-	claims := convertNatsAccountClaims(accountClaims)
+	nauthClaims := convertNatsAccountClaims(natsClaims)
 	return &controller.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: operatorSigningPublicKey,
-		Claims:          &claims,
+		Claims:          &nauthClaims,
 	}, nil
 }
 
