@@ -1,0 +1,9 @@
+jetStreamLimits:
+  consumer: 100
+  diskMaxStreamBytes: 1073741824  # 1GB per stream
+  diskStorage: 5368709120         # 5GB
+  maxAckPending: 5000
+  maxBytesRequired: true
+  memMaxStreamBytes: 104857600    # 100MB per stream
+  memStorage: 536870912           # 512MB
+  streams: 50

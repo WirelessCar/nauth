@@ -1,0 +1,4 @@
+natsLimits:
+  data: 1048576  # 1MB
+  payload: 1024  # 1KB
+  subs: 1000

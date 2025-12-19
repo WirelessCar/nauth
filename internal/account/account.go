@@ -148,12 +148,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	natsClaims, err := newClaimsBuilder(state, accountPublicKey).
-		accountLimits().
-		natsLimits().
-		jetStreamLimits().
-		exports().
-		imports(ctx, a.accounts).
+	natsClaims, err := newClaimsBuilder(ctx, state.Spec, accountPublicKey, a.accounts).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
@@ -235,12 +230,7 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*con
 
 	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
 
-	natsClaims, err := newClaimsBuilder(state, accountPublicKey).
-		accountLimits().
-		natsLimits().
-		jetStreamLimits().
-		exports().
-		imports(ctx, a.accounts).
+	natsClaims, err := newClaimsBuilder(ctx, state.Spec, accountPublicKey, a.accounts).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {

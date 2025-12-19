@@ -1,0 +1,31 @@
+exports:
+  - name: "my-service-singleton"
+    subject: "service.request.singleton"
+    type: service
+    responseType: Singleton
+  - name: "my-service-stream"
+    subject: "service.request.stream"
+    type: service
+    responseType: Stream
+  - name: "my-service-chunked"
+    subject: "service.request.chunked"
+    type: service
+    responseType: Chunked
+  - name: "my-stream"
+    subject: "events.>"
+    type: stream
+  - name: "my-complex"
+    subject: "metrics.*"
+    type: service
+    tokenReq: true
+    revocations:
+      A000000000000000000000000000000000000000000000REVOKED01: 1234567890
+      A000000000000000000000000000000000000000000000REVOKED02: 9876543210
+    responseType: Stream
+    responseThreshold: 5000
+    serviceLatency:
+      sampling: 25
+      results: "metrics.latency.results"
+    accountTokenPosition: 1234
+    advertise: true
+    allowTrace: true
