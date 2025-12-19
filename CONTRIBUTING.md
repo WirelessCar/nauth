@@ -49,6 +49,14 @@ Nauth is bootstrapped and using the usual `kubebuilder` makefiles. These will ho
 You can use `mise` to setup the environment to the needed setup as well as run the required local environment. It
 handles both tool installation and a convenient way to handle environments and tasks.
 
+## Testing
+Unit and integration tests run with `make test`. For end-to-end coverage, we use KUTTL scenarios under `test/e2e`.
+Run them with:
+```bash
+make test-e2e
+```
+This target creates and deletes a Kind cluster as part of the run, so make sure Docker and `kubectl` are available.
+
 ### Local cluster setup
 There are a couple of scripts to setup a complete local cluster with NATS as well as building and deploying the local NAuth build.
 These scripts are provided as `mise` tasks, but are also possible to run standalone by running the shell scripts under `.mise-tasks`.
