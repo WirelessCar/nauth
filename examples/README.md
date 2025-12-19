@@ -1,10 +1,26 @@
 # Example setup
 
-FIXME: TBD!
+This directory provides sample NAuth resources and scenarios for local testing.
+They are designed to work with the `mise` tasks (scripts live under
+`.mise-tasks/nauth`).
 
-This provides an example of how NAuth can be configured together with NATS.
-They are designed to work together with the `mise` installation tasks (but can be found as scripts under `.mise-tasks`).
+## Quick start
 
-The secrets provided as manifests in NAuth are only available to quickly be able to setup a local environment. Do not
-use these in you production environment. Instead, follow the [operator-bootstrap](../operator-bootstrap/README.md)
-instructions to get an example of how to generate your own.
+Apply the example scenarios to a local cluster:
+
+```sh
+mise run nauth:install-examples
+```
+
+If you prefer to run it manually:
+
+```sh
+kubectl apply -f examples/nauth/manifests/scenarios/ --recursive
+```
+
+## Notes
+
+The manifests include example secrets for local development. Do not use these
+in production. Instead, follow the
+[operator-bootstrap](../operator-bootstrap/README.md) instructions to generate
+your own credentials.
