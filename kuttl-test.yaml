@@ -5,15 +5,16 @@ kindNodeCache: true
 artifactsDir: test/logs
 testDirs:
   - test/e2e/
+timeout: 20
 commands:
   - command: kubectl create namespace nats
   - command: helm repo add nats https://nats-io.github.io/k8s/helm/charts/
   - command: helm dependency update local/nats --skip-refresh
   - command: helm upgrade --install nats local/nats --wait -n nats -f local/nats/values.yaml
+    timeout: 120
   - command: docker build -t local/nauth:test --cache-from local/nauth:test .
   - command: kind load docker-image local/nauth:test
   - command: helm dependency update charts/nauth --skip-refresh
   - command: helm upgrade --install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "local/nauth/values.yaml"
+    timeout: 120
   - command: kubectl apply -n nats -f "local/nauth/manifests/operator.yaml"
-
-timeout: 120

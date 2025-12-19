@@ -36,7 +36,3 @@ status:
     - type: Ready
       status: "True"
       reason: Reconciled
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 10

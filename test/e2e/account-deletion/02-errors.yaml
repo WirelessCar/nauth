@@ -1,27 +1,22 @@
+# This file contains resources that will cause test to fail if they exist.
+# The test ensures that no Account or Secret resources are left behind after
+# an account deletion operation.
+
 apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
   name: example-account
-status:
-  conditions:
-    - type: Ready
-      status: "True"
-      reason: Reconciled
 
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-    nauth.io/managed: "true"
     nauth.io/secret-type: account-root
-type: Opaque
 
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-    nauth.io/managed: "true"
     nauth.io/secret-type: account-sign
-type: Opaque
