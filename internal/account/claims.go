@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
 )
@@ -17,7 +17,7 @@ type claimsBuilder struct {
 
 func newClaimsBuilder(
 	ctx context.Context,
-	spec natsv1alpha1.AccountSpec,
+	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
 	accountGetter AccountGetter,
 ) *claimsBuilder {
@@ -122,9 +122,9 @@ func newClaimsBuilder(
 		for _, export := range spec.Exports {
 			var targetType jwt.ExportType
 			switch export.Type {
-			case natsv1alpha1.Stream:
+			case v1alpha1.Stream:
 				targetType = jwt.Stream
-			case natsv1alpha1.Service:
+			case v1alpha1.Service:
 				targetType = jwt.Service
 			default:
 				targetType = jwt.Stream
@@ -226,12 +226,12 @@ func (b *claimsBuilder) build() (*jwt.AccountClaims, error) {
 	return b.claim, nil
 }
 
-func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountClaims {
+func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims {
 	if claims == nil {
-		return natsv1alpha1.AccountClaims{}
+		return v1alpha1.AccountClaims{}
 	}
 
-	out := natsv1alpha1.AccountClaims{}
+	out := v1alpha1.AccountClaims{}
 
 	// AccountLimits
 	{
@@ -240,7 +240,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		wildcards := claims.Limits.WildcardExports
 		conn := claims.Limits.Conn
 		leaf := claims.Limits.LeafNodeConn
-		out.AccountLimits = &natsv1alpha1.AccountLimits{
+		out.AccountLimits = &v1alpha1.AccountLimits{
 			Imports:         &imports,
 			Exports:         &exports,
 			WildcardExports: &wildcards,
@@ -254,7 +254,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		subs := claims.Limits.Subs
 		data := claims.Limits.Data
 		payload := claims.Limits.Payload
-		out.NatsLimits = &natsv1alpha1.NatsLimits{
+		out.NatsLimits = &v1alpha1.NatsLimits{
 			Subs:    &subs,
 			Data:    &data,
 			Payload: &payload,
@@ -270,7 +270,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		maxAck := claims.Limits.MaxAckPending
 		memMax := claims.Limits.MemoryMaxStreamBytes
 		diskMax := claims.Limits.DiskMaxStreamBytes
-		out.JetStreamLimits = &natsv1alpha1.JetStreamLimits{
+		out.JetStreamLimits = &v1alpha1.JetStreamLimits{
 			MemoryStorage:        &mem,
 			DiskStorage:          &disk,
 			Streams:              &streams,
@@ -284,36 +284,36 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// Exports
 	if len(claims.Exports) > 0 {
-		exports := make(natsv1alpha1.Exports, 0, len(claims.Exports))
+		exports := make(v1alpha1.Exports, 0, len(claims.Exports))
 		for _, e := range claims.Exports {
 			if e == nil {
 				continue
 			}
-			var et natsv1alpha1.ExportType
+			var et v1alpha1.ExportType
 			switch e.Type {
 			case jwt.Stream:
-				et = natsv1alpha1.Stream
+				et = v1alpha1.Stream
 			case jwt.Service:
-				et = natsv1alpha1.Service
+				et = v1alpha1.Service
 			default:
-				et = natsv1alpha1.Stream
+				et = v1alpha1.Stream
 			}
 
-			var latency *natsv1alpha1.ServiceLatency
+			var latency *v1alpha1.ServiceLatency
 			if e.Latency != nil {
-				latency = &natsv1alpha1.ServiceLatency{
-					Sampling: natsv1alpha1.SamplingRate(e.Latency.Sampling),
-					Results:  natsv1alpha1.Subject(e.Latency.Results),
+				latency = &v1alpha1.ServiceLatency{
+					Sampling: v1alpha1.SamplingRate(e.Latency.Sampling),
+					Results:  v1alpha1.Subject(e.Latency.Results),
 				}
 			}
 
-			export := &natsv1alpha1.Export{
+			export := &v1alpha1.Export{
 				Name:                 e.Name,
-				Subject:              natsv1alpha1.Subject(e.Subject),
+				Subject:              v1alpha1.Subject(e.Subject),
 				Type:                 et,
 				TokenReq:             e.TokenReq,
-				Revocations:          natsv1alpha1.RevocationList(e.Revocations),
-				ResponseType:         natsv1alpha1.ResponseType(e.ResponseType),
+				Revocations:          v1alpha1.RevocationList(e.Revocations),
+				ResponseType:         v1alpha1.ResponseType(e.ResponseType),
 				ResponseThreshold:    e.ResponseThreshold,
 				Latency:              latency,
 				AccountTokenPosition: e.AccountTokenPosition,
@@ -327,25 +327,25 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// Imports
 	if len(claims.Imports) > 0 {
-		imports := make(natsv1alpha1.Imports, 0, len(claims.Imports))
+		imports := make(v1alpha1.Imports, 0, len(claims.Imports))
 		for _, i := range claims.Imports {
 			if i == nil {
 				continue
 			}
-			var it natsv1alpha1.ExportType
+			var it v1alpha1.ExportType
 			switch i.Type {
 			case jwt.Stream:
-				it = natsv1alpha1.Stream
+				it = v1alpha1.Stream
 			case jwt.Service:
-				it = natsv1alpha1.Service
+				it = v1alpha1.Service
 			default:
-				it = natsv1alpha1.Stream
+				it = v1alpha1.Stream
 			}
-			imp := &natsv1alpha1.Import{
+			imp := &v1alpha1.Import{
 				Name:         i.Name,
-				Subject:      natsv1alpha1.Subject(i.Subject),
+				Subject:      v1alpha1.Subject(i.Subject),
 				Account:      i.Account,
-				LocalSubject: natsv1alpha1.RenamingSubject(i.LocalSubject),
+				LocalSubject: v1alpha1.RenamingSubject(i.LocalSubject),
 				Type:         it,
 				Share:        i.Share,
 				AllowTrace:   i.AllowTrace,
