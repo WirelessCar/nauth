@@ -1,0 +1,6 @@
+accountLimits:
+  conn: 100
+  exports: 10
+  imports: 20
+  leaf: 50
+  wildcards: true

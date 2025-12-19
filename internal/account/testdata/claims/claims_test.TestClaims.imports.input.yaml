@@ -1,0 +1,24 @@
+imports:
+  - name: my-stream-import
+    accountRef:
+      namespace: my-namespace
+      name: stream-account
+    subject: foo.stream.>
+    localSubject: imported.foo.stream.>
+    type: stream
+  - name: my-service-import
+    accountRef:
+      namespace: my-namespace
+      name: service-account
+    subject: foo.service.>
+    localSubject: imported.foo.service.>
+    type: service
+  - name: my-complex
+    accountRef:
+      namespace: my-namespace
+      name: complex-account
+    subject: complex.>
+    localSubject: imported.complex.>
+    type: stream
+    share: true
+    allowTrace: true

@@ -1,0 +1,18 @@
+accountLimits:
+  conn: -1
+  exports: -1
+  imports: -1
+  leaf: -1
+  wildcards: true
+jetStreamLimits:
+  consumer: -1
+  diskMaxStreamBytes: -1
+  diskStorage: -1
+  maxAckPending: -1
+  memMaxStreamBytes: -1
+  memStorage: -1
+  streams: -1
+natsLimits:
+  data: -1
+  payload: -1
+  subs: -1
