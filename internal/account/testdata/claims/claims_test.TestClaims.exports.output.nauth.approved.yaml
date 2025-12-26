@@ -1,0 +1,49 @@
+accountLimits:
+  conn: -1
+  exports: -1
+  imports: -1
+  leaf: -1
+  wildcards: true
+exports:
+- name: my-stream
+  subject: events.>
+  type: stream
+- accountTokenPosition: 1234
+  advertise: true
+  allowTrace: true
+  name: my-complex
+  responseThreshold: 5000
+  responseType: Stream
+  revocations:
+    A000000000000000000000000000000000000000000000REVOKED01: 1234567890
+    A000000000000000000000000000000000000000000000REVOKED02: 9876543210
+  serviceLatency:
+    results: metrics.latency.results
+    sampling: 25
+  subject: metrics.*
+  tokenReq: true
+  type: service
+- name: my-service-chunked
+  responseType: Chunked
+  subject: service.request.chunked
+  type: service
+- name: my-service-singleton
+  responseType: Singleton
+  subject: service.request.singleton
+  type: service
+- name: my-service-stream
+  responseType: Stream
+  subject: service.request.stream
+  type: service
+jetStreamLimits:
+  consumer: -1
+  diskMaxStreamBytes: -1
+  diskStorage: -1
+  maxAckPending: -1
+  memMaxStreamBytes: -1
+  memStorage: -1
+  streams: -1
+natsLimits:
+  data: -1
+  payload: -1
+  subs: -1

@@ -5,159 +5,169 @@ import (
 	"errors"
 	"fmt"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type claimsBuilder struct {
-	accountState *natsv1alpha1.Account
-	claim        *jwt.AccountClaims
-	errs         []error
+	claim *jwt.AccountClaims
+	errs  []error
 }
 
-func newClaimsBuilder(accountState *natsv1alpha1.Account, accountPublicKey string) *claimsBuilder {
+func newClaimsBuilder(
+	ctx context.Context,
+	spec v1alpha1.AccountSpec,
+	accountPublicKey string,
+	accountGetter AccountGetter,
+) *claimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Limits = jwt.OperatorLimits{}
+	errs := make([]error, 0)
 
-	return &claimsBuilder{
-		accountState: accountState,
-		claim:        claim,
-		errs:         make([]error, 0),
-	}
-}
+	// Account Limits
+	{
+		accountLimits := jwt.AccountLimits{}
+		accountLimits.Imports = -1
+		accountLimits.Exports = -1
+		accountLimits.WildcardExports = true
+		accountLimits.Conn = -1
+		accountLimits.LeafNodeConn = -1
 
-func (b *claimsBuilder) accountLimits() *claimsBuilder {
-	state := b.accountState
-	accountLimits := jwt.AccountLimits{}
-	accountLimits.Imports = -1
-	accountLimits.Exports = -1
-	accountLimits.WildcardExports = true
-	accountLimits.Conn = -1
-	accountLimits.LeafNodeConn = -1
-
-	if state.Spec.AccountLimits != nil {
-		if state.Spec.AccountLimits.Imports != nil {
-			accountLimits.Imports = *state.Spec.AccountLimits.Imports
+		if spec.AccountLimits != nil {
+			if spec.AccountLimits.Imports != nil {
+				accountLimits.Imports = *spec.AccountLimits.Imports
+			}
+			if spec.AccountLimits.Exports != nil {
+				accountLimits.Exports = *spec.AccountLimits.Exports
+			}
+			if spec.AccountLimits.WildcardExports != nil {
+				accountLimits.WildcardExports = *spec.AccountLimits.WildcardExports
+			}
+			if spec.AccountLimits.Conn != nil {
+				accountLimits.Conn = *spec.AccountLimits.Conn
+			}
+			if spec.AccountLimits.LeafNodeConn != nil {
+				accountLimits.LeafNodeConn = *spec.AccountLimits.LeafNodeConn
+			}
 		}
-		if state.Spec.AccountLimits.Exports != nil {
-			accountLimits.Exports = *state.Spec.AccountLimits.Exports
-		}
-		if state.Spec.AccountLimits.WildcardExports != nil {
-			accountLimits.WildcardExports = *state.Spec.AccountLimits.WildcardExports
-		}
-		if state.Spec.AccountLimits.Conn != nil {
-			accountLimits.Conn = *state.Spec.AccountLimits.Conn
-		}
-		if state.Spec.AccountLimits.LeafNodeConn != nil {
-			accountLimits.LeafNodeConn = *state.Spec.AccountLimits.LeafNodeConn
-		}
+		claim.Limits.AccountLimits = accountLimits
 	}
 
-	b.claim.Limits.AccountLimits = accountLimits
-	return b
-}
+	// NATS Limits
+	{
+		natsLimits := jwt.NatsLimits{}
+		natsLimits.Subs = -1
+		natsLimits.Data = -1
+		natsLimits.Payload = -1
 
-func (b *claimsBuilder) natsLimits() *claimsBuilder {
-	state := b.accountState
+		if spec.NatsLimits != nil {
+			if spec.NatsLimits.Subs != nil {
+				natsLimits.Subs = *spec.NatsLimits.Subs
+			}
+			if spec.NatsLimits.Data != nil {
+				natsLimits.Data = *spec.NatsLimits.Data
+			}
+			if spec.NatsLimits.Payload != nil {
+				natsLimits.Payload = *spec.NatsLimits.Payload
+			}
+		}
 
-	natsLimits := jwt.NatsLimits{}
-	natsLimits.Subs = -1
-	natsLimits.Data = -1
-	natsLimits.Payload = -1
-
-	if state.Spec.NatsLimits != nil {
-		if state.Spec.NatsLimits.Subs != nil {
-			natsLimits.Subs = *state.Spec.NatsLimits.Subs
-		}
-		if state.Spec.NatsLimits.Data != nil {
-			natsLimits.Data = *state.Spec.NatsLimits.Data
-		}
-		if state.Spec.NatsLimits.Payload != nil {
-			natsLimits.Payload = *state.Spec.NatsLimits.Payload
-		}
+		claim.Limits.NatsLimits = natsLimits
 	}
 
-	b.claim.Limits.NatsLimits = natsLimits
-	return b
-}
+	// JetStream Limits
+	{
+		jetStreamLimits := jwt.JetStreamLimits{}
+		jetStreamLimits.MemoryStorage = -1
+		jetStreamLimits.DiskStorage = -1
+		jetStreamLimits.Streams = -1
+		jetStreamLimits.Consumer = -1
+		jetStreamLimits.MaxAckPending = -1
+		jetStreamLimits.MemoryMaxStreamBytes = -1
+		jetStreamLimits.DiskMaxStreamBytes = -1
 
-func (b *claimsBuilder) jetStreamLimits() *claimsBuilder {
-	state := b.accountState
-	jetStreamLimits := jwt.JetStreamLimits{}
-	jetStreamLimits.MemoryStorage = -1
-	jetStreamLimits.DiskStorage = -1
-	jetStreamLimits.Streams = -1
-	jetStreamLimits.Consumer = -1
-	jetStreamLimits.MaxAckPending = -1
-	jetStreamLimits.MemoryMaxStreamBytes = -1
-	jetStreamLimits.DiskMaxStreamBytes = -1
+		if spec.JetStreamLimits != nil {
+			if spec.JetStreamLimits.MemoryStorage != nil {
+				jetStreamLimits.MemoryStorage = *spec.JetStreamLimits.MemoryStorage
+			}
+			if spec.JetStreamLimits.DiskStorage != nil {
+				jetStreamLimits.DiskStorage = *spec.JetStreamLimits.DiskStorage
+			}
+			if spec.JetStreamLimits.Streams != nil {
+				jetStreamLimits.Streams = *spec.JetStreamLimits.Streams
+			}
+			if spec.JetStreamLimits.Consumer != nil {
+				jetStreamLimits.Consumer = *spec.JetStreamLimits.Consumer
+			}
+			if spec.JetStreamLimits.MaxAckPending != nil {
+				jetStreamLimits.MaxAckPending = *spec.JetStreamLimits.MaxAckPending
+			}
+			if spec.JetStreamLimits.MemoryMaxStreamBytes != nil {
+				jetStreamLimits.MemoryMaxStreamBytes = *spec.JetStreamLimits.MemoryMaxStreamBytes
+			}
+			if spec.JetStreamLimits.DiskMaxStreamBytes != nil {
+				jetStreamLimits.DiskMaxStreamBytes = *spec.JetStreamLimits.DiskMaxStreamBytes
+			}
+			jetStreamLimits.MaxBytesRequired = spec.JetStreamLimits.MaxBytesRequired
+		}
 
-	if state.Spec.JetStreamLimits != nil {
-		if state.Spec.JetStreamLimits.MemoryStorage != nil {
-			jetStreamLimits.MemoryStorage = *state.Spec.JetStreamLimits.MemoryStorage
-		}
-		if state.Spec.JetStreamLimits.DiskStorage != nil {
-			jetStreamLimits.DiskStorage = *state.Spec.JetStreamLimits.DiskStorage
-		}
-		if state.Spec.JetStreamLimits.Streams != nil {
-			jetStreamLimits.Streams = *state.Spec.JetStreamLimits.Streams
-		}
-		if state.Spec.JetStreamLimits.Consumer != nil {
-			jetStreamLimits.Consumer = *state.Spec.JetStreamLimits.Consumer
-		}
-		if state.Spec.JetStreamLimits.MaxAckPending != nil {
-			jetStreamLimits.MaxAckPending = *state.Spec.JetStreamLimits.MaxAckPending
-		}
-		if state.Spec.JetStreamLimits.MemoryMaxStreamBytes != nil {
-			jetStreamLimits.MemoryMaxStreamBytes = *state.Spec.JetStreamLimits.MemoryMaxStreamBytes
-		}
-		if state.Spec.JetStreamLimits.DiskMaxStreamBytes != nil {
-			jetStreamLimits.DiskMaxStreamBytes = *state.Spec.JetStreamLimits.DiskMaxStreamBytes
-		}
-		jetStreamLimits.MaxBytesRequired = state.Spec.JetStreamLimits.MaxBytesRequired
+		claim.Limits.JetStreamLimits = jetStreamLimits
 	}
 
-	b.claim.Limits.JetStreamLimits = jetStreamLimits
-	return b
-}
-
-func (b *claimsBuilder) exports() *claimsBuilder {
-	state := b.accountState
-
-	if state.Spec.Exports != nil {
+	// Exports
+	if spec.Exports != nil {
 		exports := jwt.Exports{}
 
-		for _, export := range state.Spec.Exports {
+		for _, export := range spec.Exports {
+			var targetType jwt.ExportType
+			switch export.Type {
+			case v1alpha1.Stream:
+				targetType = jwt.Stream
+			case v1alpha1.Service:
+				targetType = jwt.Service
+			default:
+				targetType = jwt.Stream
+			}
+
+			var latency *jwt.ServiceLatency
+			if export.Latency != nil {
+				latency = &jwt.ServiceLatency{
+					Sampling: jwt.SamplingRate(export.Latency.Sampling),
+					Results:  jwt.Subject(export.Latency.Results),
+				}
+			}
+
 			exportClaim := &jwt.Export{
-				Name:         export.Name,
-				Subject:      jwt.Subject(export.Subject),
-				Type:         jwt.ExportType(export.Type.ToInt()),
-				ResponseType: jwt.ResponseType(export.ResponseType),
-				Revocations:  jwt.RevocationList(export.Revocations),
+				Name:                 export.Name,
+				Subject:              jwt.Subject(export.Subject),
+				Type:                 targetType,
+				TokenReq:             export.TokenReq,
+				Revocations:          jwt.RevocationList(export.Revocations),
+				ResponseType:         jwt.ResponseType(export.ResponseType),
+				ResponseThreshold:    export.ResponseThreshold,
+				Latency:              latency,
+				AccountTokenPosition: export.AccountTokenPosition,
+				Advertise:            export.Advertise,
+				AllowTrace:           export.AllowTrace,
 			}
 			exports = append(exports, exportClaim)
 		}
-		b.claim.Exports = exports
+		claim.Exports = exports
 	}
 
-	return b
-}
-
-func (b *claimsBuilder) imports(ctx context.Context, accountGetter AccountGetter) *claimsBuilder {
-	state := b.accountState
-	log := logf.FromContext(ctx)
-
-	if state.Spec.Imports != nil {
+	// Imports
+	if spec.Imports != nil {
 		imports := jwt.Imports{}
 
-		for _, importClaim := range state.Spec.Imports {
+		for _, importClaim := range spec.Imports {
 			importAccount, err := accountGetter.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
 			if err != nil {
-				b.errs = append(b.errs, err)
-				log.Error(err, "failed to get account for import", "namespace", importClaim.AccountRef.Namespace, "account", importClaim.AccountRef.Name, "import", importClaim.Name)
+				errs = append(errs, fmt.Errorf("failed to get account for import %q (namespace: %q, account: %q): %w",
+					importClaim.Name,
+					importClaim.AccountRef.Namespace,
+					importClaim.AccountRef.Name,
+					err))
 			} else {
 				account := importAccount.Labels[k8s.LabelAccountID]
 				claim := &jwt.Import{
@@ -170,16 +180,19 @@ func (b *claimsBuilder) imports(ctx context.Context, accountGetter AccountGetter
 				imports = append(imports, claim)
 			}
 		}
-		b.claim.Imports = imports
+		claim.Imports = imports
 
 		err := validateImports(imports)
 		if err != nil {
-			b.errs = append(b.errs, err)
-			b.claim.Imports = nil
+			errs = append(errs, err)
+			claim.Imports = nil
 		}
 	}
 
-	return b
+	return &claimsBuilder{
+		claim: claim,
+		errs:  errs,
+	}
 }
 
 func (b *claimsBuilder) signingKey(signingKey string) *claimsBuilder {
@@ -205,25 +218,20 @@ func validateImports(imports jwt.Imports) error {
 	return nil
 }
 
-func (b *claimsBuilder) encode(operatorSigningKeyPair nkeys.KeyPair) (string, error) {
+func (b *claimsBuilder) build() (*jwt.AccountClaims, error) {
 	if err := errors.Join(b.errs...); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	signedJwt, err := b.claim.Encode(operatorSigningKeyPair)
-	if err != nil {
-		return "", err
-	}
-
-	return signedJwt, nil
+	return b.claim, nil
 }
 
-func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountClaims {
+func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims {
 	if claims == nil {
-		return natsv1alpha1.AccountClaims{}
+		return v1alpha1.AccountClaims{}
 	}
 
-	out := natsv1alpha1.AccountClaims{}
+	out := v1alpha1.AccountClaims{}
 
 	// AccountLimits
 	{
@@ -232,7 +240,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		wildcards := claims.Limits.WildcardExports
 		conn := claims.Limits.Conn
 		leaf := claims.Limits.LeafNodeConn
-		out.AccountLimits = &natsv1alpha1.AccountLimits{
+		out.AccountLimits = &v1alpha1.AccountLimits{
 			Imports:         &imports,
 			Exports:         &exports,
 			WildcardExports: &wildcards,
@@ -246,7 +254,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		subs := claims.Limits.Subs
 		data := claims.Limits.Data
 		payload := claims.Limits.Payload
-		out.NatsLimits = &natsv1alpha1.NatsLimits{
+		out.NatsLimits = &v1alpha1.NatsLimits{
 			Subs:    &subs,
 			Data:    &data,
 			Payload: &payload,
@@ -262,7 +270,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 		maxAck := claims.Limits.MaxAckPending
 		memMax := claims.Limits.MemoryMaxStreamBytes
 		diskMax := claims.Limits.DiskMaxStreamBytes
-		out.JetStreamLimits = &natsv1alpha1.JetStreamLimits{
+		out.JetStreamLimits = &v1alpha1.JetStreamLimits{
 			MemoryStorage:        &mem,
 			DiskStorage:          &disk,
 			Streams:              &streams,
@@ -276,36 +284,36 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// Exports
 	if len(claims.Exports) > 0 {
-		exports := make(natsv1alpha1.Exports, 0, len(claims.Exports))
+		exports := make(v1alpha1.Exports, 0, len(claims.Exports))
 		for _, e := range claims.Exports {
 			if e == nil {
 				continue
 			}
-			var et natsv1alpha1.ExportType
+			var et v1alpha1.ExportType
 			switch e.Type {
 			case jwt.Stream:
-				et = natsv1alpha1.Stream
+				et = v1alpha1.Stream
 			case jwt.Service:
-				et = natsv1alpha1.Service
+				et = v1alpha1.Service
 			default:
-				et = natsv1alpha1.Stream
+				et = v1alpha1.Stream
 			}
 
-			var latency *natsv1alpha1.ServiceLatency
+			var latency *v1alpha1.ServiceLatency
 			if e.Latency != nil {
-				latency = &natsv1alpha1.ServiceLatency{
-					Sampling: natsv1alpha1.SamplingRate(e.Latency.Sampling),
-					Results:  natsv1alpha1.Subject(e.Latency.Results),
+				latency = &v1alpha1.ServiceLatency{
+					Sampling: v1alpha1.SamplingRate(e.Latency.Sampling),
+					Results:  v1alpha1.Subject(e.Latency.Results),
 				}
 			}
 
-			export := &natsv1alpha1.Export{
+			export := &v1alpha1.Export{
 				Name:                 e.Name,
-				Subject:              natsv1alpha1.Subject(e.Subject),
+				Subject:              v1alpha1.Subject(e.Subject),
 				Type:                 et,
 				TokenReq:             e.TokenReq,
-				Revocations:          natsv1alpha1.RevocationList(e.Revocations),
-				ResponseType:         natsv1alpha1.ResponseType(e.ResponseType),
+				Revocations:          v1alpha1.RevocationList(e.Revocations),
+				ResponseType:         v1alpha1.ResponseType(e.ResponseType),
 				ResponseThreshold:    e.ResponseThreshold,
 				Latency:              latency,
 				AccountTokenPosition: e.AccountTokenPosition,
@@ -319,25 +327,25 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) natsv1alpha1.AccountCla
 
 	// Imports
 	if len(claims.Imports) > 0 {
-		imports := make(natsv1alpha1.Imports, 0, len(claims.Imports))
+		imports := make(v1alpha1.Imports, 0, len(claims.Imports))
 		for _, i := range claims.Imports {
 			if i == nil {
 				continue
 			}
-			var it natsv1alpha1.ExportType
+			var it v1alpha1.ExportType
 			switch i.Type {
 			case jwt.Stream:
-				it = natsv1alpha1.Stream
+				it = v1alpha1.Stream
 			case jwt.Service:
-				it = natsv1alpha1.Service
+				it = v1alpha1.Service
 			default:
-				it = natsv1alpha1.Stream
+				it = v1alpha1.Stream
 			}
-			imp := &natsv1alpha1.Import{
+			imp := &v1alpha1.Import{
 				Name:         i.Name,
-				Subject:      natsv1alpha1.Subject(i.Subject),
+				Subject:      v1alpha1.Subject(i.Subject),
 				Account:      i.Account,
-				LocalSubject: natsv1alpha1.RenamingSubject(i.LocalSubject),
+				LocalSubject: v1alpha1.RenamingSubject(i.LocalSubject),
 				Type:         it,
 				Share:        i.Share,
 				AllowTrace:   i.AllowTrace,

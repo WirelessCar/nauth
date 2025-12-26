@@ -22,16 +22,11 @@ jq = "latest"
 [settings]
 experimental = true
 
-[tasks.go-test-ginkgo]
-description = "Run Ginkgo tests"
+[tasks.go-test]
+description = "Run go tests"
 dir = "{{ cwd }}"
-alias = "gtg"
-run = "ginkgo run"
-
-[tasks.go-test-ginkgo-all]
-description = "Run all Ginkgo tests in project"
-alias = "gtga"
-run = "ginkgo run -r"
+alias = "gt"
+run = "go test ./..."
 
 [tasks."nauth:e2e-test"]
 silent = true

@@ -1,0 +1,43 @@
+accountLimits:
+  conn: -1
+  exports: -1
+  imports: -1
+  leaf: -1
+  wildcards: true
+imports:
+- account: A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE
+  accountRef:
+    name: ""
+    namespace: ""
+  localSubject: imported.complex.>
+  name: my-complex
+  subject: complex.>
+  type: stream
+- account: A000000000000000000000000000000SERVICEACCOUNTMYNAMESPACE
+  accountRef:
+    name: ""
+    namespace: ""
+  localSubject: imported.foo.service.>
+  name: my-service-import
+  subject: foo.service.>
+  type: service
+- account: A0000000000000000000000000000000STREAMACCOUNTMYNAMESPACE
+  accountRef:
+    name: ""
+    namespace: ""
+  localSubject: imported.foo.stream.>
+  name: my-stream-import
+  subject: foo.stream.>
+  type: stream
+jetStreamLimits:
+  consumer: -1
+  diskMaxStreamBytes: -1
+  diskStorage: -1
+  maxAckPending: -1
+  memMaxStreamBytes: -1
+  memStorage: -1
+  streams: -1
+natsLimits:
+  data: -1
+  payload: -1
+  subs: -1

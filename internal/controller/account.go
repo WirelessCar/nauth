@@ -38,10 +38,16 @@ import (
 )
 
 type AccountManager interface {
-	Create(ctx context.Context, state *natsv1alpha1.Account) error
-	Update(ctx context.Context, state *natsv1alpha1.Account) error
-	Import(ctx context.Context, state *natsv1alpha1.Account) error
+	Create(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
+	Update(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
+	Import(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
 	Delete(ctx context.Context, desired *natsv1alpha1.Account) error
+}
+
+type AccountResult struct {
+	AccountID       string
+	AccountSignedBy string
+	Claims          *natsv1alpha1.AccountClaims
 }
 
 // AccountReconciler reconciles an Account object
@@ -176,21 +182,36 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
+	var result *AccountResult
+
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
-		if err := r.accountManager.Import(ctx, natsAccount); err != nil {
+		result, err = r.accountManager.Import(ctx, natsAccount)
+		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else if accountID == "" {
-		if err := r.accountManager.Create(ctx, natsAccount); err != nil {
+		result, err = r.accountManager.Create(ctx, natsAccount)
+		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
 	} else {
-		if err := r.accountManager.Update(ctx, natsAccount); err != nil {
+		result, err = r.accountManager.Update(ctx, natsAccount)
+		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
 		}
 	}
 
+	// Apply result to Account resource labels and status
+	if natsAccount.Labels == nil {
+		natsAccount.Labels = make(map[string]string)
+	}
+	natsAccount.Labels[k8s.LabelAccountID] = result.AccountID
+	natsAccount.Labels[k8s.LabelAccountSignedBy] = result.AccountSignedBy
+
 	// UPDATE ACCOUNT STATUS
+	if result.Claims != nil {
+		natsAccount.Status.Claims = *result.Claims
+	}
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 

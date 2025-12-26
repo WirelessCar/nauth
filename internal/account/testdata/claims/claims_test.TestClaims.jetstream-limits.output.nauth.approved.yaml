@@ -1,0 +1,19 @@
+accountLimits:
+  conn: -1
+  exports: -1
+  imports: -1
+  leaf: -1
+  wildcards: true
+jetStreamLimits:
+  consumer: 100
+  diskMaxStreamBytes: 1073741824
+  diskStorage: 5368709120
+  maxAckPending: 5000
+  maxBytesRequired: true
+  memMaxStreamBytes: 104857600
+  memStorage: 536870912
+  streams: 50
+natsLimits:
+  data: -1
+  payload: -1
+  subs: -1
