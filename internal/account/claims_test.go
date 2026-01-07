@@ -29,7 +29,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	approvals.UseFolder("testdata/claims")
+	approvals.UseFolder("approvals")
 	os.Exit(m.Run())
 }
 
@@ -37,7 +37,7 @@ func TestClaims(t *testing.T) {
 
 	opSigningKey, _ := nkeys.FromSeed([]byte(testClaimsOperatorSeed))
 
-	testCases := discoverTestCases("testdata/claims/claims_test.TestClaims.{TestCase}.input.yaml")
+	testCases := discoverTestCases("approvals/claims_test.TestClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
 
 	for _, testCase := range testCases {
