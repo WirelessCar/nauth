@@ -15,11 +15,19 @@
 name: E2E Tests
 
 # Requires manual trigger
-on: workflow_dispatch
+on:
+  pull_request:
+    paths:
+      - 'dir/**'
+      - 'charts/**'
+      - 'cmd/**'
+      - 'internal/**'
+      - Dockerfile
+      - go.*
 
 jobs:
   test-e2e:
-    name: Run on Ubuntu
+    name: Run E2E Tests
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
@@ -30,19 +38,19 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install the latest version of kind
+      - name: Install KUTTL
+        run: |
+          curl -L https://github.com/kudobuilder/kuttl/releases/download/v0.15.0/kubectl-kuttl_0.15.0_linux_x86_64 -o /usr/local/bin/kubectl-kuttl
+          chmod +x /usr/local/bin/kubectl-kuttl
+
+      - name: Install the latest version of KIND
         run: |
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
+          kind version
 
-      - name: Verify kind installation
-        run: kind version
-
-      - name: Create kind cluster
-        run: kind create cluster
-
-      - name: Running Test e2e
+      - name: Running E2E Tests
         run: |
           go mod tidy
           make test-e2e

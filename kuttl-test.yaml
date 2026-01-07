@@ -13,6 +13,7 @@ commands:
   - command: helm upgrade --install nats local/nats --wait -n nats -f local/nats/values.yaml
     timeout: 120
   - command: docker build -t local/nauth:test --cache-from local/nauth:test .
+    timeout: 120
   - command: kind load docker-image local/nauth:test
   - command: helm dependency update charts/nauth --skip-refresh
   - command: helm upgrade --install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "local/nauth/values.yaml"
