@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	testClaimsDisplayName   = "test-namespace/test-account"
 	testClaimsFakeAccountID = "A000000000000000000000000000000000000000000000000000FAKE"
 	testClaimsOperatorSeed  = "SOAF43LTJSU54DLV5VPWKF2ROVF2V6FZZG662Z2CCHDAFKCK5JGLQRP7SA"
 	testClaimsAccountPubKey = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
@@ -59,7 +60,7 @@ func TestClaims(t *testing.T) {
 			}
 
 			// Build NATS JWT AccountClaims from AccountSpec
-			builder := newClaimsBuilder(ctx, *spec, testClaimsAccountPubKey, accountGetterMock)
+			builder := newClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountGetterMock)
 			builder.signingKey(testClaimsSigningKey01)
 			builder.signingKey(testClaimsSigningKey02)
 
@@ -104,7 +105,7 @@ func TestClaims(t *testing.T) {
 				Exports:         nauthClaims.Exports,
 				Imports:         nauthClaims.Imports,
 			}
-			rebuilder := newClaimsBuilder(ctx, *rebuiltNatsClaims, testClaimsAccountPubKey, accountGetterMock)
+			rebuilder := newClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountGetterMock)
 			rebuilder.signingKey(testClaimsSigningKey01)
 			rebuilder.signingKey(testClaimsSigningKey02)
 

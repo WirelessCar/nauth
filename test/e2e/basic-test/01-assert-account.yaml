@@ -10,6 +10,7 @@ status:
       status: "True"
       reason: Reconciled
   claims:
+    displayName: My Example Account
     accountLimits:
       conn: 100
       exports: 10

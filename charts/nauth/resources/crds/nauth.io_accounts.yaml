@@ -68,6 +68,10 @@ spec:
                     default: true
                     type: boolean
                 type: object
+              displayName:
+                description: DisplayName is an optional name for the NATS resource
+                  representing the account. May be derived if absent.
+                type: string
               exports:
                 items:
                   properties:
@@ -249,6 +253,8 @@ spec:
                         default: true
                         type: boolean
                     type: object
+                  displayName:
+                    type: string
                   exports:
                     items:
                       properties:

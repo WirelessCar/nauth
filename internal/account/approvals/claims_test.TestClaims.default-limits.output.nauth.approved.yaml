@@ -4,6 +4,7 @@ accountLimits:
   imports: -1
   leaf: -1
   wildcards: true
+displayName: test-namespace/test-account
 jetStreamLimits:
   consumer: -1
   diskMaxStreamBytes: -1

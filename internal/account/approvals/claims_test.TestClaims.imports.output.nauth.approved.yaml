@@ -4,6 +4,7 @@ accountLimits:
   imports: -1
   leaf: -1
   wildcards: true
+displayName: test-namespace/test-account
 imports:
 - account: A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE
   accountRef:

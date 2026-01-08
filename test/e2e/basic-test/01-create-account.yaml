@@ -3,6 +3,7 @@ kind: Account
 metadata:
   name: example-account
 spec:
+  displayName: My Example Account
   accountLimits:
     conn: 100
     exports: 10

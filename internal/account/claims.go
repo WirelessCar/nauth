@@ -17,11 +17,13 @@ type claimsBuilder struct {
 
 func newClaimsBuilder(
 	ctx context.Context,
+	displayName string,
 	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
 	accountGetter AccountGetter,
 ) *claimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
+	claim.Name = displayName
 	claim.Limits = jwt.OperatorLimits{}
 	errs := make([]error, 0)
 
@@ -232,6 +234,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 	}
 
 	out := v1alpha1.AccountClaims{}
+	out.DisplayName = claims.Name
 
 	// AccountLimits
 	{

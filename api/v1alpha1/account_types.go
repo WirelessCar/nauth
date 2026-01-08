@@ -24,6 +24,9 @@ import (
 
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
+	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
 	// +optional
 	AccountLimits *AccountLimits `json:"accountLimits,omitempty"`
 	// +optional
@@ -39,6 +42,8 @@ type AccountSpec struct {
 type AccountClaims struct {
 	// +optional
 	AccountLimits *AccountLimits `json:"accountLimits,omitempty"`
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
 	// +optional
 	Exports Exports `json:"exports,omitempty"`
 	// +optional
