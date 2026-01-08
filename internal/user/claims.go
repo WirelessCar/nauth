@@ -10,11 +10,13 @@ type claimsBuilder struct {
 }
 
 func newClaimsBuilder(
+	displayName string,
 	spec v1alpha1.UserSpec,
 	userPublicKey string,
 	issuerAccountId string,
 ) *claimsBuilder {
 	claim := jwt.NewUserClaims(userPublicKey)
+	claim.Name = displayName
 
 	// Permissions
 	if spec.Permissions != nil {
@@ -79,6 +81,8 @@ func toNAuthUserClaims(claims *jwt.UserClaims) v1alpha1.UserClaims {
 	if claims == nil {
 		return result
 	}
+
+	result.DisplayName = claims.Name
 
 	// Permissions
 	{

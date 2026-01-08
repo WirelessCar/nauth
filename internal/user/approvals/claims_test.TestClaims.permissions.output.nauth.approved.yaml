@@ -1,4 +1,5 @@
 accountName: ""
+displayName: test-namespace/test-user
 permissions:
   pub:
     allow:

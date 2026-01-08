@@ -57,7 +57,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	userPublicKey, _ := userKeyPair.PublicKey()
 	userSeed, _ := userKeyPair.Seed()
 
-	natsClaims := newClaimsBuilder(state.Spec, userPublicKey, accountID).
+	natsClaims := newClaimsBuilder(getDisplayName(state), state.Spec, userPublicKey, accountID).
 		build()
 	userJwt, err := natsClaims.Encode(accountSigningKeyPair)
 	if err != nil {
@@ -152,6 +152,13 @@ func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, names
 		return nil, fmt.Errorf("secret for user credentials seed was malformed")
 	}
 	return nkeys.FromSeed(seed)
+}
+
+func getDisplayName(user *v1alpha1.User) string {
+	if user.Spec.DisplayName != "" {
+		return user.Spec.DisplayName
+	}
+	return fmt.Sprintf("%s/%s", user.GetNamespace(), user.GetName())
 }
 
 // Todo: Almost identical to the one in account/account.go - refactor ?

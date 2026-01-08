@@ -30,6 +30,9 @@ import (
 type UserSpec struct {
 	// AccountName references the account used to create the user.
 	AccountName string `json:"accountName"`
+	// DisplayName is an optional name for the NATS resource representing the user. May be derived if absent.
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
 	// +optional
 	Permissions *Permissions `json:"permissions,omitempty"`
 	// +optional
@@ -42,6 +45,9 @@ type UserClaims struct {
 	// Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102
 	// +optional
 	AccountName string `json:"accountName"`
+	// DisplayName is an optional name for the NATS resource representing the user.
+	// +optional
+	DisplayName string `json:"displayName,omitempty"`
 	// +optional
 	Permissions *Permissions `json:"permissions,omitempty"`
 	// +optional

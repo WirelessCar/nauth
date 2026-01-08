@@ -1,4 +1,5 @@
 accountName: ""
+displayName: test-namespace/test-user
 natsLimits:
   payload: 1024
   subs: 1000

@@ -4,6 +4,7 @@ metadata:
   name: example-user
 spec:
   accountName: example-account
+  displayName: My Example User
   natsLimits:
     data: 1000000
     payload: 1000000

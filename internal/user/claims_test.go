@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	testClaimsDisplayName     = "test-namespace/test-user"
 	testClaimsAccountPubKey   = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
 	testClaimsAccountSignSeed = "SAAPQGHCXP3M5THZ4JIJ2X6DJPXIBDX4DHVEI2ODY37NKI7R7YTIHNSTW4"
 	testClaimsUserPubKey      = "UAP35KHDBNR3WKNJ76YJMKEOFWNMPUN4U5LX2A2BCYSSXL3AXKCAEIM7"
@@ -42,7 +43,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build NATS JWT UserClaims from UserSpec
-			builder := newClaimsBuilder(*spec, testClaimsUserPubKey, testClaimsAccountPubKey)
+			builder := newClaimsBuilder(testClaimsDisplayName, *spec, testClaimsUserPubKey, testClaimsAccountPubKey)
 
 			natsClaims := builder.build()
 			require.NotNil(t, natsClaims)
@@ -72,7 +73,7 @@ func TestClaims(t *testing.T) {
 				UserLimits:  nauthClaims.UserLimits,
 				NatsLimits:  nauthClaims.NatsLimits,
 			}
-			rebuilder := newClaimsBuilder(*rebuiltNatsClaims, testClaimsUserPubKey, testClaimsAccountPubKey)
+			rebuilder := newClaimsBuilder(testClaimsDisplayName, *rebuiltNatsClaims, testClaimsUserPubKey, testClaimsAccountPubKey)
 
 			natsClaimsRebuilt := rebuilder.build()
 			require.NoError(t, err)
