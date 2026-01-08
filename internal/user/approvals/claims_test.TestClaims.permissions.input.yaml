@@ -1,0 +1,16 @@
+permissions:
+  pub:
+    allow:
+      - foo.*
+      - fox.foz.*.*
+    deny:
+      - faz.*
+  sub:
+    allow:
+      - bar.*
+      - bax.*
+    deny:
+      - baz.boz.*.*
+  resp:
+    max: 10
+    ttl: 604_800_000_000_000

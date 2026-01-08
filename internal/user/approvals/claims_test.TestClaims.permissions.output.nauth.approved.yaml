@@ -1,0 +1,17 @@
+accountName: ""
+permissions:
+  pub:
+    allow:
+    - foo.*
+    - fox.foz.*.*
+    deny:
+    - faz.*
+  resp:
+    max: 10
+    ttl: 604800000000000
+  sub:
+    allow:
+    - bar.*
+    - bax.*
+    deny:
+    - baz.boz.*.*

@@ -1,0 +1,15 @@
+natsLimits:
+  subs: 1000
+  payload: 1024
+permissions:
+  pub:
+    allow:
+      - foo.*
+  sub:
+    allow:
+      - bar.*
+  resp:
+    max: 10
+userLimits:
+  src:
+    - "192.168.1.0/24"

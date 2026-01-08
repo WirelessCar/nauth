@@ -1,0 +1,17 @@
+accountName: ""
+natsLimits:
+  payload: 1024
+  subs: 1000
+permissions:
+  pub:
+    allow:
+    - foo.*
+  resp:
+    max: 10
+    ttl: 0
+  sub:
+    allow:
+    - bar.*
+userLimits:
+  src:
+  - 192.168.1.0/24

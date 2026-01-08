@@ -57,14 +57,12 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	userPublicKey, _ := userKeyPair.PublicKey()
 	userSeed, _ := userKeyPair.Seed()
 
-	userJwt, err := newClaimsBuilder(state, userPublicKey).
-		issuerAccount(*account).
-		natsLimits().
-		permissions().
-		userLimits().
-		encode(accountSigningKeyPair)
+	natsClaims := newClaimsBuilder(state.Spec, userPublicKey, accountID).
+		build()
+	userJwt, err := natsClaims.Encode(accountSigningKeyPair)
 	if err != nil {
-		return err
+		userResource := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
+		return fmt.Errorf("failed to sign user jwt for %s: %w", userResource, err)
 	}
 
 	userCreds, _ := jwt.FormatUserConfig(userJwt, userSeed)
@@ -88,12 +86,9 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		return err
 	}
 
-	state.Status.Claims = v1alpha1.UserClaims{
-		AccountName: state.Spec.AccountName,
-		NatsLimits:  state.Spec.NatsLimits,
-		Permissions: state.Spec.Permissions,
-		UserLimits:  state.Spec.UserLimits,
-	}
+	toNAuthUserClaims(natsClaims)
+	state.Status.Claims = toNAuthUserClaims(natsClaims)
+	state.Status.Claims.AccountName = state.Spec.AccountName // FIXME: Redundant. Replace with Account ID from claim
 
 	if state.Labels == nil {
 		state.Labels = make(map[string]string, 3)

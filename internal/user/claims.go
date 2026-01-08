@@ -2,108 +2,159 @@ package user
 
 import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 )
 
 type claimsBuilder struct {
-	userState *v1alpha1.User
-	claim     *jwt.UserClaims
+	claim *jwt.UserClaims
 }
 
-func newClaimsBuilder(state *v1alpha1.User, userPublicKey string) *claimsBuilder {
+func newClaimsBuilder(
+	spec v1alpha1.UserSpec,
+	userPublicKey string,
+	issuerAccountId string,
+) *claimsBuilder {
 	claim := jwt.NewUserClaims(userPublicKey)
-	userState := state
 
-	return &claimsBuilder{
-		userState: userState,
-		claim:     claim,
-	}
-}
-
-func (u *claimsBuilder) permissions() *claimsBuilder {
-	if u.userState.Spec.Permissions != nil {
-		permissions := jwt.Permissions{}
-
-		permissions.Pub = jwt.Permission{
-			Allow: jwt.StringList(u.userState.Spec.Permissions.Pub.Allow),
-			Deny:  jwt.StringList(u.userState.Spec.Permissions.Pub.Deny),
+	// Permissions
+	if spec.Permissions != nil {
+		claim.Pub = jwt.Permission{
+			Allow: jwt.StringList(spec.Permissions.Pub.Allow),
+			Deny:  jwt.StringList(spec.Permissions.Pub.Deny),
 		}
-		permissions.Sub = jwt.Permission{
-			Allow: jwt.StringList(u.userState.Spec.Permissions.Sub.Allow),
-			Deny:  jwt.StringList(u.userState.Spec.Permissions.Sub.Deny),
+		claim.Sub = jwt.Permission{
+			Allow: jwt.StringList(spec.Permissions.Sub.Allow),
+			Deny:  jwt.StringList(spec.Permissions.Sub.Deny),
 		}
-		if u.userState.Spec.Permissions.Resp != nil {
-			permissions.Resp = &jwt.ResponsePermission{
-				MaxMsgs: u.userState.Spec.Permissions.Resp.MaxMsgs,
-				Expires: u.userState.Spec.Permissions.Resp.Expires,
+		if spec.Permissions.Resp != nil {
+			claim.Resp = &jwt.ResponsePermission{
+				MaxMsgs: spec.Permissions.Resp.MaxMsgs,
+				Expires: spec.Permissions.Resp.Expires,
 			}
 		}
-		u.claim.Permissions = permissions
 	}
 
-	return u
-}
-
-func (u *claimsBuilder) userLimits() *claimsBuilder {
-	if u.userState.Spec.UserLimits != nil {
-		userLimits := jwt.UserLimits{}
-
-		for _, src := range u.userState.Spec.UserLimits.Src {
-			userLimits.Src = append(userLimits.Src, src)
+	// User Limits
+	if spec.UserLimits != nil {
+		for _, src := range spec.UserLimits.Src {
+			claim.Src = append(claim.Src, src)
 		}
-		for _, times := range u.userState.Spec.UserLimits.Times {
+		for _, times := range spec.UserLimits.Times {
 			time := jwt.TimeRange{
 				Start: times.Start,
 				End:   times.End,
 			}
-			userLimits.Times = append(userLimits.Times, time)
+			claim.Times = append(claim.Times, time)
 		}
-		userLimits.Locale = u.userState.Spec.UserLimits.Locale
-
-		u.claim.UserLimits = userLimits
+		claim.Locale = spec.UserLimits.Locale
 	}
 
-	return u
-}
-
-func (u *claimsBuilder) natsLimits() *claimsBuilder {
-	if u.userState.Spec.NatsLimits != nil {
-		natsLimits := jwt.NatsLimits{}
-
-		if u.userState.Spec.NatsLimits.Subs != nil {
-			natsLimits.Subs = *u.userState.Spec.NatsLimits.Subs
-		} else {
-			natsLimits.Subs = -1
+	// NATS Limits
+	if spec.NatsLimits != nil {
+		if spec.NatsLimits.Subs != nil {
+			claim.Subs = *spec.NatsLimits.Subs
 		}
-		if u.userState.Spec.NatsLimits.Data != nil {
-			natsLimits.Data = *u.userState.Spec.NatsLimits.Data
-		} else {
-			natsLimits.Data = -1
+		if spec.NatsLimits.Data != nil {
+			claim.Data = *spec.NatsLimits.Data
 		}
-		if u.userState.Spec.NatsLimits.Payload != nil {
-			natsLimits.Payload = *u.userState.Spec.NatsLimits.Payload
-		} else {
-			natsLimits.Payload = -1
+		if spec.NatsLimits.Payload != nil {
+			claim.NatsLimits.Payload = *spec.NatsLimits.Payload
 		}
-
-		u.claim.NatsLimits = natsLimits
 	}
 
-	return u
+	claim.IssuerAccount = issuerAccountId
+
+	return &claimsBuilder{
+		claim: claim,
+	}
 }
 
-func (u *claimsBuilder) issuerAccount(account v1alpha1.Account) *claimsBuilder {
-	u.claim.IssuerAccount = account.Labels[k8s.LabelAccountID]
-	return u
+func (u *claimsBuilder) build() *jwt.UserClaims {
+	return u.claim
 }
 
-func (u *claimsBuilder) encode(accountSigningKeyPair nkeys.KeyPair) (string, error) {
-	signedJwt, err := u.claim.Encode(accountSigningKeyPair)
-	if err != nil {
-		return "", err
+func toNAuthUserClaims(claims *jwt.UserClaims) v1alpha1.UserClaims {
+	result := v1alpha1.UserClaims{}
+
+	if claims == nil {
+		return result
 	}
 
-	return signedJwt, nil
+	// Permissions
+	{
+		result.Permissions = &v1alpha1.Permissions{}
+		populated := false
+		if !claims.Pub.Empty() {
+			result.Permissions.Pub.Allow = v1alpha1.StringList(claims.Pub.Allow)
+			result.Permissions.Pub.Deny = v1alpha1.StringList(claims.Pub.Deny)
+			populated = true
+		}
+		if !claims.Sub.Empty() {
+			result.Permissions.Sub.Allow = v1alpha1.StringList(claims.Sub.Allow)
+			result.Permissions.Sub.Deny = v1alpha1.StringList(claims.Sub.Deny)
+			populated = true
+		}
+		if claims.Resp != nil {
+			result.Permissions.Resp = &v1alpha1.ResponsePermission{
+				MaxMsgs: claims.Resp.MaxMsgs,
+				Expires: claims.Resp.Expires,
+			}
+			populated = true
+		}
+		if !populated {
+			result.Permissions = nil
+		}
+	}
+
+	// User Limits
+	{
+		result.UserLimits = &v1alpha1.UserLimits{}
+		populated := false
+		if len(claims.Src) > 0 {
+			for _, src := range claims.Src {
+				result.UserLimits.Src = append(result.UserLimits.Src, src)
+				populated = true
+			}
+		}
+		if len(claims.Times) > 0 {
+			for _, times := range claims.Times {
+				time := v1alpha1.TimeRange{
+					Start: times.Start,
+					End:   times.End,
+				}
+				result.UserLimits.Times = append(result.UserLimits.Times, time)
+				populated = true
+			}
+		}
+		if claims.Locale != "" {
+			result.UserLimits.Locale = claims.Locale
+			populated = true
+		}
+		if !populated {
+			result.UserLimits = nil
+		}
+	}
+
+	// NATS Limits
+	{
+		result.NatsLimits = &v1alpha1.NatsLimits{}
+		populated := false
+		if claims.Subs != jwt.NoLimit {
+			result.NatsLimits.Subs = &claims.Subs
+			populated = true
+		}
+		if claims.Data != jwt.NoLimit {
+			result.NatsLimits.Data = &claims.Data
+			populated = true
+		}
+		if claims.NatsLimits.Payload != jwt.NoLimit {
+			result.NatsLimits.Payload = &claims.NatsLimits.Payload
+			populated = true
+		}
+		if !populated {
+			result.NatsLimits = nil
+		}
+	}
+
+	return result
 }

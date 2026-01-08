@@ -1,0 +1,5 @@
+accountName: ""
+natsLimits:
+  data: 1048576
+  payload: 1024
+  subs: 1000

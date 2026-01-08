@@ -1,0 +1,31 @@
+{
+  "iat": 1700000000,
+  "iss": "AAGKQ2YCJCKATG4XUJCLHBSJGNB5TCTJD6N7G6YTKRLOAMGAMQHOZ73L",
+  "jti": "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS",
+  "nats": {
+    "data": -1,
+    "issuer_account": "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE",
+    "payload": 1024,
+    "pub": {
+      "allow": [
+        "foo.*"
+      ]
+    },
+    "resp": {
+      "max": 10,
+      "ttl": 0
+    },
+    "src": [
+      "192.168.1.0/24"
+    ],
+    "sub": {
+      "allow": [
+        "bar.*"
+      ]
+    },
+    "subs": 1000,
+    "type": "user",
+    "version": 2
+  },
+  "sub": "UAP35KHDBNR3WKNJ76YJMKEOFWNMPUN4U5LX2A2BCYSSXL3AXKCAEIM7"
+}
