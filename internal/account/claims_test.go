@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	testClaimsFakeAccountID = "A000000000000000000000000000000000000000000000000000FAKE"
 	testClaimsOperatorSeed  = "SOAF43LTJSU54DLV5VPWKF2ROVF2V6FZZG662Z2CCHDAFKCK5JGLQRP7SA"
 	testClaimsAccountPubKey = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
 	testClaimsSigningKey01  = "ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4"
@@ -84,6 +85,17 @@ func TestClaims(t *testing.T) {
 				ForFile().WithAdditionalInformation("output.nauth").
 				ForFile().WithExtension(".yaml"))
 
+			// Finally; rebuild the claims from the output to verify round-trip integrity
+
+			// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
+			getAccountCall.RunFn = func(args mock.Arguments) {
+				account := &v1alpha1.Account{}
+				account.Labels = map[string]string{
+					k8s.LabelAccountID: testClaimsFakeAccountID,
+				}
+				getAccountCall.Return(*account, nil)
+			}
+
 			// Verify that the resulting NAuth AccountClaim generates the same NATS JWT when encoded
 			rebuiltNatsClaims := &v1alpha1.AccountSpec{
 				AccountLimits:   nauthClaims.AccountLimits,
@@ -96,11 +108,16 @@ func TestClaims(t *testing.T) {
 			rebuilder.signingKey(testClaimsSigningKey01)
 			rebuilder.signingKey(testClaimsSigningKey02)
 
-			natsClaimsRebuilt, err := builder.build()
+			natsClaimsRebuilt, err := rebuilder.build()
 			require.NoError(t, err)
 			require.NotNil(t, natsClaimsRebuilt)
+			// Sign the JWT to ensure matching issuer details
+			_, err = natsClaimsRebuilt.Encode(opSigningKey)
+			require.NoError(t, err)
 
 			normalizedNatsClaimsRebuilt := normalizeClaimsForApproval(natsClaimsRebuilt)
+			// The rebuilt claims will have fake account ID for imports, normalize for equality check
+			overrideImportAccountIDs(normalizedNatsClaims, testClaimsFakeAccountID)
 			assert.Equal(t, normalizedNatsClaims, normalizedNatsClaimsRebuilt)
 		})
 	}
@@ -170,4 +187,14 @@ func normalizeClaimsForApproval(claims *jwt.AccountClaims) map[string]interface{
 	result["jti"] = "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS"
 
 	return result
+}
+
+func overrideImportAccountIDs(claims map[string]interface{}, overrideAccount string) {
+	nats := claims["nats"].(map[string]interface{})
+	if nats["imports"] != nil {
+		for _, importClaim := range nats["imports"].([]interface{}) {
+			importMap := importClaim.(map[string]interface{})
+			importMap["account"] = overrideAccount
+		}
+	}
 }
