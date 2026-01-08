@@ -88,7 +88,6 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 
 	toNAuthUserClaims(natsClaims)
 	state.Status.Claims = toNAuthUserClaims(natsClaims)
-	state.Status.Claims.AccountName = state.Spec.AccountName // FIXME: Redundant. Replace with Account ID from claim
 
 	if state.Labels == nil {
 		state.Labels = make(map[string]string, 3)

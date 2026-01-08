@@ -39,6 +39,7 @@ type UserSpec struct {
 }
 
 type UserClaims struct {
+	// Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102
 	// +optional
 	AccountName string `json:"accountName"`
 	// +optional

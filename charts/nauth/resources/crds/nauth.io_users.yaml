@@ -143,6 +143,8 @@ spec:
               claims:
                 properties:
                   accountName:
+                    description: 'Deprecated. Will be removed in a future release
+                      (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102'
                     type: string
                   natsLimits:
                     properties:
@@ -207,6 +209,8 @@ spec:
                             type: array
                         type: object
                     type: object
+                  resourceName:
+                    type: string
                   userLimits:
                     properties:
                       src:

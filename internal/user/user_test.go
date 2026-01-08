@@ -162,7 +162,6 @@ var _ = Describe("User manager", func() {
 			err := userManager.CreateOrUpdate(ctx, user)
 
 			Expect(err).ToNot(HaveOccurred())
-			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.GetLabels()).ToNot(BeNil())
 			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
 
@@ -177,7 +176,6 @@ var _ = Describe("User manager", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(user.GetLabels()).ToNot(BeNil())
 			Expect(user.GetLabels()[k8s.LabelUserID]).Should(Satisfy(isUserPubKey))
-			Expect(user.Status.Claims.AccountName).Should(Equal(user.Spec.AccountName))
 			Expect(user.Status.Claims.NatsLimits.Subs).Should(Equal(user.Spec.NatsLimits.Subs))
 			Expect(user.Status.Claims.NatsLimits.Data).Should(Equal(user.Spec.NatsLimits.Data))
 			Expect(user.Status.Claims.NatsLimits.Payload).Should(Equal(user.Spec.NatsLimits.Payload))
