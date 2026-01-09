@@ -93,11 +93,15 @@ helm-docs
 ## Releasing
 When building a release for the operator:
 
-- Update the `.image_version` to new version
-- Update the `charts/nauth/Chart.yaml` and `charts/nauth-crds/Chart.yaml`
-  with updated `version` & `appVersion` (keep versions in sync).
+1. Bump NAuth Version
+   - Make sure to follow valid [SemVer](https://semver.org) rules.
+   - Update the `.image_version` to new version
+   - Update the `charts/nauth/Chart.yaml` and `charts/nauth-crds/Chart.yaml`
+   with updated `version` & `appVersion` (keep versions in sync).
+2. Create Release in GitHub
+    - Create a new release in GitHub using a new tag with the same version as above.
+    - Add release notes and publish the release.
 
-Make sure to follow valid [SemVer](https://semver.org) rules.
 
 ## Resources
 
