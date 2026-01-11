@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -71,6 +72,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var devMode bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
 		"If not specified, all namespaces will be watched.")
@@ -91,9 +93,16 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&devMode, "dev", false, "Run in development mode")
+
+	// Detect if we run inside the cluster
+	_, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	inCluster := err == nil
 	opts := zap.Options{
-		Development: true,
+		Development: devMode || !inCluster,
 	}
+
+	fmt.Println(opts.Development)
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -244,7 +253,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewManager(accountClient, secretClient)
+	userManager := user.NewManager(
+		accountClient,
+		natsClient,
+		secretClient,
+	)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),

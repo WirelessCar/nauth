@@ -6,6 +6,7 @@ import (
 	"log"
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
 	v1 "k8s.io/api/core/v1"
@@ -48,13 +49,13 @@ func NewClient(client client.Client, opts ...Option) *Client {
 		if err != nil {
 			log.Fatalf("Failed to read namespace: %v", err)
 		}
-		secretClient.controllerNamespace = string(namespacePath)
+		secretClient.controllerNamespace = strings.TrimSpace(string(namespacePath))
 	}
 
 	return secretClient
 }
 
-func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string, update bool) error {
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
@@ -77,6 +78,10 @@ func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta
 			return fmt.Errorf("failed to create secret: %w", err)
 		}
 	} else {
+		if !update {
+			// Do not update the secret, we just needed to know it's here
+			return nil
+		}
 		if !isManagedSecret(&currentSecret.ObjectMeta) {
 			return fmt.Errorf("existing secret %s/%s not managed by nauth", meta.Namespace, meta.Name)
 		}

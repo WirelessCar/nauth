@@ -5,6 +5,8 @@ const (
 	LabelAccountSignedBy              = "account.nauth.io/signed-by"
 	LabelUserID                       = "user.nauth.io/id"
 	LabelUserAccountID                = "user.nauth.io/account-id"
+	LabelUserSigningKeyID             = "user.nauth.io/signing-key-id"
+	LabelUserName                     = "user.nauth.io/username"
 	LabelUserSignedBy                 = "user.nauth.io/signed-by"
 	LabelSecretType                   = "nauth.io/secret-type"
 	LabelManaged                      = "nauth.io/managed"

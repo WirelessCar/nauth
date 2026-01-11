@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"k8s.io/client-go/tools/record"
 
@@ -36,6 +38,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/k8s"
 )
 
 type UserManager interface {
@@ -147,6 +150,10 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	if err := r.userManager.CreateOrUpdate(ctx, user); err != nil {
+		if errors.Is(err, k8s.NoErrRetryLater) {
+			log.Info("User creation was not successful", "reason", err)
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+		}
 		return r.reporter.error(ctx, user, err)
 	}
 
@@ -169,6 +176,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	log.Info("User created or updated")
 	return r.reporter.status(ctx, user)
 }
 
