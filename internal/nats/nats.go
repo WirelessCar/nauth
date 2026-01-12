@@ -21,14 +21,19 @@ type SecretGetter interface {
 	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 }
 
-type Response struct {
-	Data Data `json:"data"`
+type ServerAPIClaimUpdateResponse struct {
+	Data  *ClaimUpdateStatus `json:"data,omitempty"`
+	Error *ClaimUpdateError  `json:"error,omitempty"`
 }
 
-type Data struct {
-	Account string `json:"account,omitempty"`
+type ClaimUpdateStatus struct {
 	Code    int    `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
+}
+
+type ClaimUpdateError struct {
+	Code        int    `json:"code"`
+	Description string `json:"description,omitempty"`
 }
 
 type Client struct {
@@ -79,48 +84,41 @@ func (n *Client) LookupAccountJWT(accountID string) (string, error) {
 }
 
 func (n *Client) UploadAccountJWT(jwt string) error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
-	}
-
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.UPDATE", []byte(jwt), natsMaxTimeout)
-	if err != nil {
-		return fmt.Errorf("unable to post jwt update request: %w", err)
-	}
-
-	res := &Response{}
-
-	err = json.Unmarshal(msg.Data, res)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
-	}
-
-	if res.Data.Code != 200 {
-		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
-	}
-
-	return nil
+	return n.updateClaimsJWT("$SYS.REQ.CLAIMS.UPDATE", jwt)
 }
 
 func (n *Client) DeleteAccountJWT(jwt string) error {
+	return n.updateClaimsJWT("$SYS.REQ.CLAIMS.DELETE", jwt)
+}
+
+func (n *Client) updateClaimsJWT(subject string, jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
 
-	msg, err := n.conn.Request("$SYS.REQ.CLAIMS.DELETE", []byte(jwt), natsMaxTimeout)
+	msg, err := n.conn.Request(subject, []byte(jwt), natsMaxTimeout)
 	if err != nil {
-		return fmt.Errorf("unable to post jwt update request: %w", err)
+		return fmt.Errorf("unable to post jwt request: %w", err)
 	}
 
-	res := &Response{}
+	res := &ServerAPIClaimUpdateResponse{}
 
 	err = json.Unmarshal(msg.Data, res)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal nats resonse from jwt update request: %w", err)
+		return fmt.Errorf("failed to unmarshal nats resonse from jwt request: %w", err)
+	}
+
+	if res.Error != nil {
+		return fmt.Errorf("jwt request error <code:%d> <description:%s>", res.Error.Code, res.Error.Description)
+	}
+
+	if res.Data == nil {
+		// This should not happen, unless NATS changed their API.
+		return fmt.Errorf("jwt request returned no status nor error")
 	}
 
 	if res.Data.Code != 200 {
-		return fmt.Errorf("jwt update failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
+		return fmt.Errorf("jwt request failed <code:%d> <message:%s>", res.Data.Code, res.Data.Message)
 	}
 
 	return nil
