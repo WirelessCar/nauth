@@ -17,7 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +33,9 @@ import (
 type UserSpec struct {
 	// AccountName references the account used to create the user.
 	AccountName string `json:"accountName"`
+	// UseSigningKey generates a scopping signing key for the user.
+	// +Optional
+	UseSigningKey bool `json:"useSigningKey,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the user. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
@@ -94,6 +100,28 @@ func (u *User) GetConditions() *[]metav1.Condition {
 
 func (u *User) GetUserSecretName() string {
 	return fmt.Sprintf("%s-nats-user-creds", u.GetName())
+}
+
+const (
+	SecretNameUserSignTemplate = "%s-u-sign-%s" //  #nosec G101
+)
+
+func mustGenerateShortHashFromID(ID string) string {
+	hasher := md5.New()
+	_, err := io.WriteString(hasher, ID)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate hash from ID: %v", err))
+	}
+
+	hash := hex.EncodeToString(hasher.Sum(nil))
+	if len(hash) > 6 {
+		return hash[:6]
+	}
+	return hash
+}
+
+func (u *User) GetUserSigningKeySecretName() string {
+	return fmt.Sprintf(SecretNameUserSignTemplate, u.GetName(), mustGenerateShortHashFromID(u.GetName()))
 }
 
 // +kubebuilder:object:root=true

@@ -49,6 +49,10 @@ func newClaimsBuilder(
 			claim.Times = append(claim.Times, time)
 		}
 		claim.Locale = spec.UserLimits.Locale
+	} else {
+		if spec.UseSigningKey {
+			claim.Limits = jwt.Limits{} // Needed for scoped users
+		}
 	}
 
 	// NATS Limits

@@ -34,7 +34,7 @@ func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespac
 	}
 
 	if !isReady(account) {
-		log.Error(err, "account is not ready", "namespace", namespace, "accountName", accountRefName)
+		log.Info("account is not ready", "namespace", namespace, "accountName", accountRefName)
 		return nil, errors.Join(ErrAccountNotReady, err)
 	}
 

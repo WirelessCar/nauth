@@ -247,6 +247,11 @@ func (in *AccountSpec) DeepCopy() *AccountSpec {
 func (in *AccountStatus) DeepCopyInto(out *AccountStatus) {
 	*out = *in
 	in.Claims.DeepCopyInto(&out.Claims)
+	if in.SigningKeys != nil {
+		in, out := &in.SigningKeys, &out.SigningKeys
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]v1.Condition, len(*in))
