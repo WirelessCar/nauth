@@ -43,3 +43,6 @@ go.work.sum
 # Kuttl
 kubeconfig
 test/logs/
+
+# Local build cache (test runs with GOCACHE in repo)
+.cache/
