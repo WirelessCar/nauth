@@ -6,7 +6,7 @@ NATS_RELOADER_VERSION = "0.17.2"
 NATS_BOX_VERSION = "0.17.0"
 
 [tools]
-go = "1.24.5"
+go = "1.25.0"
 ginkgo = "2.27.2"
 adr-tools = "latest"
 nsc = "latest"
