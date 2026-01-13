@@ -70,13 +70,15 @@ Feature: Account controller reconciliation
     And no warning events are recorded
 
   Scenario: No-op reconcile when nothing has changed
-    Given the Account status observed generation matches the current generation
+    Given the Account specification is valid
+    And the Account status observed generation matches the current generation
     And the Account status operator version is "0.0-SNAPSHOT"
     When the account reconcile loop runs
     Then reconciliation completes without error
     And no warning events are recorded
 
   Scenario: Finalizer is added on first reconcile
-    Given the Account has no finalizers
+    Given the Account specification is valid
+    And the Account has no finalizers
     When the account reconcile loop runs
     Then the Account includes the "account.nauth.io/finalizer" finalizer

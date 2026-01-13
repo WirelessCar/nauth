@@ -9,7 +9,7 @@ import (
 func TestFeatures(t *testing.T) {
 	opts := godog.Options{
 		Format: "pretty",
-		Paths:  []string{"controller/account_missing.feature"},
+		Paths:  []string{"controller/account_missing.feature", "controller/account_controller.feature", "controller/user_controller.feature"},
 	}
 
 	status := godog.TestSuite{

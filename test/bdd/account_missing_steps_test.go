@@ -43,7 +43,7 @@ func (n *noopAccountManager) Delete(ctx context.Context, desired *natsv1alpha1.A
 	return errors.New("unexpected Delete call")
 }
 
-func InitializeScenario(sc *godog.ScenarioContext) {
+func RegisterAccountMissingSteps(sc *godog.ScenarioContext) {
 	state := &accountMissingState{}
 
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
