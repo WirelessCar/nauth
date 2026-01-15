@@ -7,9 +7,13 @@ import (
 	"os"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/account"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/secret"
 	"github.com/cucumber/godog"
+	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +30,10 @@ type accountControllerState struct {
 	k8sClient     client.Client
 	recorder      *record.FakeRecorder
 	reconciler    *controller.AccountReconciler
-	accountMgr    *stubAccountManager
+	accountMgr    *account.Manager
+	secretClient  *testSecretClient
+	natsClient    *fakeNatsClient
+	operatorKey   nkeys.KeyPair
 	request       ctrl.Request
 	reconcileErr  error
 	reconcileResp ctrl.Result
@@ -35,43 +42,6 @@ type accountControllerState struct {
 	accountNamespace  string
 	operatorNamespace string
 	deletionErrMsg    string
-}
-
-type stubAccountManager struct {
-	createResult *controller.AccountResult
-	updateResult *controller.AccountResult
-	importResult *controller.AccountResult
-	createErr    error
-	updateErr    error
-	importErr    error
-	deleteErr    error
-	deleteCalls  int
-}
-
-func (s *stubAccountManager) Create(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	if s.createErr != nil {
-		return nil, s.createErr
-	}
-	return s.createResult, nil
-}
-
-func (s *stubAccountManager) Update(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	if s.updateErr != nil {
-		return nil, s.updateErr
-	}
-	return s.updateResult, nil
-}
-
-func (s *stubAccountManager) Import(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	if s.importErr != nil {
-		return nil, s.importErr
-	}
-	return s.importResult, nil
-}
-
-func (s *stubAccountManager) Delete(ctx context.Context, desired *natsv1alpha1.Account) error {
-	s.deleteCalls++
-	return s.deleteErr
 }
 
 func RegisterAccountControllerSteps(sc *godog.ScenarioContext, state *accountControllerState) {
@@ -105,6 +75,9 @@ func RegisterAccountControllerSteps(sc *godog.ScenarioContext, state *accountCon
 }
 
 func (s *accountControllerState) initHarness() error {
+	if s.operatorNamespace == "" {
+		s.operatorNamespace = "nauth-account-system"
+	}
 	s.scheme = runtime.NewScheme()
 	if err := natsv1alpha1.AddToScheme(s.scheme); err != nil {
 		return err
@@ -118,7 +91,10 @@ func (s *accountControllerState) initHarness() error {
 		WithStatusSubresource(&natsv1alpha1.Account{}).
 		Build()
 	s.recorder = record.NewFakeRecorder(10)
-	s.accountMgr = &stubAccountManager{}
+	s.natsClient = &fakeNatsClient{}
+	s.secretClient = newTestSecretClient(secret.NewClient(s.k8sClient, secret.WithControllerNamespace(s.operatorNamespace)))
+	accountGetter := k8s.NewAccountClient(s.k8sClient)
+	s.accountMgr = account.NewManager(accountGetter, s.natsClient, s.secretClient, account.WithNamespace(s.operatorNamespace))
 	s.reconciler = controller.NewAccountReconciler(s.k8sClient, s.scheme, s.accountMgr, s.recorder)
 	s.syncRequest()
 
@@ -192,10 +168,12 @@ func (s *accountControllerState) runReconcile() error {
 }
 
 func (s *accountControllerState) operatorNamespaceExists(namespace string) error {
-	if err := s.initHarness(); err != nil {
-		return err
-	}
 	s.operatorNamespace = namespace
+	if s.k8sClient == nil {
+		if err := s.initHarness(); err != nil {
+			return err
+		}
+	}
 	return s.ensureNamespace(namespace)
 }
 
@@ -254,16 +232,17 @@ func (s *accountControllerState) accountSpecIsValid() error {
 	if err := s.ensureNamespace(s.accountNamespace); err != nil {
 		return err
 	}
-	s.accountMgr.createResult = &controller.AccountResult{
-		AccountID:       "A_TEST_ACCOUNT_ID",
-		AccountSignedBy: "A_TEST_SIGNING_KEY",
-		Claims:          &natsv1alpha1.AccountClaims{},
+	if err := s.ensureOperatorSigningSecret(); err != nil {
+		return err
 	}
-	s.accountMgr.updateResult = &controller.AccountResult{
-		AccountID:       "A_TEST_ACCOUNT_ID",
-		AccountSignedBy: "A_TEST_SIGNING_KEY",
-		Claims:          &natsv1alpha1.AccountClaims{},
+	if err := s.ensureSystemAccountCredsSecret(); err != nil {
+		return err
 	}
+	s.secretClient.applyErr = nil
+	s.secretClient.deleteByLabelsErr = nil
+	s.natsClient.ensureErr = nil
+	s.natsClient.uploadErr = nil
+	s.natsClient.deleteErr = nil
 	return s.ensureAccount()
 }
 
@@ -280,7 +259,10 @@ func (s *accountControllerState) accountSpecIsInvalid() error {
 	if err := s.ensureNamespace(s.accountNamespace); err != nil {
 		return err
 	}
-	s.accountMgr.createErr = errors.New("a test error")
+	if err := s.ensureOperatorSigningSecret(); err != nil {
+		return err
+	}
+	s.secretClient.applyErr = errors.New("a test error")
 	return s.ensureAccount()
 }
 
@@ -290,11 +272,7 @@ func (s *accountControllerState) accountManagerReturnsCreateResult(name string) 
 			return err
 		}
 	}
-	s.accountMgr.createResult = &controller.AccountResult{
-		AccountID:       "A_TEST_ACCOUNT_ID",
-		AccountSignedBy: "A_TEST_SIGNING_KEY",
-		Claims:          &natsv1alpha1.AccountClaims{},
-	}
+	s.secretClient.applyErr = nil
 	s.accountName = name
 	s.syncRequest()
 	return nil
@@ -306,11 +284,7 @@ func (s *accountControllerState) accountManagerReturnsUpdateResult(name string) 
 			return err
 		}
 	}
-	s.accountMgr.updateResult = &controller.AccountResult{
-		AccountID:       "A_TEST_ACCOUNT_ID",
-		AccountSignedBy: "A_TEST_SIGNING_KEY",
-		Claims:          &natsv1alpha1.AccountClaims{},
-	}
+	s.secretClient.applyErr = nil
 	s.accountName = name
 	s.syncRequest()
 	return nil
@@ -322,7 +296,7 @@ func (s *accountControllerState) accountManagerCreateError(message string) error
 			return err
 		}
 	}
-	s.accountMgr.createErr = errors.New(message)
+	s.secretClient.applyErr = errors.New(message)
 	return nil
 }
 
@@ -443,12 +417,16 @@ func (s *accountControllerState) accountIsLabeledWithManagementPolicy(value stri
 		account.Labels = make(map[string]string)
 	}
 	account.Labels[k8s.LabelManagementPolicy] = value
-	if value == k8s.LabelManagementPolicyObserveValue && s.accountMgr != nil {
-		s.accountMgr.importResult = &controller.AccountResult{
-			AccountID:       "A_TEST_ACCOUNT_ID",
-			AccountSignedBy: "A_TEST_SIGNING_KEY",
-			Claims:          &natsv1alpha1.AccountClaims{},
+	if value == k8s.LabelManagementPolicyObserveValue {
+		if err := s.ensureOperatorSigningSecret(); err != nil {
+			return err
 		}
+		accountID, accountJWT, err := s.prepareAccountForImport()
+		if err != nil {
+			return err
+		}
+		account.Labels[k8s.LabelAccountID] = accountID
+		s.natsClient.lookupJWT = accountJWT
 	}
 	return s.k8sClient.Update(context.Background(), account)
 }
@@ -458,8 +436,19 @@ func (s *accountControllerState) accountIsReadyForDeletion() error {
 	if err != nil {
 		return err
 	}
+	if err := s.ensureOperatorSigningSecret(); err != nil {
+		return err
+	}
 	if len(account.Finalizers) == 0 {
 		account.Finalizers = []string{"account.nauth.io/finalizer"}
+	}
+	if account.Labels == nil {
+		account.Labels = make(map[string]string)
+	}
+	if account.Labels[k8s.LabelAccountID] == "" {
+		accountKeyPair, _ := nkeys.CreateAccount()
+		accountID, _ := accountKeyPair.PublicKey()
+		account.Labels[k8s.LabelAccountID] = accountID
 	}
 	return s.k8sClient.Update(context.Background(), account)
 }
@@ -502,22 +491,173 @@ func (s *accountControllerState) accountResourceStillExists() error {
 }
 
 func (s *accountControllerState) noManagedResourcesDeleted() error {
-	if s.accountMgr == nil {
+	if s.secretClient == nil || s.natsClient == nil {
 		return errors.New("account manager not initialized")
 	}
-	if s.accountMgr.deleteCalls != 0 {
-		return fmt.Errorf("expected no deletes, got %d", s.accountMgr.deleteCalls)
+	if s.secretClient.deleteByLabelsCall != 0 || s.natsClient.deleteCalls != 0 {
+		return fmt.Errorf("expected no deletes, got secrets=%d nats=%d", s.secretClient.deleteByLabelsCall, s.natsClient.deleteCalls)
 	}
 	return nil
 }
 
 func (s *accountControllerState) accountDeletionExternalError() error {
-	if s.accountMgr == nil {
+	if s.secretClient == nil {
 		return errors.New("account manager not initialized")
 	}
 	s.deletionErrMsg = "unable to delete account"
-	s.accountMgr.deleteErr = errors.New(s.deletionErrMsg)
+	s.secretClient.deleteByLabelsErr = errors.New(s.deletionErrMsg)
 	return s.accountIsReadyForDeletion()
+}
+
+func (s *accountControllerState) ensureOperatorSigningSecret() error {
+	if s.operatorKey != nil {
+		return nil
+	}
+	operatorKeyPair, err := nkeys.CreateOperator()
+	if err != nil {
+		return err
+	}
+	operatorSeed, err := operatorKeyPair.Seed()
+	if err != nil {
+		return err
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "operator-signing-key",
+			Namespace: s.operatorNamespace,
+			Labels: map[string]string{
+				k8s.LabelSecretType: k8s.SecretTypeOperatorSign,
+			},
+		},
+		Data: map[string][]byte{
+			k8s.DefaultSecretKeyName: operatorSeed,
+		},
+	}
+	if err := ensureSecret(context.Background(), s.k8sClient, secret); err != nil {
+		return err
+	}
+	s.operatorKey = operatorKeyPair
+	return nil
+}
+
+func (s *accountControllerState) ensureSystemAccountCredsSecret() error {
+	labels := map[string]string{
+		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
+	}
+	existing, err := s.secretClient.GetByLabels(context.Background(), s.operatorNamespace, labels)
+	if err == nil && len(existing.Items) > 0 {
+		return nil
+	}
+
+	sysAccountKeyPair, err := nkeys.CreateAccount()
+	if err != nil {
+		return err
+	}
+	sysAccountPub, err := sysAccountKeyPair.PublicKey()
+	if err != nil {
+		return err
+	}
+	sysUserKeyPair, err := nkeys.CreateUser()
+	if err != nil {
+		return err
+	}
+	sysUserPub, err := sysUserKeyPair.PublicKey()
+	if err != nil {
+		return err
+	}
+	sysUserSeed, err := sysUserKeyPair.Seed()
+	if err != nil {
+		return err
+	}
+	sysUserClaims := jwt.NewUserClaims(sysUserPub)
+	sysUserClaims.IssuerAccount = sysAccountPub
+	sysUserJWT, err := sysUserClaims.Encode(sysAccountKeyPair)
+	if err != nil {
+		return err
+	}
+	sysUserCreds, err := jwt.FormatUserConfig(sysUserJWT, sysUserSeed)
+	if err != nil {
+		return err
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "system-account-creds",
+			Namespace: s.operatorNamespace,
+			Labels: map[string]string{
+				k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
+			},
+		},
+		Data: map[string][]byte{
+			k8s.DefaultSecretKeyName: sysUserCreds,
+		},
+	}
+	return ensureSecret(context.Background(), s.k8sClient, secret)
+}
+
+func (s *accountControllerState) prepareAccountForImport() (string, string, error) {
+	accountKeyPair, err := nkeys.CreateAccount()
+	if err != nil {
+		return "", "", err
+	}
+	accountID, err := accountKeyPair.PublicKey()
+	if err != nil {
+		return "", "", err
+	}
+	accountSeed, err := accountKeyPair.Seed()
+	if err != nil {
+		return "", "", err
+	}
+	signingKeyPair, err := nkeys.CreateAccount()
+	if err != nil {
+		return "", "", err
+	}
+	signingSeed, err := signingKeyPair.Seed()
+	if err != nil {
+		return "", "", err
+	}
+
+	rootSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-import-root", s.accountName),
+			Namespace: s.accountNamespace,
+			Labels: map[string]string{
+				k8s.LabelAccountID:  accountID,
+				k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
+			},
+		},
+		Data: map[string][]byte{
+			k8s.DefaultSecretKeyName: accountSeed,
+		},
+	}
+	if err := ensureSecret(context.Background(), s.k8sClient, rootSecret); err != nil {
+		return "", "", err
+	}
+	signSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-import-sign", s.accountName),
+			Namespace: s.accountNamespace,
+			Labels: map[string]string{
+				k8s.LabelAccountID:  accountID,
+				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
+			},
+		},
+		Data: map[string][]byte{
+			k8s.DefaultSecretKeyName: signingSeed,
+		},
+	}
+	if err := ensureSecret(context.Background(), s.k8sClient, signSecret); err != nil {
+		return "", "", err
+	}
+
+	claims := jwt.NewAccountClaims(accountID)
+	accountJWT, err := claims.Encode(s.operatorKey)
+	if err != nil {
+		return "", "", err
+	}
+	return accountID, accountJWT, nil
 }
 
 func (s *accountControllerState) accountHasAssociatedUsers() error {

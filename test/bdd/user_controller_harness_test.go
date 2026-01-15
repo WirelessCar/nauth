@@ -9,7 +9,10 @@ import (
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/user"
 	"github.com/cucumber/godog"
+	"github.com/nats-io/nkeys"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +29,9 @@ type userControllerState struct {
 	k8sClient     client.Client
 	recorder      *record.FakeRecorder
 	reconciler    *controller.UserReconciler
-	userMgr       *stubUserManager
+	userMgr       *user.Manager
+	secretClient  *testSecretClient
+	accountID     string
 	request       ctrl.Request
 	reconcileErr  error
 	reconcileResp ctrl.Result
@@ -35,21 +40,6 @@ type userControllerState struct {
 	userNamespace string
 	deletionErr   error
 	lastUser      *natsv1alpha1.User
-}
-
-type stubUserManager struct {
-	createErr   error
-	deleteErr   error
-	deleteCalls int
-}
-
-func (s *stubUserManager) CreateOrUpdate(ctx context.Context, state *natsv1alpha1.User) error {
-	return s.createErr
-}
-
-func (s *stubUserManager) Delete(ctx context.Context, desired *natsv1alpha1.User) error {
-	s.deleteCalls++
-	return s.deleteErr
 }
 
 func RegisterUserControllerSteps(sc *godog.ScenarioContext, state *userControllerState) {
@@ -87,7 +77,9 @@ func (s *userControllerState) initHarness() error {
 		WithStatusSubresource(&natsv1alpha1.User{}).
 		Build()
 	s.recorder = record.NewFakeRecorder(10)
-	s.userMgr = &stubUserManager{}
+	s.secretClient = newTestSecretClient(secret.NewClient(s.k8sClient, secret.WithControllerNamespace("nauth-account-system")))
+	accountGetter := &accountGetterWithNotFound{delegate: k8s.NewAccountClient(s.k8sClient)}
+	s.userMgr = user.NewManager(accountGetter, s.secretClient)
 	s.reconciler = controller.NewUserReconciler(s.k8sClient, s.scheme, s.userMgr, s.recorder)
 	s.syncRequest()
 
@@ -183,7 +175,9 @@ func (s *userControllerState) userSpecIsValid() error {
 			return err
 		}
 	}
-	s.userMgr.createErr = nil
+	if err := s.ensureAccountWithSigningSecret(); err != nil {
+		return err
+	}
 	return s.ensureUser()
 }
 
@@ -193,7 +187,6 @@ func (s *userControllerState) userReferencesMissingAccount() error {
 			return err
 		}
 	}
-	s.userMgr.createErr = k8s.ErrNoAccountFound
 	return s.ensureUser()
 }
 
@@ -262,6 +255,9 @@ func (s *userControllerState) expectSameError() error {
 }
 
 func (s *userControllerState) userIsReadyForDeletion() error {
+	if err := s.ensureAccountWithSigningSecret(); err != nil {
+		return err
+	}
 	if err := s.runReconcile(); err != nil {
 		return err
 	}
@@ -318,7 +314,7 @@ func (s *userControllerState) expectNoError() error {
 
 func (s *userControllerState) userDeletionExternalError() error {
 	s.deletionErr = errors.New("unable to remove the user")
-	s.userMgr.deleteErr = s.deletionErr
+	s.secretClient.deleteErr = s.deletionErr
 	return s.userIsReadyForDeletion()
 }
 
@@ -395,4 +391,56 @@ func (s *userControllerState) userIncludesFinalizer(finalizer string) error {
 		}
 	}
 	return fmt.Errorf("expected finalizer %q to be present", finalizer)
+}
+
+func (s *userControllerState) ensureAccountWithSigningSecret() error {
+	if s.accountID == "" {
+		accountKeyPair, err := nkeys.CreateAccount()
+		if err != nil {
+			return err
+		}
+		accountID, err := accountKeyPair.PublicKey()
+		if err != nil {
+			return err
+		}
+		s.accountID = accountID
+	}
+
+	account := &natsv1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "account-1",
+			Namespace: s.userNamespace,
+			Labels: map[string]string{
+				k8s.LabelAccountID: s.accountID,
+			},
+		},
+	}
+	if err := s.k8sClient.Create(context.Background(), account); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	signingKeyPair, err := nkeys.CreateAccount()
+	if err != nil {
+		return err
+	}
+	signingSeed, err := signingKeyPair.Seed()
+	if err != nil {
+		return err
+	}
+
+	signSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "account-1-signing",
+			Namespace: s.userNamespace,
+			Labels: map[string]string{
+				k8s.LabelAccountID:  s.accountID,
+				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
+			},
+		},
+		Data: map[string][]byte{
+			k8s.DefaultSecretKeyName: signingSeed,
+		},
+	}
+	return ensureSecret(context.Background(), s.k8sClient, signSecret)
 }

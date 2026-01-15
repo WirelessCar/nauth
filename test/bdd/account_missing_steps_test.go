@@ -6,8 +6,12 @@ import (
 	"fmt"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/account"
 	"github.com/WirelessCar/nauth/internal/controller"
+	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/secret"
 	"github.com/cucumber/godog"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -21,26 +25,11 @@ type accountMissingState struct {
 	k8sClient    client.Client
 	recorder     *record.FakeRecorder
 	reconciler   *controller.AccountReconciler
+	accountMgr   *account.Manager
+	secretClient *testSecretClient
+	natsClient   *fakeNatsClient
 	request      ctrl.Request
 	reconcileErr error
-}
-
-type noopAccountManager struct{}
-
-func (n *noopAccountManager) Create(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	return nil, errors.New("unexpected Create call")
-}
-
-func (n *noopAccountManager) Update(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	return nil, errors.New("unexpected Update call")
-}
-
-func (n *noopAccountManager) Import(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	return nil, errors.New("unexpected Import call")
-}
-
-func (n *noopAccountManager) Delete(ctx context.Context, desired *natsv1alpha1.Account) error {
-	return errors.New("unexpected Delete call")
 }
 
 func RegisterAccountMissingSteps(sc *godog.ScenarioContext) {
@@ -62,11 +51,18 @@ func (s *accountMissingState) noAccountExists() error {
 	if err := natsv1alpha1.AddToScheme(scheme); err != nil {
 		return err
 	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return err
+	}
 
 	s.scheme = scheme
 	s.k8sClient = fake.NewClientBuilder().WithScheme(scheme).Build()
 	s.recorder = record.NewFakeRecorder(5)
-	s.reconciler = controller.NewAccountReconciler(s.k8sClient, scheme, &noopAccountManager{}, s.recorder)
+	s.natsClient = &fakeNatsClient{}
+	s.secretClient = newTestSecretClient(secret.NewClient(s.k8sClient, secret.WithControllerNamespace("nauth-account-system")))
+	accountGetter := k8s.NewAccountClient(s.k8sClient)
+	s.accountMgr = account.NewManager(accountGetter, s.natsClient, s.secretClient, account.WithNamespace("nauth-account-system"))
+	s.reconciler = controller.NewAccountReconciler(s.k8sClient, scheme, s.accountMgr, s.recorder)
 	s.request = ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "missing-account",
