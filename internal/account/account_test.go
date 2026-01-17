@@ -49,8 +49,13 @@ var _ = Describe("Account manager", func() {
 
 		It("creates a new account with primary key", func() {
 			By("providing an account specification")
-
 			account := GetNewAccount()
+
+			By("mocking secret lookup by account name")
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{
+				k8s.LabelAccountName: accountName,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
+			}).Return(&corev1.SecretList{}, nil).Maybe()
 
 			By("mocking the secret storer")
 			operatorKeyPair, _ := nkeys.CreateOperator()
@@ -87,9 +92,111 @@ var _ = Describe("Account manager", func() {
 			Expect(result.Claims).ToNot(BeNil())
 		})
 
+		It("reuses existing secrets if NATS upload failed in a previous attempt", func() {
+			By("providing an account specification")
+			account := GetNewAccount()
+
+			By("mocking the secret storer for operator keys")
+			operatorKeyPair, _ := nkeys.CreateOperator()
+			operatorSeed, _ := operatorKeyPair.Seed()
+			operatorSignLabelsMock := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
+			operatorSignSecretMock := &corev1.SecretList{
+				Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: operatorSeed}}},
+			}
+			secretStorerMock.On("GetByLabels", ctx, nauthNamespace, operatorSignLabelsMock).Return(operatorSignSecretMock, nil).Twice()
+
+			By("mocking the NATS client to fail on first attempt and succeed on second")
+			natsClientMock.On("EnsureConnected", nauthNamespace).Return(nil).Twice()
+			natsClientMock.On("Disconnect").Return().Twice()
+			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(fmt.Errorf("NATS error")).Once()
+			natsClientMock.On("UploadAccountJWT", mock.Anything).Return(nil).Once()
+
+			var capturedAccountID string
+			var capturedAccountSeed []byte
+			var capturedAccountSignSeed []byte
+
+			// Expect Apply to be called twice for each secret type (total 4 calls)
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				return s.GetLabels()[k8s.LabelSecretType] == k8s.SecretTypeAccountRoot
+			}), mock.Anything).Run(func(args mock.Arguments) {
+				meta := args.Get(2).(v1.ObjectMeta)
+				id := meta.GetLabels()[k8s.LabelAccountID]
+				if capturedAccountID == "" {
+					capturedAccountID = id
+				}
+				valMap := args.Get(3).(map[string]string)
+				capturedAccountSeed = []byte(valMap[k8s.DefaultSecretKeyName])
+			}).Return(nil).Twice()
+
+			secretStorerMock.On("Apply", ctx, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
+				return s.GetLabels()[k8s.LabelSecretType] == k8s.SecretTypeAccountSign
+			}), mock.Anything).Run(func(args mock.Arguments) {
+				valMap := args.Get(3).(map[string]string)
+				capturedAccountSignSeed = []byte(valMap[k8s.DefaultSecretKeyName])
+			}).Return(nil).Twice()
+
+			// Mock GetByLabels for account lookup
+			// First call returns empty. We use mock.MatchedBy to ensure it overrides the BeforeEach mock if needed.
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, mock.MatchedBy(func(l map[string]string) bool {
+				return l[k8s.LabelAccountName] == accountName && l[k8s.LabelManaged] == k8s.LabelManagedValue
+			})).Return(&corev1.SecretList{}, nil).Once()
+
+			By("executing the first attempt")
+			_, err := accountManager.Create(ctx, account)
+			Expect(err).To(HaveOccurred())
+			Expect(capturedAccountID).ToNot(BeEmpty())
+
+			// Mock GetByLabels for second call to return the captured secrets
+			By("mocking secret lookup for the second attempt")
+			existingSecrets := &corev1.SecretList{
+				Items: []corev1.Secret{
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "root",
+							Namespace: accountNamespace,
+							Labels: map[string]string{
+								k8s.LabelAccountID:   capturedAccountID,
+								k8s.LabelAccountName: accountName,
+								k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
+								k8s.LabelManaged:     k8s.LabelManagedValue,
+							},
+						},
+						Data: map[string][]byte{k8s.DefaultSecretKeyName: capturedAccountSeed},
+					},
+					{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      "sign",
+							Namespace: accountNamespace,
+							Labels: map[string]string{
+								k8s.LabelAccountID:   capturedAccountID,
+								k8s.LabelAccountName: accountName,
+								k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+								k8s.LabelManaged:     k8s.LabelManagedValue,
+							},
+						},
+						Data: map[string][]byte{k8s.DefaultSecretKeyName: capturedAccountSignSeed},
+					},
+				},
+			}
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, mock.MatchedBy(func(l map[string]string) bool {
+				return l[k8s.LabelAccountName] == accountName && l[k8s.LabelManaged] == k8s.LabelManagedValue
+			})).Return(existingSecrets, nil).Once()
+
+			By("executing the second attempt")
+			result, err := accountManager.Create(ctx, account)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result.AccountID).To(Equal(capturedAccountID))
+		})
+
 		It("fails to create an account with conflicting imports", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
+
+			By("mocking secret lookup by account name")
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{
+				k8s.LabelAccountName: accountName,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
+			}).Return(&corev1.SecretList{}, nil).Maybe()
 
 			By("mocking the secret storer")
 			operatorKeyPair, _ := nkeys.CreateOperator()
@@ -300,6 +407,13 @@ var _ = Describe("Account manager", func() {
 		It("creates a new account and update it", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
+
+			By("mocking secret lookup by account name")
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{
+				k8s.LabelAccountName: accountName,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
+			}).Return(&corev1.SecretList{}, nil).Maybe()
+
 			var accountID string
 
 			By("mocking the secret storer")
@@ -437,9 +551,10 @@ var _ = Describe("Account manager", func() {
 			accountSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				k8s.LabelAccountID:  accountPublicKey,
-				k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
-				k8s.LabelManaged:    k8s.LabelManagedValue,
+				k8s.LabelAccountID:   accountPublicKey,
+				k8s.LabelAccountName: account.GetName(),
+				k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
@@ -449,9 +564,10 @@ var _ = Describe("Account manager", func() {
 			accountSigningSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				k8s.LabelAccountID:  accountPublicKey,
-				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
-				k8s.LabelManaged:    k8s.LabelManagedValue,
+				k8s.LabelAccountID:   accountPublicKey,
+				k8s.LabelAccountName: account.GetName(),
+				k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 
@@ -481,6 +597,13 @@ var _ = Describe("Account manager", func() {
 		It("delete an account", func() {
 			By("providing an account specification")
 			account := GetNewAccount()
+
+			By("mocking secret lookup by account name")
+			secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{
+				k8s.LabelAccountName: accountName,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
+			}).Return(&corev1.SecretList{}, nil).Maybe()
+
 			var accountID string
 
 			By("mocking the secret storer")

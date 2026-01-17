@@ -110,15 +110,38 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed: %w", err)
 	}
 
-	accountKeyPair, _ := nkeys.CreateAccount()
-	accountPublicKey, _ := accountKeyPair.PublicKey()
+	var accountPublicKey string
+	var accountSigningPublicKey string
+	var accountKeyPair nkeys.KeyPair
+	var accountSigningKeyPair nkeys.KeyPair
+
+	secrets, err := a.getAccountSecretsByName(ctx, state.GetNamespace(), state.GetName())
+	if err == nil {
+		accountSecret := secrets[k8s.SecretTypeAccountRoot]
+		accountSeed := accountSecret[k8s.DefaultSecretKeyName]
+		accountKeyPair, _ = nkeys.FromSeed([]byte(accountSeed))
+		accountPublicKey, _ = accountKeyPair.PublicKey()
+
+		accountSigningSecret := secrets[k8s.SecretTypeAccountSign]
+		accountSigningSeed := accountSigningSecret[k8s.DefaultSecretKeyName]
+		accountSigningKeyPair, _ = nkeys.FromSeed([]byte(accountSigningSeed))
+		accountSigningPublicKey, _ = accountSigningKeyPair.PublicKey()
+	} else {
+		accountKeyPair, _ = nkeys.CreateAccount()
+		accountPublicKey, _ = accountKeyPair.PublicKey()
+
+		accountSigningKeyPair, _ = nkeys.CreateAccount()
+		accountSigningPublicKey, _ = accountSigningKeyPair.PublicKey()
+	}
+
 	accountSecretMeta := metav1.ObjectMeta{
 		Name:      getAccountRootSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			k8s.LabelAccountID:  accountPublicKey,
-			k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
-			k8s.LabelManaged:    k8s.LabelManagedValue,
+			k8s.LabelAccountID:   accountPublicKey,
+			k8s.LabelAccountName: state.GetName(),
+			k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
+			k8s.LabelManaged:     k8s.LabelManagedValue,
 		},
 	}
 	accountSeed, _ := accountKeyPair.Seed()
@@ -128,15 +151,14 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, err
 	}
 
-	accountSigningKeyPair, _ := nkeys.CreateAccount()
-	accountSigningPublicKey, _ := accountSigningKeyPair.PublicKey()
 	accountSigningSecretMeta := metav1.ObjectMeta{
 		Name:      getAccountSignSecretName(state.GetName(), accountPublicKey),
 		Namespace: state.GetNamespace(),
 		Labels: map[string]string{
-			k8s.LabelAccountID:  accountPublicKey,
-			k8s.LabelSecretType: k8s.SecretTypeAccountSign,
-			k8s.LabelManaged:    k8s.LabelManagedValue,
+			k8s.LabelAccountID:   accountPublicKey,
+			k8s.LabelAccountName: state.GetName(),
+			k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+			k8s.LabelManaged:     k8s.LabelManagedValue,
 		},
 	}
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
@@ -404,6 +426,10 @@ func (a *Manager) getAccountSecrets(ctx context.Context, namespace, accountID, a
 		return secrets, nil
 	}
 
+	if secrets, err := a.getAccountSecretsByName(ctx, namespace, accountName); err == nil {
+		return secrets, nil
+	}
+
 	secrets, err := a.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
 	if err != nil {
 		return nil, err
@@ -422,6 +448,23 @@ func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, a
 		return nil, err
 	}
 
+	return a.getAccountSecretsFromK8sSecrets(namespace, accountName, k8sSecrets)
+}
+
+func (a *Manager) getAccountSecretsByName(ctx context.Context, namespace, accountName string) (map[string]map[string]string, error) {
+	labels := map[string]string{
+		k8s.LabelAccountName: accountName,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
+	}
+	k8sSecrets, err := a.secretClient.GetByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.getAccountSecretsFromK8sSecrets(namespace, accountName, k8sSecrets)
+}
+
+func (a *Manager) getAccountSecretsFromK8sSecrets(namespace, accountName string, k8sSecrets *v1.SecretList) (map[string]map[string]string, error) {
 	if len(k8sSecrets.Items) < 2 {
 		return nil, fmt.Errorf("missing one or more secret(s) for account: %s-%s", namespace, accountName)
 	}
@@ -488,9 +531,10 @@ func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespa
 			}
 
 			labels := map[string]string{
-				k8s.LabelAccountID:  accountID,
-				k8s.LabelSecretType: secretType,
-				k8s.LabelManaged:    k8s.LabelManagedValue,
+				k8s.LabelAccountID:   accountID,
+				k8s.LabelAccountName: accountName,
+				k8s.LabelSecretType:  secretType,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
 			}
 			if err := a.secretClient.Label(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)

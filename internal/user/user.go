@@ -120,12 +120,43 @@ func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accou
 		return keyPair, nil
 	}
 
+	if keyPair, err := u.getAccountSigningKeyPairByName(ctx, namespace, accountName); err == nil {
+		return keyPair, nil
+	}
+
 	keyPair, err := u.getDeprecatedAccountSigningKeyPair(ctx, namespace, accountName, accountID)
 	if err != nil {
 		return nil, err
 	}
 
 	return keyPair, nil
+}
+
+func (u *Manager) getAccountSigningKeyPairByName(ctx context.Context, namespace, accountName string) (nkeys.KeyPair, error) {
+	labels := map[string]string{
+		k8s.LabelAccountName: accountName,
+		k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
+	}
+	secrets, err := u.secretClient.GetByLabels(ctx, namespace, labels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signing secret for account name: %s-%s due to %w", namespace, accountName, err)
+	}
+
+	if len(secrets.Items) < 1 {
+		return nil, fmt.Errorf("no signing secret found for account name: %s-%s", namespace, accountName)
+	}
+
+	if len(secrets.Items) > 1 {
+		return nil, fmt.Errorf("more than 1 signing secret found for account name: %s-%s", namespace, accountName)
+	}
+
+	seed, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
+	if !ok {
+		return nil, fmt.Errorf("secret for account signing seed was malformed")
+	}
+
+	return nkeys.FromSeed(seed)
 }
 
 func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
