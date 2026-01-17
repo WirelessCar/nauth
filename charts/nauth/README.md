@@ -8,6 +8,7 @@
 | crds.install | bool | `true` | Indicates if Custom Resource Definitions should be installed and upgraded as part of the release. |
 | crds.keep | bool | `true` | Indicates if Custom Resource Definitions should be kept when a release is uninstalled. |
 | fullnameOverride | string | `""` | Override the chart fullName (Release.name + Chart.name) |
+| global.labels | object | `{}` | Custom labels to apply to all resources. |
 | image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |
 | image.registry | string | `"ghcr.io/wirelesscar"` | Sets the operator image registry |
 | image.repository | string | `"nauth-operator"` | Sets the operator repository |
@@ -29,7 +30,7 @@
 | readinessProbe.periodSeconds | int | `10` |  |
 | replicaCount | int | `1` | Sets the replicaset count |
 | resources | object | `{}` | Setting resources is up to the user. Follows PodSpec. |
-| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"runAsGroup":65532,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` | SecurityContext of the container |
+| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":65532,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` | SecurityContext of the container |
 | serviceAccount.annotations | object | `{}` | Annotations to add to the service account |
 | serviceAccount.automount | bool | `true` | Automatically mount a ServiceAccount's API credentials? |
 | serviceAccount.create | bool | `true` | Specifies whether a service account should be created |
