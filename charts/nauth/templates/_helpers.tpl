@@ -54,7 +54,7 @@ helm.sh/chart: {{ include "nauth.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{ with (dig "global" "labels" dict (.Values | merge (dict))) }}
+{{ with ((.Values.global).labels) }}
 {{- toYaml . }}
 {{- end }}
 {{- end }}
