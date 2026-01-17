@@ -478,6 +478,7 @@ var _ = Describe("Account manager", func() {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Labels: map[string]string{
+								k8s.LabelAccountID:  accountID,
 								k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
 							},
 						},
@@ -488,6 +489,7 @@ var _ = Describe("Account manager", func() {
 					{
 						ObjectMeta: v1.ObjectMeta{
 							Labels: map[string]string{
+								k8s.LabelAccountID:  accountID,
 								k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 							},
 						},
@@ -551,10 +553,9 @@ var _ = Describe("Account manager", func() {
 			accountSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, account.GetName())
 			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSecretNameMock).Return(accountSecretValueMock, nil)
 			accountSecretLabelsMock := map[string]string{
-				k8s.LabelAccountID:   accountPublicKey,
-				k8s.LabelAccountName: account.GetName(),
-				k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
-				k8s.LabelManaged:     k8s.LabelManagedValue,
+				k8s.LabelAccountID:  accountPublicKey,
+				k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSecretNameMock, accountSecretLabelsMock).Return(nil)
 
@@ -564,10 +565,9 @@ var _ = Describe("Account manager", func() {
 			accountSigningSecretNameMock := fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, account.GetName())
 			secretStorerMock.On("Get", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock).Return(accountSigningSecretValueMock, nil)
 			accountSigningSecretLabelsMock := map[string]string{
-				k8s.LabelAccountID:   accountPublicKey,
-				k8s.LabelAccountName: account.GetName(),
-				k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
-				k8s.LabelManaged:     k8s.LabelManagedValue,
+				k8s.LabelAccountID:  accountPublicKey,
+				k8s.LabelSecretType: k8s.SecretTypeAccountSign,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			secretStorerMock.On("Label", mock.Anything, account.GetNamespace(), accountSigningSecretNameMock, accountSigningSecretLabelsMock).Return(nil)
 
@@ -633,8 +633,8 @@ var _ = Describe("Account manager", func() {
 				return s.GetNamespace() == accountNamespace && isAccountPubKey(accountID) && secretType == k8s.SecretTypeAccountSign
 			}), mock.Anything).Return(nil)
 			secretStorerMock.On("DeleteByLabels", ctx, mock.Anything, mock.MatchedBy(func(s map[string]string) bool {
-				return s[k8s.LabelAccountID] == accountID
-			}), mock.Anything).Return(nil)
+				return s[k8s.LabelAccountName] == accountName || s[k8s.LabelAccountID] == accountID
+			})).Return(nil)
 
 			By("creating a new account")
 			result, err := accountManager.Create(ctx, account)
@@ -696,8 +696,8 @@ var _ = Describe("Account manager", func() {
 				opSignSecrets := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{k8s.DefaultSecretKeyName: opSeed}}}}
 				secretStorerMock.On("GetByLabels", ctx, nauthNamespace, opSignLabels).Return(opSignSecrets, nil)
 				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
+					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot, k8s.LabelAccountID: accRootPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
+					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign, k8s.LabelAccountID: accRootPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 				}}
 				secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
 
@@ -760,8 +760,8 @@ var _ = Describe("Account manager", func() {
 				accSignKP, _ := nkeys.CreateAccount()
 				accSignSeed, _ := accSignKP.Seed()
 				accSecrets := &corev1.SecretList{Items: []corev1.Secret{
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other"}}},
-					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
+					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other", k8s.LabelAccountID: accPub}}},
+					{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign, k8s.LabelAccountID: accPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 				}}
 				secretStorerMock.On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).Return(accSecrets, nil)
 
@@ -789,8 +789,8 @@ var _ = Describe("Account manager", func() {
 					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
 						// return two secrets but none of them sign
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other"}}},
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: "other", k8s.LabelAccountID: accRootPub}}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot, k8s.LabelAccountID: accRootPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
 					}}, nil)
 
 				_, err := accountManager.Import(ctx, account)
@@ -820,8 +820,8 @@ var _ = Describe("Account manager", func() {
 				secretStorerMock.
 					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: otherAccRootSeed}},
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot, k8s.LabelAccountID: "WRONG"}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: otherAccRootSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign, k8s.LabelAccountID: "WRONG"}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 					}}, nil)
 
 				_, err := accountManager.Import(ctx, account)
@@ -851,8 +851,8 @@ var _ = Describe("Account manager", func() {
 				secretStorerMock.
 					On("GetByLabels", ctx, accountNamespace, map[string]string{k8s.LabelAccountID: accRootPub, k8s.LabelManaged: k8s.LabelManagedValue}).
 					Return(&corev1.SecretList{Items: []corev1.Secret{
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
-						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountRoot, k8s.LabelAccountID: accRootPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accRootSeed}},
+						{ObjectMeta: v1.ObjectMeta{Labels: map[string]string{k8s.LabelSecretType: k8s.SecretTypeAccountSign, k8s.LabelAccountID: accRootPub}}, Data: map[string][]byte{k8s.DefaultSecretKeyName: accSignSeed}},
 					}}, nil)
 
 				By("mocking the NATS client")

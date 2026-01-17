@@ -115,23 +115,47 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	var accountKeyPair nkeys.KeyPair
 	var accountSigningKeyPair nkeys.KeyPair
 
-	secrets, err := a.getAccountSecretsByName(ctx, state.GetNamespace(), state.GetName())
+	secrets, err := a.getAccountSecretsByAccountName(ctx, state.GetNamespace(), state.GetName())
 	if err == nil {
 		accountSecret := secrets[k8s.SecretTypeAccountRoot]
 		accountSeed := accountSecret[k8s.DefaultSecretKeyName]
-		accountKeyPair, _ = nkeys.FromSeed([]byte(accountSeed))
-		accountPublicKey, _ = accountKeyPair.PublicKey()
+		accountKeyPair, err = nkeys.FromSeed([]byte(accountSeed))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account key pair from seed: %w", err)
+		}
+		accountPublicKey, err = accountKeyPair.PublicKey()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account public key: %w", err)
+		}
 
 		accountSigningSecret := secrets[k8s.SecretTypeAccountSign]
 		accountSigningSeed := accountSigningSecret[k8s.DefaultSecretKeyName]
-		accountSigningKeyPair, _ = nkeys.FromSeed([]byte(accountSigningSeed))
-		accountSigningPublicKey, _ = accountSigningKeyPair.PublicKey()
+		accountSigningKeyPair, err = nkeys.FromSeed([]byte(accountSigningSeed))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account signing key pair from seed: %w", err)
+		}
+		accountSigningPublicKey, err = accountSigningKeyPair.PublicKey()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account signing public key: %w", err)
+		}
 	} else {
-		accountKeyPair, _ = nkeys.CreateAccount()
-		accountPublicKey, _ = accountKeyPair.PublicKey()
+		accountKeyPair, err = nkeys.CreateAccount()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create account key pair: %w", err)
+		}
+		accountPublicKey, err = accountKeyPair.PublicKey()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account public key: %w", err)
+		}
 
-		accountSigningKeyPair, _ = nkeys.CreateAccount()
-		accountSigningPublicKey, _ = accountSigningKeyPair.PublicKey()
+		accountSigningKeyPair, err = nkeys.CreateAccount()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create account signing key pair: %w", err)
+		}
+		accountSigningPublicKey, err = accountSigningKeyPair.PublicKey()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account signing public key: %w", err)
+		}
 	}
 
 	accountSecretMeta := metav1.ObjectMeta{
@@ -144,7 +168,10 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 			k8s.LabelManaged:     k8s.LabelManagedValue,
 		},
 	}
-	accountSeed, _ := accountKeyPair.Seed()
+	accountSeed, err := accountKeyPair.Seed()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account seed: %w", err)
+	}
 	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 
 	if err := a.secretClient.Apply(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
@@ -161,14 +188,20 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 			k8s.LabelManaged:     k8s.LabelManagedValue,
 		},
 	}
-	accountSigningSeed, _ := accountSigningKeyPair.Seed()
+	accountSigningSeed, err := accountSigningKeyPair.Seed()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account signing seed: %w", err)
+	}
 	accountSignSeedSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 
 	if err := a.secretClient.Apply(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
 		return nil, err
 	}
 
-	operatorSigningPublicKey, _ := operatorSigningKeyPair.PublicKey()
+	operatorSigningPublicKey, err := operatorSigningKeyPair.PublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
+	}
 
 	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accounts).
 		signingKey(accountSigningPublicKey).
@@ -390,7 +423,8 @@ func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error
 	}
 
 	labels := map[string]string{
-		k8s.LabelAccountID: accountID,
+		k8s.LabelAccountID:   accountID,
+		k8s.LabelAccountName: state.GetName(),
 	}
 
 	return a.secretClient.DeleteByLabels(ctx, state.GetNamespace(), labels)
@@ -422,23 +456,28 @@ func (a *Manager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair,
 }
 
 func (a *Manager) getAccountSecrets(ctx context.Context, namespace, accountID, accountName string) (map[string]map[string]string, error) {
-	if secrets, err := a.getAccountSecretsByAccountID(ctx, namespace, accountName, accountID); err == nil {
-		return secrets, nil
+	secretsByAccountID, errByAccountID := a.getAccountSecretsByAccountID(ctx, namespace, accountID)
+	if errByAccountID == nil {
+		return secretsByAccountID, nil
 	}
+	err := fmt.Errorf("failed to get account secrets by id = %s: %w", accountID, errByAccountID)
 
-	if secrets, err := a.getAccountSecretsByName(ctx, namespace, accountName); err == nil {
-		return secrets, nil
+	secretsByAccountName, errByAccountName := a.getAccountSecretsByAccountName(ctx, namespace, accountName)
+	if errByAccountName == nil {
+		return secretsByAccountName, nil
 	}
+	err = errors.Join(err, fmt.Errorf("failed to get account secrets by account name = %s: %w", accountName, errByAccountName))
 
-	secrets, err := a.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
-	if err != nil {
-		return nil, err
+	secretsBySecretName, errBySecretName := a.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
+	if errBySecretName == nil {
+		return secretsBySecretName, nil
 	}
+	err = errors.Join(err, fmt.Errorf("failed to get account secrets by secret name (deprecated) for account name = %s: %w", accountName, errBySecretName))
 
-	return secrets, nil
+	return nil, err
 }
 
-func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountName, accountID string) (map[string]map[string]string, error) {
+func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, accountID string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID: accountID,
 		k8s.LabelManaged:   k8s.LabelManagedValue,
@@ -448,10 +487,10 @@ func (a *Manager) getAccountSecretsByAccountID(ctx context.Context, namespace, a
 		return nil, err
 	}
 
-	return a.getAccountSecretsFromK8sSecrets(namespace, accountName, k8sSecrets)
+	return a.getAccountSecretsFromK8sSecrets(k8sSecrets)
 }
 
-func (a *Manager) getAccountSecretsByName(ctx context.Context, namespace, accountName string) (map[string]map[string]string, error) {
+func (a *Manager) getAccountSecretsByAccountName(ctx context.Context, namespace, accountName string) (map[string]map[string]string, error) {
 	labels := map[string]string{
 		k8s.LabelAccountName: accountName,
 		k8s.LabelManaged:     k8s.LabelManagedValue,
@@ -461,30 +500,28 @@ func (a *Manager) getAccountSecretsByName(ctx context.Context, namespace, accoun
 		return nil, err
 	}
 
-	return a.getAccountSecretsFromK8sSecrets(namespace, accountName, k8sSecrets)
+	return a.getAccountSecretsFromK8sSecrets(k8sSecrets)
 }
 
-func (a *Manager) getAccountSecretsFromK8sSecrets(namespace, accountName string, k8sSecrets *v1.SecretList) (map[string]map[string]string, error) {
-	if len(k8sSecrets.Items) < 2 {
-		return nil, fmt.Errorf("missing one or more secret(s) for account: %s-%s", namespace, accountName)
-	}
-
-	if len(k8sSecrets.Items) > 2 {
-		return nil, fmt.Errorf("more than 2 secrets found for account: %s-%s", namespace, accountName)
+func (a *Manager) getAccountSecretsFromK8sSecrets(k8sSecrets *v1.SecretList) (map[string]map[string]string, error) {
+	if len(k8sSecrets.Items) != 2 {
+		return nil, fmt.Errorf("expected 2 secrets, got %d", len(k8sSecrets.Items))
 	}
 
 	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
 	for _, secret := range k8sSecrets.Items {
 		secretType := secret.GetLabels()[k8s.LabelSecretType]
 		if _, ok := secrets[secretType]; ok {
-			return nil, fmt.Errorf("multiple secrets of type (%s) found for account: %s-%s", secretType, namespace, accountName)
+			return nil, fmt.Errorf("multiple secrets of type '%s' found", secretType)
 		}
+
 		secretData := make(map[string]string, len(secret.Data))
 		for k, v := range secret.Data {
 			secretData[k] = string(v)
 		}
 		secrets[secretType] = secretData
 	}
+
 	return secrets, nil
 }
 
@@ -531,10 +568,9 @@ func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespa
 			}
 
 			labels := map[string]string{
-				k8s.LabelAccountID:   accountID,
-				k8s.LabelAccountName: accountName,
-				k8s.LabelSecretType:  secretType,
-				k8s.LabelManaged:     k8s.LabelManagedValue,
+				k8s.LabelAccountID:  accountID,
+				k8s.LabelSecretType: secretType,
+				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
 			if err := a.secretClient.Label(ctx, namespace, secretName, labels); err != nil {
 				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)

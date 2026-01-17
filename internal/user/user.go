@@ -120,7 +120,7 @@ func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accou
 		return keyPair, nil
 	}
 
-	if keyPair, err := u.getAccountSigningKeyPairByName(ctx, namespace, accountName); err == nil {
+	if keyPair, err := u.getAccountSigningKeyPairByAccountName(ctx, namespace, accountName); err == nil {
 		return keyPair, nil
 	}
 
@@ -132,7 +132,7 @@ func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accou
 	return keyPair, nil
 }
 
-func (u *Manager) getAccountSigningKeyPairByName(ctx context.Context, namespace, accountName string) (nkeys.KeyPair, error) {
+func (u *Manager) getAccountSigningKeyPairByAccountName(ctx context.Context, namespace, accountName string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelAccountName: accountName,
 		k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
@@ -143,12 +143,8 @@ func (u *Manager) getAccountSigningKeyPairByName(ctx context.Context, namespace,
 		return nil, fmt.Errorf("failed to get signing secret for account name: %s-%s due to %w", namespace, accountName, err)
 	}
 
-	if len(secrets.Items) < 1 {
-		return nil, fmt.Errorf("no signing secret found for account name: %s-%s", namespace, accountName)
-	}
-
-	if len(secrets.Items) > 1 {
-		return nil, fmt.Errorf("more than 1 signing secret found for account name: %s-%s", namespace, accountName)
+	if len(secrets.Items) != 2 {
+		return nil, fmt.Errorf("expected 2 secrets, got %d for account name: %s-%s", len(secrets.Items), namespace, accountName)
 	}
 
 	seed, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
