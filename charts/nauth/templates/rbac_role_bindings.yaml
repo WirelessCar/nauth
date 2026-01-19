@@ -1,9 +1,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}RoleBinding
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-manager
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -20,9 +20,9 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}RoleBinding
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-manager-secret
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -39,9 +39,9 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-leader-election
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   namespace: {{ include "nauth.namespaceName" . }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io

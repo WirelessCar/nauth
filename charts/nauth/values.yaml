@@ -2,6 +2,12 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+global:
+  # -- Custom labels to apply to all resources.
+  labels: {}
+  # custom.label.environment: dev
+  # custom.label.team: team-potato
+
 # -- Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace.
 nats:
   url: nats://nats.nats.svc.cluster.local:4222

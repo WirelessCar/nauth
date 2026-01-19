@@ -7,6 +7,7 @@ metadata:
   labels:
     service: nauth-metrics-service
     release: prometheus
+    {{- include "nauth.labels" . | nindent 4 }}
 spec:
   groups:
     - name: account.controller.rules
