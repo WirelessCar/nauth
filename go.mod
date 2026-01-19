@@ -1,8 +1,8 @@
 module github.com/WirelessCar/nauth
 
-go 1.25.0
+go 1.25.5
 
-godebug default=go1.24
+godebug default=go1.25
 
 require (
 	github.com/approvals/go-approval-tests v1.6.2
