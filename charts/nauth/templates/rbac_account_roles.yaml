@@ -2,9 +2,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-account-admin
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -26,9 +26,9 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-account-editor
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}
@@ -56,9 +56,9 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: {{ if not .Values.namespaced }}Cluster{{ end }}Role
 metadata:
-  labels:
-    app.kubernetes.io/name: {{ include "nauth.name" . }}
   name: {{ include "nauth.fullname" . }}-account-viewer
+  labels:
+    {{- include "nauth.labels" . | nindent 4 }}
   {{- if .Values.namespaced }}
   namespace: {{ include "nauth.namespaceName" . }}
   {{- end }}

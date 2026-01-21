@@ -1,0 +1,30 @@
+suite: .Values.global.labels on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: doesn't fail with no globals
+    set:
+      global: ~
+    asserts:
+      - isNotEmpty:
+          path: metadata.labels
+  - it: doesn't fail with globals without labels
+    set:
+      global:
+        something: else
+    asserts:
+      - isNotEmpty:
+          path: metadata.labels
+  - it: propagates global.labels
+    set:
+      global:
+        labels:
+          custom.label.environment: dev
+          custom.label.team: team-potato
+    asserts:
+      - equal:
+          path: metadata.labels["custom.label.environment"]
+          value: dev
+      - equal:
+          path: metadata.labels["custom.label.team"]
+          value: team-potato
