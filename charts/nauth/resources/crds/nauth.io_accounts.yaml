@@ -225,6 +225,30 @@ spec:
                     format: int64
                     type: integer
                 type: object
+              systemRef:
+                description: |-
+                  SystemRef references the System to use for this account
+                  If not specified, defaults to legacy behavior
+                properties:
+                  apiGroup:
+                    description: APIGroup of the system (nauth.io or synadia.nauth.io)
+                    type: string
+                  apiVersion:
+                    description: APIVersion of the system
+                    type: string
+                  kind:
+                    description: Kind of the system (always "System")
+                    type: string
+                  name:
+                    description: Name of the system
+                    type: string
+                  namespace:
+                    description: Namespace of the system
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
             type: object
           status:
             description: AccountStatus defines the observed state of Account.
