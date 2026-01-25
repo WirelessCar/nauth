@@ -22,8 +22,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// SystemReference references a System resource
+type SystemReference struct {
+	// APIGroup of the system (nauth.io or synadia.nauth.io)
+	// +optional
+	APIGroup string `json:"apiGroup,omitempty"`
+	// APIVersion of the system
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Kind of the system (always "System")
+	Kind string `json:"kind"`
+	// Name of the system
+	Name string `json:"name"`
+	// Namespace of the system
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
+	// SystemRef references the System to use for this account
+	// If not specified, defaults to legacy behavior
+	// +optional
+	SystemRef *SystemReference `json:"systemRef,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
