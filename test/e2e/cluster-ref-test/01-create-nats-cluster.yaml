@@ -1,0 +1,17 @@
+# Create the NatsCluster CRD that loads URL from ConfigMap via urlFrom
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: test-cluster
+  namespace: cluster-ref-test
+spec:
+  urlFrom:
+    kind: ConfigMap
+    name: nats-url-config
+    key: url
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds

@@ -1,0 +1,26 @@
+# Create an Account that references the NatsCluster
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: cluster-ref-account
+  namespace: cluster-ref-test
+spec:
+  # Reference the NatsCluster CRD - this is the new approach
+  natsClusterRef:
+    kind: NatsCluster
+    name: test-cluster
+    namespace: cluster-ref-test
+  displayName: Cluster Ref Test Account
+  accountLimits:
+    conn: 50
+    exports: 5
+    imports: 5
+  jetStreamLimits:
+    streams: 3
+    consumer: 10
+    diskStorage: 536870912
+    memStorage: 536870912
+  natsLimits:
+    subs: 50
+    data: 512
+    payload: 256

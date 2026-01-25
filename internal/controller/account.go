@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/cluster"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -31,45 +32,42 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type AccountManager interface {
-	Create(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
-	Update(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
-	Import(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error)
-	Delete(ctx context.Context, desired *natsv1alpha1.Account) error
-}
-
+// AccountResult contains the result of account operations
+// Used by account.Manager to return results to the provider
 type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
-	Claims          *natsv1alpha1.AccountClaims
+	Claims          *nauthv1alpha1.AccountClaims
 }
 
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	accountManager AccountManager
-	reporter       *statusReporter
+	Scheme   *runtime.Scheme
+	resolver cluster.Resolver
+	reporter *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accountManager AccountManager, recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, resolver cluster.Resolver, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
-		Client:         k8sClient,
-		Scheme:         scheme,
-		accountManager: accountManager,
-		reporter:       newStatusReporter(k8sClient, recorder),
+		Client:   k8sClient,
+		Scheme:   scheme,
+		resolver: resolver,
+		reporter: newStatusReporter(k8sClient, recorder),
 	}
 }
 
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts/finalizers,verbs=update
+// +kubebuilder:rbac:groups=nauth.io,resources=natsclusters,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -80,7 +78,7 @@ func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accou
 func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	natsAccount := &natsv1alpha1.Account{}
+	natsAccount := &nauthv1alpha1.Account{}
 
 	err := r.Get(ctx, req.NamespacedName, natsAccount)
 	if err != nil {
@@ -119,7 +117,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		// Check for connected users
-		userList := &natsv1alpha1.UserList{}
+		userList := &nauthv1alpha1.UserList{}
 		err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
@@ -136,8 +134,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
 			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
-				if err := r.accountManager.Delete(ctx, natsAccount); err != nil {
-					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
+				provider, err := r.resolver.ResolveForAccount(ctx, natsAccount)
+				if err != nil {
+					return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but cannot be removed because system credentials are unavailable (e.g. referenced NatsCluster was deleted): %w. Restore the NatsCluster or its credentials to allow cleanup", err))
+				}
+				if err := provider.DeleteAccount(ctx, natsAccount); err != nil {
+					return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but Account JWT removal failed: %w. Restore the NatsCluster or its credentials to allow cleanup", err))
 				}
 			}
 
@@ -181,21 +183,27 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// Resolve the NatsCluster provider for this account
+	provider, err := r.resolver.ResolveForAccount(ctx, natsAccount)
+	if err != nil {
+		return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to resolve NatsCluster provider: %w", err))
+	}
+
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
-	var result *AccountResult
+	var result *cluster.AccountResult
 
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
-		result, err = r.accountManager.Import(ctx, natsAccount)
+		result, err = provider.ImportAccount(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else if accountID == "" {
-		result, err = r.accountManager.Create(ctx, natsAccount)
+		result, err = provider.CreateAccount(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
 	} else {
-		result, err = r.accountManager.Update(ctx, natsAccount)
+		result, err = provider.UpdateAccount(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
 		}
@@ -237,7 +245,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&natsv1alpha1.Account{}).
+		For(&nauthv1alpha1.Account{}).
 		Named("account").
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{

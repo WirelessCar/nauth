@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -36,7 +36,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	var err error
-	err = natsv1alpha1.AddToScheme(scheme.Scheme)
+	err = nauthv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	testEnv = &envtest.Environment{

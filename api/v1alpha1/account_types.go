@@ -22,8 +22,26 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// NatsClusterRef references a NatsCluster resource
+type NatsClusterRef struct {
+	// APIVersion of the NatsCluster
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+	// Kind of the NatsCluster (always "NatsCluster")
+	Kind string `json:"kind"`
+	// Name of the NatsCluster
+	Name string `json:"name"`
+	// Namespace of the NatsCluster
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
+	// NatsClusterRef references the NatsCluster to use for this account
+	// If not specified, defaults to legacy behavior
+	// +optional
+	NatsClusterRef *NatsClusterRef `json:"natsClusterRef,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`

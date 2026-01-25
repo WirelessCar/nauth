@@ -210,6 +210,27 @@ spec:
                     format: int64
                     type: integer
                 type: object
+              natsClusterRef:
+                description: |-
+                  NatsClusterRef references the NatsCluster to use for this account
+                  If not specified, defaults to legacy behavior
+                properties:
+                  apiVersion:
+                    description: APIVersion of the NatsCluster
+                    type: string
+                  kind:
+                    description: Kind of the NatsCluster (always "NatsCluster")
+                    type: string
+                  name:
+                    description: Name of the NatsCluster
+                    type: string
+                  namespace:
+                    description: Namespace of the NatsCluster
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
               natsLimits:
                 properties:
                   data:

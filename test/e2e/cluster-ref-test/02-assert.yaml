@@ -1,0 +1,75 @@
+# Verify Account is created and ready
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: cluster-ref-account
+  namespace: cluster-ref-test
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  claims:
+    displayName: Cluster Ref Test Account
+    accountLimits:
+      conn: 50
+      exports: 5
+      imports: 5
+    jetStreamLimits:
+      streams: 3
+      consumer: 10
+      diskStorage: 536870912
+      memStorage: 536870912
+    natsLimits:
+      subs: 50
+      data: 512
+      payload: 256
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: cluster-ref-account
+    namespace: cluster-ref-test
+    ref: account
+assertAll:
+  # Verify account ID label is set (starts with A)
+  - celExpr: matches(account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+commands:
+  - script: |
+      set -eu
+
+      # Verify NO secrets with legacy labels exist in this namespace
+      legacy_count=$(kubectl get secret -n cluster-ref-test -l nauth.io/secret-type=operator-sign -o json | jq '.items | length')
+      if [ "$legacy_count" != "0" ]; then
+        echo "ERROR: Found secrets with legacy operator-sign label in cluster-ref-test namespace"
+        exit 1
+      fi
+
+      legacy_count=$(kubectl get secret -n cluster-ref-test -l nauth.io/secret-type=system-account-user-creds -o json | jq '.items | length')
+      if [ "$legacy_count" != "0" ]; then
+        echo "ERROR: Found secrets with legacy system-account-user-creds label in cluster-ref-test namespace"
+        exit 1
+      fi
+
+      echo "SUCCESS: No legacy labeled secrets found - NatsCluster approach is being used"
+
+      # Read account id from account
+      aid="$(kubectl get accounts.nauth.io cluster-ref-account -n cluster-ref-test -o jsonpath='{.metadata.labels.account\.nauth\.io/id}')"
+      test -n "$aid"
+
+      # Verify account root secret exists
+      sec="$(kubectl get secret -n cluster-ref-test -l account.nauth.io/id="$aid",nauth.io/secret-type=account-root -o jsonpath='{.items[0].data.default}')"
+      test -n "$sec"
+
+      # Verify account sign secret exists
+      sec="$(kubectl get secret -n cluster-ref-test -l account.nauth.io/id="$aid",nauth.io/secret-type=account-sign -o jsonpath='{.items[0].data.default}')"
+      test -n "$sec"
