@@ -22,8 +22,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WirelessCar/nauth/internal/account"
-	"github.com/WirelessCar/nauth/internal/user"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -41,11 +39,13 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/cluster"
+	"github.com/WirelessCar/nauth/internal/cluster/nauth"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
-	natsc "github.com/WirelessCar/nauth/internal/nats"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -57,7 +57,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(natsv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(nauthv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -207,11 +207,15 @@ func main() {
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
 
-		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				namespace: {},
-			},
-		},
+		Cache: func() cache.Options {
+			opts := cache.Options{}
+			if namespace != "" {
+				opts.DefaultNamespaces = map[string]cache.Config{
+					namespace: {},
+				}
+			}
+			return opts
+		}(),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -222,21 +226,20 @@ func main() {
 			"namespace", namespace)
 	}
 
-	natsURL := os.Getenv("NATS_URL")
-
 	secretClient := secret.NewClient(mgr.GetClient())
+	configmapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
-	natsClient := natsc.NewClient(natsURL, secretClient)
 
-	accountManager := account.NewManager(
-		accountClient,
-		natsClient,
-		secretClient,
-	)
+	// Create the cluster resolver with the nauth provider factory
+	// The factory will create managers with NatsCluster CRD support when needed
+	nauthFactory := nauth.NewFactory(accountClient, secretClient, configmapClient, namespace)
+	resolver := cluster.NewResolver(mgr.GetClient(), namespace)
+	resolver.RegisterFactory(cluster.APIVersionNauth, nauthFactory)
+
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		accountManager,
+		resolver,
 		mgr.GetEventRecorder("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
@@ -244,11 +247,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewManager(accountClient, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		userManager,
+		resolver,
 		mgr.GetEventRecorder("user-controller"),
 	)
 	if err = userReconciler.SetupWithManager(mgr); err != nil {

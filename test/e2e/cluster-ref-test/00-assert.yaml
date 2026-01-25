@@ -1,0 +1,21 @@
+# Verify ConfigMap exists with NATS URL
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-url-config
+  namespace: cluster-ref-test
+---
+# Verify secrets exist and do NOT have legacy labels
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-operator-signing-key
+  namespace: cluster-ref-test
+# Note: We intentionally do NOT assert any nauth.io/secret-type label here
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-system-account-creds
+  namespace: cluster-ref-test
+# Note: We intentionally do NOT assert any nauth.io/secret-type label here

@@ -1,0 +1,23 @@
+# Create a User for the Account
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: cluster-ref-user
+  namespace: cluster-ref-test
+spec:
+  accountName: cluster-ref-account
+  displayName: Cluster Ref Test User
+  permissions:
+    pub:
+      allow:
+        - "events.>"
+        - "requests.>"
+      deny:
+        - "events.internal.>"
+    sub:
+      allow:
+        - "events.>"
+        - "responses.>"
+  natsLimits:
+    subs: 10
+    payload: 128

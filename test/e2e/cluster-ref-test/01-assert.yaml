@@ -1,0 +1,6 @@
+# Verify NatsCluster is created
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: test-cluster
+  namespace: cluster-ref-test

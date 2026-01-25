@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
@@ -32,6 +32,11 @@ type SecretClient interface {
 	Label(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
+// ConfigMapClient reads ConfigMap data from the cluster.
+type ConfigMapClient interface {
+	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
+}
+
 type NatsClient interface {
 	EnsureConnected(namespace string) error
 	Disconnect()
@@ -41,7 +46,7 @@ type NatsClient interface {
 }
 
 type AccountGetter interface {
-	Get(ctx context.Context, accountRefName string, namespace string) (account *natsv1alpha1.Account, err error)
+	Get(ctx context.Context, accountRefName string, namespace string) (account *nauthv1alpha1.Account, err error)
 }
 
 type Manager struct {
@@ -49,6 +54,7 @@ type Manager struct {
 	natsClient     NatsClient
 	secretClient   SecretClient
 	nauthNamespace string
+	natsCluster    *nauthv1alpha1.NatsCluster // Optional NatsCluster CRD for secretRef-based config
 }
 
 func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
@@ -84,6 +90,27 @@ func WithNamespace(namespace string) func(*Manager) {
 	}
 }
 
+// WithNatsCluster configures the Manager to use the NatsCluster CRD's secretRefs
+// instead of legacy label-based secret lookup
+func WithNatsCluster(cluster *nauthv1alpha1.NatsCluster) func(*Manager) {
+	return func(manager *Manager) {
+		manager.natsCluster = cluster
+	}
+}
+
+// getNatsNamespace returns the namespace to use for NATS connection.
+// If NatsCluster is configured but has empty namespace, falls back to fallbackNamespace.
+func (a *Manager) getNatsNamespace(fallbackNamespace string) string {
+	if a.natsCluster != nil {
+		ns := a.natsCluster.GetNamespace()
+		if ns == "" {
+			return fallbackNamespace
+		}
+		return ns
+	}
+	return a.nauthNamespace
+}
+
 func (a *Manager) valid() bool {
 	if a.accounts == nil {
 		return false
@@ -104,8 +131,8 @@ func (a *Manager) valid() bool {
 	return true
 }
 
-func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+func (a *Manager) Create(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during creation: %w", err)
 	}
@@ -228,7 +255,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, fmt.Errorf("failed to sign account jwt for %s during creation: %w", accountName, err)
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	err = a.natsClient.EnsureConnected(a.getNatsNamespace(state.GetNamespace()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during creation: %w", err)
 	}
@@ -247,8 +274,8 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	}, nil
 }
 
-func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+func (a *Manager) Update(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during update: %w", err)
 	}
@@ -319,7 +346,7 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, fmt.Errorf("failed to sign account jwt for %s during update: %w", accountName, err)
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	err = a.natsClient.EnsureConnected(a.getNatsNamespace(state.GetNamespace()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during update: %w", err)
 	}
@@ -338,8 +365,8 @@ func (a *Manager) Update(ctx context.Context, state *natsv1alpha1.Account) (*con
 	}, nil
 }
 
-func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) (*controller.AccountResult, error) {
-	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+func (a *Manager) Import(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during import: %w", err)
 	}
@@ -391,7 +418,7 @@ func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) (*con
 		return nil, fmt.Errorf("failed to get account signing key pair from existing seed for account %s during import: %w", accountID, err)
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	err = a.natsClient.EnsureConnected(a.getNatsNamespace(state.GetNamespace()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during import: %w", err)
 	}
@@ -416,9 +443,9 @@ func (a *Manager) Import(ctx context.Context, state *natsv1alpha1.Account) (*con
 	}, nil
 }
 
-func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error {
+func (a *Manager) Delete(ctx context.Context, state *nauthv1alpha1.Account) error {
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx)
+	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return fmt.Errorf("failed to get operator signing key pair from seed during deletion: %w", err)
 	}
@@ -438,7 +465,7 @@ func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error
 		return fmt.Errorf("failed to sign account jwt for %s during deletion: %w", accountName, err)
 	}
 
-	err = a.natsClient.EnsureConnected(a.nauthNamespace)
+	err = a.natsClient.EnsureConnected(a.getNatsNamespace(state.GetNamespace()))
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS cluster during deletion: %w", err)
 	}
@@ -457,7 +484,42 @@ func (a *Manager) Delete(ctx context.Context, state *natsv1alpha1.Account) error
 	return a.secretClient.DeleteByLabels(ctx, state.GetNamespace(), labels)
 }
 
-func (a *Manager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair, error) {
+func (a *Manager) getOperatorSigningKeyPair(ctx context.Context, accountNamespace string) (nkeys.KeyPair, error) {
+	// If NatsCluster is configured, use its secretRef
+	if a.natsCluster != nil {
+		return a.getOperatorSigningKeyPairFromNatsCluster(ctx, a.natsCluster, accountNamespace)
+	}
+
+	// Legacy label-based lookup
+	return a.getOperatorSigningKeyPairFromLabels(ctx)
+}
+
+func (a *Manager) getOperatorSigningKeyPairFromNatsCluster(ctx context.Context, cluster *nauthv1alpha1.NatsCluster, fallbackNamespace string) (nkeys.KeyPair, error) {
+	ref := cluster.Spec.OperatorSigningKeySecretRef
+	namespace := cluster.GetNamespace()
+	if namespace == "" {
+		namespace = fallbackNamespace
+	}
+
+	secretData, err := a.secretClient.Get(ctx, namespace, ref.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operator signing key secret %s/%s: %w", namespace, ref.Name, err)
+	}
+
+	key := ref.Key
+	if key == "" {
+		key = k8s.DefaultSecretKeyName
+	}
+
+	seed, ok := secretData[key]
+	if !ok {
+		return nil, fmt.Errorf("operator signing key secret %s/%s does not contain key %q", namespace, ref.Name, key)
+	}
+
+	return nkeys.FromSeed([]byte(seed))
+}
+
+func (a *Manager) getOperatorSigningKeyPairFromLabels(ctx context.Context) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeOperatorSign,
 	}
@@ -633,7 +695,42 @@ func (a *Manager) getDeprecatedAccountSecretsByName(ctx context.Context, namespa
 	return secrets, nil
 }
 
-func (a *Manager) getSystemAccountID(ctx context.Context, namespace string) (string, error) {
+func (a *Manager) getSystemAccountID(ctx context.Context, accountNamespace string) (string, error) {
+	// If NatsCluster is configured, use its secretRef
+	if a.natsCluster != nil {
+		return a.getSystemAccountIDFromNatsCluster(ctx, a.natsCluster, accountNamespace)
+	}
+
+	// Legacy label-based lookup
+	return a.getSystemAccountIDFromLabels(ctx, accountNamespace)
+}
+
+func (a *Manager) getSystemAccountIDFromNatsCluster(ctx context.Context, cluster *nauthv1alpha1.NatsCluster, fallbackNamespace string) (string, error) {
+	ref := cluster.Spec.SystemAccountUserCredsSecretRef
+	namespace := cluster.GetNamespace()
+	if namespace == "" {
+		namespace = fallbackNamespace
+	}
+
+	secretData, err := a.secretClient.Get(ctx, namespace, ref.Name)
+	if err != nil {
+		return "", fmt.Errorf("failed to get system account user creds secret %s/%s: %w", namespace, ref.Name, err)
+	}
+
+	key := ref.Key
+	if key == "" {
+		key = k8s.DefaultSecretKeyName
+	}
+
+	creds, ok := secretData[key]
+	if !ok {
+		return "", fmt.Errorf("system account user creds secret %s/%s does not contain key %q", namespace, ref.Name, key)
+	}
+
+	return extractSystemAccountIDFromCreds([]byte(creds))
+}
+
+func (a *Manager) getSystemAccountIDFromLabels(ctx context.Context, namespace string) (string, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
@@ -650,6 +747,10 @@ func (a *Manager) getSystemAccountID(ctx context.Context, namespace string) (str
 		return "", fmt.Errorf("operator credentials secret key (%s) missing", k8s.DefaultSecretKeyName)
 	}
 
+	return extractSystemAccountIDFromCreds(creds)
+}
+
+func extractSystemAccountIDFromCreds(creds []byte) (string, error) {
 	sysUserJwt, err := jwt.ParseDecoratedJWT(creds)
 	if err != nil {
 		return "", fmt.Errorf("couldn't parse system user JWT from creds: %w", err)
@@ -670,7 +771,7 @@ func getAccountSignSecretName(accountName, accountID string) string {
 	return fmt.Sprintf(SecretNameAccountSignTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
-func getDisplayName(account *natsv1alpha1.Account) string {
+func getDisplayName(account *nauthv1alpha1.Account) string {
 	if account.Spec.DisplayName != "" {
 		return account.Spec.DisplayName
 	}

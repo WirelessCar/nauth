@@ -1,0 +1,54 @@
+# Verify User is created and ready
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: cluster-ref-user
+  namespace: cluster-ref-test
+  finalizers:
+    - user.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  claims:
+    displayName: Cluster Ref Test User
+    permissions:
+      pub:
+        allow:
+          - "events.>"
+          - "requests.>"
+        deny:
+          - "events.internal.>"
+      sub:
+        allow:
+          - "events.>"
+          - "responses.>"
+    natsLimits:
+      subs: 10
+      payload: 128
+---
+# Verify user credentials secret is created
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-ref-user-nats-user-creds
+  namespace: cluster-ref-test
+  labels:
+    nauth.io/secret-type: user-creds
+    nauth.io/managed: "true"
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: cluster-ref-user
+    namespace: cluster-ref-test
+    ref: user
+assertAll:
+  # Verify user ID label is set (starts with U)
+  - celExpr: matches(user.metadata.labels["user.nauth.io/id"], "^U.{55}$")
+  # Verify user is linked to the account
+  - celExpr: '"user.nauth.io/account-id" in user.metadata.labels'

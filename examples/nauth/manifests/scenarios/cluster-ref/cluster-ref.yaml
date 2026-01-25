@@ -1,0 +1,110 @@
+# Cluster-ref scenario: using NatsClusterRef instead of legacy NATS_URL + label-based secrets.
+#
+# Prerequisites:
+# - Create an operator signing key secret (e.g. my-operator-signing-key) with key "seed"
+# - Create a system account user credentials secret (e.g. my-system-account-creds) with key "user.creds"
+# - Create a ConfigMap or Secret containing the NATS URL (see nats-url-config below)
+#
+# This approach allows multiple NatsClusters in the cluster and lets Accounts/Users
+# target a specific cluster via natsClusterRef instead of relying on NATS_URL env var.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-ref-example
+
+---
+# ConfigMap to hold the NATS server URL (used by NatsCluster via urlFrom)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-url-config
+  namespace: cluster-ref-example
+data:
+  url: nats://nats.nats.svc.cluster.local:4222
+
+---
+# NatsCluster defines the NATS cluster connection and credentials.
+# Accounts and Users reference this via spec.natsClusterRef.
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: my-nats-cluster
+  namespace: cluster-ref-example
+spec:
+  urlFrom:
+    kind: ConfigMap
+    name: nats-url-config
+    key: url
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds
+
+---
+# Account targets the NatsCluster via natsClusterRef (cluster approach)
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  namespace: cluster-ref-example
+spec:
+  natsClusterRef:
+    kind: NatsCluster
+    name: my-nats-cluster
+    namespace: cluster-ref-example
+  accountLimits:
+    conn: 100
+    exports: 10
+    imports: 10
+    leaf: 0
+    wildcards: true
+  exports:
+    - name: export-test
+      subject: foo.>
+      type: stream
+  jetStreamLimits:
+    consumer: 5
+    diskMaxStreamBytes: 209715200
+    diskStorage: 1073741824
+    maxAckPending: 5
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 1073741824
+    streams: 5
+  natsLimits:
+    data: 1024
+    payload: 500
+    subs: 100
+
+---
+# User in the same namespace; inherits the account's natsClusterRef
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: example-user
+  namespace: cluster-ref-example
+spec:
+  accountName: example-account
+  natsLimits:
+    data: 1000000
+    payload: 1000000
+    subs: 1000000
+  permissions:
+    pub:
+      allow:
+        - foo.>
+        - bar.>
+      deny:
+        - baz
+    resp:
+      max: 100
+      ttl: 1000000000
+    sub:
+      allow:
+        - foo.>
+        - baz.>
+      deny:
+        - bar

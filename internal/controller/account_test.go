@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/cluster"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,7 +34,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
 const (
@@ -47,7 +48,8 @@ var _ = Describe("Account Controller", func() {
 	Context("When reconciling an account", func() {
 		// Suite context variables
 		var (
-			accountManagerMock    *AccountManagerMock
+			resolverMock          *ResolverMock
+			providerMock          *ProviderMock
 			accountName           string
 			testIndex             int
 			accountNamespacedName ktypes.NamespacedName
@@ -62,7 +64,9 @@ var _ = Describe("Account Controller", func() {
 			operatorVersion = "0.0-SNAPSHOT"
 			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
 
-			accountManagerMock = &AccountManagerMock{}
+			providerMock = &ProviderMock{}
+			resolverMock = &ResolverMock{}
+			resolverMock.On("ResolveForAccount", mock.Anything, mock.Anything).Return(providerMock, nil)
 
 			testIndex += 1
 			accountName = fmt.Sprintf("%s-%d", accountBaseName, testIndex)
@@ -76,7 +80,7 @@ var _ = Describe("Account Controller", func() {
 			controllerReconciler = NewAccountReconciler(
 				k8sClient,
 				k8sClient.Scheme(),
-				accountManagerMock,
+				resolverMock,
 				fakeRecorder,
 			)
 
@@ -96,10 +100,10 @@ var _ = Describe("Account Controller", func() {
 			_ = k8sClient.Create(ctx, ns)
 
 			By("creating the custom account for the Kind Account")
-			account := &natsv1alpha1.Account{}
+			account := &nauthv1alpha1.Account{}
 			err := k8sClient.Get(ctx, accountNamespacedName, account)
 			if err != nil && k8err.IsNotFound(err) {
-				account := &natsv1alpha1.Account{
+				account := &nauthv1alpha1.Account{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      accountName,
 						Namespace: accountNamespace,
@@ -111,7 +115,7 @@ var _ = Describe("Account Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			accountManagerMock.AssertExpectations(GinkgoT())
+			providerMock.AssertExpectations(GinkgoT())
 			_ = os.Unsetenv(EnvOperatorVersion)
 		})
 
@@ -119,13 +123,13 @@ var _ = Describe("Account Controller", func() {
 			It("should successfully reconcile the account", func() {
 				By("Reconciling the created account")
 
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
-				account := &natsv1alpha1.Account{}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+				account := &nauthv1alpha1.Account{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
@@ -148,8 +152,8 @@ var _ = Describe("Account Controller", func() {
 				By("Failing to reconcile the account")
 
 				accountsManagerErr := fmt.Errorf("a test error")
-				accountManagerMock.On("Create", mock.Anything).Return(nil, accountsManagerErr).Once()
-				account := &natsv1alpha1.Account{}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(nil, accountsManagerErr).Once()
+				account := &nauthv1alpha1.Account{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
@@ -173,14 +177,14 @@ var _ = Describe("Account Controller", func() {
 
 		Context("Account delete reconciliation", func() {
 			It("should not remove account from manager in observe mode", func() {
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Import", mock.Anything).Return(mockResult, nil).Once()
+				providerMock.On("ImportAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
 
-				account := &natsv1alpha1.Account{}
+				account := &nauthv1alpha1.Account{}
 				err := k8sClient.Get(ctx, accountNamespacedName, account)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -212,14 +216,14 @@ var _ = Describe("Account Controller", func() {
 				Expect(k8err.IsNotFound(err)).To(BeTrue())
 			})
 			It("should successfully remove the account marked for deletion", func() {
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
-				accountManagerMock.On("Delete", mock.Anything).Return(nil).Once()
-				account := &natsv1alpha1.Account{}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+				providerMock.On("DeleteAccount", mock.Anything, mock.Anything).Return(nil).Once()
+				account := &nauthv1alpha1.Account{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
@@ -249,14 +253,14 @@ var _ = Describe("Account Controller", func() {
 
 			It("should fail to remove the account when delete client fails", func() {
 				deletionErr := fmt.Errorf("Unable to delete account")
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
-				accountManagerMock.On("Delete", mock.Anything).Return(deletionErr).Once()
-				account := &natsv1alpha1.Account{}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+				providerMock.On("DeleteAccount", mock.Anything, mock.Anything).Return(deletionErr).Once()
+				account := &nauthv1alpha1.Account{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
@@ -295,14 +299,14 @@ var _ = Describe("Account Controller", func() {
 
 		Context("Account observe reconciliation", func() {
 			It("should import account in observe mode", func() {
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Import", mock.Anything).Return(mockResult, nil).Once()
+				providerMock.On("ImportAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
 
-				account := &natsv1alpha1.Account{}
+				account := &nauthv1alpha1.Account{}
 				err := k8sClient.Get(ctx, accountNamespacedName, account)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -323,14 +327,14 @@ var _ = Describe("Account Controller", func() {
 			It("should successfully reconcile the account when the operator version change", func() {
 				By("Reconciling the created account")
 
-				mockResult := &AccountResult{
+				mockResult := &cluster.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
-					Claims:          &natsv1alpha1.AccountClaims{},
+					Claims:          &nauthv1alpha1.AccountClaims{},
 				}
-				accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
-				accountManagerMock.On("Update", mock.Anything).Return(mockResult, nil).Once()
-				account := &natsv1alpha1.Account{}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+				providerMock.On("UpdateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+				account := &nauthv1alpha1.Account{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 					NamespacedName: accountNamespacedName,
@@ -362,56 +366,72 @@ var _ = Describe("Account Controller", func() {
 
 // MOCKS
 
-type AccountManagerMock struct {
+type ResolverMock struct {
 	mock.Mock
 }
 
-// CreateAccount implements AccountManager.
-func (o *AccountManagerMock) Create(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error) {
-	args := o.Called(state)
+func (r *ResolverMock) ResolveForAccount(ctx context.Context, account *nauthv1alpha1.Account) (cluster.Provider, error) {
+	args := r.Called(ctx, account)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(cluster.Provider), args.Error(1)
+}
 
+type ProviderMock struct {
+	mock.Mock
+}
+
+func (p *ProviderMock) CreateAccount(ctx context.Context, account *nauthv1alpha1.Account) (*cluster.AccountResult, error) {
+	args := p.Called(ctx, account)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
-
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*cluster.AccountResult), nil
 }
 
-// UpdateAccount implements AccountManager.
-func (o *AccountManagerMock) Update(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error) {
-	args := o.Called(state)
-
+func (p *ProviderMock) UpdateAccount(ctx context.Context, account *nauthv1alpha1.Account) (*cluster.AccountResult, error) {
+	args := p.Called(ctx, account)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
-
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*cluster.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Import(ctx context.Context, state *natsv1alpha1.Account) (*AccountResult, error) {
-	args := o.Called(state)
-
+func (p *ProviderMock) ImportAccount(ctx context.Context, account *nauthv1alpha1.Account) (*cluster.AccountResult, error) {
+	args := p.Called(ctx, account)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
-
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*cluster.AccountResult), nil
 }
 
-// DeleteAccount implements AccountManager.
-func (o *AccountManagerMock) Delete(ctx context.Context, desired *natsv1alpha1.Account) error {
-	args := o.Called(desired)
+func (p *ProviderMock) DeleteAccount(ctx context.Context, account *nauthv1alpha1.Account) error {
+	args := p.Called(ctx, account)
+	return args.Error(0)
+}
+
+func (p *ProviderMock) CreateOrUpdateUser(ctx context.Context, user *nauthv1alpha1.User) (*cluster.UserResult, error) {
+	args := p.Called(ctx, user)
+	if args.Error(1) != nil {
+		return nil, args.Error(1)
+	}
+	if args.Get(0) == nil {
+		return nil, nil
+	}
+	return args.Get(0).(*cluster.UserResult), nil
+}
+
+func (p *ProviderMock) DeleteUser(ctx context.Context, user *nauthv1alpha1.User) error {
+	args := p.Called(ctx, user)
 	return args.Error(0)
 }

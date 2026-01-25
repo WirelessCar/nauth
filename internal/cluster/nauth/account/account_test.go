@@ -243,7 +243,7 @@ var _ = Describe("Account manager", func() {
 			Expect(err.Error()).To(ContainSubstring("conflicting import subject found"))
 		})
 
-		It("converts jwt.AccountClaims to natsv1alpha1.AccountClaims correctly", func() {
+		It("converts jwt.AccountClaims to nauthv1alpha1.AccountClaims correctly", func() {
 			// Build a fully populated jwt.AccountClaims
 			kp, err := nkeys.CreateAccount()
 			Expect(err).ToNot(HaveOccurred())
@@ -651,6 +651,379 @@ var _ = Describe("Account manager", func() {
 			By("deleting the account")
 			err = accountManager.Delete(ctx, account)
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("getOperatorSigningKeyPairFromNatsCluster", func() {
+			var (
+				clusterNamespace = "cluster-ns"
+				cluster          *v1alpha1.NatsCluster
+			)
+
+			BeforeEach(func() {
+				cluster = &v1alpha1.NatsCluster{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-cluster",
+						Namespace: clusterNamespace,
+					},
+					Spec: v1alpha1.NatsClusterSpec{
+						OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+							Name: "operator-signing-key",
+							Key:  "seed",
+						},
+						SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+							Name: "system-account-creds",
+							Key:  "creds",
+						},
+					},
+				}
+			})
+
+			It("successfully gets keypair using NatsCluster's namespace and custom key", func() {
+				By("creating the account manager with NatsCluster")
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret with custom key 'seed'")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": string(operatorSeed)}, nil)
+
+				By("mocking the NATS client and deletion")
+				natsClientMock.On("EnsureConnected", clusterNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil)
+				secretStorerMock.On("DeleteByLabels", ctx, accountNamespace, map[string]string{
+					k8s.LabelAccountID:   accountPublicKey,
+					k8s.LabelAccountName: accountName,
+				}).Return(nil)
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("uses default key when secretRef.Key is empty", func() {
+				By("creating NatsCluster with empty Key in secretRef")
+				clusterWithDefaultKey := &v1alpha1.NatsCluster{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-cluster",
+						Namespace: clusterNamespace,
+					},
+					Spec: v1alpha1.NatsClusterSpec{
+						OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+							Name: "operator-signing-key",
+							Key:  "", // Empty key should default to k8s.DefaultSecretKeyName
+						},
+						SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+							Name: "system-account-creds",
+						},
+					},
+				}
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(clusterWithDefaultKey),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret with default key")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				// When Key is empty, it should use k8s.DefaultSecretKeyName ("default")
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{k8s.DefaultSecretKeyName: string(operatorSeed)}, nil)
+
+				By("mocking the NATS client and deletion")
+				natsClientMock.On("EnsureConnected", clusterNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil)
+				secretStorerMock.On("DeleteByLabels", ctx, accountNamespace, map[string]string{
+					k8s.LabelAccountID:   accountPublicKey,
+					k8s.LabelAccountName: accountName,
+				}).Return(nil)
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("falls back to account namespace when NatsCluster namespace is empty", func() {
+				By("creating NatsCluster with empty namespace")
+				clusterWithEmptyNS := &v1alpha1.NatsCluster{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-cluster",
+						Namespace: "", // Empty namespace
+					},
+					Spec: v1alpha1.NatsClusterSpec{
+						OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+							Name: "operator-signing-key",
+							Key:  "seed",
+						},
+						SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+							Name: "system-account-creds",
+						},
+					},
+				}
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(clusterWithEmptyNS),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key - should use account namespace as fallback")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				secretStorerMock.On("Get", ctx, accountNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": string(operatorSeed)}, nil)
+
+				By("mocking the NATS client - should use account namespace as fallback")
+				natsClientMock.On("EnsureConnected", accountNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil)
+				secretStorerMock.On("DeleteByLabels", ctx, accountNamespace, map[string]string{
+					k8s.LabelAccountID:   accountPublicKey,
+					k8s.LabelAccountName: accountName,
+				}).Return(nil)
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails when secret lookup returns an error", func() {
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the secret lookup to fail")
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{}, fmt.Errorf("secret not found"))
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("operator signing key secret"))
+			})
+
+			It("fails when secret does not contain the expected key", func() {
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the secret to return data without the expected key")
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{"wrong-key": "some-value"}, nil)
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("does not contain key"))
+				Expect(err.Error()).To(ContainSubstring("seed"))
+			})
+
+			It("fails when seed is invalid and cannot create keypair", func() {
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the secret to return an invalid seed")
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": "invalid-seed-data"}, nil)
+
+				err := accountManager.Delete(ctx, account)
+				Expect(err).To(HaveOccurred())
+				// nkeys.FromSeed returns an error for invalid seeds
+			})
+		})
+
+		Context("Delete with NatsCluster-based config", func() {
+			var (
+				clusterNamespace = "cluster-ns"
+				cluster          *v1alpha1.NatsCluster
+			)
+
+			BeforeEach(func() {
+				cluster = &v1alpha1.NatsCluster{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-cluster",
+						Namespace: clusterNamespace,
+					},
+					Spec: v1alpha1.NatsClusterSpec{
+						OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+							Name: "operator-signing-key",
+							Key:  "seed",
+						},
+						SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+							Name: "system-account-creds",
+							Key:  "creds",
+						},
+					},
+				}
+			})
+
+			It("successfully deletes an account using NatsCluster secretRef", func() {
+				By("creating the account manager with NatsCluster")
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret from NatsCluster's secretRef")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": string(operatorSeed)}, nil)
+
+				By("mocking the NATS client")
+				natsClientMock.On("EnsureConnected", clusterNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil)
+
+				By("mocking secret cleanup")
+				secretStorerMock.On("DeleteByLabels", ctx, accountNamespace, map[string]string{
+					k8s.LabelAccountID:   accountPublicKey,
+					k8s.LabelAccountName: accountName,
+				}).Return(nil)
+
+				By("deleting the account")
+				err := accountManager.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("fails when operator signing key secret lookup fails", func() {
+				By("creating the account manager with NatsCluster")
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret to fail")
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{}, fmt.Errorf("secret not found"))
+
+				By("deleting the account should fail")
+				err := accountManager.Delete(ctx, account)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("operator signing key"))
+			})
+
+			It("fails when NATS DeleteAccountJWT fails", func() {
+				By("creating the account manager with NatsCluster")
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(cluster),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret from NatsCluster's secretRef")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				secretStorerMock.On("Get", ctx, clusterNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": string(operatorSeed)}, nil)
+
+				By("mocking the NATS client to fail on delete")
+				natsClientMock.On("EnsureConnected", clusterNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(fmt.Errorf("NATS delete failed"))
+
+				By("deleting the account should fail")
+				err := accountManager.Delete(ctx, account)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("delete account"))
+			})
+
+			It("falls back to account namespace when NatsCluster namespace is empty", func() {
+				By("creating the account manager with NatsCluster that has empty namespace")
+				clusterWithEmptyNS := &v1alpha1.NatsCluster{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      "test-cluster",
+						Namespace: "", // Empty namespace
+					},
+					Spec: v1alpha1.NatsClusterSpec{
+						OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+							Name: "operator-signing-key",
+							Key:  "seed",
+						},
+						SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+							Name: "system-account-creds",
+							Key:  "creds",
+						},
+					},
+				}
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
+					WithNamespace(nauthNamespace),
+					WithNatsCluster(clusterWithEmptyNS),
+				)
+
+				account := GetNewAccount()
+				accountKeyPair, _ := nkeys.CreateAccount()
+				accountPublicKey, _ := accountKeyPair.PublicKey()
+				account.Labels = map[string]string{k8s.LabelAccountID: accountPublicKey}
+
+				By("mocking the operator signing key secret - should use account namespace as fallback")
+				operatorKeyPair, _ := nkeys.CreateOperator()
+				operatorSeed, _ := operatorKeyPair.Seed()
+				// Should fall back to account's namespace when NatsCluster namespace is empty
+				secretStorerMock.On("Get", ctx, accountNamespace, "operator-signing-key").
+					Return(map[string]string{"seed": string(operatorSeed)}, nil)
+
+				By("mocking the NATS client - should use account namespace as fallback")
+				natsClientMock.On("EnsureConnected", accountNamespace).Return(nil)
+				natsClientMock.On("Disconnect").Return()
+				natsClientMock.On("DeleteAccountJWT", mock.Anything).Return(nil)
+
+				By("mocking secret cleanup")
+				secretStorerMock.On("DeleteByLabels", ctx, accountNamespace, map[string]string{
+					k8s.LabelAccountID:   accountPublicKey,
+					k8s.LabelAccountName: accountName,
+				}).Return(nil)
+
+				By("deleting the account")
+				err := accountManager.Delete(ctx, account)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 		Context("Import", func() {
