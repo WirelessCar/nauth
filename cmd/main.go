@@ -22,8 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WirelessCar/nauth/internal/account"
-	"github.com/WirelessCar/nauth/internal/user"
+	"github.com/WirelessCar/nauth/internal/system"
+	"github.com/WirelessCar/nauth/internal/system/nauth"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -45,7 +45,9 @@ import (
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
-	natsc "github.com/WirelessCar/nauth/internal/nats"
+	"github.com/WirelessCar/nauth/internal/system/nauth/account"
+	natsc "github.com/WirelessCar/nauth/internal/system/nauth/nats"
+	"github.com/WirelessCar/nauth/internal/system/nauth/user"
 	// +kubebuilder:scaffold:imports
 )
 
