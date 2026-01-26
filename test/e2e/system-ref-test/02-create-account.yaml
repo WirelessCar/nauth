@@ -1,0 +1,26 @@
+# Create an Account that references the System
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: system-ref-account
+  namespace: system-ref-test
+spec:
+  # Reference the System CRD - this is the new approach
+  systemRef:
+    kind: System
+    name: test-system
+    namespace: system-ref-test
+  displayName: System Ref Test Account
+  accountLimits:
+    conn: 50
+    exports: 5
+    imports: 5
+  jetStreamLimits:
+    streams: 3
+    consumer: 10
+    diskStorage: 536870912
+    memStorage: 536870912
+  natsLimits:
+    subs: 50
+    data: 512
+    payload: 256

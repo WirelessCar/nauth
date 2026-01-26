@@ -1,0 +1,14 @@
+# Verify secrets exist and do NOT have legacy labels
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-operator-signing-key
+  namespace: system-ref-test
+# Note: We intentionally do NOT assert any nauth.io/secret-type label here
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-system-account-creds
+  namespace: system-ref-test
+# Note: We intentionally do NOT assert any nauth.io/secret-type label here

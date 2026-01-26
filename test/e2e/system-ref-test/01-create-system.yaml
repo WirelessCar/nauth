@@ -1,0 +1,13 @@
+# Create the System CRD that references the secrets by name
+apiVersion: nauth.io/v1alpha1
+kind: System
+metadata:
+  name: test-system
+  namespace: system-ref-test
+spec:
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds

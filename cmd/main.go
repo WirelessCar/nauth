@@ -22,8 +22,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/WirelessCar/nauth/internal/system"
-	"github.com/WirelessCar/nauth/internal/system/nauth"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -45,9 +43,8 @@ import (
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
-	"github.com/WirelessCar/nauth/internal/system/nauth/account"
-	natsc "github.com/WirelessCar/nauth/internal/system/nauth/nats"
-	"github.com/WirelessCar/nauth/internal/system/nauth/user"
+	"github.com/WirelessCar/nauth/internal/system"
+	"github.com/WirelessCar/nauth/internal/system/nauth"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -228,17 +225,17 @@ func main() {
 
 	secretClient := secret.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
-	natsClient := natsc.NewClient(natsURL, secretClient)
 
-	accountManager := account.NewManager(
-		accountClient,
-		natsClient,
-		secretClient,
-	)
+	// Create the system resolver with the nauth provider factory
+	// The factory will create managers with System CRD support when needed
+	nauthFactory := nauth.NewFactory(accountClient, secretClient, natsURL, namespace)
+	resolver := system.NewResolver(mgr.GetClient(), namespace)
+	resolver.RegisterFactory(system.APIGroupNauth, nauthFactory)
+
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		accountManager,
+		resolver,
 		mgr.GetEventRecorderFor("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
@@ -246,11 +243,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewManager(accountClient, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		userManager,
+		resolver,
 		mgr.GetEventRecorderFor("user-controller"),
 	)
 	if err = userReconciler.SetupWithManager(mgr); err != nil {
