@@ -1,0 +1,6 @@
+# Verify System is created
+apiVersion: nauth.io/v1alpha1
+kind: System
+metadata:
+  name: test-system
+  namespace: system-ref-test

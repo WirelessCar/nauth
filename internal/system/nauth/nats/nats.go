@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nats.go"
@@ -18,6 +19,7 @@ const (
 )
 
 type SecretGetter interface {
+	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 }
 
@@ -40,12 +42,22 @@ type Client struct {
 	natsURL      string
 	secretGetter SecretGetter
 	conn         *nats.Conn
+	system       *natsv1alpha1.System // Optional System CRD for secretRef-based config
 }
 
 func NewClient(natsURL string, secretGetter SecretGetter) *Client {
 	return &Client{
 		natsURL:      natsURL,
 		secretGetter: secretGetter,
+	}
+}
+
+// NewClientWithSystem creates a client configured to use System CRD's secretRefs
+func NewClientWithSystem(natsURL string, secretGetter SecretGetter, system *natsv1alpha1.System) *Client {
+	return &Client{
+		natsURL:      natsURL,
+		secretGetter: secretGetter,
+		system:       system,
 	}
 }
 
@@ -160,6 +172,38 @@ func (n *Client) connect(namespace string) error {
 }
 
 func (n *Client) getOperatorAdminCredentials(ctx context.Context, namespace string) ([]byte, error) {
+	// If System is configured, use its secretRef
+	if n.system != nil {
+		return n.getOperatorAdminCredentialsFromSystem(ctx)
+	}
+
+	// Legacy label-based lookup
+	return n.getOperatorAdminCredentialsFromLabels(ctx, namespace)
+}
+
+func (n *Client) getOperatorAdminCredentialsFromSystem(ctx context.Context) ([]byte, error) {
+	ref := n.system.Spec.SystemAccountUserCredsSecretRef
+	sysNamespace := n.system.GetNamespace()
+
+	secretData, err := n.secretGetter.Get(ctx, sysNamespace, ref.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get system account user creds secret %s/%s: %w", sysNamespace, ref.Name, err)
+	}
+
+	key := ref.Key
+	if key == "" {
+		key = k8s.DefaultSecretKeyName
+	}
+
+	creds, ok := secretData[key]
+	if !ok {
+		return nil, fmt.Errorf("system account user creds secret %s/%s does not contain key %q", sysNamespace, ref.Name, key)
+	}
+
+	return []byte(creds), nil
+}
+
+func (n *Client) getOperatorAdminCredentialsFromLabels(ctx context.Context, namespace string) ([]byte, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
