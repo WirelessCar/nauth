@@ -388,7 +388,7 @@ func (a *Manager) getOperatorSigningKeyPair(ctx context.Context) (nkeys.KeyPair,
 	}
 
 	if len(operatorSecret.Items) > 1 {
-		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", k8s.LabelSecretType, k8s.SecretTypeSystemAccountUserCreds)
+		return nil, fmt.Errorf("multiple operator signing key secrets found, make sure only one secret has the label %s: %s", k8s.LabelSecretType, k8s.SecretTypeOperatorSign)
 	}
 
 	seed, ok := operatorSecret.Items[0].Data[k8s.DefaultSecretKeyName]
