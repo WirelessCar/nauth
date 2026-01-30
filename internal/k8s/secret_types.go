@@ -7,6 +7,7 @@ const (
 
 const (
 	SecretTypeAccountRoot            = "account-root"
+	SecretTypeUserSign               = "user-sign"
 	SecretTypeAccountSign            = "account-sign"
 	SecretTypeOperatorSign           = "operator-sign"
 	SecretTypeSystemAccountUserCreds = "system-account-user-creds"

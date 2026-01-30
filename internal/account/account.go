@@ -9,12 +9,14 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	natsv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/nats"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	v1 "k8s.io/api/core/v1"
@@ -24,20 +26,12 @@ import (
 
 type SecretClient interface {
 	// TODO: Keys created should be immutable
-	Apply(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
+	Apply(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string, update bool) error
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 	Delete(ctx context.Context, namespace string, name string) error
 	DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error
 	Label(ctx context.Context, namespace, name string, labels map[string]string) error
-}
-
-type NatsClient interface {
-	EnsureConnected(namespace string) error
-	Disconnect()
-	LookupAccountJWT(string) (string, error)
-	UploadAccountJWT(jwt string) error
-	DeleteAccountJWT(jwt string) error
 }
 
 type AccountGetter interface {
@@ -46,12 +40,12 @@ type AccountGetter interface {
 
 type Manager struct {
 	accounts       AccountGetter
-	natsClient     NatsClient
+	natsClient     nats.NatsClient
 	secretClient   SecretClient
 	nauthNamespace string
 }
 
-func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
+func NewManager(accounts AccountGetter, natsClient nats.NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
 	manager := &Manager{
 		accounts:     accounts,
 		natsClient:   natsClient,
@@ -67,11 +61,11 @@ func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient Secr
 		if err != nil {
 			log.Fatalf("Failed create account manager. Failed to read namespace: %v", err)
 		}
-		manager.nauthNamespace = string(controllerNamespace)
+		manager.nauthNamespace = strings.TrimSpace(string(controllerNamespace))
 	}
 
 	if !manager.valid() {
-		log.Fatalf("Failed to crate Account manager. Missing required fields.")
+		log.Fatalf("Failed to create Account manager. Missing required fields.")
 		return nil
 	}
 
@@ -124,7 +118,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	accountSeed, _ := accountKeyPair.Seed()
 	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSeed)}
 
-	if err := a.secretClient.Apply(ctx, nil, accountSecretMeta, accountSecretValue); err != nil {
+	if err := a.secretClient.Apply(ctx, nil, accountSecretMeta, accountSecretValue, true); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +136,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	accountSigningSeed, _ := accountSigningKeyPair.Seed()
 	accountSignSeedSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(accountSigningSeed)}
 
-	if err := a.secretClient.Apply(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue); err != nil {
+	if err := a.secretClient.Apply(ctx, nil, accountSigningSecretMeta, accountSignSeedSecretValue, true); err != nil {
 		return nil, err
 	}
 
@@ -151,6 +145,7 @@ func (a *Manager) Create(ctx context.Context, state *natsv1alpha1.Account) (*con
 	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accounts).
 		signingKey(accountSigningPublicKey).
 		build()
+
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return nil, fmt.Errorf("failed to build NATS account claims for %s: %w", accountName, err)
