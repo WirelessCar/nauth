@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -23,10 +23,10 @@ type Object interface {
 
 type statusReporter struct {
 	client   client.StatusClient
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
-func newStatusReporter(k8sClient client.StatusClient, recorder record.EventRecorder) *statusReporter {
+func newStatusReporter(k8sClient client.StatusClient, recorder events.EventRecorder) *statusReporter {
 	return &statusReporter{
 		client:   k8sClient,
 		Recorder: recorder,
@@ -54,20 +54,20 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 	}, nil
 }
 
-func (s *statusReporter) error(ctx context.Context, object Object, err error) (ctrl.Result, error) {
+func (s *statusReporter) error(ctx context.Context, regarding Object, err error) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	s.Recorder.Eventf(object, v1.EventTypeWarning, controllerReasonErrored, err.Error())
+	s.Recorder.Eventf(regarding, nil, v1.EventTypeWarning, controllerReasonErrored, controllerActionReconciled, err.Error())
 
-	meta.SetStatusCondition(object.GetConditions(), metav1.Condition{
+	meta.SetStatusCondition(regarding.GetConditions(), metav1.Condition{
 		Type:    controllerTypeReady,
 		Status:  metav1.ConditionFalse,
 		Reason:  controllerReasonErrored,
 		Message: err.Error(),
 	})
 
-	if updateErr := s.client.Status().Update(ctx, object); updateErr != nil {
-		log.Info("Failed to update error condition", "name", object.GetGenerateName(), "updateError", updateErr, "originalError", err)
+	if updateErr := s.client.Status().Update(ctx, regarding); updateErr != nil {
+		log.Info("Failed to update error condition", "name", regarding.GetGenerateName(), "updateError", updateErr, "originalError", err)
 		return ctrl.Result{}, updateErr
 	}
 

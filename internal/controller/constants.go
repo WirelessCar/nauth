@@ -8,6 +8,7 @@ const (
 
 	controllerReasonReconciling = "Reconciling"
 	controllerReasonReconciled  = "Reconciled"
+	controllerActionReconciled  = "Reconciled"
 	controllerReasonErrored     = "Errored"
 )
 

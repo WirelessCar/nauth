@@ -25,7 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -58,7 +58,7 @@ type AccountReconciler struct {
 	reporter       *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accountManager AccountManager, recorder record.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, accountManager AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
 		Client:         k8sClient,
 		Scheme:         scheme,

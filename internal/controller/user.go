@@ -21,11 +21,10 @@ import (
 	"fmt"
 	"os"
 
-	"k8s.io/client-go/tools/record"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -51,7 +50,7 @@ type UserReconciler struct {
 	reporter    *statusReporter
 }
 
-func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, userManager UserManager, recorder record.EventRecorder) *UserReconciler {
+func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, userManager UserManager, recorder events.EventRecorder) *UserReconciler {
 	return &UserReconciler{
 		Client:      k8sClient,
 		Scheme:      scheme,

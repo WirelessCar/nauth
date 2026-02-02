@@ -21,14 +21,13 @@ import (
 	"os"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
-	ktypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
+	ktypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -53,7 +52,7 @@ var _ = Describe("Account Controller", func() {
 			testIndex             int
 			accountNamespacedName ktypes.NamespacedName
 			controllerReconciler  *AccountReconciler
-			fakeRecorder          *record.FakeRecorder
+			fakeRecorder          *events.FakeRecorder
 			operatorVersion       string
 		)
 
@@ -73,7 +72,7 @@ var _ = Describe("Account Controller", func() {
 			}
 
 			By("setting up the controller")
-			fakeRecorder = record.NewFakeRecorder(5)
+			fakeRecorder = events.NewFakeRecorder(5)
 			controllerReconciler = NewAccountReconciler(
 				k8sClient,
 				k8sClient.Scheme(),

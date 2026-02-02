@@ -237,7 +237,7 @@ func main() {
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
-		mgr.GetEventRecorderFor("account-controller"),
+		mgr.GetEventRecorder("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")
@@ -249,7 +249,7 @@ func main() {
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		userManager,
-		mgr.GetEventRecorderFor("user-controller"),
+		mgr.GetEventRecorder("user-controller"),
 	)
 	if err = userReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "User")
