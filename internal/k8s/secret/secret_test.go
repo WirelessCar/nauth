@@ -41,7 +41,7 @@ var _ = Describe("Secrets storer", func() {
 		It("should successfully create and update an existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
+			err := secretStorer.Apply(ctx, nil, secretMeta, secret, true)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the secret")
@@ -52,7 +52,7 @@ var _ = Describe("Secrets storer", func() {
 
 			By("Updating the secret with a new value")
 			newSecret := map[string]string{"key": "new value"}
-			err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
+			err = secretStorer.Apply(ctx, nil, secretMeta, newSecret, true)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the updated secret")
@@ -77,7 +77,7 @@ var _ = Describe("Secrets storer", func() {
 
 				By("Trying to update the existing secret with a new value")
 				newSecret := map[string]string{"key": "new value"}
-				err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
+				err = secretStorer.Apply(ctx, nil, secretMeta, newSecret, true)
 				Expect(err).To(HaveOccurred())
 				Expect(err).To(Equal(fmt.Errorf("existing secret %s/%s not managed by nauth", namespace, resourceName)))
 
@@ -110,7 +110,7 @@ var _ = Describe("Secrets storer", func() {
 		It("should return success when deleting existing secret", func() {
 			By("Creating a new secret from scratch")
 			secret := map[string]string{"key": "value"}
-			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
+			err := secretStorer.Apply(ctx, nil, secretMeta, secret, true)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting the secret")

@@ -117,6 +117,10 @@ spec:
                         type: array
                     type: object
                 type: object
+              useSigningKey:
+                description: UseSigningKey generates a scopping signing key for the
+                  user.
+                type: boolean
               userLimits:
                 properties:
                   src:

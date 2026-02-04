@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -85,7 +86,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err := r.Get(ctx, req.NamespacedName, natsAccount)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("resource not found. Ignoring since object must be deleted")
+			// log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
@@ -127,11 +128,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if len(userList.Items) > 0 {
-			return r.reporter.error(
-				ctx,
-				natsAccount,
-				fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items)),
-			)
+			log.Info("Cannot delete an account with associated users, found", "account", natsAccount, "users", len(userList.Items))
+			return ctrl.Result{
+				RequeueAfter: 2 * time.Second,
+			}, nil
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {

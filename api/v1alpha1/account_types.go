@@ -58,6 +58,9 @@ type AccountClaims struct {
 type AccountStatus struct {
 	// +optional
 	Claims AccountClaims `json:"claims,omitempty"`
+	// +listType=set
+	// +optional
+	SigningKeys []string `json:"signingKeys,omitempty"`
 	// +listType=map
 	// +listMapKey=type
 	// +patchStrategy=merge

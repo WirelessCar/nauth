@@ -23,7 +23,7 @@ type SecretStorerMock struct {
 }
 
 // ApplySecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Apply(ctx context.Context, secretOwner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (s *SecretStorerMock) Apply(ctx context.Context, secretOwner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string, update bool) error {
 	args := s.Called(ctx, secretOwner, meta, valueMap)
 	return args.Error(0)
 }
