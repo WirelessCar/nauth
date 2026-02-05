@@ -47,15 +47,30 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	}
 
 	accountID := account.GetLabels()[k8s.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account %s/%s does not have an account ID yet", account.GetNamespace(), account.GetName())
+	}
 	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
 	}
-	accountSigningKeyPublicKey, _ := accountSigningKeyPair.PublicKey()
+	accountSigningKeyPublicKey, err := accountSigningKeyPair.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get account signing public key: %w", err)
+	}
 
-	userKeyPair, _ := nkeys.CreateUser()
-	userPublicKey, _ := userKeyPair.PublicKey()
-	userSeed, _ := userKeyPair.Seed()
+	userKeyPair, err := nkeys.CreateUser()
+	if err != nil {
+		return fmt.Errorf("failed to create user key pair: %w", err)
+	}
+	userPublicKey, err := userKeyPair.PublicKey()
+	if err != nil {
+		return fmt.Errorf("failed to get user public key: %w", err)
+	}
+	userSeed, err := userKeyPair.Seed()
+	if err != nil {
+		return fmt.Errorf("failed to get user seed: %w", err)
+	}
 
 	natsClaims := newClaimsBuilder(getDisplayName(state), state.Spec, userPublicKey, accountID).
 		build()
@@ -65,7 +80,10 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		return fmt.Errorf("failed to sign user jwt for %s: %w", userResource, err)
 	}
 
-	userCreds, _ := jwt.FormatUserConfig(userJwt, userSeed)
+	userCreds, err := jwt.FormatUserConfig(userJwt, userSeed)
+	if err != nil {
+		return fmt.Errorf("failed to format user credentials: %w", err)
+	}
 
 	secretOwner := &secret.Owner{
 		Owner: state,
@@ -237,12 +255,12 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 
 	accountSignSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
-		return nil, fmt.Errorf("no signing key found for account %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("no deprecated signing key found for account %s-%s", namespace, accountName)
 	}
 
 	accountSignSecretSeed, ok := accountSignSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return nil, fmt.Errorf("no signing key seed found for account %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("no deprecated signing key seed found for account %s-%s", namespace, accountName)
 	}
 	return nkeys.FromSeed([]byte(accountSignSecretSeed))
 }
