@@ -220,6 +220,9 @@ func GetNewAccount() *v1alpha1.Account {
 func GetExistingAccount() *v1alpha1.Account {
 	const ControllerTypeReady = "Ready"
 	account := GetNewAccount()
+	account.Labels = map[string]string{
+		k8s.LabelAccountID: "ACEXISTINGACCOUNTID",
+	}
 	account.Status = v1alpha1.AccountStatus{
 		SigningKey: v1alpha1.KeyInfo{
 			Name: "OPERATORSIGNPUBKEY",
