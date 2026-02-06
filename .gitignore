@@ -46,3 +46,6 @@ go.work.sum
 # Kuttl
 kubeconfig
 test/logs/
+
+# Approval Tests
+**/.approval_tests_temp
