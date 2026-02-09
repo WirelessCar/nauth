@@ -22,7 +22,7 @@ spec:
       {{- end }}
       labels:
         control-plane: controller-manager
-        app.kubernetes.io/name: {{ include "nauth.name" . }}
+        {{- include "nauth.labels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "nauth.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
