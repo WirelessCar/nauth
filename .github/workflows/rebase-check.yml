@@ -1,0 +1,26 @@
+name: Rebase Check
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-rebase:
+    name: Verify Rebase on Main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history so we can compare branches
+
+      - name: Check if PR is rebased on main
+        run: |
+          git fetch origin main
+          # Check if origin/main is an ancestor of the PR HEAD
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "Branch is up to date with main."
+            exit 0
+          else
+            echo "::warning title=Rebase Required::This branch is not rebased on the latest main. Merging might require a merge commit, which will break commit signatures. Best practice is to rebase locally to keep a valid signature."
+            exit 1
+          fi
