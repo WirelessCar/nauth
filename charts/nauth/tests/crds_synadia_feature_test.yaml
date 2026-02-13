@@ -1,0 +1,65 @@
+suite: features.synadia on CRDs
+templates:
+  - crds.yaml
+tests:
+  - it: renders only nauth.io CRDs by default
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 0
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 1
+      - isKind:
+          of: CustomResourceDefinition
+        documentIndex: 2
+
+  - it: does not render synadia CRDs when synadia is explicitly disabled
+    set:
+      features:
+        synadia:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: renders nauth.io and synadia CRDs when synadia is enabled
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 5
+
+  - it: renders synadia systems CRD when synadia is enabled
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: systems.synadia.nauth.io
+        documentIndex: 3
+
+  - it: renders synadia tieredlimits CRD when synadia is enabled
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tieredlimits.synadia.nauth.io
+        documentIndex: 4
+
+  - it: does not render CRDs when crds.install is false
+    set:
+      crds:
+        install: false
+    asserts:
+      - hasDocuments:
+          count: 0

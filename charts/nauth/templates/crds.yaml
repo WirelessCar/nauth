@@ -1,11 +1,22 @@
-{{- if .Values.crds.install -}}
+{{- /*
+  Renders CRDs from resources/crds/*.yaml when crds.install is true.
+  - nauth.io_* CRDs (accounts, users, natsclusters) are always included when install is true.
+  - synadia.* CRDs (systems, tieredlimits) are included only when features.synadia.enabled is true.
+  - When crds.keep is true, adds helm.sh/resource-policy: keep so CRDs are not removed on uninstall.
+*/}}
+{{- if .Values.crds.install }}
+{{- $synadiaEnabled := eq (include "nauth.synadia.enabled" .) "true" }}
 {{- range $path, $bytes := .Files.Glob "resources/crds/*.yaml" }}
+{{- $base := base $path }}
+{{- if or (hasPrefix "nauth.io_" $base) (and (hasPrefix "synadia." $base) $synadiaEnabled) }}
 {{- $manifest := $.Files.Get $path | fromYaml }}
 {{- if $.Values.crds.keep }}
-{{- $newAnnotations := dict "helm.sh/resource-policy" "keep" | merge $manifest.metadata.annotations }}
+{{- $existingAnnotations := $manifest.metadata.annotations | default dict }}
+{{- $newAnnotations := dict "helm.sh/resource-policy" "keep" | merge $existingAnnotations }}
 {{- $_ := set $manifest.metadata "annotations" $newAnnotations }}
 {{- end }}
-{{- $manifest | toYaml  }}
+{{- $manifest | toYaml }}
 {{- print "\n---\n" }}
+{{- end }}
 {{- end }}
 {{- end }}

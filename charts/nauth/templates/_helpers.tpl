@@ -66,3 +66,11 @@ Selector labels
 app.kubernetes.io/name: {{ include "nauth.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Whether Synadia Cloud support is enabled (features.synadia.enabled is true).
+*/}}
+{{- define "nauth.synadia.enabled" -}}
+{{- $synadia := index (.Values.features | default dict) "synadia" | default dict }}
+{{- if index $synadia "enabled" }}true{{- else }}false{{- end }}
+{{- end }}

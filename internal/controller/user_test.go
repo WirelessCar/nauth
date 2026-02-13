@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/cluster"
 	"github.com/WirelessCar/nauth/internal/k8s"
@@ -307,6 +308,25 @@ var _ = Describe("User Controller", func() {
 				err = k8sClient.Get(ctx, userNamespacedName, user)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(controllerutil.ContainsFinalizer(user, controllerUserFinalizer)).To(BeTrue())
+			})
+		})
+
+		Context("Synadia behaviour (RequeueAfter)", func() {
+			It("should return RequeueAfter when provider sets it", func() {
+				requeueAfter := 5 * time.Minute
+				mockResult := &cluster.UserResult{
+					UserID:       "UTESTUSERID123",
+					UserSignedBy: "ACCOUNT_SIGNING_KEY",
+					Claims:       &nauthv1alpha1.UserClaims{},
+					RequeueAfter: &requeueAfter,
+				}
+				providerMock.On("CreateOrUpdateUser", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+
+				result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: userNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(requeueAfter))
 			})
 		})
 

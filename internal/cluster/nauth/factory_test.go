@@ -436,6 +436,19 @@ func TestFactory_ResolveNatsURL(t *testing.T) {
 func TestFactory_CreateProvider_LegacyEnv(t *testing.T) {
 	ctx := context.Background()
 
+	t.Run("returns_error_when_config_is_not_NatsCluster", func(t *testing.T) {
+		cmClient := &configMapClientMock{}
+		secretClient := &secretClientMock{}
+		accounts := &accountGetterMock{}
+		f := NewFactory(accounts, secretClient, cmClient, "nauth-system")
+
+		// Pass a non-NatsCluster type (e.g. Synadia System would be passed when resolver fetches System CR)
+		provider, err := f.CreateProvider(ctx, "wrong-type")
+		require.Error(t, err)
+		assert.Nil(t, provider)
+		assert.Contains(t, err.Error(), "nauth factory expected *NatsCluster")
+	})
+
 	t.Run("uses_NATS_URL_env_when_cluster_is_nil", func(t *testing.T) {
 		const testURL = "nats://legacy.example.com:4222"
 		key := "NATS_URL"

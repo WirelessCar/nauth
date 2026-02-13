@@ -40,6 +40,11 @@ spec:
             {{- if .Values.namespaced }}
             - --namespace={{ include "nauth.namespaceName" . }}
             {{- end }}
+            {{- if eq (include "nauth.synadia.enabled" .) "true" }}
+            - --enable-synadia=true
+            {{- else }}
+            - --enable-synadia=false
+            {{- end }}
           name: manager
           env:
             - name: NATS_URL

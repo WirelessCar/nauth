@@ -33,15 +33,18 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	synadiav1alpha1 "github.com/WirelessCar/nauth/api/synadia/v1alpha1"
 	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/cluster"
 	"github.com/WirelessCar/nauth/internal/cluster/nauth"
+	"github.com/WirelessCar/nauth/internal/cluster/synadia"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/configmap"
@@ -58,6 +61,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(nauthv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(synadiav1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -91,6 +95,10 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	var enableSynadia bool
+	flag.BoolVar(&enableSynadia, "enable-synadia", false,
+		"If true, enable Synadia Cloud support (System controller, Synadia provider). "+
+			"Set to false when Synadia CRDs are not installed to avoid cache/list errors.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -230,17 +238,28 @@ func main() {
 	configmapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 
-	// Create the cluster resolver with the nauth provider factory
-	// The factory will create managers with NatsCluster CRD support when needed
+	// Create the cluster resolver with nauth and optionally Synadia provider factory
 	nauthFactory := nauth.NewFactory(accountClient, secretClient, configmapClient, namespace)
 	resolver := cluster.NewResolver(mgr.GetClient(), namespace)
-	resolver.RegisterFactory(cluster.APIVersionNauth, nauthFactory)
+	resolver.RegisterFactory(cluster.APIVersionNauth, nauthFactory, nauth.FetchConfig)
+	if enableSynadia {
+		synadiaFactory := synadia.NewFactory(mgr.GetClient(), secretClient)
+		resolver.RegisterFactory(cluster.APIVersionSynadia, synadiaFactory, synadia.FetchConfig)
+	}
 
+	var accountOpts []controller.AccountReconcilerOption
+	if enableSynadia {
+		accountOpts = append(accountOpts, controller.WithAdditionalWatch(
+			&synadiav1alpha1.TieredLimit{},
+			handler.EnqueueRequestsFromMapFunc(synadia.TieredLimitToAccount),
+		))
+	}
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		resolver,
 		mgr.GetEventRecorder("account-controller"),
+		accountOpts...,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")
@@ -256,6 +275,20 @@ func main() {
 	if err = userReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "User")
 		os.Exit(1)
+	}
+
+	if enableSynadia {
+		systemReconciler := controller.NewSystemReconciler(
+			mgr.GetClient(),
+			mgr.GetScheme(),
+			secretClient,
+			configmapClient,
+			mgr.GetEventRecorder("system-controller"),
+		)
+		if err = systemReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "System")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

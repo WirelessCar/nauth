@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/cluster"
 	"github.com/WirelessCar/nauth/internal/k8s"
@@ -323,6 +324,64 @@ var _ = Describe("Account Controller", func() {
 			})
 		})
 
+		Context("Synadia behaviour (RequeueAfter, AccountNkeyRotated)", func() {
+			It("should return RequeueAfter when provider sets it", func() {
+				requeueAfter := 5 * time.Minute
+				mockResult := &cluster.AccountResult{
+					AccountID:       accountPublicKey,
+					AccountSignedBy: "OPERATOR_SIGNING_KEY",
+					Claims:          &nauthv1alpha1.AccountClaims{},
+					RequeueAfter:    &requeueAfter,
+				}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+
+				result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(requeueAfter))
+			})
+
+			It("should patch Users with refresh-credentials annotation when AccountNkeyRotated is true", func() {
+				mockResult := &cluster.AccountResult{
+					AccountID:          accountPublicKey,
+					AccountSignedBy:    "OPERATOR_SIGNING_KEY",
+					Claims:             &nauthv1alpha1.AccountClaims{},
+					AccountNkeyRotated: true,
+				}
+				providerMock.On("CreateAccount", mock.Anything, mock.Anything).Return(mockResult, nil).Once()
+
+				user1Name := fmt.Sprintf("%s-cred-refresh-1", accountBaseName)
+				user2Name := fmt.Sprintf("%s-cred-refresh-2", accountBaseName)
+				for _, name := range []string{user1Name, user2Name} {
+					u := &nauthv1alpha1.User{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      name,
+							Namespace: accountNamespace,
+							Labels: map[string]string{
+								k8s.LabelUserAccountID: accountPublicKey,
+							},
+						},
+						Spec: nauthv1alpha1.UserSpec{AccountName: accountName},
+					}
+					Expect(k8sClient.Create(ctx, u)).To(Succeed())
+				}
+
+				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+					NamespacedName: accountNamespacedName,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				for _, name := range []string{user1Name, user2Name} {
+					user := &nauthv1alpha1.User{}
+					Expect(k8sClient.Get(ctx, ktypes.NamespacedName{Name: name, Namespace: accountNamespace}, user)).To(Succeed())
+					Expect(user.Annotations).NotTo(BeNil())
+					Expect(user.Annotations).To(HaveKey(k8s.AnnotationRefreshCredentials))
+					Expect(user.Annotations[k8s.AnnotationRefreshCredentials]).NotTo(BeEmpty())
+				}
+			})
+		})
+
 		Context("Account update reconciliation", func() {
 			It("should successfully reconcile the account when the operator version change", func() {
 				By("Reconciling the created account")
@@ -376,6 +435,10 @@ func (r *ResolverMock) ResolveForAccount(ctx context.Context, account *nauthv1al
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(cluster.Provider), args.Error(1)
+}
+
+func (r *ResolverMock) RequiresPeriodicSync(_ *nauthv1alpha1.Account) bool {
+	return false
 }
 
 type ProviderMock struct {

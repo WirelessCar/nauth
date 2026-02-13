@@ -118,6 +118,11 @@ tolerations: []
 
 affinity: {}
 
+# -- Optional feature flags.
+features: {}
+#  synadia:
+#    enabled: true  # Synadia Cloud: System and TieredLimit CRDs, RBAC (one TieredLimit per account enforced in-controller)
+
 crds:
   # -- Indicates if Custom Resource Definitions should be installed and upgraded as part of the release.
   install: true

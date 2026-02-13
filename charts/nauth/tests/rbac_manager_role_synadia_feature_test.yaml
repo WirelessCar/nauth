@@ -1,0 +1,85 @@
+suite: features.synadia on manager role
+templates:
+  - rbac_manager_role.yaml
+tests:
+  - it: does not include synadia.nauth.io rules by default
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - synadia.nauth.io
+            resources:
+              - systems
+              - tieredlimits
+            verbs:
+              - get
+              - list
+              - watch
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - synadia.nauth.io
+            resources:
+              - systems/status
+            verbs:
+              - get
+              - patch
+              - update
+
+  - it: does not include synadia.nauth.io rules when synadia is explicitly disabled
+    set:
+      features:
+        synadia:
+          enabled: false
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - synadia.nauth.io
+            resources:
+              - systems
+              - tieredlimits
+            verbs:
+              - get
+              - list
+              - watch
+
+  - it: includes synadia.nauth.io read rules when synadia is enabled
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - synadia.nauth.io
+            resources:
+              - systems
+              - tieredlimits
+            verbs:
+              - get
+              - list
+              - watch
+
+  - it: includes synadia.nauth.io status rules when synadia is enabled
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - synadia.nauth.io
+            resources:
+              - systems/status
+            verbs:
+              - get
+              - patch
+              - update
