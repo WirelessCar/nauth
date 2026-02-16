@@ -91,17 +91,15 @@ helm-docs
 (with `mise` this should be available immediately, otherwise follow the instructions on [`helm-docs`](https://github.com/norwoodj/helm-docs))
 
 ## Releasing
-When building a release for the operator:
+Releases are tag-driven.
 
-1. Bump NAuth Version
-   - Make sure to follow valid [SemVer](https://semver.org) rules.
-   - Update the `.image_version` to new version
-   - Update the `charts/nauth/Chart.yaml` and `charts/nauth-crds/Chart.yaml`
-   with updated `version` & `appVersion` (keep versions in sync).
-2. Create Release in GitHub
-    - Create a new release in GitHub using a new tag with the same version as above.
-    - Add release notes and publish the release.
+1. Create and push a new release tag using valid [SemVer](https://semver.org) with a `v` prefix, for example `v0.5.4`.
+2. Create and publish a GitHub release for that tag.
 
+The `Operator Release` workflow derives the release version from the tag (without the `v`) and uses it for:
+- operator image tags/labels
+- `charts/nauth/Chart.yaml` (`version` and `appVersion`) during packaging
+- `charts/nauth-crds/Chart.yaml` (`version`) during packaging
 
 ## Resources
 
