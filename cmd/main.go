@@ -234,7 +234,7 @@ func main() {
 	// The factory will create managers with NatsCluster CRD support when needed
 	nauthFactory := nauth.NewFactory(accountClient, secretClient, configmapClient, namespace)
 	resolver := cluster.NewResolver(mgr.GetClient(), namespace)
-	resolver.RegisterFactory(cluster.APIVersionNauth, nauthFactory)
+	resolver.RegisterFactory(cluster.KindNatsCluster, nauthFactory)
 
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
