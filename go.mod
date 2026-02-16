@@ -5,16 +5,16 @@ go 1.25.5
 godebug default=go1.25
 
 require (
-	github.com/approvals/go-approval-tests v1.7.0
+	github.com/approvals/go-approval-tests v1.8.0
 	github.com/nats-io/jwt/v2 v2.8.0
 	github.com/nats-io/nats.go v1.48.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/stretchr/testify v1.11.1
-	k8s.io/api v0.35.0
-	k8s.io/apimachinery v0.35.0
-	k8s.io/client-go v0.35.0
+	k8s.io/api v0.35.1
+	k8s.io/apimachinery v0.35.1
+	k8s.io/client-go v0.35.1
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	sigs.k8s.io/controller-runtime v0.23.1
 	sigs.k8s.io/yaml v1.6.0
