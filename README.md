@@ -73,3 +73,6 @@ Note: the System Account required by NAuth itself can only be observed and recon
 
 ## Nauth Development
 Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide.
+
+### Join our Slack
+We co-locate with the NATS Slack in our [own channel](https://natsio.slack.com/archives/C0AFYH76KPD)
