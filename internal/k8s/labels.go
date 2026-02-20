@@ -12,4 +12,7 @@ const (
 	LabelManagedValue                 = "true"
 	LabelManagementPolicy             = "nauth.io/management-policy"
 	LabelManagementPolicyObserveValue = "observe"
+
+	// AnnotationRefreshCredentials triggers the User controller to refresh credentials (e.g. after account nkey rotation).
+	AnnotationRefreshCredentials = "nauth.io/refresh-credentials"
 )

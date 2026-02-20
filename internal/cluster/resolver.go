@@ -26,21 +26,28 @@ import (
 )
 
 const (
-	// APIVersionNauth is the default API version for native nauth clusters
+	// APIVersionNauth is the API version for native nauth clusters
 	APIVersionNauth = "nauth.io/v1alpha1"
+	// APIVersionSynadia is the API version for Synadia Cloud (System CR)
+	APIVersionSynadia = "synadia.nauth.io/v1alpha1"
 )
 
-// ProviderFactory creates Provider instances for a specific cluster type
-type ProviderFactory interface {
-	// CreateProvider creates a provider for the given NatsCluster
-	// If cluster is nil, creates a provider using legacy label-based configuration
-	CreateProvider(ctx context.Context, cluster *v1alpha1.NatsCluster) (Provider, error)
+// ConfigFetcher retrieves the backend-specific config object from Kubernetes.
+// It is called by the Resolver when an Account references a NatsClusterRef
+// with the corresponding API version.
+type ConfigFetcher func(ctx context.Context, c client.Client, nn types.NamespacedName) (any, error)
+
+// factoryEntry pairs a ProviderFactory with its config fetcher.
+type factoryEntry struct {
+	factory       ProviderFactory
+	configFetcher ConfigFetcher
 }
 
-// DefaultResolver implements Resolver by looking up NatsCluster CRDs and creating providers
+// DefaultResolver implements Resolver by looking up cluster config objects
+// and creating providers via registered factories.
 type DefaultResolver struct {
 	client         client.Client
-	factories      map[string]ProviderFactory
+	entries        map[string]factoryEntry
 	nauthNamespace string
 }
 
@@ -48,53 +55,69 @@ type DefaultResolver struct {
 func NewResolver(c client.Client, nauthNamespace string) *DefaultResolver {
 	return &DefaultResolver{
 		client:         c,
-		factories:      make(map[string]ProviderFactory),
+		entries:        make(map[string]factoryEntry),
 		nauthNamespace: nauthNamespace,
 	}
 }
 
-// RegisterFactory registers a ProviderFactory for the given API version.
+// RegisterFactory registers a ProviderFactory and its ConfigFetcher for the given API version.
+// The configFetcher is called to retrieve the backend-specific config object from K8s before
+// passing it to the factory. Pass nil if no config fetch is needed.
 // Panics if a factory is already registered for the given apiVersion to prevent silent misconfiguration.
-func (r *DefaultResolver) RegisterFactory(apiVersion string, factory ProviderFactory) {
-	if _, exists := r.factories[apiVersion]; exists {
+func (r *DefaultResolver) RegisterFactory(apiVersion string, factory ProviderFactory, configFetcher ConfigFetcher) {
+	if _, exists := r.entries[apiVersion]; exists {
 		panic(fmt.Sprintf("provider factory already registered for API version %q", apiVersion))
 	}
-	r.factories[apiVersion] = factory
+	r.entries[apiVersion] = factoryEntry{factory: factory, configFetcher: configFetcher}
 }
 
-// ResolveForAccount returns the appropriate Provider for the given account
+// ResolveForAccount returns the appropriate Provider for the given account.
+// Fetches the referenced cluster config via the registered ConfigFetcher and passes it to the factory.
 func (r *DefaultResolver) ResolveForAccount(ctx context.Context, account *v1alpha1.Account) (Provider, error) {
-	// Determine API version - default to nauth.io/v1alpha1
 	apiVersion := APIVersionNauth
-	var cluster *v1alpha1.NatsCluster
+	var config any
 
 	if account.Spec.NatsClusterRef != nil {
-		clusterRef := account.Spec.NatsClusterRef
-		if clusterRef.APIVersion != "" {
-			apiVersion = clusterRef.APIVersion
+		ref := account.Spec.NatsClusterRef
+		if ref.APIVersion != "" {
+			apiVersion = ref.APIVersion
 		}
-
-		// Fetch the NatsCluster CRD
-		namespace := clusterRef.Namespace
+		namespace := ref.Namespace
 		if namespace == "" {
 			namespace = account.GetNamespace()
 		}
+		nn := types.NamespacedName{Name: ref.Name, Namespace: namespace}
 
-		cluster = &v1alpha1.NatsCluster{}
-		if err := r.client.Get(ctx, types.NamespacedName{
-			Name:      clusterRef.Name,
-			Namespace: namespace,
-		}, cluster); err != nil {
-			return nil, fmt.Errorf("failed to get NatsCluster %s/%s: %w", namespace, clusterRef.Name, err)
+		entry, ok := r.entries[apiVersion]
+		if !ok {
+			return nil, fmt.Errorf("no provider factory registered for API version %q", apiVersion)
+		}
+		if entry.configFetcher != nil {
+			var err error
+			config, err = entry.configFetcher(ctx, r.client, nn)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	// Get the factory for this API version
-	factory, ok := r.factories[apiVersion]
+	entry, ok := r.entries[apiVersion]
 	if !ok {
 		return nil, fmt.Errorf("no provider factory registered for API version %q", apiVersion)
 	}
+	return entry.factory.CreateProvider(ctx, config)
+}
 
-	// Create the provider
-	return factory.CreateProvider(ctx, cluster)
+// RequiresPeriodicSync reports whether the backend for the given account needs
+// periodic reconciliation even when the resource spec hasn't changed.
+func (r *DefaultResolver) RequiresPeriodicSync(account *v1alpha1.Account) bool {
+	apiVersion := APIVersionNauth
+	if account.Spec.NatsClusterRef != nil && account.Spec.NatsClusterRef.APIVersion != "" {
+		apiVersion = account.Spec.NatsClusterRef.APIVersion
+	}
+	entry, ok := r.entries[apiVersion]
+	if !ok {
+		return false
+	}
+	return entry.factory.RequiresPeriodicSync()
 }

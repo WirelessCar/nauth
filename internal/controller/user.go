@@ -31,8 +31,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,6 +49,27 @@ type UserReconciler struct {
 	Scheme   *runtime.Scheme
 	resolver cluster.Resolver
 	reporter *statusReporter
+}
+
+// refreshCredentialsPredicate triggers reconciliation when AnnotationRefreshCredentials
+// is added or updated on a User. Removal of the annotation is ignored to avoid loops.
+type refreshCredentialsPredicate struct {
+	predicate.Funcs
+}
+
+func (refreshCredentialsPredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectNew == nil {
+		return false
+	}
+	newVal, newHas := e.ObjectNew.GetAnnotations()[k8s.AnnotationRefreshCredentials]
+	if !newHas {
+		return false
+	}
+	if e.ObjectOld == nil {
+		return true
+	}
+	oldVal, oldHas := e.ObjectOld.GetAnnotations()[k8s.AnnotationRefreshCredentials]
+	return !oldHas || oldVal != newVal
 }
 
 func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, resolver cluster.Resolver, recorder events.EventRecorder) *UserReconciler {
@@ -134,9 +157,19 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	operatorVersion := os.Getenv(EnvOperatorVersion)
 
-	// Nothing has changed
-	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
-		return ctrl.Result{}, nil
+	// Check if an explicit credential refresh was requested (e.g. after account nkey rotation).
+	_, needsRefresh := user.GetAnnotations()[k8s.AnnotationRefreshCredentials]
+
+	// Nothing has changed — skip unless refresh requested or the backend requires periodic sync
+	if !needsRefresh && user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
+		account := &nauthv1alpha1.Account{}
+		if err := r.Get(ctx, types.NamespacedName{Name: user.Spec.AccountName, Namespace: user.Namespace}, account); err == nil {
+			if !r.resolver.RequiresPeriodicSync(account) {
+				return ctrl.Result{}, nil
+			}
+		} else {
+			return ctrl.Result{}, nil
+		}
 	}
 
 	// RECONCILE USER - Set status & base properties
@@ -203,6 +236,9 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	user.Status = nauthv1alpha1.UserStatus{}
 
+	// Remove the refresh-credentials annotation so the update does not re-trigger this reconcile.
+	delete(user.Annotations, k8s.AnnotationRefreshCredentials)
+
 	if err := r.Update(ctx, user); err != nil {
 		log.Info("Failed to update the user", "name", user.Name, "error", err)
 		return ctrl.Result{}, err
@@ -215,14 +251,22 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
+	// Use provider-requested requeue interval (e.g. for backends that need periodic sync)
+	if result.RequeueAfter != nil && *result.RequeueAfter > 0 {
+		return ctrl.Result{RequeueAfter: *result.RequeueAfter}, nil
+	}
 	return r.reporter.status(ctx, user)
 }
 
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nauthv1alpha1.User{}).
+		Owns(&corev1.Secret{}).
 		Named("user").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
+		WithEventFilter(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			refreshCredentialsPredicate{},
+		)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).

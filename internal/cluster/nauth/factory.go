@@ -26,6 +26,8 @@ import (
 	"github.com/WirelessCar/nauth/internal/cluster/nauth/account"
 	"github.com/WirelessCar/nauth/internal/cluster/nauth/user"
 	natsc "github.com/WirelessCar/nauth/internal/nats"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Factory creates nauth Provider instances
@@ -51,9 +53,17 @@ func NewFactory(
 	}
 }
 
-// CreateProvider creates a new Provider configured for the given NatsCluster
-// If cluster is nil, creates a provider using legacy label-based configuration (NATS_URL env var)
-func (f *Factory) CreateProvider(ctx context.Context, nc *nauthv1alpha1.NatsCluster) (cluster.Provider, error) {
+// CreateProvider creates a new Provider for the given config.
+// config must be *nauthv1alpha1.NatsCluster or nil (legacy label-based configuration).
+func (f *Factory) CreateProvider(ctx context.Context, config any) (cluster.Provider, error) {
+	var nc *nauthv1alpha1.NatsCluster
+	if config != nil {
+		var ok bool
+		nc, ok = config.(*nauthv1alpha1.NatsCluster)
+		if !ok {
+			return nil, fmt.Errorf("nauth factory expected *NatsCluster, got %T", config)
+		}
+	}
 	var natsURL string
 	if nc != nil {
 		var err error
@@ -131,6 +141,18 @@ func (f *Factory) resolveNatsURL(ctx context.Context, nc *nauthv1alpha1.NatsClus
 	default:
 		return "", fmt.Errorf("urlFrom.kind must be ConfigMap or Secret, got %q", ref.Kind)
 	}
+}
+
+// RequiresPeriodicSync returns false — nauth backends don't need periodic reconciliation.
+func (f *Factory) RequiresPeriodicSync() bool { return false }
+
+// FetchConfig retrieves a NatsCluster object from Kubernetes for the Resolver.
+func FetchConfig(ctx context.Context, c client.Client, nn types.NamespacedName) (any, error) {
+	cluster := &nauthv1alpha1.NatsCluster{}
+	if err := c.Get(ctx, nn, cluster); err != nil {
+		return nil, fmt.Errorf("failed to get NatsCluster %s/%s: %w", nn.Namespace, nn.Name, err)
+	}
+	return cluster, nil
 }
 
 // Ensure Factory implements cluster.ProviderFactory

@@ -1,0 +1,46 @@
+suite: features.synadia on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: sets --enable-synadia=false by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=false
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=true
+
+  - it: sets --enable-synadia=false when features is empty
+    set:
+      features: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=false
+
+  - it: sets --enable-synadia=false when features.synadia.enabled is false
+    set:
+      features:
+        synadia:
+          enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=false
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=true
+
+  - it: sets --enable-synadia=true when features.synadia.enabled is true
+    set:
+      features:
+        synadia:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=true
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --enable-synadia=false

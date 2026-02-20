@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -46,21 +47,44 @@ type AccountResult struct {
 	Claims          *nauthv1alpha1.AccountClaims
 }
 
+// additionalWatch pairs an object type with a handler for the controller to watch.
+type additionalWatch struct {
+	object  client.Object
+	handler handler.EventHandler
+}
+
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	resolver cluster.Resolver
-	reporter *statusReporter
+	Scheme            *runtime.Scheme
+	resolver          cluster.Resolver
+	reporter          *statusReporter
+	additionalWatches []additionalWatch
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, resolver cluster.Resolver, recorder events.EventRecorder) *AccountReconciler {
-	return &AccountReconciler{
+// AccountReconcilerOption configures an AccountReconciler.
+type AccountReconcilerOption func(*AccountReconciler)
+
+// WithAdditionalWatch registers an extra watch source on the Account controller.
+// Use this to trigger Account reconciliation when related resources change
+// (e.g. TieredLimit for Synadia backends).
+func WithAdditionalWatch(obj client.Object, h handler.EventHandler) AccountReconcilerOption {
+	return func(r *AccountReconciler) {
+		r.additionalWatches = append(r.additionalWatches, additionalWatch{object: obj, handler: h})
+	}
+}
+
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, resolver cluster.Resolver, recorder events.EventRecorder, opts ...AccountReconcilerOption) *AccountReconciler {
+	r := &AccountReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
 		resolver: resolver,
 		reporter: newStatusReporter(k8sClient, recorder),
 	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts,verbs=get;list;watch;create;update;patch;delete
@@ -103,61 +127,13 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
-		// The account is being deleted
-		meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-			Type:    controllerTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  controllerReasonReconciling,
-			Message: "Deleting account",
-		})
-
-		if err := r.Status().Update(ctx, natsAccount); err != nil {
-			log.Info("Failed to update the account status", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
-		}
-
-		// Check for connected users
-		userList := &nauthv1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
-		if err != nil {
-			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
-		}
-
-		if len(userList.Items) > 0 {
-			return r.reporter.error(
-				ctx,
-				natsAccount,
-				fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items)),
-			)
-		}
-
-		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
-			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
-				provider, err := r.resolver.ResolveForAccount(ctx, natsAccount)
-				if err != nil {
-					return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but cannot be removed because system credentials are unavailable (e.g. referenced NatsCluster was deleted): %w. Restore the NatsCluster or its credentials to allow cleanup", err))
-				}
-				if err := provider.DeleteAccount(ctx, natsAccount); err != nil {
-					return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but Account JWT removal failed: %w. Restore the NatsCluster or its credentials to allow cleanup", err))
-				}
-			}
-
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(natsAccount, controllerAccountFinalizer)
-			if err := r.Update(ctx, natsAccount); err != nil {
-				log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
-				return ctrl.Result{}, err
-			}
-		}
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
+		return r.reconcileDelete(ctx, natsAccount, accountID, managementPolicy)
 	}
 
 	operatorVersion := os.Getenv(EnvOperatorVersion)
 
-	// Nothing has changed
-	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
+	// Nothing has changed — skip unless the backend requires periodic sync
+	if !r.resolver.RequiresPeriodicSync(natsAccount) && natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
@@ -191,7 +167,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
 	var result *cluster.AccountResult
-
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
 		result, err = provider.ImportAccount(ctx, natsAccount)
 		if err != nil {
@@ -239,17 +214,107 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	// On account nkey rotation, patch Users to trigger credential refresh
+	if result.AccountNkeyRotated {
+		r.refreshUsersOnNkeyRotation(ctx, result.AccountID, req.Namespace)
+	}
+
+	// Use provider-requested requeue interval (e.g. for backends that need periodic sync)
+	if result.RequeueAfter != nil && *result.RequeueAfter > 0 {
+		return ctrl.Result{RequeueAfter: *result.RequeueAfter}, nil
+	}
 	return r.reporter.status(ctx, natsAccount)
+}
+
+// reconcileDelete handles the deletion of an Account resource, including user
+// checks, provider cleanup, and finalizer removal.
+func (r *AccountReconciler) reconcileDelete(ctx context.Context, natsAccount *nauthv1alpha1.Account, accountID, managementPolicy string) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
+		Type:    controllerTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  controllerReasonReconciling,
+		Message: "Deleting account",
+	})
+
+	if err := r.Status().Update(ctx, natsAccount); err != nil {
+		log.Info("Failed to update the account status", "name", natsAccount.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	// Check for connected users
+	userList := &nauthv1alpha1.UserList{}
+	if err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(natsAccount.Namespace)); err != nil {
+		log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	if len(userList.Items) > 0 {
+		return r.reporter.error(
+			ctx,
+			natsAccount,
+			fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items)),
+		)
+	}
+
+	if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
+		if managementPolicy != k8s.LabelManagementPolicyObserveValue {
+			provider, err := r.resolver.ResolveForAccount(ctx, natsAccount)
+			if err != nil {
+				return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but cannot be removed because system credentials are unavailable (e.g. referenced NatsCluster was deleted): %w. Restore the NatsCluster or its credentials to allow cleanup", err))
+			}
+			if err := provider.DeleteAccount(ctx, natsAccount); err != nil {
+				return r.reporter.error(ctx, natsAccount, fmt.Errorf("account is marked for deletion, but Account JWT removal failed: %w. Restore the NatsCluster or its credentials to allow cleanup", err))
+			}
+		}
+
+		controllerutil.RemoveFinalizer(natsAccount, controllerAccountFinalizer)
+		if err := r.Update(ctx, natsAccount); err != nil {
+			log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
+}
+
+// refreshUsersOnNkeyRotation patches Users to trigger credential refresh when
+// an account nkey is rotated.
+func (r *AccountReconciler) refreshUsersOnNkeyRotation(ctx context.Context, accountID, namespace string) {
+	log := logf.FromContext(ctx)
+
+	userList := &nauthv1alpha1.UserList{}
+	if listErr := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(namespace)); listErr != nil {
+		log.Info("Failed to list users for cred refresh", "error", listErr)
+		return
+	}
+	for i := range userList.Items {
+		orig := &userList.Items[i]
+		patched := orig.DeepCopy()
+		if patched.Annotations == nil {
+			patched.Annotations = make(map[string]string)
+		}
+		patched.Annotations[k8s.AnnotationRefreshCredentials] = metav1.Now().Format("2006-01-02T15:04:05Z07:00")
+		if patchErr := r.Patch(ctx, patched, client.MergeFrom(orig)); patchErr != nil {
+			log.Info("Failed to patch user for cred refresh", "user", orig.Name, "error", patchErr)
+		}
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	b := ctrl.NewControllerManagedBy(mgr).
 		For(&nauthv1alpha1.Account{}).
 		Named("account").
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
-		}).
-		Complete(r)
+		})
+
+	for _, w := range r.additionalWatches {
+		b = b.Watches(w.object, w.handler)
+	}
+
+	return b.Complete(r)
 }
