@@ -40,12 +40,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/cluster"
-	"github.com/WirelessCar/nauth/internal/cluster/nauth"
+	"github.com/WirelessCar/nauth/internal/account"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/user"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -229,17 +229,19 @@ func main() {
 	secretClient := secret.NewClient(mgr.GetClient())
 	configmapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
-
-	// Create the cluster resolver with the nauth provider factory
-	// The factory will create managers with NatsCluster CRD support when needed
-	nauthFactory := nauth.NewFactory(accountClient, secretClient, configmapClient, namespace)
-	resolver := cluster.NewResolver(mgr.GetClient(), namespace)
-	resolver.RegisterFactory(cluster.APIVersionNauth, nauthFactory)
+	accountManagerFactory := account.NewManagerFactory(
+		mgr.GetClient(),
+		accountClient,
+		secretClient,
+		configmapClient,
+		namespace,
+		os.Getenv("NATS_URL"),
+	)
 
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		resolver,
+		accountManagerFactory,
 		mgr.GetEventRecorder("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
@@ -247,10 +249,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	userManager := user.NewManager(accountClient, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
-		resolver,
+		userManager,
 		mgr.GetEventRecorder("user-controller"),
 	)
 	if err = userReconciler.SetupWithManager(mgr); err != nil {

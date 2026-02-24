@@ -21,14 +21,10 @@ import (
 	"fmt"
 	"os"
 
-	"k8s.io/client-go/tools/events"
-
-	"github.com/WirelessCar/nauth/internal/cluster"
-	"github.com/WirelessCar/nauth/internal/k8s"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -41,19 +37,24 @@ import (
 	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
+type UserManager interface {
+	CreateOrUpdate(ctx context.Context, state *nauthv1alpha1.User) error
+	Delete(ctx context.Context, desired *nauthv1alpha1.User) error
+}
+
 // UserReconciler reconciles a User object
 type UserReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	resolver cluster.Resolver
+	manager  UserManager
 	reporter *statusReporter
 }
 
-func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, resolver cluster.Resolver, recorder events.EventRecorder) *UserReconciler {
+func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager UserManager, recorder events.EventRecorder) *UserReconciler {
 	return &UserReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
-		resolver: resolver,
+		manager:  manager,
 		reporter: newStatusReporter(k8sClient, recorder),
 	}
 }
@@ -101,23 +102,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 		// The user is being deleted
 		if controllerutil.ContainsFinalizer(user, controllerUserFinalizer) {
-			// Get the account for this user (required to resolve provider and delete credentials)
-			account := &nauthv1alpha1.Account{}
-			if err := r.Get(ctx, types.NamespacedName{Name: user.Spec.AccountName, Namespace: user.Namespace}, account); err != nil {
-				if !apierrors.IsNotFound(err) {
-					return r.reporter.error(ctx, user, fmt.Errorf("failed to get account: %w", err))
-				}
-				// Account was deleted before this user; we cannot call the provider to remove credentials.
-				// Leave the user in error state so ops can clean up credentials manually, then remove the finalizer.
-				return r.reporter.error(ctx, user, fmt.Errorf("account %s not found: cannot delete user credentials from NATS. Restore the Account or remove the finalizer to force-delete the User CR", user.Spec.AccountName))
-			}
-
-			// Resolve provider and delete user
-			provider, err := r.resolver.ResolveForAccount(ctx, account)
-			if err != nil {
-				return r.reporter.error(ctx, user, fmt.Errorf("failed to resolve NatsCluster provider: %w", err))
-			}
-			if err := provider.DeleteUser(ctx, user); err != nil {
+			if err := r.manager.Delete(ctx, user); err != nil {
 				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
 			}
 
@@ -160,40 +145,9 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	// Get the account for this user
-	account := &nauthv1alpha1.Account{}
-	if err := r.Get(ctx, types.NamespacedName{Name: user.Spec.AccountName, Namespace: user.Namespace}, account); err != nil {
-		return r.reporter.error(ctx, user, fmt.Errorf("failed to get account %s: %w", user.Spec.AccountName, err))
-	}
-
-	// Resolve the NatsCluster provider for this account
-	provider, err := r.resolver.ResolveForAccount(ctx, account)
-	if err != nil {
-		return r.reporter.error(ctx, user, fmt.Errorf("failed to resolve NatsCluster provider: %w", err))
-	}
-
-	// Get account ID from labels
-	accountID := account.GetLabels()[k8s.LabelAccountID]
-
-	// Create or update user - the provider handles the idempotency
-	result, err := provider.CreateOrUpdateUser(ctx, user)
-	if err != nil {
+	if err := r.manager.CreateOrUpdate(ctx, user); err != nil {
 		return r.reporter.error(ctx, user, err)
 	}
-
-	// Apply result to user labels and status
-	if user.Labels == nil {
-		user.Labels = make(map[string]string)
-	}
-	user.Labels[k8s.LabelUserID] = result.UserID
-	user.Labels[k8s.LabelUserAccountID] = accountID
-	user.Labels[k8s.LabelUserSignedBy] = result.UserSignedBy
-
-	if result.Claims != nil {
-		user.Status.Claims = *result.Claims
-	}
-	user.Status.ObservedGeneration = user.Generation
-	user.Status.ReconcileTimestamp = metav1.Now()
 
 	// UPDATE USER STATUS
 
@@ -202,7 +156,6 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	status.OperatorVersion = operatorVersion
 
 	user.Status = nauthv1alpha1.UserStatus{}
-
 	if err := r.Update(ctx, user); err != nil {
 		log.Info("Failed to update the user", "name", user.Name, "error", err)
 		return ctrl.Result{}, err

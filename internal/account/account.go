@@ -791,3 +791,6 @@ func mustGenerateShortHashFromID(ID string) string {
 	}
 	return hash
 }
+
+// Compile-time assertion that Manager implements the controller.AccountManager interface
+var _ controller.AccountManager = (*Manager)(nil)
