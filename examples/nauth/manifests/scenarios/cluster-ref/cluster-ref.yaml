@@ -52,7 +52,6 @@ metadata:
   namespace: cluster-ref-example
 spec:
   natsClusterRef:
-    kind: NatsCluster
     name: my-nats-cluster
     namespace: cluster-ref-example
   accountLimits:

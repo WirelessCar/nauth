@@ -7,7 +7,6 @@ metadata:
 spec:
   # Reference the NatsCluster CRD - this is the new approach
   natsClusterRef:
-    kind: NatsCluster
     name: test-cluster
     namespace: cluster-ref-test
   displayName: Cluster Ref Test Account

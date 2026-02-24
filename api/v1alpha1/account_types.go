@@ -24,11 +24,6 @@ import (
 
 // NatsClusterRef references a NatsCluster resource
 type NatsClusterRef struct {
-	// APIVersion of the NatsCluster
-	// +optional
-	APIVersion string `json:"apiVersion,omitempty"`
-	// Kind of the NatsCluster (always "NatsCluster")
-	Kind string `json:"kind"`
 	// Name of the NatsCluster
 	Name string `json:"name"`
 	// Namespace of the NatsCluster

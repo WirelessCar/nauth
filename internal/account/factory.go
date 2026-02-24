@@ -76,13 +76,6 @@ func (f *ManagerFactory) resolveNatsClusterForAccount(
 	clusterRef *v1alpha1.NatsClusterRef,
 	nsDefault string,
 ) (*v1alpha1.NatsCluster, error) {
-	if clusterRef.APIVersion != "" && clusterRef.APIVersion != v1alpha1.GroupVersion.String() {
-		return nil, fmt.Errorf("unsupported NatsCluster apiVersion %q, expected %q", clusterRef.APIVersion, v1alpha1.GroupVersion.String())
-	}
-	if clusterRef.Kind != "" && clusterRef.Kind != "NatsCluster" {
-		return nil, fmt.Errorf("unsupported NatsCluster kind %q", clusterRef.Kind)
-	}
-
 	ns := clusterRef.Namespace
 	if ns == "" {
 		ns = nsDefault

@@ -215,12 +215,6 @@ spec:
                   NatsClusterRef references the NatsCluster to use for this account
                   If not specified, defaults to legacy behavior
                 properties:
-                  apiVersion:
-                    description: APIVersion of the NatsCluster
-                    type: string
-                  kind:
-                    description: Kind of the NatsCluster (always "NatsCluster")
-                    type: string
                   name:
                     description: Name of the NatsCluster
                     type: string
@@ -228,7 +222,6 @@ spec:
                     description: Namespace of the NatsCluster
                     type: string
                 required:
-                - kind
                 - name
                 type: object
               natsLimits:
