@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
@@ -46,7 +46,7 @@ type NatsClient interface {
 }
 
 type AccountGetter interface {
-	Get(ctx context.Context, accountRefName string, namespace string) (account *nauthv1alpha1.Account, err error)
+	Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error)
 }
 
 type Manager struct {
@@ -54,7 +54,7 @@ type Manager struct {
 	natsClient     NatsClient
 	secretClient   SecretClient
 	nauthNamespace string
-	natsCluster    *nauthv1alpha1.NatsCluster // Optional NatsCluster CRD for secretRef-based config
+	natsCluster    *v1alpha1.NatsCluster // Optional NatsCluster CRD for secretRef-based config
 }
 
 func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
@@ -92,7 +92,7 @@ func WithNamespace(namespace string) func(*Manager) {
 
 // WithNatsCluster configures the Manager to use the NatsCluster CRD's secretRefs
 // instead of legacy label-based secret lookup
-func WithNatsCluster(cluster *nauthv1alpha1.NatsCluster) func(*Manager) {
+func WithNatsCluster(cluster *v1alpha1.NatsCluster) func(*Manager) {
 	return func(manager *Manager) {
 		manager.natsCluster = cluster
 	}
@@ -131,7 +131,7 @@ func (a *Manager) valid() bool {
 	return true
 }
 
-func (a *Manager) Create(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during creation: %w", err)
@@ -274,7 +274,7 @@ func (a *Manager) Create(ctx context.Context, state *nauthv1alpha1.Account) (*co
 	}, nil
 }
 
-func (a *Manager) Update(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during update: %w", err)
@@ -365,7 +365,7 @@ func (a *Manager) Update(ctx context.Context, state *nauthv1alpha1.Account) (*co
 	}, nil
 }
 
-func (a *Manager) Import(ctx context.Context, state *nauthv1alpha1.Account) (*controller.AccountResult, error) {
+func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing key pair from seed during import: %w", err)
@@ -443,7 +443,7 @@ func (a *Manager) Import(ctx context.Context, state *nauthv1alpha1.Account) (*co
 	}, nil
 }
 
-func (a *Manager) Delete(ctx context.Context, state *nauthv1alpha1.Account) error {
+func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 	operatorSigningKeyPair, err := a.getOperatorSigningKeyPair(ctx, state.GetNamespace())
 	if err != nil {
@@ -494,7 +494,7 @@ func (a *Manager) getOperatorSigningKeyPair(ctx context.Context, accountNamespac
 	return a.getOperatorSigningKeyPairFromLabels(ctx)
 }
 
-func (a *Manager) getOperatorSigningKeyPairFromNatsCluster(ctx context.Context, cluster *nauthv1alpha1.NatsCluster, fallbackNamespace string) (nkeys.KeyPair, error) {
+func (a *Manager) getOperatorSigningKeyPairFromNatsCluster(ctx context.Context, cluster *v1alpha1.NatsCluster, fallbackNamespace string) (nkeys.KeyPair, error) {
 	ref := cluster.Spec.OperatorSigningKeySecretRef
 	namespace := cluster.GetNamespace()
 	if namespace == "" {
@@ -705,7 +705,7 @@ func (a *Manager) getSystemAccountID(ctx context.Context, accountNamespace strin
 	return a.getSystemAccountIDFromLabels(ctx, accountNamespace)
 }
 
-func (a *Manager) getSystemAccountIDFromNatsCluster(ctx context.Context, cluster *nauthv1alpha1.NatsCluster, fallbackNamespace string) (string, error) {
+func (a *Manager) getSystemAccountIDFromNatsCluster(ctx context.Context, cluster *v1alpha1.NatsCluster, fallbackNamespace string) (string, error) {
 	ref := cluster.Spec.SystemAccountUserCredsSecretRef
 	namespace := cluster.GetNamespace()
 	if namespace == "" {
@@ -771,7 +771,7 @@ func getAccountSignSecretName(accountName, accountID string) string {
 	return fmt.Sprintf(SecretNameAccountSignTemplate, accountName, mustGenerateShortHashFromID(accountID))
 }
 
-func getDisplayName(account *nauthv1alpha1.Account) string {
+func getDisplayName(account *v1alpha1.Account) string {
 	if account.Spec.DisplayName != "" {
 		return account.Spec.DisplayName
 	}

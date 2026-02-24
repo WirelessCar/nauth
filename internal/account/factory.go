@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
 	natsc "github.com/WirelessCar/nauth/internal/nats"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,7 +38,7 @@ func NewManagerFactory(
 	}
 }
 
-func (f *ManagerFactory) ForAccount(ctx context.Context, acct *nauthv1alpha1.Account) (controller.AccountManager, error) {
+func (f *ManagerFactory) ForAccount(ctx context.Context, acct *v1alpha1.Account) (controller.AccountManager, error) {
 	mgrOpts := make([]func(*Manager), 0, 2)
 	if f.nauthNamespace != "" {
 		mgrOpts = append(mgrOpts, WithNamespace(f.nauthNamespace))
@@ -73,11 +73,11 @@ func (f *ManagerFactory) ForAccount(ctx context.Context, acct *nauthv1alpha1.Acc
 
 func (f *ManagerFactory) resolveNatsClusterForAccount(
 	ctx context.Context,
-	clusterRef *nauthv1alpha1.NatsClusterRef,
+	clusterRef *v1alpha1.NatsClusterRef,
 	nsDefault string,
-) (*nauthv1alpha1.NatsCluster, error) {
-	if clusterRef.APIVersion != "" && clusterRef.APIVersion != nauthv1alpha1.GroupVersion.String() {
-		return nil, fmt.Errorf("unsupported NatsCluster apiVersion %q, expected %q", clusterRef.APIVersion, nauthv1alpha1.GroupVersion.String())
+) (*v1alpha1.NatsCluster, error) {
+	if clusterRef.APIVersion != "" && clusterRef.APIVersion != v1alpha1.GroupVersion.String() {
+		return nil, fmt.Errorf("unsupported NatsCluster apiVersion %q, expected %q", clusterRef.APIVersion, v1alpha1.GroupVersion.String())
 	}
 	if clusterRef.Kind != "" && clusterRef.Kind != "NatsCluster" {
 		return nil, fmt.Errorf("unsupported NatsCluster kind %q", clusterRef.Kind)
@@ -88,7 +88,7 @@ func (f *ManagerFactory) resolveNatsClusterForAccount(
 		ns = nsDefault
 	}
 
-	cluster := &nauthv1alpha1.NatsCluster{}
+	cluster := &v1alpha1.NatsCluster{}
 	if err := f.reader.Get(ctx, types.NamespacedName{Name: clusterRef.Name, Namespace: ns}, cluster); err != nil {
 		return nil, fmt.Errorf("failed to get NatsCluster %s/%s: %w", ns, clusterRef.Name, err)
 	}
@@ -96,7 +96,7 @@ func (f *ManagerFactory) resolveNatsClusterForAccount(
 	return cluster, nil
 }
 
-func (f *ManagerFactory) resolveNatsURL(ctx context.Context, cluster *nauthv1alpha1.NatsCluster) (string, error) {
+func (f *ManagerFactory) resolveNatsURL(ctx context.Context, cluster *v1alpha1.NatsCluster) (string, error) {
 	if cluster.Spec.URL != "" {
 		return cluster.Spec.URL, nil
 	}
@@ -112,7 +112,7 @@ func (f *ManagerFactory) resolveNatsURL(ctx context.Context, cluster *nauthv1alp
 	}
 
 	switch urlFromRef.Kind {
-	case nauthv1alpha1.URLFromKindConfigMap:
+	case v1alpha1.URLFromKindConfigMap:
 		data, err := f.configmapClient.Get(ctx, namespace, urlFromRef.Name)
 		if err != nil {
 			return "", fmt.Errorf("get ConfigMap %s/%s: %w", namespace, urlFromRef.Name, err)
@@ -121,7 +121,7 @@ func (f *ManagerFactory) resolveNatsURL(ctx context.Context, cluster *nauthv1alp
 			return value, nil
 		}
 		return "", fmt.Errorf("configMap %s/%s has no key %q", namespace, urlFromRef.Name, urlFromRef.Key)
-	case nauthv1alpha1.URLFromKindSecret:
+	case v1alpha1.URLFromKindSecret:
 		data, err := f.secretClient.Get(ctx, namespace, urlFromRef.Name)
 		if err != nil {
 			return "", fmt.Errorf("get Secret %s/%s: %w", namespace, urlFromRef.Name, err)

@@ -31,27 +31,27 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type AccountManager interface {
-	Create(ctx context.Context, state *nauthv1alpha1.Account) (*AccountResult, error)
-	Update(ctx context.Context, state *nauthv1alpha1.Account) (*AccountResult, error)
-	Import(ctx context.Context, state *nauthv1alpha1.Account) (*AccountResult, error)
-	Delete(ctx context.Context, desired *nauthv1alpha1.Account) error
+	Create(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
+	Update(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
+	Import(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
+	Delete(ctx context.Context, desired *v1alpha1.Account) error
 }
 
 type AccountManagerFactory interface {
-	ForAccount(ctx context.Context, account *nauthv1alpha1.Account) (AccountManager, error)
+	ForAccount(ctx context.Context, account *v1alpha1.Account) (AccountManager, error)
 }
 
 type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
-	Claims          *nauthv1alpha1.AccountClaims
+	Claims          *v1alpha1.AccountClaims
 }
 
 // AccountReconciler reconciles an Account object
@@ -86,7 +86,7 @@ func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manag
 func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	natsAccount := &nauthv1alpha1.Account{}
+	natsAccount := &v1alpha1.Account{}
 
 	err := r.Get(ctx, req.NamespacedName, natsAccount)
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		// Check for connected users
-		userList := &nauthv1alpha1.UserList{}
+		userList := &v1alpha1.UserList{}
 		err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
@@ -253,7 +253,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nauthv1alpha1.Account{}).
+		For(&v1alpha1.Account{}).
 		Named("account").
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{

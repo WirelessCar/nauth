@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
 var _ = Describe("User Controller", func() {
@@ -65,10 +65,10 @@ var _ = Describe("User Controller", func() {
 			_ = k8sClient.Create(ctx, ns)
 
 			By("creating the custom user for the Kind User")
-			user := &nauthv1alpha1.User{}
+			user := &v1alpha1.User{}
 			err := k8sClient.Get(ctx, userNamespacedName, user)
 			if err != nil && k8err.IsNotFound(err) {
-				user = &nauthv1alpha1.User{
+				user = &v1alpha1.User{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      userName,
 						Namespace: userNamespace,
@@ -88,7 +88,7 @@ var _ = Describe("User Controller", func() {
 				By("Reconciling the created user")
 
 				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
-				user := &nauthv1alpha1.User{}
+				user := &v1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
 				Expect(err).NotTo(HaveOccurred())
@@ -114,7 +114,7 @@ var _ = Describe("User Controller", func() {
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
 				Expect(err).To(MatchError(k8s.ErrNoAccountFound))
 
-				user := &nauthv1alpha1.User{}
+				user := &v1alpha1.User{}
 				err = k8sClient.Get(ctx, userNamespacedName, user)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -133,7 +133,7 @@ var _ = Describe("User Controller", func() {
 			It("should successfully remove the user marked for deletion", func() {
 				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
 				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(nil)
-				user := &nauthv1alpha1.User{}
+				user := &v1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
 				Expect(err).ToNot(HaveOccurred())
@@ -169,7 +169,7 @@ var _ = Describe("User Controller", func() {
 				userDeleteError := fmt.Errorf("unable to remove the user")
 				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
 				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(userDeleteError)
-				user := &nauthv1alpha1.User{}
+				user := &v1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
 				Expect(err).ToNot(HaveOccurred())
@@ -210,7 +210,7 @@ var _ = Describe("User Controller", func() {
 				By("Reconciling the created user")
 
 				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Twice()
-				user := &nauthv1alpha1.User{}
+				user := &v1alpha1.User{}
 
 				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
 				Expect(err).NotTo(HaveOccurred())
@@ -241,13 +241,13 @@ type UserManagerMock struct {
 	mock.Mock
 }
 
-func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, state *nauthv1alpha1.User) error {
+func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
 	state.Status.ObservedGeneration = state.Generation
 	args := u.Called(state)
 	return args.Error(0)
 }
 
-func (u *UserManagerMock) Delete(ctx context.Context, desired *nauthv1alpha1.User) error {
+func (u *UserManagerMock) Delete(ctx context.Context, desired *v1alpha1.User) error {
 	args := u.Called(desired)
 	return args.Error(0)
 }

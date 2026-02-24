@@ -34,12 +34,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	nauthv1alpha1 "github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
 type UserManager interface {
-	CreateOrUpdate(ctx context.Context, state *nauthv1alpha1.User) error
-	Delete(ctx context.Context, desired *nauthv1alpha1.User) error
+	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
+	Delete(ctx context.Context, desired *v1alpha1.User) error
 }
 
 // UserReconciler reconciles a User object
@@ -72,7 +72,7 @@ func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager 
 func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	user := &nauthv1alpha1.User{}
+	user := &v1alpha1.User{}
 
 	err := r.Get(ctx, req.NamespacedName, user)
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	status := user.Status.DeepCopy()
 	status.OperatorVersion = operatorVersion
 
-	user.Status = nauthv1alpha1.UserStatus{}
+	user.Status = v1alpha1.UserStatus{}
 	if err := r.Update(ctx, user); err != nil {
 		log.Info("Failed to update the user", "name", user.Name, "error", err)
 		return ctrl.Result{}, err
@@ -173,7 +173,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nauthv1alpha1.User{}).
+		For(&v1alpha1.User{}).
 		Named("user").
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
