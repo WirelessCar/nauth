@@ -28,12 +28,18 @@ alongside the main chart with `crds.install=false`.
 NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
 See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
 
-> [!IMPORTANT]
-> Nauth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as a k8s secret with the proper labels.
-> - *nauth.io/secret-type: system-account-user-creds*
-> - *nauth.io/secret-type: operator-sign*
+Nauth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as k8s secrets.
 
-You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml).
+You can provide and resolve these secrets in three ways:
+
+1. For single-cluster deployments, set `DEFAULT_NATS_CLUSTER_REF` on the nauth controller (`[namespace/]name`, for example `nauth/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
+2. Define an explicit `spec.clusterRef` reference in each `Account` CR to a specific `NatsCluster`.
+3. Use the legacy label-based lookup:
+   - `nauth.io/secret-type: system-account-user-creds`
+   - `nauth.io/secret-type: operator-sign`
+
+You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml). 
+For a more secrets related example on how to set up NAuth using explicit secrets lookup based on `NatsClusterRef` and `NatsCluster` resources, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).
 
 ## Getting Started
 Running a large NATS cluster requires that the operator is secured properly. If you do not already have an operator, try

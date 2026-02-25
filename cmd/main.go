@@ -221,6 +221,11 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+	defaultNatsClusterRef := os.Getenv("DEFAULT_NATS_CLUSTER_REF")
+	if defaultNatsClusterRef != "" {
+		setupLog.Info("manager configured with default NATS cluster reference",
+			"defaultNatsClusterRef", defaultNatsClusterRef)
+	}
 	if namespace != "" {
 		setupLog.Info("manager configured to watch and manage resources in a single namespace",
 			"namespace", namespace)
@@ -229,11 +234,13 @@ func main() {
 	secretClient := secret.NewClient(mgr.GetClient())
 	configmapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
+	clusterClient := k8s.NewClusterClient(mgr.GetClient())
 	accountManagerFactory := account.NewManagerFactory(
-		mgr.GetClient(),
+		clusterClient,
 		accountClient,
 		secretClient,
 		configmapClient,
+		defaultNatsClusterRef,
 		namespace,
 		os.Getenv("NATS_URL"),
 	)

@@ -12,6 +12,9 @@ global:
 nats:
   url: nats://nats.nats.svc.cluster.local:4222
 
+# -- Optional default NatsCluster reference used when Account.spec.natsClusterRef is not set. Format: [namespace/]name
+defaultNatsClusterRef: ""
+
 # -- Sets the replicaset count
 replicaCount: 1
 

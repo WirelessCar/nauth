@@ -132,3 +132,38 @@ func (a *ConfigManagerMock) ApplyConfiguration(ctx context.Context, owner *secre
 	args := a.Called(owner, cm)
 	return args.Error(0)
 }
+
+/* ****************************************************
+* Cluster Getter
+*****************************************************/
+type ClusterGetterMock struct {
+	mock.Mock
+}
+
+func NewClusterGetterMock() *ClusterGetterMock {
+	return &ClusterGetterMock{}
+}
+
+func (m *ClusterGetterMock) GetNatsCluster(ctx context.Context, namespace, name string) (*v1alpha1.NatsCluster, error) {
+	args := m.Called(ctx, namespace, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
+}
+
+/* ****************************************************
+* ConfigMap Client
+*****************************************************/
+type ConfigMapClientMock struct {
+	mock.Mock
+}
+
+func NewConfigMapClientMock() *ConfigMapClientMock {
+	return &ConfigMapClientMock{}
+}
+
+func (m *ConfigMapClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+	args := m.Called(ctx, namespace, name)
+	return args.Get(0).(map[string]string), args.Error(1)
+}

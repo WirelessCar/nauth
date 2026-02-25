@@ -44,6 +44,10 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url | quote }}
+            {{- if .Values.defaultNatsClusterRef }}
+            - name: DEFAULT_NATS_CLUSTER_REF
+              value: {{ .Values.defaultNatsClusterRef | quote }}
+            {{- end }}
             - name: OPERATOR_VERSION
               value: {{ .Chart.AppVersion | quote }}
           {{- with .Values.securityContext }}
