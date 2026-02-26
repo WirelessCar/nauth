@@ -29,7 +29,7 @@ var _ = Describe("Secrets storer", func() {
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
-			secretStorer = NewClient(k8sClient, WithControllerNamespace(secretMeta.Namespace))
+			secretStorer = NewClient(k8sClient)
 		})
 
 		AfterEach(func() {
