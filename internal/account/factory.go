@@ -64,7 +64,7 @@ func (f *ManagerFactory) ForAccount(ctx context.Context, acct *v1alpha1.Account)
 		return NewManager(f.accounts, natsClient, f.secretClient, mgrOpts...), nil
 	}
 
-	cluster, err := f.resolveNatsClusterForAccount(ctx, clusterRef, acct.GetNamespace())
+	cluster, err := f.resolveNatsClusterForAccount(ctx, clusterRef, f.nauthNamespace)
 	if err != nil {
 		return nil, err
 	}

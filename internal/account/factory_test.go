@@ -65,7 +65,7 @@ func (suite *FactoryTestSuite) Test_ForAccount_ShouldSucceed_WhenLegacyNoCluster
 	require.Nil(suite.T(), manager.natsCluster)
 }
 
-func (suite *FactoryTestSuite) Test_ForAccount_ShouldSucceed_WhenDefaultClusterRefIsSet() {
+func (suite *FactoryTestSuite) Test_ForAccount_ShouldSucceed_WhenDefaultClusterRefIsSetFullyQualified() {
 	// Given a manager factory with a default NATS cluster reference
 	unitUnderTest := NewManagerFactory(suite.clustersMock, suite.accountsMock, suite.secretsMock, suite.configMapMock, defaultNatsClusterRef, "controller-namespace", "nats://nats:4222")
 
@@ -90,6 +90,47 @@ func (suite *FactoryTestSuite) Test_ForAccount_ShouldSucceed_WhenDefaultClusterR
 		},
 	}
 	suite.clustersMock.On("GetNatsCluster", suite.ctx, defaultNatsClusterRefNamespace, defaultNatsClusterRefName).
+		Return(cluster, nil).
+		Once()
+
+	// When creating an account manager for the account
+	result, err := unitUnderTest.ForAccount(suite.ctx, acct)
+
+	// Then the operation should succeed
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), result)
+
+	manager := result.(*Manager)
+	require.Equal(suite.T(), cluster, manager.natsCluster)
+}
+
+func (suite *FactoryTestSuite) Test_ForAccount_ShouldSucceed_WhenDefaultClusterRefIsSetWithNameOnly() {
+	// Given a manager factory with a default NATS cluster reference
+	natsClusterName := "single-nats-cluster"
+	controllerNamespace := "controller-namespace"
+	unitUnderTest := NewManagerFactory(suite.clustersMock, suite.accountsMock, suite.secretsMock, suite.configMapMock, natsClusterName, controllerNamespace, "nats://nats:4222")
+
+	// And an account without a cluster reference
+	acct := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "account-name",
+			Namespace: "account-namespace",
+		},
+		Spec: v1alpha1.AccountSpec{},
+	}
+
+	cluster := &v1alpha1.NatsCluster{
+		Spec: v1alpha1.NatsClusterSpec{
+			URL: "nats://cluster:4222",
+			OperatorSigningKeySecretRef: v1alpha1.SecretKeyReference{
+				Name: "operator-signing-key",
+			},
+			SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{
+				Name: "system-account-user-creds",
+			},
+		},
+	}
+	suite.clustersMock.On("GetNatsCluster", suite.ctx, controllerNamespace, natsClusterName).
 		Return(cluster, nil).
 		Once()
 
