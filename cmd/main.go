@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -226,9 +227,17 @@ func main() {
 		setupLog.Info("manager configured with default NATS cluster reference",
 			"defaultNatsClusterRef", defaultNatsClusterRef)
 	}
+	var nauthNamespace string
 	if namespace != "" {
 		setupLog.Info("manager configured to watch and manage resources in a single namespace",
 			"namespace", namespace)
+		nauthNamespace = namespace
+	} else {
+		controllerNamespace, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+		if err != nil {
+			log.Fatalf("Operator initialization failure. Failed to read controller namespace: %v", err)
+		}
+		nauthNamespace = string(controllerNamespace)
 	}
 
 	secretClient := secret.NewClient(mgr.GetClient())
@@ -241,7 +250,7 @@ func main() {
 		secretClient,
 		configmapClient,
 		defaultNatsClusterRef,
-		namespace,
+		nauthNamespace,
 		os.Getenv("NATS_URL"),
 	)
 

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"sync"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -57,37 +56,23 @@ type Manager struct {
 	natsCluster    *v1alpha1.NatsCluster // Optional NatsCluster CRD for secretRef-based config
 }
 
-func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, opts ...func(*Manager)) *Manager {
+func NewManager(accounts AccountGetter, natsClient NatsClient, secretClient SecretClient, nauthNamespace string, opts ...func(*Manager)) *Manager {
 	manager := &Manager{
-		accounts:     accounts,
-		natsClient:   natsClient,
-		secretClient: secretClient,
+		accounts:       accounts,
+		natsClient:     natsClient,
+		secretClient:   secretClient,
+		nauthNamespace: nauthNamespace,
 	}
 
 	for _, opt := range opts {
 		opt(manager)
 	}
 
-	if manager.nauthNamespace == "" {
-		controllerNamespace, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-		if err != nil {
-			log.Fatalf("Failed create account manager. Failed to read namespace: %v", err)
-		}
-		manager.nauthNamespace = string(controllerNamespace)
-	}
-
-	if !manager.valid() {
-		log.Fatalf("Failed to crate Account manager. Missing required fields.")
-		return nil
+	if err := manager.valid(); err != nil {
+		log.Fatalf("Failed to create Account manager: %v", err)
 	}
 
 	return manager
-}
-
-func WithNamespace(namespace string) func(*Manager) {
-	return func(manager *Manager) {
-		manager.nauthNamespace = namespace
-	}
 }
 
 // WithNatsCluster configures the Manager to use the NatsCluster CRD's secretRefs
@@ -111,24 +96,24 @@ func (a *Manager) getNatsNamespace(fallbackNamespace string) string {
 	return a.nauthNamespace
 }
 
-func (a *Manager) valid() bool {
+func (a *Manager) valid() error {
 	if a.accounts == nil {
-		return false
+		return fmt.Errorf("account getter not provided")
 	}
 
 	if a.natsClient == nil {
-		return false
+		return fmt.Errorf("NATS client not provided")
 	}
 
 	if a.secretClient == nil {
-		return false
+		return fmt.Errorf("secret client not provided")
 	}
 
 	if a.nauthNamespace == "" {
-		return false
+		return fmt.Errorf("nauth namespace not provided")
 	}
 
-	return true
+	return nil
 }
 
 func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {

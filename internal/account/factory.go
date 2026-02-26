@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -34,6 +35,10 @@ func NewManagerFactory(
 	nauthNamespace string,
 	defaultNatsURL string,
 ) *ManagerFactory {
+	if nauthNamespace == "" {
+		log.Fatalf("nauth namespace required for ManagerFactory")
+	}
+
 	return &ManagerFactory{
 		clusters:              clusters,
 		accounts:              accounts,
@@ -47,21 +52,18 @@ func NewManagerFactory(
 
 func (f *ManagerFactory) ForAccount(ctx context.Context, acct *v1alpha1.Account) (controller.AccountManager, error) {
 	mgrOpts := make([]func(*Manager), 0, 2)
-	if f.nauthNamespace != "" {
-		mgrOpts = append(mgrOpts, WithNamespace(f.nauthNamespace))
-	}
 
 	clusterRef := acct.Spec.NatsClusterRef
 	if clusterRef == nil && f.defaultNatsClusterRef != "" {
 		var err error
-		clusterRef, err = parseNatsClusterRef(f.defaultNatsClusterRef)
+		clusterRef, err = parseNatsClusterRef(f.defaultNatsClusterRef, f.nauthNamespace)
 		if err != nil {
 			return nil, fmt.Errorf("parse default NATS cluster reference: %w", err)
 		}
 	}
 	if clusterRef == nil {
 		natsClient := natsc.NewClient(f.defaultNatsURL, f.secretClient)
-		return NewManager(f.accounts, natsClient, f.secretClient, mgrOpts...), nil
+		return NewManager(f.accounts, natsClient, f.secretClient, f.nauthNamespace, mgrOpts...), nil
 	}
 
 	cluster, err := f.resolveNatsClusterForAccount(ctx, clusterRef, acct.GetNamespace())
@@ -82,7 +84,7 @@ func (f *ManagerFactory) ForAccount(ctx context.Context, acct *v1alpha1.Account)
 
 	natsClient := natsc.NewClientWithSecretRef(natsURL, f.secretClient, systemCredsSecretRef)
 	mgrOpts = append(mgrOpts, WithNatsCluster(cluster))
-	return NewManager(f.accounts, natsClient, f.secretClient, mgrOpts...), nil
+	return NewManager(f.accounts, natsClient, f.secretClient, f.nauthNamespace, mgrOpts...), nil
 }
 
 func (f *ManagerFactory) resolveNatsClusterForAccount(
@@ -142,10 +144,11 @@ func (f *ManagerFactory) resolveNatsURL(ctx context.Context, cluster *v1alpha1.N
 	}
 }
 
-func parseNatsClusterRef(val string) (*v1alpha1.NatsClusterRef, error) {
+func parseNatsClusterRef(val, defaultNamespace string) (*v1alpha1.NatsClusterRef, error) {
 	var namespace, name string
 	switch parts := strings.Split(val, "/"); len(parts) {
 	case 1:
+		namespace = defaultNamespace
 		name = parts[0]
 	case 2:
 		namespace = parts[0]

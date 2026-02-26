@@ -39,7 +39,7 @@ var _ = Describe("Account manager", func() {
 			accountGetterMock = NewAccountGetterMock()
 			natsClientMock = NewNATSClientMock()
 			secretStorerMock = NewSecretStorerMock()
-			accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, WithNamespace("nauth"))
+			accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace)
 		})
 
 		AfterEach(func() {
@@ -680,8 +680,7 @@ var _ = Describe("Account manager", func() {
 
 			It("successfully gets keypair using NatsCluster's namespace and custom key", func() {
 				By("creating the account manager with NatsCluster")
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -726,8 +725,7 @@ var _ = Describe("Account manager", func() {
 						},
 					},
 				}
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(clusterWithDefaultKey),
 				)
 
@@ -773,8 +771,7 @@ var _ = Describe("Account manager", func() {
 						},
 					},
 				}
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(clusterWithEmptyNS),
 				)
 
@@ -803,8 +800,7 @@ var _ = Describe("Account manager", func() {
 			})
 
 			It("fails when secret lookup returns an error", func() {
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -823,8 +819,7 @@ var _ = Describe("Account manager", func() {
 			})
 
 			It("fails when secret does not contain the expected key", func() {
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -844,8 +839,7 @@ var _ = Describe("Account manager", func() {
 			})
 
 			It("fails when seed is invalid and cannot create keypair", func() {
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -891,8 +885,7 @@ var _ = Describe("Account manager", func() {
 
 			It("successfully deletes an account using NatsCluster secretRef", func() {
 				By("creating the account manager with NatsCluster")
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -925,8 +918,7 @@ var _ = Describe("Account manager", func() {
 
 			It("fails when operator signing key secret lookup fails", func() {
 				By("creating the account manager with NatsCluster")
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -947,8 +939,7 @@ var _ = Describe("Account manager", func() {
 
 			It("fails when NATS DeleteAccountJWT fails", func() {
 				By("creating the account manager with NatsCluster")
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(cluster),
 				)
 
@@ -992,8 +983,7 @@ var _ = Describe("Account manager", func() {
 						},
 					},
 				}
-				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock,
-					WithNamespace(nauthNamespace),
+				accountManager = NewManager(accountGetterMock, natsClientMock, secretStorerMock, nauthNamespace,
 					WithNatsCluster(clusterWithEmptyNS),
 				)
 
