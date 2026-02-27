@@ -1,0 +1,24 @@
+suite: verify validation
+templates:
+  - verify.yaml
+tests:
+  - it: does not fail when nats.clusterRef is not set
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: fails when nats.clusterRef is set without name
+    set:
+      nats:
+        clusterRef:
+          namespace: nats
+    asserts:
+      - failedTemplate:
+          errorMessage: nats.clusterRef.name is required when nats.clusterRef is set
+
+  - it: does not fail when nats.clusterRef.name is set
+    set:
+      nats:
+        clusterRef:
+          name: my-nats-cluster
+    asserts:
+      - notFailedTemplate: {}

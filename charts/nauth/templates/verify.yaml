@@ -1,0 +1,5 @@
+{{- if .Values.nats.clusterRef }}
+{{- if not .Values.nats.clusterRef.name }}
+{{- fail "nats.clusterRef.name is required when nats.clusterRef is set" }}
+{{- end }}
+{{- end }}

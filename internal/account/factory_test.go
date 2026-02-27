@@ -266,20 +266,11 @@ func TestFactory_TestSuite(t *testing.T) {
 }
 
 func TestFactory_parseNatsClusterRef_ShouldSucceed(t *testing.T) {
-
 	testCases := []struct {
 		name   string
 		value  string
 		expect *v1alpha1.NatsClusterRef
 	}{
-		{
-			name:  "name only",
-			value: "my-cluster",
-			expect: &v1alpha1.NatsClusterRef{
-				Name:      "my-cluster",
-				Namespace: "",
-			},
-		},
 		{
 			name:  "namespace and name",
 			value: "my-namespace/my-cluster",
@@ -290,10 +281,10 @@ func TestFactory_parseNatsClusterRef_ShouldSucceed(t *testing.T) {
 		},
 		{
 			name:  "name as dns subdomain",
-			value: "my.cluster",
+			value: "my-namespace/my.cluster",
 			expect: &v1alpha1.NatsClusterRef{
 				Name:      "my.cluster",
-				Namespace: "",
+				Namespace: "my-namespace",
 			},
 		},
 		{
@@ -317,7 +308,6 @@ func TestFactory_parseNatsClusterRef_ShouldSucceed(t *testing.T) {
 }
 
 func TestFactory_parseNatsClusterRef_ShouldFail(t *testing.T) {
-
 	testCases := []struct {
 		name  string
 		value string
@@ -327,12 +317,16 @@ func TestFactory_parseNatsClusterRef_ShouldFail(t *testing.T) {
 			value: "",
 		},
 		{
-			name:  "separator without namespace",
+			name:  "no separator",
+			value: "my-cluster",
+		},
+		{
+			name:  "no namespace",
 			value: "/my-cluster",
 		},
 		{
-			name:  "only namespace",
-			value: "my-namespace/",
+			name:  "no name",
+			value: "my-cluster/",
 		},
 		{
 			name:  "invalid namespace char",

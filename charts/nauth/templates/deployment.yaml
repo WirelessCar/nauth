@@ -44,9 +44,13 @@ spec:
           env:
             - name: NATS_URL
               value: {{ .Values.nats.url | quote }}
-            {{- if .Values.defaultNatsClusterRef }}
-            - name: DEFAULT_NATS_CLUSTER_REF
-              value: {{ .Values.defaultNatsClusterRef | quote }}
+            {{- if .Values.nats.clusterRef }}
+            - name: NATS_CLUSTER_REF
+              value: {{default (include "nauth.namespaceName" .) .Values.nats.clusterRef.namespace}}/{{ .Values.nats.clusterRef.name }}
+            {{- if .Values.nats.clusterRef.optional }}
+            - name: NATS_CLUSTER_REF_OPTIONAL
+              value: "true"
+            {{- end }}
             {{- end }}
             - name: OPERATOR_VERSION
               value: {{ .Chart.AppVersion | quote }}

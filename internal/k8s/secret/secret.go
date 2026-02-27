@@ -3,9 +3,7 @@ package secret
 import (
 	"context"
 	"fmt"
-	"log"
 	"maps"
-	"os"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
 	v1 "k8s.io/api/core/v1"
@@ -22,33 +20,12 @@ type Owner struct {
 }
 
 type Client struct {
-	client              client.Client
-	controllerNamespace string
+	client client.Client
 }
 
-type Option func(*Client)
-
-func WithControllerNamespace(namespace string) Option {
-	return func(client *Client) {
-		client.controllerNamespace = namespace
-	}
-}
-
-func NewClient(client client.Client, opts ...Option) *Client {
+func NewClient(client client.Client) *Client {
 	secretClient := &Client{
 		client: client,
-	}
-
-	for _, opt := range opts {
-		opt(secretClient)
-	}
-
-	if secretClient.controllerNamespace == "" {
-		namespacePath, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
-		if err != nil {
-			log.Fatalf("Failed to read namespace: %v", err)
-		}
-		secretClient.controllerNamespace = string(namespacePath)
 	}
 
 	return secretClient

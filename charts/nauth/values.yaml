@@ -11,9 +11,16 @@ global:
 # -- Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace.
 nats:
   url: nats://nats.nats.svc.cluster.local:4222
-
-# -- Optional default NatsCluster reference used when Account.spec.natsClusterRef is not set. Format: [namespace/]name
-defaultNatsClusterRef: ""
+  # -- Optional NatsCluster reference used when Account.spec.natsClusterRef is not set.
+  clusterRef: null
+#   -- Required. The name of the NatsCluster resource.
+#   name: ""
+#   -- Optional. The namespace of the NatsCluster resource. Defaults to the namespace where nauth is deployed.
+#   namespace: ""
+#   -- Optional. When false (default), nauth only reconciles accounts targeting none or this specific NatsCluster;
+#   -- accounts referencing a different NatsCluster will fail reconciliation. When true, this clusterRef serves as
+#   -- a fallback, but accounts may reference other NatsClusters.
+#   optional: false
 
 # -- Sets the replicaset count
 replicaCount: 1

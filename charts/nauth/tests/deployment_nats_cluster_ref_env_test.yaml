@@ -1,0 +1,130 @@
+suite: nats cluster ref env on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: does not include NATS_CLUSTER_REF env var when nats.clusterRef is not set
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+
+  - it: includes NATS_CLUSTER_REF using nauth.namespaceName when nats.clusterRef.namespace is not set
+    release:
+      namespace: nats
+    set:
+      nats:
+        clusterRef:
+          name: shared-cluster
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: nats/shared-cluster
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+
+  - it: includes NATS_CLUSTER_REF using namespace.nameOverride when nats.clusterRef.namespace is not set
+    set:
+      namespace:
+        nameOverride: nauth-system
+      nats:
+        clusterRef:
+          name: shared-cluster
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: nauth-system/shared-cluster
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+
+  - it: includes NATS_CLUSTER_REF using explicit nats.clusterRef.namespace when set
+    set:
+      namespace:
+        nameOverride: nauth-system
+      nats:
+        clusterRef:
+          namespace: tenant-a
+          name: shared-cluster
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: tenant-a/shared-cluster
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+
+  - it: does not include NATS_CLUSTER_REF_OPTIONAL when nats.clusterRef.optional is false
+    release:
+      namespace: nats
+    set:
+      nats:
+        clusterRef:
+          name: shared-cluster
+          optional: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: nats/shared-cluster
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+
+  - it: includes NATS_CLUSTER_REF_OPTIONAL when nats.clusterRef.optional is true
+    release:
+      namespace: nats
+    set:
+      nats:
+        clusterRef:
+          name: shared-cluster
+          optional: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: nats/shared-cluster
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+            value: "true"
+
+  - it: includes both NATS_CLUSTER_REF and NATS_CLUSTER_REF_OPTIONAL when optional is true
+    release:
+      namespace: nats
+    set:
+      nats:
+        clusterRef:
+          namespace: tenant-a
+          name: shared-cluster
+          optional: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF
+            value: tenant-a/shared-cluster
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_CLUSTER_REF_OPTIONAL
+            value: "true"
+

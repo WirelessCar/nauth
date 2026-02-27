@@ -1,5 +1,6 @@
 nats:
-  url: nats://nats.nats.svc.cluster.local:4222
+  clusterRef:
+    name: local-nats-cluster
 
 # # Uncomment if running observability stack locally
 # monitoring:

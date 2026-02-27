@@ -19,6 +19,8 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -221,29 +223,37 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
-	defaultNatsClusterRef := os.Getenv("DEFAULT_NATS_CLUSTER_REF")
-	if defaultNatsClusterRef != "" {
-		setupLog.Info("manager configured with default NATS cluster reference",
-			"defaultNatsClusterRef", defaultNatsClusterRef)
-	}
+
 	if namespace != "" {
 		setupLog.Info("manager configured to watch and manage resources in a single namespace",
 			"namespace", namespace)
 	}
 
+	factoryConfig, err := resolveAccountFactoryConfig(namespace)
+	if err != nil {
+		setupLog.Error(err, "failed to resolve account factory configuration")
+		os.Exit(1)
+	}
+	opNatsCluster := factoryConfig.GetOperatorNatsCluster()
+	if opNatsCluster != nil {
+		setupLog.Info("manager configured with operator NATS cluster",
+			"natsCluster", opNatsCluster)
+	}
 	secretClient := secret.NewClient(mgr.GetClient())
 	configmapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	clusterClient := k8s.NewClusterClient(mgr.GetClient())
-	accountManagerFactory := account.NewManagerFactory(
+	accountManagerFactory, err := account.NewManagerFactory(
+		factoryConfig,
 		clusterClient,
 		accountClient,
 		secretClient,
 		configmapClient,
-		defaultNatsClusterRef,
-		namespace,
-		os.Getenv("NATS_URL"),
 	)
+	if err != nil {
+		setupLog.Error(err, "failed to create account manager factory")
+		os.Exit(1)
+	}
 
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
@@ -299,4 +309,44 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func resolveAccountFactoryConfig(overrideNamespace string) (*account.FactoryConfig, error) {
+	var nauthNamespace string
+	if overrideNamespace != "" {
+		nauthNamespace = overrideNamespace
+	} else {
+		controllerNamespace, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/overrideNamespace")
+		if err != nil {
+			return nil, fmt.Errorf("read controller overrideNamespace: %s", err)
+		}
+		nauthNamespace = string(controllerNamespace)
+	}
+
+	defaultNatsURL := os.Getenv("NATS_URL")
+
+	var opNatsCluster *account.OperatorNatsCluster
+	natsClusterRef := os.Getenv("NATS_CLUSTER_REF")
+	if natsClusterRef != "" {
+		optionalStr := os.Getenv("NATS_CLUSTER_REF_OPTIONAL")
+		var optional bool
+		if optionalStr == "true" {
+			optional = true
+		} else if optionalStr == "false" {
+			optional = false
+		} else {
+			return nil, fmt.Errorf("invalid value for NATS_CLUSTER_REF_OPTIONAL: %s. Must be 'true' or 'false'", optionalStr)
+		}
+		var err error
+		opNatsCluster, err = account.NewOperatorNatsCluster(natsClusterRef, optional)
+		if err != nil {
+			return nil, fmt.Errorf("invalid operator NATS cluster reference configuration: %v", err)
+		}
+	}
+
+	if defaultNatsURL != "" && opNatsCluster != nil {
+		log.Printf("WARNING: both Default NATS URL and Operator NATS Cluster reference are set")
+	}
+
+	return account.NewFactoryConfig(nauthNamespace, defaultNatsURL, opNatsCluster), nil
 }
