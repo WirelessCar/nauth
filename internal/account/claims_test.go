@@ -48,7 +48,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			accountGetterMock := NewAccountGetterMock()
+			accountGetterMock := NewAccountResolverMock()
 			getAccountCall := accountGetterMock.On("Get", mock.Anything, mock.Anything, mock.Anything)
 			getAccountCall.RunFn = func(args mock.Arguments) {
 				accountID := fakeAccountId(args.String(1), args.String(2))

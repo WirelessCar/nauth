@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/ports"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,3 +57,6 @@ func (c *Client) Get(ctx context.Context, namespace string, name string) (map[st
 	}
 	return result, nil
 }
+
+// Compile-time assertion that implementation satisfies the ports interface
+var _ ports.ConfigMapResolver = (*Client)(nil)

@@ -45,9 +45,7 @@ const (
 var _ = Describe("Account Controller", func() {
 	Context("When reconciling an account", func() {
 		var (
-			accountManagerFactory *AccountManagerFactoryStub
 			accountManagerMock    *AccountManagerMock
-			resolveManagerErr     error
 			accountName           string
 			testIndex             int
 			accountNamespacedName ktypes.NamespacedName
@@ -62,9 +60,7 @@ var _ = Describe("Account Controller", func() {
 			operatorVersion = "0.0-SNAPSHOT"
 			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
 
-			resolveManagerErr = nil
 			accountManagerMock = &AccountManagerMock{}
-			accountManagerFactory = &AccountManagerFactoryStub{manager: accountManagerMock}
 
 			testIndex += 1
 			accountName = fmt.Sprintf("%s-%d", accountBaseName, testIndex)
@@ -78,7 +74,7 @@ var _ = Describe("Account Controller", func() {
 			controllerReconciler = NewAccountReconciler(
 				k8sClient,
 				k8sClient.Scheme(),
-				accountManagerFactory,
+				accountManagerMock,
 				fakeRecorder,
 			)
 
@@ -156,24 +152,6 @@ var _ = Describe("Account Controller", func() {
 				By("Asserting the recorded events match the condition message")
 				Expect(fakeRecorder.Events).To(HaveLen(1))
 				Expect(<-fakeRecorder.Events).To(ContainSubstring("failed to create the account: a test error"))
-			})
-
-			It("should fail when account manager cannot be resolved", func() {
-				resolveManagerErr = fmt.Errorf("failed to get NatsCluster")
-				accountManagerFactory.err = resolveManagerErr
-				account := &v1alpha1.Account{}
-
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: accountNamespacedName})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("failed to configure account manager"))
-				Expect(err.Error()).To(ContainSubstring(resolveManagerErr.Error()))
-
-				err = k8sClient.Get(ctx, accountNamespacedName, account)
-				Expect(err).NotTo(HaveOccurred())
-				for _, c := range account.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(controllerReasonErrored))
-				}
 			})
 		})
 

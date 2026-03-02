@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,121 +14,70 @@ import (
 * Secret storer
 *****************************************************/
 
-func NewSecretStorerMock() *SecretStorerMock {
-	return &SecretStorerMock{}
+func NewSecretStorerMock() *SecretClientMock {
+	return &SecretClientMock{}
 }
 
-type SecretStorerMock struct {
+type SecretClientMock struct {
 	mock.Mock
 }
 
 // ApplySecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Apply(ctx context.Context, secretOwner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (s *SecretClientMock) Apply(ctx context.Context, secretOwner *ports.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	args := s.Called(ctx, secretOwner, meta, valueMap)
 	return args.Error(0)
 }
 
 // GetSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (s *SecretClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := s.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
 // GetByLabels implements ports.SecretStorer.
-func (s *SecretStorerMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
+func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
 	args := s.Called(ctx, namespace, labels)
 	return args.Get(0).(*corev1.SecretList), args.Error(1)
 }
 
 // DeleteSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Delete(ctx context.Context, namespace string, name string) error {
+func (s *SecretClientMock) Delete(ctx context.Context, namespace string, name string) error {
 	args := s.Called(ctx, namespace, name)
 	return args.Error(0)
 }
 
 // DeleteSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
 	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
 }
 
 // LabelSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
+func (s *SecretClientMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
 	args := s.Called(ctx, namespace, name, labels)
 	return args.Error(0)
 }
 
+// Compile-time assertion that implementation satisfies the ports interface
+var _ ports.SecretClient = &SecretClientMock{}
+
 /* ****************************************************
-* NATS Client
+* Account Resolver
 *****************************************************/
 
-func NewNATSClientMock() *NATSClientMock {
-	return &NATSClientMock{}
-}
-
-type NATSClientMock struct {
+type AccountResolverMock struct {
 	mock.Mock
 }
 
-func (n *NATSClientMock) LookupAccountJWT(accountID string) (string, error) {
-	args := n.Called(accountID)
-	return args.String(0), args.Error(1)
+func NewAccountGetterMock() *AccountResolverMock {
+	return &AccountResolverMock{}
 }
 
-func (n *NATSClientMock) HasAccount(accountID string) (bool, error) {
-	args := n.Called(accountID)
-	return args.Bool(0), args.Error(1)
-}
-
-func (n *NATSClientMock) EnsureConnected(namespace string) error {
-	args := n.Called(namespace)
-	return args.Error(0)
-}
-
-func (n *NATSClientMock) Disconnect() {
-	n.Called()
-}
-
-func (n *NATSClientMock) UploadAccountJWT(jwt string) error {
-	args := n.Called(jwt)
-	return args.Error(0)
-}
-
-func (n *NATSClientMock) DeleteAccountJWT(jwt string) error {
-	args := n.Called(jwt)
-	return args.Error(0)
-}
-
-/* ****************************************************
-* Account Getter
-*****************************************************/
-
-type AccountGetterMock struct {
-	mock.Mock
-}
-
-func NewAccountGetterMock() *AccountGetterMock {
-	return &AccountGetterMock{}
-}
-
-// Get implements ports.AccountGetter.
-func (a *AccountGetterMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountResolverMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	args := a.Called(ctx, accountRefName, namespace)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
 
-type ConfigManagerMock struct {
-	mock.Mock
-}
-
-func NewConfigManagerMock() *ConfigManagerMock {
-	return &ConfigManagerMock{}
-}
-
-// Get implements ports.AccountGetter.
-
-func (a *ConfigManagerMock) ApplyConfiguration(ctx context.Context, owner *secret.Owner, cm *corev1.ConfigMap) error {
-	args := a.Called(owner, cm)
-	return args.Error(0)
-}
+// Compile-time assertion that implementation satisfies the ports interface
+var _ ports.NauthAccountResolver = &AccountResolverMock{}

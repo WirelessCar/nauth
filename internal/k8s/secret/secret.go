@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/ports"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,10 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
-
-type Owner struct {
-	Owner metav1.Object
-}
 
 type Client struct {
 	client client.Client
@@ -29,7 +26,7 @@ func NewClient(client client.Client) *Client {
 	}
 }
 
-func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) Apply(ctx context.Context, owner *ports.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
@@ -71,7 +68,7 @@ func (k *Client) Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta
 	return nil
 }
 
-func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *Owner) error {
+func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *ports.Owner) error {
 	if secretOwner == nil {
 		return nil
 	}
@@ -206,3 +203,6 @@ func (k *Client) getSecretsByLabels(ctx context.Context, namespace string, label
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
 	return meta.Labels != nil && meta.Labels[k8s.LabelManaged] == k8s.LabelManagedValue
 }
+
+// Compile-time assertion that implementation satisfies the ports interface
+var _ ports.SecretClient = (*Client)(nil)

@@ -28,8 +28,8 @@ var _ = Describe("User manager", func() {
 		var (
 			ctx               = context.Background()
 			userManager       *Manager
-			accountGetterMock *AccountGetterMock
-			secretStorerMock  *SecretStorerMock
+			accountGetterMock *AccountResolverMock
+			secretStorerMock  *SecretClientMock
 		)
 
 		BeforeEach(func() {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,156 +14,185 @@ import (
 * Secret storer
 *****************************************************/
 
-func NewSecretStorerMock() *SecretStorerMock {
-	return &SecretStorerMock{}
+func NewSecretClientMock() *SecretClientMock {
+	return &SecretClientMock{}
 }
 
-type SecretStorerMock struct {
+type SecretClientMock struct {
 	mock.Mock
 }
 
-// ApplySecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Apply(ctx context.Context, secretOwner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (s *SecretClientMock) Apply(ctx context.Context, secretOwner *ports.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	args := s.Called(ctx, secretOwner, meta, valueMap)
 	return args.Error(0)
 }
 
-// GetSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (s *SecretClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := s.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-// GetByLabels implements ports.SecretStorer.
-func (s *SecretStorerMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
+func (s *SecretClientMock) OnGetReturn(ctx context.Context, namespace string, name string, result map[string]string) *mock.Call {
+	return s.On("Get", ctx, namespace, name).Return(result, nil)
+}
+
+func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
 	args := s.Called(ctx, namespace, labels)
 	return args.Get(0).(*corev1.SecretList), args.Error(1)
 }
 
-// DeleteSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Delete(ctx context.Context, namespace string, name string) error {
+func (s *SecretClientMock) OnGetByLabelsReturn(namespace string, labels map[string]string, result *corev1.SecretList) *mock.Call {
+	return s.On("GetByLabels", mock.Anything, namespace, labels).Return(result, nil)
+}
+
+func (s *SecretClientMock) OnGetByLabelsReturnSimple(namespace string, labels map[string]string, key string, value []byte) *mock.Call {
+	result := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{key: value}}}}
+	return s.OnGetByLabelsReturn(namespace, labels, result)
+}
+
+func (s *SecretClientMock) Delete(ctx context.Context, namespace string, name string) error {
 	args := s.Called(ctx, namespace, name)
 	return args.Error(0)
 }
 
-// DeleteSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
 	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
 }
 
-// LabelSecret implements ports.SecretStorer.
-func (s *SecretStorerMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
+func (s *SecretClientMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
 	args := s.Called(ctx, namespace, name, labels)
 	return args.Error(0)
 }
+
+var _ ports.SecretClient = (*SecretClientMock)(nil)
 
 /* ****************************************************
 * NATS Client
 *****************************************************/
 
-func NewNATSClientMock() *NATSClientMock {
-	return &NATSClientMock{}
+func NewNatsClientMock() *NatsClientMock {
+	return &NatsClientMock{}
 }
 
-type NATSClientMock struct {
+type NatsClientMock struct {
 	mock.Mock
 }
 
-func (n *NATSClientMock) LookupAccountJWT(accountID string) (string, error) {
+func (n *NatsClientMock) Connect(natsURL string, userCreds ports.NatsUserCreds) (ports.NatsConnection, error) {
+	args := n.Called(natsURL, userCreds)
+	return args.Get(0).(ports.NatsConnection), args.Error(1)
+}
+
+var _ ports.NatsClient = (*NatsClientMock)(nil)
+
+func NewNatsConnectionMock() *NatsConnectionMock {
+	return &NatsConnectionMock{}
+}
+
+type NatsConnectionMock struct {
+	mock.Mock
+}
+
+func (n *NatsConnectionMock) LookupAccountJWT(accountID string) (string, error) {
 	args := n.Called(accountID)
 	return args.String(0), args.Error(1)
 }
 
-func (n *NATSClientMock) HasAccount(accountID string) (bool, error) {
+func (n *NatsConnectionMock) HasAccount(accountID string) (bool, error) {
 	args := n.Called(accountID)
 	return args.Bool(0), args.Error(1)
 }
 
-func (n *NATSClientMock) EnsureConnected(namespace string) error {
-	args := n.Called(namespace)
+func (n *NatsConnectionMock) EnsureConnected() error {
+	args := n.Called()
 	return args.Error(0)
 }
 
-func (n *NATSClientMock) Disconnect() {
+func (n *NatsConnectionMock) Disconnect() {
 	n.Called()
 }
 
-func (n *NATSClientMock) UploadAccountJWT(jwt string) error {
+func (n *NatsConnectionMock) UploadAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
 }
 
-func (n *NATSClientMock) DeleteAccountJWT(jwt string) error {
+func (n *NatsConnectionMock) DeleteAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
 }
+
+var _ ports.NatsConnection = (*NatsConnectionMock)(nil)
 
 /* ****************************************************
-* Account Getter
+* Account Resolver
 *****************************************************/
 
-type AccountGetterMock struct {
+type AccountResolverMock struct {
 	mock.Mock
 }
 
-func NewAccountGetterMock() *AccountGetterMock {
-	return &AccountGetterMock{}
+func NewAccountResolverMock() *AccountResolverMock {
+	return &AccountResolverMock{}
 }
 
 // Get implements ports.AccountGetter.
-func (a *AccountGetterMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountResolverMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	args := a.Called(ctx, accountRefName, namespace)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
 
-type ConfigManagerMock struct {
-	mock.Mock
-}
-
-func NewConfigManagerMock() *ConfigManagerMock {
-	return &ConfigManagerMock{}
-}
-
-// Get implements ports.AccountGetter.
-
-func (a *ConfigManagerMock) ApplyConfiguration(ctx context.Context, owner *secret.Owner, cm *corev1.ConfigMap) error {
-	args := a.Called(owner, cm)
-	return args.Error(0)
-}
+var _ ports.NauthAccountResolver = &AccountResolverMock{}
 
 /* ****************************************************
-* Cluster Getter
+* NatsCluster Resolver
 *****************************************************/
-type ClusterGetterMock struct {
+type NatsClusterResolverMock struct {
 	mock.Mock
 }
 
-func NewClusterGetterMock() *ClusterGetterMock {
-	return &ClusterGetterMock{}
+func NewNatsClusterResolverMock() *NatsClusterResolverMock {
+	return &NatsClusterResolverMock{}
 }
 
-func (m *ClusterGetterMock) GetNatsCluster(ctx context.Context, namespace, name string) (*v1alpha1.NatsCluster, error) {
-	args := m.Called(ctx, namespace, name)
+func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
 }
 
+func (m *NatsClusterResolverMock) OnGetNatsClusterReturn(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) *mock.Call {
+	return m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
+}
+
+func (m *NatsClusterResolverMock) OnGetNatsClusterReturnError(ctx context.Context, clusterRef ports.NamespacedName, err error) *mock.Call {
+	return m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
+}
+
+var _ ports.NauthNatsClusterResolver = (*NatsClusterResolverMock)(nil)
+
 /* ****************************************************
-* ConfigMap Client
+* ConfigMap Resolver
 *****************************************************/
-type ConfigMapClientMock struct {
+type ConfigMapResolverMock struct {
 	mock.Mock
 }
 
-func NewConfigMapClientMock() *ConfigMapClientMock {
-	return &ConfigMapClientMock{}
+func NewConfigMapResolverMock() *ConfigMapResolverMock {
+	return &ConfigMapResolverMock{}
 }
 
-func (m *ConfigMapClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (m *ConfigMapResolverMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := m.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
+
+func (m *ConfigMapResolverMock) OnGetReturn(ctx context.Context, namespace string, name string, result map[string]string) *mock.Call {
+	return m.On("Get", ctx, namespace, name).Return(result, nil)
+}
+
+var _ ports.ConfigMapResolver = (*ConfigMapResolverMock)(nil)

@@ -44,10 +44,6 @@ type AccountManager interface {
 	Delete(ctx context.Context, desired *v1alpha1.Account) error
 }
 
-type AccountManagerFactory interface {
-	ForAccount(ctx context.Context, account *v1alpha1.Account) (AccountManager, error)
-}
-
 type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
@@ -57,17 +53,17 @@ type AccountResult struct {
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	managerFactory AccountManagerFactory
-	reporter       *statusReporter
+	Scheme   *runtime.Scheme
+	manager  AccountManager
+	reporter *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, managerFactory AccountManagerFactory, recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
-		Client:         k8sClient,
-		Scheme:         scheme,
-		managerFactory: managerFactory,
-		reporter:       newStatusReporter(k8sClient, recorder),
+		Client:   k8sClient,
+		Scheme:   scheme,
+		manager:  manager,
+		reporter: newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -142,12 +138,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
 			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
-				accountManager, err := r.managerFactory.ForAccount(ctx, natsAccount)
-				if err != nil {
-					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to configure account manager: %w", err))
-				}
-
-				if err := accountManager.Delete(ctx, natsAccount); err != nil {
+				if err := r.manager.Delete(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
@@ -192,26 +183,21 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	accountManager, err := r.managerFactory.ForAccount(ctx, natsAccount)
-	if err != nil {
-		return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to configure account manager: %w", err))
-	}
-
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
 	var result *AccountResult
 
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
-		result, err = accountManager.Import(ctx, natsAccount)
+		result, err = r.manager.Import(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else if accountID == "" {
-		result, err = accountManager.Create(ctx, natsAccount)
+		result, err = r.manager.Create(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
 		}
 	} else {
-		result, err = accountManager.Update(ctx, natsAccount)
+		result, err = r.manager.Update(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
 		}

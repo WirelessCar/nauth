@@ -8,32 +8,19 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/k8s/secret"
+	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type SecretClient interface {
-	Apply(ctx context.Context, owner *secret.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
-	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
-	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
-	Delete(ctx context.Context, namespace string, name string) error
-	Label(ctx context.Context, namespace, name string, labels map[string]string) error
-}
-
-type AccountGetter interface {
-	Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error)
-}
-
 type Manager struct {
-	accounts     AccountGetter
-	secretClient SecretClient
+	accounts     ports.NauthAccountResolver
+	secretClient ports.SecretClient
 }
 
-func NewManager(accounts AccountGetter, secretClient SecretClient) *Manager {
+func NewManager(accounts ports.NauthAccountResolver, secretClient ports.SecretClient) *Manager {
 	return &Manager{
 		accounts:     accounts,
 		secretClient: secretClient,
@@ -85,7 +72,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		return fmt.Errorf("failed to format user credentials: %w", err)
 	}
 
-	secretOwner := &secret.Owner{
+	secretOwner := &ports.Owner{
 		Owner: state,
 	}
 	secretMeta := metav1.ObjectMeta{

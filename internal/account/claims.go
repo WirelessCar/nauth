@@ -7,6 +7,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -20,7 +21,7 @@ func newClaimsBuilder(
 	displayName string,
 	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
-	accountGetter AccountGetter,
+	accountResolver ports.NauthAccountResolver,
 ) *claimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName
@@ -163,7 +164,7 @@ func newClaimsBuilder(
 		imports := jwt.Imports{}
 
 		for _, importClaim := range spec.Imports {
-			importAccount, err := accountGetter.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
+			importAccount, err := accountResolver.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to get account for import %q (namespace: %q, account: %q): %w",
 					importClaim.Name,
