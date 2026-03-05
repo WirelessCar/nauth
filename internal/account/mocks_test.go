@@ -2,8 +2,10 @@ package account
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -27,13 +29,21 @@ func (s *SecretClientMock) Apply(ctx context.Context, secretOwner *ports.Owner, 
 	return args.Error(0)
 }
 
+func (s *SecretClientMock) mockApply(arguments ...interface{}) *mock.Call {
+	return s.On("Apply", arguments...)
+}
+
 func (s *SecretClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := s.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (s *SecretClientMock) OnGetReturn(ctx context.Context, namespace string, name string, result map[string]string) *mock.Call {
-	return s.On("Get", ctx, namespace, name).Return(result, nil)
+func (s *SecretClientMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
+	s.On("Get", ctx, namespace, name).Return(result, nil)
+}
+
+func (s *SecretClientMock) mockGetError(namespace string, name string, err error) {
+	s.On("Get", mock.Anything, namespace, name).Return(map[string]string{}, err)
 }
 
 func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
@@ -41,13 +51,58 @@ func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace string, la
 	return args.Get(0).(*corev1.SecretList), args.Error(1)
 }
 
-func (s *SecretClientMock) OnGetByLabelsReturn(namespace string, labels map[string]string, result *corev1.SecretList) *mock.Call {
-	return s.On("GetByLabels", mock.Anything, namespace, labels).Return(result, nil)
+func (s *SecretClientMock) mockGetByLabels(namespace string, labels map[string]string, result *corev1.SecretList) {
+	s.On("GetByLabels", mock.Anything, namespace, labels).Return(result, nil)
 }
 
-func (s *SecretClientMock) OnGetByLabelsReturnSimple(namespace string, labels map[string]string, key string, value []byte) *mock.Call {
+type mockSecret struct {
+	Name       string
+	SecretType string
+	Key        string
+	Value      []byte
+}
+
+func (s *SecretClientMock) mockGetByLabelsSimplified(namespace string, labels map[string]string, results []mockSecret) {
+	secretItems := make([]corev1.Secret, 0, len(results))
+	for i, r := range results {
+		key := r.Key
+		if key == "" {
+			key = k8s.DefaultSecretKeyName
+		}
+
+		name := r.Name
+		if name == "" {
+			name = fmt.Sprintf("secret-%d", i)
+		}
+
+		// copy labels parameter and add LabelSecretType if missing
+		secretLabels := make(map[string]string)
+		for k, v := range labels {
+			secretLabels[k] = v
+		}
+		if _, ok := secretLabels[k8s.LabelSecretType]; !ok {
+			secretLabels[k8s.LabelSecretType] = r.SecretType
+		}
+
+		secretItems = append(secretItems, corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    secretLabels,
+			},
+			Data: map[string][]byte{
+				key: r.Value,
+			},
+		})
+	}
+
+	secretList := &corev1.SecretList{Items: secretItems}
+	s.mockGetByLabels(namespace, labels, secretList)
+}
+
+func (s *SecretClientMock) mockGetByLabelsSimple(namespace string, labels map[string]string, key string, value []byte) {
 	result := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{key: value}}}}
-	return s.OnGetByLabelsReturn(namespace, labels, result)
+	s.mockGetByLabels(namespace, labels, result)
 }
 
 func (s *SecretClientMock) Delete(ctx context.Context, namespace string, name string) error {
@@ -60,9 +115,21 @@ func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace string,
 	return args.Error(0)
 }
 
+func (s *SecretClientMock) mockDeleteByLabels(namespace string, labels map[string]string) {
+	s.On("DeleteByLabels", mock.Anything, namespace, labels).Return(nil)
+}
+
 func (s *SecretClientMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
 	args := s.Called(ctx, namespace, name, labels)
 	return args.Error(0)
+}
+
+func (s *SecretClientMock) mockLabel(namespace, name string, labels map[string]string) {
+	s.On("Label", mock.Anything, namespace, name, labels).Return(nil)
+}
+
+func (s *SecretClientMock) mockLabelError(namespace, name string, labels map[string]string, err error) {
+	s.On("Label", mock.Anything, namespace, name, labels).Return(err)
 }
 
 var _ ports.SecretClient = (*SecretClientMock)(nil)
@@ -84,6 +151,10 @@ func (n *NatsClientMock) Connect(natsURL string, userCreds ports.NatsUserCreds) 
 	return args.Get(0).(ports.NatsConnection), args.Error(1)
 }
 
+func (n *NatsClientMock) mockConnect(natsURL string, userCreds ports.NatsUserCreds, result ports.NatsConnection) {
+	n.On("Connect", natsURL, userCreds).Return(result, nil)
+}
+
 var _ ports.NatsClient = (*NatsClientMock)(nil)
 
 func NewNatsConnectionMock() *NatsConnectionMock {
@@ -97,6 +168,10 @@ type NatsConnectionMock struct {
 func (n *NatsConnectionMock) LookupAccountJWT(accountID string) (string, error) {
 	args := n.Called(accountID)
 	return args.String(0), args.Error(1)
+}
+
+func (n *NatsConnectionMock) mockLookupAccountJWT(accountID, result string) {
+	n.On("LookupAccountJWT", accountID).Return(result, nil)
 }
 
 func (n *NatsConnectionMock) HasAccount(accountID string) (bool, error) {
@@ -113,14 +188,36 @@ func (n *NatsConnectionMock) Disconnect() {
 	n.Called()
 }
 
+func (n *NatsConnectionMock) mockDisconnect() {
+	n.On("Disconnect").Return()
+}
+
 func (n *NatsConnectionMock) UploadAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
 }
 
+func (n *NatsConnectionMock) mockUploadAccountJWTCatch(catch func(jwt string)) {
+	n.On("UploadAccountJWT", mock.Anything).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			jwt := args.String(0)
+			catch(jwt)
+		})
+}
+
 func (n *NatsConnectionMock) DeleteAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
+}
+
+func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
+	n.On("DeleteAccountJWT", mock.Anything).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			jwt := args.String(0)
+			catch(jwt)
+		})
 }
 
 var _ ports.NatsConnection = (*NatsConnectionMock)(nil)
@@ -165,12 +262,12 @@ func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef
 	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
 }
 
-func (m *NatsClusterResolverMock) OnGetNatsClusterReturn(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) *mock.Call {
-	return m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
+func (m *NatsClusterResolverMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
+	m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
 }
 
-func (m *NatsClusterResolverMock) OnGetNatsClusterReturnError(ctx context.Context, clusterRef ports.NamespacedName, err error) *mock.Call {
-	return m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
+func (m *NatsClusterResolverMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
+	m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
 }
 
 var _ ports.NauthNatsClusterResolver = (*NatsClusterResolverMock)(nil)
@@ -191,8 +288,8 @@ func (m *ConfigMapResolverMock) Get(ctx context.Context, namespace string, name 
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (m *ConfigMapResolverMock) OnGetReturn(ctx context.Context, namespace string, name string, result map[string]string) *mock.Call {
-	return m.On("Get", ctx, namespace, name).Return(result, nil)
+func (m *ConfigMapResolverMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
+	m.On("Get", ctx, namespace, name).Return(result, nil)
 }
 
 var _ ports.ConfigMapResolver = (*ConfigMapResolverMock)(nil)

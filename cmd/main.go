@@ -270,10 +270,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	accountSecretManager := account.NewSecretManager(secretClient)
+
 	accountManager, err := account.NewManager(
 		clusterConfigResolver,
 		accountClient,
-		secretClient,
+		accountSecretManager,
 		nats.NewClient(),
 	)
 	if err != nil {

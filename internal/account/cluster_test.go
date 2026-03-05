@@ -46,9 +46,9 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenLegacyImplici
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	t.secretClientMock.OnGetByLabelsReturnSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign},
+	t.secretClientMock.mockGetByLabelsSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign},
 		k8s.DefaultSecretKeyName, opSignSeed)
-	t.secretClientMock.OnGetByLabelsReturnSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds},
+	t.secretClientMock.mockGetByLabelsSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds},
 		k8s.DefaultSecretKeyName, sauCreds.Creds)
 
 	// When
@@ -74,7 +74,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenOperatorClust
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.OnGetNatsClusterReturn(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
+	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
 		&v1alpha1.NatsCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "my-namespace",
@@ -86,9 +86,9 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenOperatorClust
 				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
 			},
 		})
-	t.secretClientMock.OnGetReturn(t.ctx, "my-namespace", "op-sign-secret",
+	t.secretClientMock.mockGet(t.ctx, "my-namespace", "op-sign-secret",
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.OnGetReturn(t.ctx, "my-namespace", "sau-creds",
+	t.secretClientMock.mockGet(t.ctx, "my-namespace", "sau-creds",
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
 
 	// When
@@ -114,7 +114,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 	}
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.OnGetNatsClusterReturn(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
+	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
 		&v1alpha1.NatsCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ac-namespace",
@@ -126,9 +126,9 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
 			},
 		})
-	t.secretClientMock.OnGetReturn(t.ctx, "ac-namespace", "op-sign-secret",
+	t.secretClientMock.mockGet(t.ctx, "ac-namespace", "op-sign-secret",
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.OnGetReturn(t.ctx, "ac-namespace", "sau-creds",
+	t.secretClientMock.mockGet(t.ctx, "ac-namespace", "sau-creds",
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
 
 	// When
@@ -154,7 +154,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.OnGetNatsClusterReturn(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
+	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
 		&v1alpha1.NatsCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "my-namespace",
@@ -166,9 +166,9 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
 			},
 		})
-	t.secretClientMock.OnGetReturn(t.ctx, "my-namespace", "op-sign-secret",
+	t.secretClientMock.mockGet(t.ctx, "my-namespace", "op-sign-secret",
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.OnGetReturn(t.ctx, "my-namespace", "sau-creds",
+	t.secretClientMock.mockGet(t.ctx, "my-namespace", "sau-creds",
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
 
 	// When
@@ -198,7 +198,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 	}
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.OnGetNatsClusterReturn(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
+	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
 		&v1alpha1.NatsCluster{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "ac-namespace",
@@ -210,9 +210,9 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
 			},
 		})
-	t.secretClientMock.OnGetReturn(t.ctx, "ac-namespace", "op-sign-secret",
+	t.secretClientMock.mockGet(t.ctx, "ac-namespace", "op-sign-secret",
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.OnGetReturn(t.ctx, "ac-namespace", "sau-creds",
+	t.secretClientMock.mockGet(t.ctx, "ac-namespace", "sau-creds",
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
 
 	// When
@@ -257,7 +257,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldFail_WhenOperatorClusterN
 	}
 	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "nats://nats:4222")
 
-	t.natsClusterResolverMock.OnGetNatsClusterReturnError(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
+	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
 		fmt.Errorf("the root cause"))
 
 	// When
@@ -280,7 +280,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldFail_WhenAccountClusterNo
 		Namespace: "ac-namespace",
 		Name:      "ac-cluster",
 	}
-	t.natsClusterResolverMock.OnGetNatsClusterReturnError(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
+	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, ports.NamespacedName{Namespace: "ac-namespace", Name: "ac-cluster"},
 		fmt.Errorf("the root cause"))
 
 	// When
@@ -335,7 +335,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
 
-	t.configMapResolverMock.OnGetReturn(t.ctx, "my-namespace", "my-config",
+	t.configMapResolverMock.mockGet(t.ctx, "my-namespace", "my-config",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
 
 	// When
@@ -362,7 +362,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithEx
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
 
-	t.configMapResolverMock.OnGetReturn(t.ctx, "config-namespace", "my-config",
+	t.configMapResolverMock.mockGet(t.ctx, "config-namespace", "my-config",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
 
 	// When
@@ -390,7 +390,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
 
-	t.secretClientMock.OnGetReturn(t.ctx, "my-namespace", "my-secret",
+	t.secretClientMock.mockGet(t.ctx, "my-namespace", "my-secret",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
 
 	// When
@@ -417,7 +417,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExpli
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
 
-	t.secretClientMock.OnGetReturn(t.ctx, "config-namespace", "my-secret",
+	t.secretClientMock.mockGet(t.ctx, "config-namespace", "my-secret",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
 
 	// When
