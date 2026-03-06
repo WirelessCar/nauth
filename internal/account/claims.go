@@ -120,7 +120,7 @@ func newClaimsBuilder(
 
 	// Exports
 	if spec.Exports != nil {
-		exports := jwt.Exports{}
+		exports := make(jwt.Exports, 0, len(spec.Exports))
 
 		for _, export := range spec.Exports {
 			var targetType jwt.ExportType
