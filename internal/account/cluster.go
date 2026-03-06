@@ -48,7 +48,7 @@ type clusterConfigResolver interface {
 }
 
 type clusterConfigResolverImpl struct {
-	natsClusterResolver     ports.NauthNatsClusterResolver
+	natsClusterReader       ports.NatsClusterReader
 	secretReader            ports.SecretReader
 	configMapReader         ports.ConfigMapReader
 	operatorClusterRef      *ports.NamespacedName
@@ -58,7 +58,7 @@ type clusterConfigResolverImpl struct {
 }
 
 func newClusterConfigReaderImpl(
-	natsClusterResolver ports.NauthNatsClusterResolver,
+	natsClusterReader ports.NatsClusterReader,
 	secretReader ports.SecretReader,
 	configMapReader ports.ConfigMapReader,
 
@@ -79,9 +79,9 @@ func newClusterConfigReaderImpl(
 	}
 
 	impl := &clusterConfigResolverImpl{
-		natsClusterResolver: natsClusterResolver,
-		secretReader:        secretReader,
-		configMapReader:     configMapReader,
+		natsClusterReader: natsClusterReader,
+		secretReader:      secretReader,
+		configMapReader:   configMapReader,
 
 		operatorClusterRef:      opClusterRef,
 		operatorClusterOptional: operatorClusterOptional,
@@ -95,7 +95,7 @@ func newClusterConfigReaderImpl(
 }
 
 func (r *clusterConfigResolverImpl) validate() error {
-	if r.natsClusterResolver == nil {
+	if r.natsClusterReader == nil {
 		return fmt.Errorf("natsClusterReader is required")
 	}
 	if r.secretReader == nil {
@@ -135,7 +135,7 @@ func (r *clusterConfigResolverImpl) GetClusterConfig(ctx context.Context, accoun
 }
 
 func (r *clusterConfigResolverImpl) resolveConfig(ctx context.Context, clusterRef ports.NamespacedName) (*clusterConfig, error) {
-	cluster, err := r.natsClusterResolver.GetNatsCluster(ctx, clusterRef)
+	cluster, err := r.natsClusterReader.GetNatsCluster(ctx, clusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
 	}

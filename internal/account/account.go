@@ -23,7 +23,7 @@ type Manager struct {
 func NewManager(
 	natsClient ports.NatsClient,
 	accountReader ports.AccountReader,
-	natsClusterReader ports.NauthNatsClusterResolver,
+	natsClusterReader ports.NatsClusterReader,
 	secretClient ports.SecretClient,
 	configMapReader ports.ConfigMapReader,
 	operatorClusterRef *v1alpha1.NatsClusterRef,

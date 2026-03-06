@@ -245,15 +245,15 @@ var _ ports.AccountReader = &AccountReaderMock{}
 /* ****************************************************
 * NatsCluster Resolver
 *****************************************************/
-type NatsClusterResolverMock struct {
+type NatsClusterReaderMock struct {
 	mock.Mock
 }
 
-func NewNatsClusterResolverMock() *NatsClusterResolverMock {
-	return &NatsClusterResolverMock{}
+func NewNatsClusterReaderMock() *NatsClusterReaderMock {
+	return &NatsClusterReaderMock{}
 }
 
-func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (m *NatsClusterReaderMock) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -261,15 +261,15 @@ func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef
 	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
 }
 
-func (m *NatsClusterResolverMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
+func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
 	m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
 }
 
-func (m *NatsClusterResolverMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
+func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
 	m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
 }
 
-var _ ports.NauthNatsClusterResolver = (*NatsClusterResolverMock)(nil)
+var _ ports.NatsClusterReader = (*NatsClusterReaderMock)(nil)
 
 /* ****************************************************
 * ports.ConfigMapReader Mock

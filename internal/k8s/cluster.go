@@ -33,4 +33,4 @@ func (c *NatsClusterClient) GetNatsCluster(ctx context.Context, clusterRef ports
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.NauthNatsClusterResolver = (*NatsClusterClient)(nil)
+var _ ports.NatsClusterReader = (*NatsClusterClient)(nil)
