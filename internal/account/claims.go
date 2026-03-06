@@ -21,7 +21,7 @@ func newClaimsBuilder(
 	displayName string,
 	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
-	accountResolver ports.NauthAccountResolver,
+	accountReader ports.AccountReader,
 ) *claimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName
@@ -120,7 +120,7 @@ func newClaimsBuilder(
 
 	// Exports
 	if spec.Exports != nil {
-		exports := jwt.Exports{}
+		exports := make(jwt.Exports, 0, len(spec.Exports))
 
 		for _, export := range spec.Exports {
 			var targetType jwt.ExportType
@@ -161,10 +161,10 @@ func newClaimsBuilder(
 
 	// Imports
 	if spec.Imports != nil {
-		imports := jwt.Imports{}
+		imports := make(jwt.Imports, 0, len(spec.Imports))
 
 		for _, importClaim := range spec.Imports {
-			importAccount, err := accountResolver.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
+			importAccount, err := accountReader.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to get account for import %q (namespace: %q, account: %q): %w",
 					importClaim.Name,

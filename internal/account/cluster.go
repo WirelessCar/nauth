@@ -48,9 +48,9 @@ type clusterConfigResolver interface {
 }
 
 type clusterConfigResolverImpl struct {
-	natsClusterResolver     ports.NauthNatsClusterResolver
-	secretResolver          ports.SecretResolver
-	configMapResolver       ports.ConfigMapResolver
+	natsClusterReader       ports.NatsClusterReader
+	secretReader            ports.SecretReader
+	configMapReader         ports.ConfigMapReader
 	operatorClusterRef      *ports.NamespacedName
 	operatorClusterOptional bool
 	operatorNamespace       string
@@ -58,9 +58,9 @@ type clusterConfigResolverImpl struct {
 }
 
 func newClusterConfigReaderImpl(
-	natsClusterResolver ports.NauthNatsClusterResolver,
-	secretResolver ports.SecretResolver,
-	configMapResolver ports.ConfigMapResolver,
+	natsClusterReader ports.NatsClusterReader,
+	secretReader ports.SecretReader,
+	configMapReader ports.ConfigMapReader,
 
 	operatorClusterRef *v1alpha1.NatsClusterRef,
 	operatorClusterOptional bool,
@@ -79,9 +79,9 @@ func newClusterConfigReaderImpl(
 	}
 
 	impl := &clusterConfigResolverImpl{
-		natsClusterResolver: natsClusterResolver,
-		secretResolver:      secretResolver,
-		configMapResolver:   configMapResolver,
+		natsClusterReader: natsClusterReader,
+		secretReader:      secretReader,
+		configMapReader:   configMapReader,
 
 		operatorClusterRef:      opClusterRef,
 		operatorClusterOptional: operatorClusterOptional,
@@ -95,13 +95,13 @@ func newClusterConfigReaderImpl(
 }
 
 func (r *clusterConfigResolverImpl) validate() error {
-	if r.natsClusterResolver == nil {
+	if r.natsClusterReader == nil {
 		return fmt.Errorf("natsClusterReader is required")
 	}
-	if r.secretResolver == nil {
+	if r.secretReader == nil {
 		return fmt.Errorf("secretReader is required")
 	}
-	if r.configMapResolver == nil {
+	if r.configMapReader == nil {
 		return fmt.Errorf("configMapReader is required")
 	}
 	return nil
@@ -135,7 +135,7 @@ func (r *clusterConfigResolverImpl) GetClusterConfig(ctx context.Context, accoun
 }
 
 func (r *clusterConfigResolverImpl) resolveConfig(ctx context.Context, clusterRef ports.NamespacedName) (*clusterConfig, error) {
-	cluster, err := r.natsClusterResolver.GetNatsCluster(ctx, clusterRef)
+	cluster, err := r.natsClusterReader.Get(ctx, clusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
 	}
@@ -236,7 +236,7 @@ func (r *clusterConfigResolverImpl) resolveOperatorSigningKeyViaLabels(ctx conte
 }
 
 func (r *clusterConfigResolverImpl) resolveSecretByLabels(ctx context.Context, namespace string, labels map[string]string) ([]byte, error) {
-	secrets, err := r.secretResolver.GetByLabels(ctx, namespace, labels)
+	secrets, err := r.secretReader.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("get secrets by labels %v in namespace %q: %w", labels, namespace, err)
 	}
@@ -254,7 +254,7 @@ func (r *clusterConfigResolverImpl) resolveSecretByLabels(ctx context.Context, n
 }
 
 func (r *clusterConfigResolverImpl) resolveSecret(ctx context.Context, namespace, name, key string) ([]byte, error) {
-	secretData, err := r.secretResolver.Get(ctx, namespace, name)
+	secretData, err := r.secretReader.Get(ctx, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("resolve secret %s/%s: %w", namespace, name, err)
 	}
@@ -285,7 +285,7 @@ func (r *clusterConfigResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 
 		switch urlFromRef.Kind {
 		case v1alpha1.URLFromKindConfigMap:
-			data, err := r.configMapResolver.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.configMapReader.Get(ctx, namespace, urlFromRef.Name)
 			if err != nil {
 				return "", fmt.Errorf("get ConfigMap %s/%s: %w", namespace, urlFromRef.Name, err)
 			}
@@ -294,7 +294,7 @@ func (r *clusterConfigResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 			}
 			return "", fmt.Errorf("configMap %s/%s has no key %q", namespace, urlFromRef.Name, urlFromRef.Key)
 		case v1alpha1.URLFromKindSecret:
-			data, err := r.secretResolver.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.secretReader.Get(ctx, namespace, urlFromRef.Name)
 			if err != nil {
 				return "", fmt.Errorf("get Secret %s/%s: %w", namespace, urlFromRef.Name, err)
 			}

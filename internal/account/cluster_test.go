@@ -18,16 +18,16 @@ import (
 type ClusterTestSuite struct {
 	suite.Suite
 	ctx                     context.Context
-	natsClusterResolverMock *NatsClusterResolverMock
+	natsClusterResolverMock *NatsClusterReaderMock
 	secretClientMock        *SecretClientMock
-	configMapResolverMock   *ConfigMapResolverMock
+	configMapResolverMock   *ConfigMapReaderMock
 }
 
 func (t *ClusterTestSuite) SetupTest() {
 	t.ctx = context.Background()
-	t.natsClusterResolverMock = NewNatsClusterResolverMock()
+	t.natsClusterResolverMock = NewNatsClusterReaderMock()
 	t.secretClientMock = NewSecretClientMock()
-	t.configMapResolverMock = NewConfigMapResolverMock()
+	t.configMapResolverMock = NewConfigMapReaderMock()
 }
 
 func (t *ClusterTestSuite) TearDownTest() {

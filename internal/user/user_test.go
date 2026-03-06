@@ -28,20 +28,20 @@ var _ = Describe("User manager", func() {
 		var (
 			ctx               = context.Background()
 			userManager       *Manager
-			accountGetterMock *AccountResolverMock
+			accountReaderMock *AccountReaderMock
 			secretStorerMock  *SecretClientMock
 		)
 
 		BeforeEach(func() {
 			By("creating the user manager")
 			secretStorerMock = NewSecretStorerMock()
-			accountGetterMock = NewAccountGetterMock()
-			userManager = NewManager(accountGetterMock, secretStorerMock)
+			accountReaderMock = NewAccountReaderMock()
+			userManager = NewManager(accountReaderMock, secretStorerMock)
 		})
 
 		AfterEach(func() {
 			secretStorerMock.AssertExpectations(GinkgoT())
-			accountGetterMock.AssertExpectations(GinkgoT())
+			accountReaderMock.AssertExpectations(GinkgoT())
 		})
 
 		It("creates a new user belonging to the correct account", func() {
@@ -49,7 +49,7 @@ var _ = Describe("User manager", func() {
 			user := GetNewUser()
 
 			By("providing a user specification without any specific configuration")
-			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
+			accountReaderMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
 
 			By("mocking preexisting account keys & CR")
 			accountSigningKeyPair, _ := nkeys.CreateAccount()
@@ -119,7 +119,7 @@ var _ = Describe("User manager", func() {
 			account.Labels = map[string]string{
 				k8s.LabelAccountID: accountPublicKey,
 			}
-			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
+			accountReaderMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil)
 
 			By("mock storing user credentials")
 			secretStorerMock.On("Apply", mock.Anything, mock.Anything, mock.MatchedBy(func(s v1.ObjectMeta) bool {
@@ -138,7 +138,7 @@ var _ = Describe("User manager", func() {
 			user := GetNewUser()
 
 			By("providing a user specification without any specific configuration")
-			accountGetterMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil).Twice()
+			accountReaderMock.On("Get", ctx, accountName, accountNamespace).Return(*account, nil).Twice()
 
 			By("mocking preexisting account keys & CR")
 			accountSigningKeyPair, _ := nkeys.CreateAccount()

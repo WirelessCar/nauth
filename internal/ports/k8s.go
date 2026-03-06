@@ -34,27 +34,27 @@ type Owner struct {
 	Owner metav1.Object
 }
 
-type ConfigMapResolver interface {
+type ConfigMapReader interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 }
 
-type SecretResolver interface {
+type SecretReader interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 }
 
 type SecretClient interface {
-	SecretResolver
+	SecretReader
 	Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
 	Delete(ctx context.Context, namespace string, name string) error
 	DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error
 	Label(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
-type NauthAccountResolver interface {
+type AccountReader interface {
 	Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error)
 }
 
-type NauthNatsClusterResolver interface {
-	GetNatsCluster(ctx context.Context, clusterRef NamespacedName) (*v1alpha1.NatsCluster, error)
+type NatsClusterReader interface {
+	Get(ctx context.Context, clusterRef NamespacedName) (*v1alpha1.NatsCluster, error)
 }

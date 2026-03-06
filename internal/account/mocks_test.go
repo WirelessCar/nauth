@@ -223,38 +223,37 @@ func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
 var _ ports.NatsConnection = (*NatsConnectionMock)(nil)
 
 /* ****************************************************
-* Account Resolver
+* ports.AccountReader Resolver
 *****************************************************/
 
-type AccountResolverMock struct {
+type AccountReaderMock struct {
 	mock.Mock
 }
 
-func NewAccountResolverMock() *AccountResolverMock {
-	return &AccountResolverMock{}
+func NewAccountReaderMock() *AccountReaderMock {
+	return &AccountReaderMock{}
 }
 
-// Get implements ports.AccountGetter.
-func (a *AccountResolverMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountReaderMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	args := a.Called(ctx, accountRefName, namespace)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
 
-var _ ports.NauthAccountResolver = &AccountResolverMock{}
+var _ ports.AccountReader = &AccountReaderMock{}
 
 /* ****************************************************
 * NatsCluster Resolver
 *****************************************************/
-type NatsClusterResolverMock struct {
+type NatsClusterReaderMock struct {
 	mock.Mock
 }
 
-func NewNatsClusterResolverMock() *NatsClusterResolverMock {
-	return &NatsClusterResolverMock{}
+func NewNatsClusterReaderMock() *NatsClusterReaderMock {
+	return &NatsClusterReaderMock{}
 }
 
-func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -262,34 +261,34 @@ func (m *NatsClusterResolverMock) GetNatsCluster(ctx context.Context, clusterRef
 	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
 }
 
-func (m *NatsClusterResolverMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
-	m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
+func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
+	m.On("Get", ctx, clusterRef).Return(result, nil)
 }
 
-func (m *NatsClusterResolverMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
-	m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
+func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
+	m.On("Get", ctx, clusterRef).Return(nil, err)
 }
 
-var _ ports.NauthNatsClusterResolver = (*NatsClusterResolverMock)(nil)
+var _ ports.NatsClusterReader = (*NatsClusterReaderMock)(nil)
 
 /* ****************************************************
-* ConfigMap Resolver
+* ports.ConfigMapReader Mock
 *****************************************************/
-type ConfigMapResolverMock struct {
+type ConfigMapReaderMock struct {
 	mock.Mock
 }
 
-func NewConfigMapResolverMock() *ConfigMapResolverMock {
-	return &ConfigMapResolverMock{}
+func NewConfigMapReaderMock() *ConfigMapReaderMock {
+	return &ConfigMapReaderMock{}
 }
 
-func (m *ConfigMapResolverMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (m *ConfigMapReaderMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := m.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (m *ConfigMapResolverMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
+func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
 	m.On("Get", ctx, namespace, name).Return(result, nil)
 }
 
-var _ ports.ConfigMapResolver = (*ConfigMapResolverMock)(nil)
+var _ ports.ConfigMapReader = (*ConfigMapReaderMock)(nil)

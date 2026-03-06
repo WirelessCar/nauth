@@ -15,23 +15,23 @@ import (
 
 type Manager struct {
 	natsClient            ports.NatsClient
-	accountResolver       ports.NauthAccountResolver
+	accountReader         ports.AccountReader
 	clusterConfigResolver clusterConfigResolver
 	secretManager         secretManager
 }
 
 func NewManager(
 	natsClient ports.NatsClient,
-	accountResolver ports.NauthAccountResolver,
-	natsClusterReader ports.NauthNatsClusterResolver,
+	accountReader ports.AccountReader,
+	natsClusterReader ports.NatsClusterReader,
 	secretClient ports.SecretClient,
-	configMapResolver ports.ConfigMapResolver,
+	configMapReader ports.ConfigMapReader,
 	operatorClusterRef *v1alpha1.NatsClusterRef,
 	operatorClusterOptional bool,
 	operatorNamespace string,
 	defaultNatsURL string,
 ) (*Manager, error) {
-	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapResolver, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
+	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapReader, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
 	if err != nil {
 		return nil, err
 	}
@@ -39,18 +39,18 @@ func NewManager(
 	if err != nil {
 		return nil, err
 	}
-	return newManager(natsClient, accountResolver, ccr, sm)
+	return newManager(natsClient, accountReader, ccr, sm)
 }
 
 func newManager(
 	natsClient ports.NatsClient,
-	accountResolver ports.NauthAccountResolver,
+	accountReader ports.AccountReader,
 	clusterConfigReader clusterConfigResolver,
 	secretManager secretManager,
 ) (*Manager, error) {
 	m := &Manager{
 		natsClient:            natsClient,
-		accountResolver:       accountResolver,
+		accountReader:         accountReader,
 		clusterConfigResolver: clusterConfigReader,
 		secretManager:         secretManager,
 	}
@@ -64,8 +64,8 @@ func (a *Manager) validate() error {
 	if a.clusterConfigResolver == nil {
 		return errors.New("cluster config resolver is required")
 	}
-	if a.accountResolver == nil {
-		return errors.New("account resolver is required")
+	if a.accountReader == nil {
+		return errors.New("accountReader is required")
 	}
 	if a.secretManager == nil {
 		return errors.New("secret manager is required")
@@ -135,7 +135,7 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 		return nil, fmt.Errorf("failed to get operator signing public key during creation: %w", err)
 	}
 
-	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountResolver).
+	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
@@ -202,7 +202,7 @@ func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*control
 		return nil, fmt.Errorf("failed to get operator signing public key during update: %w", err)
 	}
 
-	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountResolver).
+	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {

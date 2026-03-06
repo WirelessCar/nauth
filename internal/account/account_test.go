@@ -26,11 +26,11 @@ type ManagerTestSuite struct {
 	natsURL         string
 	clusterConfig   clusterConfig
 
-	nauthAccountResolverMock *AccountResolverMock
-	natsClientMock           *NatsClientMock
-	natsConnMock             *NatsConnectionMock
-	clusterConfigReaderMock  *clusterConfigReaderMock
-	secretManagerMock        *secretManagerMock
+	accountReaderMock       *AccountReaderMock
+	natsClientMock          *NatsClientMock
+	natsConnMock            *NatsConnectionMock
+	clusterConfigReaderMock *clusterConfigReaderMock
+	secretManagerMock       *secretManagerMock
 
 	unitUnderTest *Manager
 }
@@ -53,14 +53,14 @@ func (t *ManagerTestSuite) SetupTest() {
 
 	t.clusterConfigReaderMock = newClusterConfigReaderMock()
 	t.secretManagerMock = newSecretManagerMock()
-	t.nauthAccountResolverMock = NewAccountResolverMock()
+	t.accountReaderMock = NewAccountReaderMock()
 	t.natsClientMock = NewNatsClientMock()
 	t.natsConnMock = NewNatsConnectionMock()
 
 	var err error
 	t.unitUnderTest, err = newManager(
 		t.natsClientMock,
-		t.nauthAccountResolverMock,
+		t.accountReaderMock,
 		t.clusterConfigReaderMock,
 		t.secretManagerMock,
 	)
@@ -70,7 +70,7 @@ func (t *ManagerTestSuite) SetupTest() {
 func (t *ManagerTestSuite) TearDownTest() {
 	t.clusterConfigReaderMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
-	t.nauthAccountResolverMock.AssertExpectations(t.T())
+	t.accountReaderMock.AssertExpectations(t.T())
 	t.natsClientMock.AssertExpectations(t.T())
 	t.natsConnMock.AssertExpectations(t.T())
 }
@@ -289,7 +289,7 @@ func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
 			Subs: &existingNatsLimitsSubs,
 		},
 	}
-	existingClaims, err := newClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.nauthAccountResolverMock).
+	existingClaims, err := newClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountReaderMock).
 		signingKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")

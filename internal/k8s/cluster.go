@@ -19,7 +19,7 @@ func NewNatsClusterClient(reader client.Reader) *NatsClusterClient {
 	}
 }
 
-func (c *NatsClusterClient) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (c *NatsClusterClient) Get(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	if err := clusterRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid NATS cluster reference %q: %w", clusterRef, err)
 	}
@@ -33,4 +33,4 @@ func (c *NatsClusterClient) GetNatsCluster(ctx context.Context, clusterRef ports
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.NauthNatsClusterResolver = (*NatsClusterClient)(nil)
+var _ ports.NatsClusterReader = (*NatsClusterClient)(nil)
