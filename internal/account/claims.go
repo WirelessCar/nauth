@@ -161,7 +161,7 @@ func newClaimsBuilder(
 
 	// Imports
 	if spec.Imports != nil {
-		imports := jwt.Imports{}
+		imports := make(jwt.Imports, 0, len(spec.Imports))
 
 		for _, importClaim := range spec.Imports {
 			importAccount, err := accountReader.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
