@@ -38,13 +38,13 @@ type ConfigMapResolver interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 }
 
-type SecretResolver interface {
+type SecretReader interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 	GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error)
 }
 
 type SecretClient interface {
-	SecretResolver
+	SecretReader
 	Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
 	Delete(ctx context.Context, namespace string, name string) error
 	DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error

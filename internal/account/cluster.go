@@ -49,7 +49,7 @@ type clusterConfigResolver interface {
 
 type clusterConfigResolverImpl struct {
 	natsClusterResolver     ports.NauthNatsClusterResolver
-	secretResolver          ports.SecretResolver
+	secretReader            ports.SecretReader
 	configMapResolver       ports.ConfigMapResolver
 	operatorClusterRef      *ports.NamespacedName
 	operatorClusterOptional bool
@@ -59,7 +59,7 @@ type clusterConfigResolverImpl struct {
 
 func newClusterConfigReaderImpl(
 	natsClusterResolver ports.NauthNatsClusterResolver,
-	secretResolver ports.SecretResolver,
+	secretReader ports.SecretReader,
 	configMapResolver ports.ConfigMapResolver,
 
 	operatorClusterRef *v1alpha1.NatsClusterRef,
@@ -80,7 +80,7 @@ func newClusterConfigReaderImpl(
 
 	impl := &clusterConfigResolverImpl{
 		natsClusterResolver: natsClusterResolver,
-		secretResolver:      secretResolver,
+		secretReader:        secretReader,
 		configMapResolver:   configMapResolver,
 
 		operatorClusterRef:      opClusterRef,
@@ -98,7 +98,7 @@ func (r *clusterConfigResolverImpl) validate() error {
 	if r.natsClusterResolver == nil {
 		return fmt.Errorf("natsClusterReader is required")
 	}
-	if r.secretResolver == nil {
+	if r.secretReader == nil {
 		return fmt.Errorf("secretReader is required")
 	}
 	if r.configMapResolver == nil {
@@ -236,7 +236,7 @@ func (r *clusterConfigResolverImpl) resolveOperatorSigningKeyViaLabels(ctx conte
 }
 
 func (r *clusterConfigResolverImpl) resolveSecretByLabels(ctx context.Context, namespace string, labels map[string]string) ([]byte, error) {
-	secrets, err := r.secretResolver.GetByLabels(ctx, namespace, labels)
+	secrets, err := r.secretReader.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("get secrets by labels %v in namespace %q: %w", labels, namespace, err)
 	}
@@ -254,7 +254,7 @@ func (r *clusterConfigResolverImpl) resolveSecretByLabels(ctx context.Context, n
 }
 
 func (r *clusterConfigResolverImpl) resolveSecret(ctx context.Context, namespace, name, key string) ([]byte, error) {
-	secretData, err := r.secretResolver.Get(ctx, namespace, name)
+	secretData, err := r.secretReader.Get(ctx, namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("resolve secret %s/%s: %w", namespace, name, err)
 	}
@@ -294,7 +294,7 @@ func (r *clusterConfigResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 			}
 			return "", fmt.Errorf("configMap %s/%s has no key %q", namespace, urlFromRef.Name, urlFromRef.Key)
 		case v1alpha1.URLFromKindSecret:
-			data, err := r.secretResolver.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.secretReader.Get(ctx, namespace, urlFromRef.Name)
 			if err != nil {
 				return "", fmt.Errorf("get Secret %s/%s: %w", namespace, urlFromRef.Name, err)
 			}
