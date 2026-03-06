@@ -56,5 +56,5 @@ type AccountReader interface {
 }
 
 type NatsClusterReader interface {
-	GetNatsCluster(ctx context.Context, clusterRef NamespacedName) (*v1alpha1.NatsCluster, error)
+	Get(ctx context.Context, clusterRef NamespacedName) (*v1alpha1.NatsCluster, error)
 }

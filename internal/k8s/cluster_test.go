@@ -41,7 +41,7 @@ func TestClusterClient_GetNatsCluster(t *testing.T) {
 			Build()
 		unitUnderTest := NewNatsClusterClient(reader)
 
-		result, err := unitUnderTest.GetNatsCluster(context.Background(), ports.NamespacedName{Namespace: "test-namespace", Name: "test-cluster"})
+		result, err := unitUnderTest.Get(context.Background(), ports.NamespacedName{Namespace: "test-namespace", Name: "test-cluster"})
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -59,7 +59,7 @@ func TestClusterClient_GetNatsCluster(t *testing.T) {
 			Build()
 		unitUnderTest := NewNatsClusterClient(reader)
 
-		result, err := unitUnderTest.GetNatsCluster(context.Background(), ports.NamespacedName{Namespace: "missing-namespace", Name: "missing-cluster"})
+		result, err := unitUnderTest.Get(context.Background(), ports.NamespacedName{Namespace: "missing-namespace", Name: "missing-cluster"})
 
 		require.Error(t, err)
 		require.Nil(t, result)

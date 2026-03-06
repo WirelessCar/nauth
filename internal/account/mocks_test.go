@@ -253,7 +253,7 @@ func NewNatsClusterReaderMock() *NatsClusterReaderMock {
 	return &NatsClusterReaderMock{}
 }
 
-func (m *NatsClusterReaderMock) GetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -262,11 +262,11 @@ func (m *NatsClusterReaderMock) GetNatsCluster(ctx context.Context, clusterRef p
 }
 
 func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
-	m.On("GetNatsCluster", ctx, clusterRef).Return(result, nil)
+	m.On("Get", ctx, clusterRef).Return(result, nil)
 }
 
 func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
-	m.On("GetNatsCluster", ctx, clusterRef).Return(nil, err)
+	m.On("Get", ctx, clusterRef).Return(nil, err)
 }
 
 var _ ports.NatsClusterReader = (*NatsClusterReaderMock)(nil)

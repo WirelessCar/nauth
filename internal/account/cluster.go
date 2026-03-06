@@ -135,7 +135,7 @@ func (r *clusterConfigResolverImpl) GetClusterConfig(ctx context.Context, accoun
 }
 
 func (r *clusterConfigResolverImpl) resolveConfig(ctx context.Context, clusterRef ports.NamespacedName) (*clusterConfig, error) {
-	cluster, err := r.natsClusterReader.GetNatsCluster(ctx, clusterRef)
+	cluster, err := r.natsClusterReader.Get(ctx, clusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
 	}
