@@ -51,7 +51,7 @@ type SecretClient interface {
 	Label(ctx context.Context, namespace, name string, labels map[string]string) error
 }
 
-type NauthAccountResolver interface {
+type AccountReader interface {
 	Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error)
 }
 

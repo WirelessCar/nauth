@@ -62,22 +62,22 @@ func (s *SecretClientMock) Label(ctx context.Context, namespace, name string, la
 var _ ports.SecretClient = &SecretClientMock{}
 
 /* ****************************************************
-* Account Resolver
+* ports.AccountReader Mock
 *****************************************************/
 
-type AccountResolverMock struct {
+type AccountReaderMock struct {
 	mock.Mock
 }
 
-func NewAccountGetterMock() *AccountResolverMock {
-	return &AccountResolverMock{}
+func NewAccountReaderMock() *AccountReaderMock {
+	return &AccountReaderMock{}
 }
 
-func (a *AccountResolverMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountReaderMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	args := a.Called(ctx, accountRefName, namespace)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.NauthAccountResolver = &AccountResolverMock{}
+var _ ports.AccountReader = &AccountReaderMock{}

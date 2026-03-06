@@ -48,4 +48,4 @@ func isReady(account *v1alpha1.Account) bool {
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.NauthAccountResolver = (*AccountClient)(nil)
+var _ ports.AccountReader = (*AccountClient)(nil)

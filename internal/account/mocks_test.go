@@ -223,25 +223,24 @@ func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
 var _ ports.NatsConnection = (*NatsConnectionMock)(nil)
 
 /* ****************************************************
-* Account Resolver
+* ports.AccountReader Resolver
 *****************************************************/
 
-type AccountResolverMock struct {
+type AccountReaderMock struct {
 	mock.Mock
 }
 
-func NewAccountResolverMock() *AccountResolverMock {
-	return &AccountResolverMock{}
+func NewAccountReaderMock() *AccountReaderMock {
+	return &AccountReaderMock{}
 }
 
-// Get implements ports.AccountGetter.
-func (a *AccountResolverMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountReaderMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
 	args := a.Called(ctx, accountRefName, namespace)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
 
-var _ ports.NauthAccountResolver = &AccountResolverMock{}
+var _ ports.AccountReader = &AccountReaderMock{}
 
 /* ****************************************************
 * NatsCluster Resolver

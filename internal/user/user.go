@@ -16,19 +16,19 @@ import (
 )
 
 type Manager struct {
-	accounts     ports.NauthAccountResolver
-	secretClient ports.SecretClient
+	accountsReader ports.AccountReader
+	secretClient   ports.SecretClient
 }
 
-func NewManager(accounts ports.NauthAccountResolver, secretClient ports.SecretClient) *Manager {
+func NewManager(accountsReader ports.AccountReader, secretClient ports.SecretClient) *Manager {
 	return &Manager{
-		accounts:     accounts,
-		secretClient: secretClient,
+		accountsReader: accountsReader,
+		secretClient:   secretClient,
 	}
 }
 
 func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
-	account, err := u.accounts.Get(ctx, state.Spec.AccountName, state.Namespace)
+	account, err := u.accountsReader.Get(ctx, state.Spec.AccountName, state.Namespace)
 	if err != nil {
 		return err
 	}

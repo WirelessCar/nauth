@@ -48,8 +48,8 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			accountGetterMock := NewAccountResolverMock()
-			getAccountCall := accountGetterMock.On("Get", mock.Anything, mock.Anything, mock.Anything)
+			accountReaderMock := NewAccountReaderMock()
+			getAccountCall := accountReaderMock.On("Get", mock.Anything, mock.Anything, mock.Anything)
 			getAccountCall.RunFn = func(args mock.Arguments) {
 				accountID := fakeAccountId(args.String(1), args.String(2))
 				account := &v1alpha1.Account{}
@@ -60,7 +60,7 @@ func TestClaims(t *testing.T) {
 			}
 
 			// Build NATS JWT AccountClaims from AccountSpec
-			builder := newClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountGetterMock)
+			builder := newClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
 			builder.signingKey(testClaimsSigningKey01)
 			builder.signingKey(testClaimsSigningKey02)
 
@@ -105,7 +105,7 @@ func TestClaims(t *testing.T) {
 				Exports:         nauthClaims.Exports,
 				Imports:         nauthClaims.Imports,
 			}
-			rebuilder := newClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountGetterMock)
+			rebuilder := newClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountReaderMock)
 			rebuilder.signingKey(testClaimsSigningKey01)
 			rebuilder.signingKey(testClaimsSigningKey02)
 
