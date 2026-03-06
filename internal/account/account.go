@@ -25,13 +25,13 @@ func NewManager(
 	accountReader ports.AccountReader,
 	natsClusterReader ports.NauthNatsClusterResolver,
 	secretClient ports.SecretClient,
-	configMapResolver ports.ConfigMapResolver,
+	configMapReader ports.ConfigMapReader,
 	operatorClusterRef *v1alpha1.NatsClusterRef,
 	operatorClusterOptional bool,
 	operatorNamespace string,
 	defaultNatsURL string,
 ) (*Manager, error) {
-	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapResolver, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
+	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapReader, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
 	if err != nil {
 		return nil, err
 	}

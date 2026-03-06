@@ -59,4 +59,4 @@ func (c *Client) Get(ctx context.Context, namespace string, name string) (map[st
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.ConfigMapResolver = (*Client)(nil)
+var _ ports.ConfigMapReader = (*Client)(nil)

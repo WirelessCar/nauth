@@ -34,7 +34,7 @@ type Owner struct {
 	Owner metav1.Object
 }
 
-type ConfigMapResolver interface {
+type ConfigMapReader interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 }
 

@@ -272,23 +272,23 @@ func (m *NatsClusterResolverMock) mockGetNatsClusterError(ctx context.Context, c
 var _ ports.NauthNatsClusterResolver = (*NatsClusterResolverMock)(nil)
 
 /* ****************************************************
-* ConfigMap Resolver
+* ports.ConfigMapReader Mock
 *****************************************************/
-type ConfigMapResolverMock struct {
+type ConfigMapReaderMock struct {
 	mock.Mock
 }
 
-func NewConfigMapResolverMock() *ConfigMapResolverMock {
-	return &ConfigMapResolverMock{}
+func NewConfigMapReaderMock() *ConfigMapReaderMock {
+	return &ConfigMapReaderMock{}
 }
 
-func (m *ConfigMapResolverMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (m *ConfigMapReaderMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
 	args := m.Called(ctx, namespace, name)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (m *ConfigMapResolverMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
+func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
 	m.On("Get", ctx, namespace, name).Return(result, nil)
 }
 
-var _ ports.ConfigMapResolver = (*ConfigMapResolverMock)(nil)
+var _ ports.ConfigMapReader = (*ConfigMapReaderMock)(nil)

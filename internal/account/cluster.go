@@ -50,7 +50,7 @@ type clusterConfigResolver interface {
 type clusterConfigResolverImpl struct {
 	natsClusterResolver     ports.NauthNatsClusterResolver
 	secretReader            ports.SecretReader
-	configMapResolver       ports.ConfigMapResolver
+	configMapReader         ports.ConfigMapReader
 	operatorClusterRef      *ports.NamespacedName
 	operatorClusterOptional bool
 	operatorNamespace       string
@@ -60,7 +60,7 @@ type clusterConfigResolverImpl struct {
 func newClusterConfigReaderImpl(
 	natsClusterResolver ports.NauthNatsClusterResolver,
 	secretReader ports.SecretReader,
-	configMapResolver ports.ConfigMapResolver,
+	configMapReader ports.ConfigMapReader,
 
 	operatorClusterRef *v1alpha1.NatsClusterRef,
 	operatorClusterOptional bool,
@@ -81,7 +81,7 @@ func newClusterConfigReaderImpl(
 	impl := &clusterConfigResolverImpl{
 		natsClusterResolver: natsClusterResolver,
 		secretReader:        secretReader,
-		configMapResolver:   configMapResolver,
+		configMapReader:     configMapReader,
 
 		operatorClusterRef:      opClusterRef,
 		operatorClusterOptional: operatorClusterOptional,
@@ -101,7 +101,7 @@ func (r *clusterConfigResolverImpl) validate() error {
 	if r.secretReader == nil {
 		return fmt.Errorf("secretReader is required")
 	}
-	if r.configMapResolver == nil {
+	if r.configMapReader == nil {
 		return fmt.Errorf("configMapReader is required")
 	}
 	return nil
@@ -285,7 +285,7 @@ func (r *clusterConfigResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 
 		switch urlFromRef.Kind {
 		case v1alpha1.URLFromKindConfigMap:
-			data, err := r.configMapResolver.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.configMapReader.Get(ctx, namespace, urlFromRef.Name)
 			if err != nil {
 				return "", fmt.Errorf("get ConfigMap %s/%s: %w", namespace, urlFromRef.Name, err)
 			}
