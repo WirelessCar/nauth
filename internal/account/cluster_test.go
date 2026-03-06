@@ -57,7 +57,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenLegacyImplici
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &ClusterConfig{
+	require.Equal(t.T(), &clusterConfig{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -97,7 +97,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenOperatorClust
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &ClusterConfig{
+	require.Equal(t.T(), &clusterConfig{
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -137,7 +137,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &ClusterConfig{
+	require.Equal(t.T(), &clusterConfig{
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -177,7 +177,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &ClusterConfig{
+	require.Equal(t.T(), &clusterConfig{
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -221,7 +221,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &ClusterConfig{
+	require.Equal(t.T(), &clusterConfig{
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -333,7 +333,7 @@ func (t *ClusterTestSuite) Test_GetClusterConfig_ShouldFail_WhenLegacyLookupAndO
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	t.configMapResolverMock.mockGet(t.ctx, "my-namespace", "my-config",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -360,7 +360,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithExplicitNamespace() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	t.configMapResolverMock.mockGet(t.ctx, "config-namespace", "my-config",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -388,7 +388,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithEx
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	t.secretClientMock.mockGet(t.ctx, "my-namespace", "my-secret",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -415,7 +415,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExplicitNamespace() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	t.secretClientMock.mockGet(t.ctx, "config-namespace", "my-secret",
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -443,7 +443,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExpli
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenNoNatsURLReferenceProvided() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	// When
 	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{})
@@ -455,7 +455,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenNoNatsURLReference
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenUnsupportedFromKindProvided() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolver)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterConfigResolverImpl)
 
 	// When
 	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
@@ -471,12 +471,12 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenUnsupportedFromKin
 	require.Empty(t.T(), result)
 }
 
-func (t *ClusterTestSuite) newUnitUnderTestWithDefaults() ClusterConfigResolver {
+func (t *ClusterTestSuite) newUnitUnderTestWithDefaults() clusterConfigResolver {
 	return t.newUnitUnderTest(nil, false, "", "")
 }
 
-func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace string, defaultNatsURL string) ClusterConfigResolver {
-	u, err := NewClusterConfigResolver(
+func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace string, defaultNatsURL string) clusterConfigResolver {
+	u, err := newClusterConfigReaderImpl(
 		t.natsClusterResolverMock,
 		t.secretClientMock,
 		t.configMapResolverMock,

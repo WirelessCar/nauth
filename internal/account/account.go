@@ -14,23 +14,45 @@ import (
 )
 
 type Manager struct {
-	clusterConfigResolver ClusterConfigResolver
-	accountResolver       ports.NauthAccountResolver
-	secretManager         SecretManager
 	natsClient            ports.NatsClient
+	accountResolver       ports.NauthAccountResolver
+	clusterConfigResolver clusterConfigResolver
+	secretManager         secretManager
 }
 
 func NewManager(
-	clusterConfigResolver ClusterConfigResolver,
-	accounts ports.NauthAccountResolver,
-	secretManager SecretManager,
 	natsClient ports.NatsClient,
+	accountResolver ports.NauthAccountResolver,
+	natsClusterReader ports.NauthNatsClusterResolver,
+	secretClient ports.SecretClient,
+	configMapResolver ports.ConfigMapResolver,
+	operatorClusterRef *v1alpha1.NatsClusterRef,
+	operatorClusterOptional bool,
+	operatorNamespace string,
+	defaultNatsURL string,
+) (*Manager, error) {
+	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapResolver, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
+	if err != nil {
+		return nil, err
+	}
+	sm, err := newSecretManagerImpl(secretClient)
+	if err != nil {
+		return nil, err
+	}
+	return newManager(natsClient, accountResolver, ccr, sm)
+}
+
+func newManager(
+	natsClient ports.NatsClient,
+	accountResolver ports.NauthAccountResolver,
+	clusterConfigReader clusterConfigResolver,
+	secretManager secretManager,
 ) (*Manager, error) {
 	m := &Manager{
-		clusterConfigResolver: clusterConfigResolver,
-		accountResolver:       accounts,
-		secretManager:         secretManager,
 		natsClient:            natsClient,
+		accountResolver:       accountResolver,
+		clusterConfigResolver: clusterConfigReader,
+		secretManager:         secretManager,
 	}
 	if err := m.validate(); err != nil {
 		return nil, err
@@ -309,7 +331,7 @@ func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	return nil
 }
 
-func (a *Manager) resolveClusterConfig(ctx context.Context, account *v1alpha1.Account) (*ClusterConfig, error) {
+func (a *Manager) resolveClusterConfig(ctx context.Context, account *v1alpha1.Account) (*clusterConfig, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
 		natsClusterRef = natsClusterRef.DeepCopy()
@@ -325,6 +347,3 @@ func getDisplayName(account *v1alpha1.Account) string {
 	}
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
 }
-
-// Compile-time assertion that Manager implements the controller.AccountManager interface
-var _ controller.AccountManager = (*Manager)(nil)

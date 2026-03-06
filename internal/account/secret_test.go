@@ -18,14 +18,16 @@ type SecretManagerTestSuite struct {
 	ctx context.Context
 
 	secretClientMock *SecretClientMock
-	unitUnderTest    SecretManager
+	unitUnderTest    *secretManagerImpl
 }
 
 func (t *SecretManagerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 	t.secretClientMock = NewSecretClientMock()
 
-	t.unitUnderTest = NewSecretManager(t.secretClientMock)
+	var err error
+	t.unitUnderTest, err = newSecretManagerImpl(t.secretClientMock)
+	t.NoError(err)
 }
 
 func (t *SecretManagerTestSuite) TearDownTest() {

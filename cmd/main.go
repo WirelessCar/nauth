@@ -256,7 +256,9 @@ func main() {
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 
-	clusterConfigResolver, err := account.NewClusterConfigResolver(
+	accountManager, err := account.NewManager(
+		nats.NewClient(),
+		accountClient,
 		natsClusterClient,
 		secretClient,
 		configMapClient,
@@ -264,19 +266,6 @@ func main() {
 		true, // TODO: make the operator cluster opt-in and non-optional by default
 		namespace,
 		defaultNatsURL,
-	)
-	if err != nil {
-		setupLog.Error(err, "failed to create cluster config resolver")
-		os.Exit(1)
-	}
-
-	accountSecretManager := account.NewSecretManager(secretClient)
-
-	accountManager, err := account.NewManager(
-		clusterConfigResolver,
-		accountClient,
-		accountSecretManager,
-		nats.NewClient(),
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")

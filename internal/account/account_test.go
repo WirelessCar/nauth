@@ -24,14 +24,15 @@ type ManagerTestSuite struct {
 	opSignKeyPublic string
 	sauCreds        ports.NatsUserCreds
 	natsURL         string
-	clusterConfig   ClusterConfig
+	clusterConfig   clusterConfig
 
-	clusterConfigResolverMock *ClusterConfigResolverMock
-	secretManagerMock         *SecretManagerMock
-	accountResolverMock       *AccountResolverMock
-	natsClientMock            *NatsClientMock
-	natsConnMock              *NatsConnectionMock
-	unitUnderTest             *Manager
+	nauthAccountResolverMock *AccountResolverMock
+	natsClientMock           *NatsClientMock
+	natsConnMock             *NatsConnectionMock
+	clusterConfigReaderMock  *clusterConfigReaderMock
+	secretManagerMock        *secretManagerMock
+
+	unitUnderTest *Manager
 }
 
 func (t *ManagerTestSuite) SetupTest() {
@@ -44,32 +45,32 @@ func (t *ManagerTestSuite) SetupTest() {
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}
 	t.natsURL = "nats://nats:4222"
-	t.clusterConfig = ClusterConfig{
+	t.clusterConfig = clusterConfig{
 		NatsURL:            t.natsURL,
 		OperatorSigningKey: t.opSignKey,
 		SystemAdminCreds:   t.sauCreds,
 	}
 
-	t.clusterConfigResolverMock = NewClusterConfigResolverMock()
-	t.secretManagerMock = NewSecretManagerMock()
-	t.accountResolverMock = NewAccountResolverMock()
+	t.clusterConfigReaderMock = newClusterConfigReaderMock()
+	t.secretManagerMock = newSecretManagerMock()
+	t.nauthAccountResolverMock = NewAccountResolverMock()
 	t.natsClientMock = NewNatsClientMock()
 	t.natsConnMock = NewNatsConnectionMock()
 
 	var err error
-	t.unitUnderTest, err = NewManager(
-		t.clusterConfigResolverMock,
-		t.accountResolverMock,
-		t.secretManagerMock,
+	t.unitUnderTest, err = newManager(
 		t.natsClientMock,
+		t.nauthAccountResolverMock,
+		t.clusterConfigReaderMock,
+		t.secretManagerMock,
 	)
 	t.NoError(err)
 }
 
 func (t *ManagerTestSuite) TearDownTest() {
-	t.clusterConfigResolverMock.AssertExpectations(t.T())
+	t.clusterConfigReaderMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
-	t.accountResolverMock.AssertExpectations(t.T())
+	t.nauthAccountResolverMock.AssertExpectations(t.T())
 	t.natsClientMock.AssertExpectations(t.T())
 	t.natsConnMock.AssertExpectations(t.T())
 }
@@ -88,7 +89,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed() {
 	)
 	var natsLimitsSubs int64 = 100
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
 	t.secretManagerMock.mockGetSecretsError(t.ctx, "account-namespace", "account-name", "", fmt.Errorf("no secrets found"))
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, "account-namespace", "account-name", func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -135,7 +136,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitCluster(
 
 	natsLimitsSubs := int64(100)
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, &v1alpha1.NatsClusterRef{
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, &v1alpha1.NatsClusterRef{
 		Namespace: "account-namespace",
 		Name:      "account-namespace-cluster",
 	}, &t.clusterConfig)
@@ -187,7 +188,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 	accountSignKey, _ := nkeys.CreateAccount()
 	var natsLimitsSubs int64 = 100
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", "", &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -222,7 +223,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 
 func (t *ManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	// Given
-	t.clusterConfigResolverMock.mockGetClusterConfigError(t.ctx, nil, fmt.Errorf("test cluster not found"))
+	t.clusterConfigReaderMock.mockGetClusterConfigError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
 	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
@@ -247,7 +248,7 @@ func (t *ManagerTestSuite) Test_Update_ShouldSucceed() {
 	accountID, _ := accountRootKey.PublicKey()
 	accountSignKey, _ := nkeys.CreateAccount()
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -288,14 +289,14 @@ func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
 			Subs: &existingNatsLimitsSubs,
 		},
 	}
-	existingClaims, err := newClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountResolverMock).
+	existingClaims, err := newClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.nauthAccountResolverMock).
 		signingKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")
 	existingJWT, err := existingClaims.Encode(accountSignKey)
 	t.NoError(err, "failed to encode existing account JWT")
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -330,7 +331,7 @@ func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 
-	t.clusterConfigResolverMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
 	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
 	t.natsConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt })
 	t.natsConnMock.mockDisconnect()
@@ -383,53 +384,53 @@ func (t *ManagerTestSuite) verifyAccountResult(result *controller.AccountResult,
 }
 
 /* ****************************************************
-* ClusterConfig Resolver
+* clusterConfigResolver Mock
 *****************************************************/
-type ClusterConfigResolverMock struct {
+type clusterConfigReaderMock struct {
 	mock.Mock
 }
 
-func NewClusterConfigResolverMock() *ClusterConfigResolverMock {
-	return &ClusterConfigResolverMock{}
+func newClusterConfigReaderMock() *clusterConfigReaderMock {
+	return &clusterConfigReaderMock{}
 }
 
-func (m *ClusterConfigResolverMock) GetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*ClusterConfig, error) {
+func (m *clusterConfigReaderMock) GetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterConfig, error) {
 	args := m.Called(ctx, accountClusterRef)
-	return args.Get(0).(*ClusterConfig), args.Error(1)
+	return args.Get(0).(*clusterConfig), args.Error(1)
 }
 
-func (m *ClusterConfigResolverMock) mockGetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *ClusterConfig) {
+func (m *clusterConfigReaderMock) mockGetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *clusterConfig) {
 	m.On("GetClusterConfig", ctx, accountClusterRef).Return(result, nil)
 }
 
-func (m *ClusterConfigResolverMock) mockGetClusterConfigError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
-	m.On("GetClusterConfig", ctx, accountClusterRef).Return((*ClusterConfig)(nil), err)
+func (m *clusterConfigReaderMock) mockGetClusterConfigError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
+	m.On("GetClusterConfig", ctx, accountClusterRef).Return((*clusterConfig)(nil), err)
 }
 
-var _ ClusterConfigResolver = (*ClusterConfigResolverMock)(nil)
+var _ clusterConfigResolver = (*clusterConfigReaderMock)(nil)
 
 /* ****************************************************
-* Secret Manager
+* secretManager Mock
 *****************************************************/
 
-type SecretManagerMock struct {
+type secretManagerMock struct {
 	mock.Mock
 }
 
-func NewSecretManagerMock() *SecretManagerMock {
-	return &SecretManagerMock{}
+func newSecretManagerMock() *secretManagerMock {
+	return &secretManagerMock{}
 }
 
-func (m *SecretManagerMock) ApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) error {
+func (m *secretManagerMock) ApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) error {
 	args := m.Called(ctx, namespace, accountName, rootKeyPair)
 	return args.Error(0)
 }
 
-func (m *SecretManagerMock) mockApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) {
+func (m *secretManagerMock) mockApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) {
 	m.On("ApplyRootSecret", ctx, namespace, accountName, rootKeyPair).Return(nil)
 }
 
-func (m *SecretManagerMock) mockApplyRootSecretUnknown(ctx context.Context, namespace, accountName string, catch func(rootKeyPair nkeys.KeyPair)) {
+func (m *secretManagerMock) mockApplyRootSecretUnknown(ctx context.Context, namespace, accountName string, catch func(rootKeyPair nkeys.KeyPair)) {
 	m.On("ApplyRootSecret", ctx, namespace, accountName, mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
@@ -439,16 +440,16 @@ func (m *SecretManagerMock) mockApplyRootSecretUnknown(ctx context.Context, name
 		})
 }
 
-func (m *SecretManagerMock) ApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) error {
+func (m *secretManagerMock) ApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) error {
 	args := m.Called(ctx, namespace, accountName, accountID, signKeyPair)
 	return args.Error(0)
 }
 
-func (m *SecretManagerMock) mockApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) {
+func (m *secretManagerMock) mockApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) {
 	m.On("ApplySignSecret", ctx, namespace, accountName, accountID, signKeyPair).Return(nil)
 }
 
-func (m *SecretManagerMock) mockApplySignSecretUnknown(ctx context.Context, namespace, accountName string, catch func(accountID string, signKeyPair nkeys.KeyPair)) {
+func (m *secretManagerMock) mockApplySignSecretUnknown(ctx context.Context, namespace, accountName string, catch func(accountID string, signKeyPair nkeys.KeyPair)) {
 	m.On("ApplySignSecret", ctx, namespace, accountName, mock.Anything, mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
@@ -458,16 +459,16 @@ func (m *SecretManagerMock) mockApplySignSecretUnknown(ctx context.Context, name
 		})
 }
 
-func (m *SecretManagerMock) DeleteAll(ctx context.Context, namespace, accountName, accountID string) error {
+func (m *secretManagerMock) DeleteAll(ctx context.Context, namespace, accountName, accountID string) error {
 	args := m.Called(ctx, namespace, accountName, accountID)
 	return args.Error(0)
 }
 
-func (m *SecretManagerMock) mockDeleteAll(ctx context.Context, namespace, accountName, accountID string) {
+func (m *secretManagerMock) mockDeleteAll(ctx context.Context, namespace, accountName, accountID string) {
 	m.On("DeleteAll", ctx, namespace, accountName, accountID).Return(nil)
 }
 
-func (m *SecretManagerMock) GetSecrets(ctx context.Context, namespace, accountName, accountID string) (*Secrets, error) {
+func (m *secretManagerMock) GetSecrets(ctx context.Context, namespace, accountName, accountID string) (*Secrets, error) {
 	args := m.Called(ctx, namespace, accountName, accountID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -475,12 +476,12 @@ func (m *SecretManagerMock) GetSecrets(ctx context.Context, namespace, accountNa
 	return args.Get(0).(*Secrets), args.Error(1)
 }
 
-func (m *SecretManagerMock) mockGetSecrets(ctx context.Context, namespace, accountName, accountID string, result *Secrets) {
+func (m *secretManagerMock) mockGetSecrets(ctx context.Context, namespace, accountName, accountID string, result *Secrets) {
 	m.On("GetSecrets", ctx, namespace, accountName, accountID).Return(result, nil)
 }
 
-func (m *SecretManagerMock) mockGetSecretsError(ctx context.Context, namespace, accountName, accountID string, err error) {
+func (m *secretManagerMock) mockGetSecretsError(ctx context.Context, namespace, accountName, accountID string, err error) {
 	m.On("GetSecrets", ctx, namespace, accountName, accountID).Return(nil, err)
 }
 
-var _ SecretManager = (*SecretManagerMock)(nil)
+var _ secretManager = (*secretManagerMock)(nil)
