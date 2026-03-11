@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/WirelessCar/nauth/internal/nats"
-	k8sval "k8s.io/apimachinery/pkg/api/validation"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -228,12 +227,18 @@ func main() {
 
 	defaultNatsURL := os.Getenv("NATS_URL")
 
-	var operatorClusterRef *v1alpha1.NatsClusterRef
+	var operatorNatsCluster *account.OperatorNatsCluster
 	defaultNatsClusterRef := os.Getenv("DEFAULT_NATS_CLUSTER_REF")
 	if defaultNatsClusterRef != "" {
 		setupLog.Info("manager configured with default NATS cluster reference",
 			"defaultNatsClusterRef", defaultNatsClusterRef)
-		operatorClusterRef, err = parseNatsClusterRef(defaultNatsClusterRef)
+		operatorClusterRef, err := parseNatsClusterRef(defaultNatsClusterRef)
+		if err != nil {
+			setupLog.Error(err, "invalid operator NATS cluster", "defaultNatsClusterRef", defaultNatsClusterRef)
+			os.Exit(1)
+		}
+		// TODO: make the operator cluster opt-in and non-optional by default
+		operatorNatsCluster, err = account.NewOperatorNatsCluster(*operatorClusterRef, true)
 		if err != nil {
 			setupLog.Error(err, "invalid operator NATS cluster", "defaultNatsClusterRef", defaultNatsClusterRef)
 			os.Exit(1)
@@ -251,6 +256,12 @@ func main() {
 		namespace = string(controllerNamespace)
 	}
 
+	accountConfig, err := account.NewConfig(operatorNatsCluster, namespace, defaultNatsURL)
+	if err != nil {
+		setupLog.Error(err, "invalid configuration")
+		os.Exit(1)
+	}
+
 	secretClient := secret.NewClient(mgr.GetClient())
 	configMapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
@@ -262,10 +273,7 @@ func main() {
 		natsClusterClient,
 		secretClient,
 		configMapClient,
-		operatorClusterRef,
-		true, // TODO: make the operator cluster opt-in and non-optional by default
-		namespace,
-		defaultNatsURL,
+		accountConfig,
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
@@ -336,15 +344,6 @@ func parseNatsClusterRef(refStr string) (*v1alpha1.NatsClusterRef, error) {
 
 	namespace := parts[0]
 	name := parts[1]
-	if name == "" || namespace == "" {
-		return nil, fmt.Errorf("invalid cluster ref pattern %q, expected namespace/name", refStr)
-	}
-	if errs := k8sval.NameIsDNSSubdomain(name, false); len(errs) > 0 {
-		return nil, fmt.Errorf("invalid cluster ref name %q in %q: %s", name, refStr, strings.Join(errs, ", "))
-	}
-	if errs := k8sval.ValidateNamespaceName(namespace, false); len(errs) > 0 {
-		return nil, fmt.Errorf("invalid cluster ref namespace %q in %q: %s", namespace, refStr, strings.Join(errs, ", "))
-	}
 
 	return &v1alpha1.NatsClusterRef{Name: name, Namespace: namespace}, nil
 }

@@ -70,7 +70,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClust
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
@@ -150,7 +150,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(clusterRef, false, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(clusterRef, false, "nats", "")
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
@@ -190,7 +190,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -234,7 +234,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterRe
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -255,7 +255,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenOperatorClusterN
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
 
 	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, ports.NamespacedName{Namespace: "my-namespace", Name: "my-cluster"},
 		fmt.Errorf("the root cause"))
@@ -274,7 +274,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterNo
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "nats://nats:4222")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -476,14 +476,27 @@ func (t *ClusterTestSuite) newUnitUnderTestWithDefaults() clusterTargetResolver 
 }
 
 func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace string, defaultNatsURL string) clusterTargetResolver {
+	var operatorNatsCluster *OperatorNatsCluster
+	var err error
+	if opClusterRef != nil {
+		operatorNatsCluster, err = NewOperatorNatsCluster(*opClusterRef, opClusterOptional)
+		if err != nil {
+			t.Failf("failed to create operator NATS cluster config", "error: %v", err)
+			return nil
+		}
+	}
+
+	config, err := NewConfig(operatorNatsCluster, opNamespace, defaultNatsURL)
+	if err != nil {
+		t.Failf("failed to create operator config", "error: %v", err)
+		return nil
+	}
+
 	u, err := newClusterTargetResolverImpl(
 		t.natsClusterResolverMock,
 		t.secretClientMock,
 		t.configMapResolverMock,
-		opClusterRef,
-		opClusterOptional,
-		opNamespace,
-		defaultNatsURL,
+		config,
 	)
 	if err != nil {
 		t.Failf("failed to create clusterTargetResolverImpl", "error: %v", err)

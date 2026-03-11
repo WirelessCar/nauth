@@ -26,12 +26,9 @@ func NewManager(
 	natsClusterReader ports.NatsClusterReader,
 	secretClient ports.SecretClient,
 	configMapReader ports.ConfigMapReader,
-	operatorClusterRef *v1alpha1.NatsClusterRef,
-	operatorClusterOptional bool,
-	operatorNamespace string,
-	defaultNatsURL string,
+	config *Config,
 ) (*Manager, error) {
-	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
+	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, config)
 	if err != nil {
 		return nil, err
 	}
