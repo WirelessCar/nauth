@@ -48,30 +48,25 @@ type clusterTargetResolver interface {
 }
 
 type clusterTargetResolverImpl struct {
-	natsClusterReader       ports.NatsClusterReader
-	secretReader            ports.SecretReader
-	configMapReader         ports.ConfigMapReader
-	operatorClusterRef      *ports.NamespacedName
-	operatorClusterOptional bool
-	operatorNamespace       string
-	defaultNatsURL          string
+	natsClusterReader ports.NatsClusterReader
+	secretReader      ports.SecretReader
+	configMapReader   ports.ConfigMapReader
+	config            *Config
 }
 
 func newClusterTargetResolverImpl(
 	natsClusterReader ports.NatsClusterReader,
 	secretReader ports.SecretReader,
 	configMapReader ports.ConfigMapReader,
-
-	operatorClusterRef *v1alpha1.NatsClusterRef,
-	operatorClusterOptional bool,
-	operatorNamespace string,
-	defaultNatsURL string,
+	config *Config,
 ) (*clusterTargetResolverImpl, error) {
-	var opClusterRef *ports.NamespacedName
-	if operatorClusterRef != nil {
-		opClusterRef = &ports.NamespacedName{
-			Namespace: operatorClusterRef.Namespace,
-			Name:      operatorClusterRef.Name,
+	if config == nil {
+		return nil, fmt.Errorf("config is required")
+	}
+	if config.OperatorNatsCluster != nil {
+		opClusterRef := ports.NamespacedName{
+			Namespace: config.OperatorNatsCluster.ClusterRef.Namespace,
+			Name:      config.OperatorNatsCluster.ClusterRef.Name,
 		}
 		if err := opClusterRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid operator cluster reference: %v", err)
@@ -82,11 +77,7 @@ func newClusterTargetResolverImpl(
 		natsClusterReader: natsClusterReader,
 		secretReader:      secretReader,
 		configMapReader:   configMapReader,
-
-		operatorClusterRef:      opClusterRef,
-		operatorClusterOptional: operatorClusterOptional,
-		operatorNamespace:       operatorNamespace,
-		defaultNatsURL:          defaultNatsURL,
+		config:            config,
 	}
 	if err := impl.validate(); err != nil {
 		return nil, fmt.Errorf("invalid clusterTargetResolver: %w", err)
@@ -104,6 +95,9 @@ func (r *clusterTargetResolverImpl) validate() error {
 	if r.configMapReader == nil {
 		return fmt.Errorf("configMapReader is required")
 	}
+	if r.config == nil {
+		return fmt.Errorf("config is required")
+	}
 	return nil
 }
 
@@ -120,8 +114,8 @@ func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accoun
 			return nil, fmt.Errorf("invalid cluster reference: %v", err)
 		}
 		result, err = r.resolveTarget(ctx, acClusterRef)
-	} else if r.operatorClusterRef != nil {
-		result, err = r.resolveTarget(ctx, *r.operatorClusterRef)
+	} else if opClusterRef := r.operatorClusterRef(); opClusterRef != nil {
+		result, err = r.resolveTarget(ctx, *opClusterRef)
 	} else {
 		result, err = r.resolveTargetFromImplicitLookup(ctx)
 	}
@@ -159,21 +153,21 @@ func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRe
 }
 
 func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.Context) (*clusterTarget, error) {
-	if r.defaultNatsURL == "" {
+	if r.config.DefaultNatsURL == "" {
 		return nil, fmt.Errorf("default NATS URL is not configured for implicit cluster lookup")
 	}
-	if r.operatorNamespace == "" {
+	if r.config.OperatorNamespace == "" {
 		return nil, fmt.Errorf("operator namespace is required for implicit cluster lookup")
 	}
-	sysAdminCreds, err := r.resolveSysAdminCredsViaLabels(ctx, r.operatorNamespace)
+	sysAdminCreds, err := r.resolveSysAdminCredsViaLabels(ctx, r.config.OperatorNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("resolve system account user creds via labels: %w", err)
 	}
-	opSigningKey, err := r.resolveOperatorSigningKeyViaLabels(ctx, r.operatorNamespace)
+	opSigningKey, err := r.resolveOperatorSigningKeyViaLabels(ctx, r.config.OperatorNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key via labels: %w", err)
 	}
-	target, err := newClusterTarget(r.defaultNatsURL, *sysAdminCreds, opSigningKey)
+	target, err := newClusterTarget(r.config.DefaultNatsURL, *sysAdminCreds, opSigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("create cluster target from implicit lookup: %w", err)
 	}
@@ -311,9 +305,20 @@ func (r *clusterTargetResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 }
 
 func (r *clusterTargetResolverImpl) validateAccountClusterRef(accountClusterRef ports.NamespacedName) error {
-	if r.operatorClusterRef != nil && !r.operatorClusterOptional && !r.operatorClusterRef.Equals(accountClusterRef) {
-		return fmt.Errorf("account cluster reference %s does not match required operator cluster %s", accountClusterRef, r.operatorClusterRef)
+	opClusterRef := r.operatorClusterRef()
+	if opClusterRef != nil && !r.config.OperatorNatsCluster.Optional && !opClusterRef.Equals(accountClusterRef) {
+		return fmt.Errorf("account cluster reference %s does not match required operator cluster %s", accountClusterRef, opClusterRef)
 	}
 
 	return nil
+}
+
+func (r *clusterTargetResolverImpl) operatorClusterRef() *ports.NamespacedName {
+	if r.config == nil || r.config.OperatorNatsCluster == nil {
+		return nil
+	}
+	return &ports.NamespacedName{
+		Namespace: r.config.OperatorNatsCluster.ClusterRef.Namespace,
+		Name:      r.config.OperatorNatsCluster.ClusterRef.Name,
+	}
 }
