@@ -32,9 +32,17 @@ Nauth requires the **system account user credentials** and the [**operator signi
 
 You can provide and resolve these secrets in three ways:
 
-1. For single-cluster deployments, set `DEFAULT_NATS_CLUSTER_REF` on the nauth controller (`[namespace/]name`, for example `nauth/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
-2. Define an explicit `spec.clusterRef` reference in each `Account` CR to a specific `NatsCluster`.
-3. Use the legacy label-based lookup:
+**A.** For single-cluster deployments, set `NATS_CLUSTER_REF` on the nauth controller (`namespace/name`, for example `nats/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
+   - Default behavior (`NATS_CLUSTER_REF_OPTIONAL=false`) is strict mode: account-level `spec.natsClusterRef` must match `NATS_CLUSTER_REF`.
+   - `NATS_CLUSTER_REF_OPTIONAL=true` is explicit opt-in default mode: accounts without `spec.natsClusterRef` use `NATS_CLUSTER_REF`, while accounts may override with their own ref.
+   - Recommended migration to per-account explicit refs:
+     1) Set `NATS_CLUSTER_REF` with `NATS_CLUSTER_REF_OPTIONAL=false`.
+     2) Add the same `spec.natsClusterRef` to all existing `Account` resources.
+     3) Remove `NATS_CLUSTER_REF` and rely on explicit `spec.natsClusterRef` in each `Account`.
+
+**B.** Define an explicit `spec.natsClusterRef` reference in each `Account` CR to a specific `NatsCluster`.
+
+**C.** Use the legacy label-based lookup:
    - `nauth.io/secret-type: system-account-user-creds`
    - `nauth.io/secret-type: operator-sign`
 

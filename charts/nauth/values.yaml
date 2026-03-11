@@ -8,12 +8,37 @@ global:
   # custom.label.environment: dev
   # custom.label.team: team-potato
 
-# -- Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace.
 nats:
-  url: nats://nats.nats.svc.cluster.local:4222
+  # -- Legacy implicit lookup URL.
+  # -- Used only when `nats.clusterRef.name` is empty.
+  # -- Must not be set together with `nats.clusterRef.name`.
+  url: ""
 
-# -- Optional default NatsCluster reference used when Account.spec.natsClusterRef is not set. Format: [namespace/]name
-defaultNatsClusterRef: ""
+  # -- Operator-level NatsCluster configuration.
+  # -- Set `clusterRef.name` to bind the operator to one NATS cluster.
+  # -- `clusterRef.namespace` is optional and defaults to the release namespace.
+  # -- `clusterRef.optional` defaults to false.
+  # -- Default (`clusterRef.optional=false`) is strict single-cluster mode:
+  # -- account-level refs must be absent or match this operator cluster.
+  # -- `clusterRef.optional=true` is explicit opt-in default mode:
+  # -- accounts without spec.natsClusterRef use this ref, but accounts may override.
+  # -- Recommended migration path:
+  # -- 1) Set `clusterRef` and keep `optional=false`.
+  # -- 2) Add the same spec.natsClusterRef to all existing Accounts.
+  # -- 3) Remove `clusterRef` when fully migrated to explicit per-Account refs.
+  clusterRef:
+    # -- NatsCluster name used to compose NATS_CLUSTER_REF as `<namespace>/<name>`.
+    # -- Leave empty to disable operator-level cluster binding.
+    name: ""
+
+    # -- NatsCluster namespace used to compose NATS_CLUSTER_REF.
+    # -- If empty and `name` is set, defaults to the Helm release namespace.
+    namespace: ""
+
+    # -- Controls whether account-level refs may deviate from this operator cluster.
+    # -- false (default): strict mode, account refs must be absent or match.
+    # -- true: default mode, account refs may override.
+    optional: false
 
 # -- Sets the replicaset count
 replicaCount: 1

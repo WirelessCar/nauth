@@ -19,7 +19,11 @@
 | nameOverride | string | `""` | Override the chart name |
 | namespace | object | `{"nameOverride":""}` | Override the namespace |
 | namespaced | bool | `false` | If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched. |
-| nats | object | `{"url":"nats://nats.nats.svc.cluster.local:4222"}` | Set the url for your nats server.<BR>The default means nats is deployed in the `nats` namespace. |
+| nats.url | string | `""` | Legacy implicit lookup URL. Use only when `nats.clusterRef.name` is empty; must not be set together with `nats.clusterRef.name`. |
+| nats.clusterRef | object | `{"name":"","namespace":"","optional":false}` | Operator NatsCluster reference object. Set `name` to enable operator-level binding. |
+| nats.clusterRef.name | string | `""` | NatsCluster resource name. Leave empty to disable operator-level binding. |
+| nats.clusterRef.namespace | string | `""` | NatsCluster resource namespace. When empty and `name` is set, defaults to the chart namespace. |
+| nats.clusterRef.optional | bool | `false` | Override flag when `name` is set (`false` = strict mode, `true` = accounts may override). |
 | nodeSelector | object | `{}` |  |
 | podAnnotations | object | `{}` | This is for setting Kubernetes Annotations to a Pod. For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |
 | podLabels | object | `{}` | This is for setting Kubernetes Labels to a Pod. For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ |

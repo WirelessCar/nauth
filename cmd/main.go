@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/WirelessCar/nauth/internal/nats"
@@ -228,19 +229,26 @@ func main() {
 	defaultNatsURL := os.Getenv("NATS_URL")
 
 	var operatorNatsCluster *account.OperatorNatsCluster
-	defaultNatsClusterRef := os.Getenv("DEFAULT_NATS_CLUSTER_REF")
-	if defaultNatsClusterRef != "" {
-		setupLog.Info("manager configured with default NATS cluster reference",
-			"defaultNatsClusterRef", defaultNatsClusterRef)
-		operatorClusterRef, err := parseNatsClusterRef(defaultNatsClusterRef)
+	natsClusterRef := strings.TrimSpace(os.Getenv("NATS_CLUSTER_REF"))
+	natsClusterRefOptional := false
+	if rawOptional, ok := os.LookupEnv("NATS_CLUSTER_REF_OPTIONAL"); ok {
+		natsClusterRefOptional, err = strconv.ParseBool(strings.TrimSpace(rawOptional))
 		if err != nil {
-			setupLog.Error(err, "invalid operator NATS cluster", "defaultNatsClusterRef", defaultNatsClusterRef)
+			setupLog.Error(err, "invalid NATS_CLUSTER_REF_OPTIONAL value", "NATS_CLUSTER_REF_OPTIONAL", rawOptional)
 			os.Exit(1)
 		}
-		// TODO: make the operator cluster opt-in and non-optional by default
-		operatorNatsCluster, err = account.NewOperatorNatsCluster(*operatorClusterRef, true)
+	}
+	if natsClusterRef != "" {
+		setupLog.Info("manager configured with operator NATS cluster",
+			"natsClusterRef", natsClusterRef, "natsClusterRefOptional", natsClusterRefOptional)
+		operatorClusterRef, err := parseNatsClusterRef(natsClusterRef)
 		if err != nil {
-			setupLog.Error(err, "invalid operator NATS cluster", "defaultNatsClusterRef", defaultNatsClusterRef)
+			setupLog.Error(err, "invalid NATS_CLUSTER_REF value", "NATS_CLUSTER_REF", natsClusterRef)
+			os.Exit(1)
+		}
+		operatorNatsCluster, err = account.NewOperatorNatsCluster(*operatorClusterRef, natsClusterRefOptional)
+		if err != nil {
+			setupLog.Error(err, "invalid operator NATS cluster", "natsClusterRef", natsClusterRef)
 			os.Exit(1)
 		}
 	}
