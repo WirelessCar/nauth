@@ -24,13 +24,13 @@ type ManagerTestSuite struct {
 	opSignKeyPublic string
 	sauCreds        ports.NatsUserCreds
 	natsURL         string
-	clusterConfig   clusterConfig
+	clusterTarget   clusterTarget
 
-	accountReaderMock       *AccountReaderMock
-	natsClientMock          *NatsClientMock
-	natsConnMock            *NatsConnectionMock
-	clusterConfigReaderMock *clusterConfigReaderMock
-	secretManagerMock       *secretManagerMock
+	accountReaderMock         *AccountReaderMock
+	natsClientMock            *NatsClientMock
+	natsConnMock              *NatsConnectionMock
+	clusterTargetResolverMock *clusterTargetResolverMock
+	secretManagerMock         *secretManagerMock
 
 	unitUnderTest *Manager
 }
@@ -45,13 +45,13 @@ func (t *ManagerTestSuite) SetupTest() {
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}
 	t.natsURL = "nats://nats:4222"
-	t.clusterConfig = clusterConfig{
+	t.clusterTarget = clusterTarget{
 		NatsURL:            t.natsURL,
 		OperatorSigningKey: t.opSignKey,
 		SystemAdminCreds:   t.sauCreds,
 	}
 
-	t.clusterConfigReaderMock = newClusterConfigReaderMock()
+	t.clusterTargetResolverMock = newClusterTargetResolverMock()
 	t.secretManagerMock = newSecretManagerMock()
 	t.accountReaderMock = NewAccountReaderMock()
 	t.natsClientMock = NewNatsClientMock()
@@ -61,14 +61,14 @@ func (t *ManagerTestSuite) SetupTest() {
 	t.unitUnderTest, err = newManager(
 		t.natsClientMock,
 		t.accountReaderMock,
-		t.clusterConfigReaderMock,
+		t.clusterTargetResolverMock,
 		t.secretManagerMock,
 	)
 	t.NoError(err)
 }
 
 func (t *ManagerTestSuite) TearDownTest() {
-	t.clusterConfigReaderMock.AssertExpectations(t.T())
+	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountReaderMock.AssertExpectations(t.T())
 	t.natsClientMock.AssertExpectations(t.T())
@@ -89,7 +89,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed() {
 	)
 	var natsLimitsSubs int64 = 100
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsError(t.ctx, "account-namespace", "account-name", "", fmt.Errorf("no secrets found"))
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, "account-namespace", "account-name", func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -136,10 +136,10 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitCluster(
 
 	natsLimitsSubs := int64(100)
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, &v1alpha1.NatsClusterRef{
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, &v1alpha1.NatsClusterRef{
 		Namespace: "account-namespace",
 		Name:      "account-namespace-cluster",
-	}, &t.clusterConfig)
+	}, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsError(t.ctx, "account-namespace", "account-name", "", fmt.Errorf("no secrets found"))
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, "account-namespace", "account-name", func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -188,7 +188,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 	accountSignKey, _ := nkeys.CreateAccount()
 	var natsLimitsSubs int64 = 100
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", "", &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -223,7 +223,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 
 func (t *ManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	// Given
-	t.clusterConfigReaderMock.mockGetClusterConfigError(t.ctx, nil, fmt.Errorf("test cluster not found"))
+	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
 	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
@@ -248,7 +248,7 @@ func (t *ManagerTestSuite) Test_Update_ShouldSucceed() {
 	accountID, _ := accountRootKey.PublicKey()
 	accountSignKey, _ := nkeys.CreateAccount()
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -296,7 +296,7 @@ func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
 	existingJWT, err := existingClaims.Encode(accountSignKey)
 	t.NoError(err, "failed to encode existing account JWT")
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, "account-namespace", "account-name", accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -331,7 +331,7 @@ func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 
-	t.clusterConfigReaderMock.mockGetClusterConfig(t.ctx, nil, &t.clusterConfig)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
 	t.natsConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt })
 	t.natsConnMock.mockDisconnect()
@@ -384,30 +384,30 @@ func (t *ManagerTestSuite) verifyAccountResult(result *controller.AccountResult,
 }
 
 /* ****************************************************
-* clusterConfigResolver Mock
+* clusterTargetResolver Mock
 *****************************************************/
-type clusterConfigReaderMock struct {
+type clusterTargetResolverMock struct {
 	mock.Mock
 }
 
-func newClusterConfigReaderMock() *clusterConfigReaderMock {
-	return &clusterConfigReaderMock{}
+func newClusterTargetResolverMock() *clusterTargetResolverMock {
+	return &clusterTargetResolverMock{}
 }
 
-func (m *clusterConfigReaderMock) GetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterConfig, error) {
+func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterTarget, error) {
 	args := m.Called(ctx, accountClusterRef)
-	return args.Get(0).(*clusterConfig), args.Error(1)
+	return args.Get(0).(*clusterTarget), args.Error(1)
 }
 
-func (m *clusterConfigReaderMock) mockGetClusterConfig(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *clusterConfig) {
-	m.On("GetClusterConfig", ctx, accountClusterRef).Return(result, nil)
+func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *clusterTarget) {
+	m.On("GetClusterTarget", ctx, accountClusterRef).Return(result, nil)
 }
 
-func (m *clusterConfigReaderMock) mockGetClusterConfigError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
-	m.On("GetClusterConfig", ctx, accountClusterRef).Return((*clusterConfig)(nil), err)
+func (m *clusterTargetResolverMock) mockGetClusterTargetError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
+	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*clusterTarget)(nil), err)
 }
 
-var _ clusterConfigResolver = (*clusterConfigReaderMock)(nil)
+var _ clusterTargetResolver = (*clusterTargetResolverMock)(nil)
 
 /* ****************************************************
 * secretManager Mock

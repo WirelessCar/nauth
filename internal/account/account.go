@@ -16,7 +16,7 @@ import (
 type Manager struct {
 	natsClient            ports.NatsClient
 	accountReader         ports.AccountReader
-	clusterConfigResolver clusterConfigResolver
+	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
 }
 
@@ -31,7 +31,7 @@ func NewManager(
 	operatorNamespace string,
 	defaultNatsURL string,
 ) (*Manager, error) {
-	ccr, err := newClusterConfigReaderImpl(natsClusterReader, secretClient, configMapReader, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
+	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, operatorClusterRef, operatorClusterOptional, operatorNamespace, defaultNatsURL)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +45,13 @@ func NewManager(
 func newManager(
 	natsClient ports.NatsClient,
 	accountReader ports.AccountReader,
-	clusterConfigReader clusterConfigResolver,
+	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*Manager, error) {
 	m := &Manager{
 		natsClient:            natsClient,
 		accountReader:         accountReader,
-		clusterConfigResolver: clusterConfigReader,
+		clusterTargetResolver: clusterTargetResolver,
 		secretManager:         secretManager,
 	}
 	if err := m.validate(); err != nil {
@@ -61,8 +61,8 @@ func newManager(
 }
 
 func (a *Manager) validate() error {
-	if a.clusterConfigResolver == nil {
-		return errors.New("cluster config resolver is required")
+	if a.clusterTargetResolver == nil {
+		return errors.New("clusterTargetResolver is required")
 	}
 	if a.accountReader == nil {
 		return errors.New("accountReader is required")
@@ -83,9 +83,9 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 	var accountKeyPair nkeys.KeyPair
 	var accountSigningKeyPair nkeys.KeyPair
 
-	cluster, err := a.resolveClusterConfig(ctx, state)
+	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster config: %w", err)
+		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 	accountSecrets, err := a.secretManager.GetSecrets(ctx, state.GetNamespace(), state.GetName(), "")
 	if err == nil {
@@ -169,9 +169,9 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
-	cluster, err := a.resolveClusterConfig(ctx, state)
+	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster config: %w", err)
+		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
@@ -235,9 +235,9 @@ func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
-	cluster, err := a.resolveClusterConfig(ctx, state)
+	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster config: %w", err)
+		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
 	operatorSigningPublicKey, err := cluster.OperatorSigningKey.PublicKey()
@@ -290,9 +290,9 @@ func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
-	cluster, err := a.resolveClusterConfig(ctx, state)
+	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
-		return fmt.Errorf("failed to resolve cluster config: %w", err)
+		return fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
 	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
@@ -331,14 +331,14 @@ func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	return nil
 }
 
-func (a *Manager) resolveClusterConfig(ctx context.Context, account *v1alpha1.Account) (*clusterConfig, error) {
+func (a *Manager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
 		natsClusterRef = natsClusterRef.DeepCopy()
 		natsClusterRef.Namespace = account.GetNamespace()
 	}
 
-	return a.clusterConfigResolver.GetClusterConfig(ctx, natsClusterRef)
+	return a.clusterTargetResolver.GetClusterTarget(ctx, natsClusterRef)
 }
 
 func getDisplayName(account *v1alpha1.Account) string {
