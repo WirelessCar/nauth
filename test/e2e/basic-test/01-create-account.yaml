@@ -3,6 +3,9 @@ kind: Account
 metadata:
   name: example-account
 spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
   displayName: My Example Account
   accountLimits:
     conn: 100

@@ -31,6 +31,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
   accountLimits:
     conn: 100
     exports: 100

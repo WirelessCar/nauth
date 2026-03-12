@@ -1,6 +1,3 @@
-nats:
-  url: nats://nats.nats.svc.cluster.local:4222
-
 # # Uncomment if running observability stack locally
 # monitoring:
 #   enabled: false

@@ -10,6 +10,9 @@ metadata:
   name: example-account
   namespace: simple-account
 spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
   accountLimits:
     conn: 100
     exports: 10

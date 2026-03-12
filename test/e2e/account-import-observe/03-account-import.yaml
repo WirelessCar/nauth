@@ -5,3 +5,7 @@ metadata:
   labels:
     account.nauth.io/id: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO
     nauth.io/management-policy: observe
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
