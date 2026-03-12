@@ -152,7 +152,11 @@ func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRe
 	return target, nil
 }
 
+// resolveTargetFromImplicitLookup performs a best-effort resolution of cluster connection details based on the presence
+// of a default NATS URL and labeled secrets in the operator namespace.
+// Deprecated: This method relies on legacy patterns and will sunset in a future release.
 func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.Context) (*clusterTarget, error) {
+	// TODO: [#102][#144] Sunset label-based secret lookup.
 	if r.config.DefaultNatsURL == "" {
 		return nil, fmt.Errorf("default NATS URL is not configured for implicit cluster lookup")
 	}
@@ -187,6 +191,7 @@ func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cl
 	return userCreds, nil
 }
 
+// Deprecated: This method relies on legacy patterns and will sunset in a future release.
 func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Context, namespace string) (*ports.NatsUserCreds, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
@@ -216,6 +221,7 @@ func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Contex
 	return opSigningKey, nil
 }
 
+// Deprecated: This method relies on legacy patterns and will sunset in a future release.
 func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace string) (ports.NatsOperatorSigningKey, error) {
 	labels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
 	seed, err := r.resolveSecretByLabels(ctx, namespace, labels)

@@ -1,4 +1,4 @@
-# Cluster-ref scenario: using NatsClusterRef instead of legacy NATS_URL + label-based secrets.
+# Cluster-ref scenario: using NatsClusterRef instead of deprecated NATS_URL + label-based secrets.
 #
 # Prerequisites:
 # - Create an operator signing key secret (e.g. my-operator-signing-key) with key "seed"

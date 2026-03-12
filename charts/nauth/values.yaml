@@ -9,9 +9,11 @@ global:
   # custom.label.team: team-potato
 
 nats:
-  # -- Legacy implicit lookup URL.
+  # -- DEPRECATED: Legacy implicit lookup URL. See `nats.clusterRef` for replacement.
+  # -- Prefer explicit `nats.clusterRef.*` together with `NatsClusterRef` + `NatsCluster`.
   # -- Used only when `nats.clusterRef.name` is empty.
   # -- Must not be set together with `nats.clusterRef.name`.
+  # // TODO: [#102][#144] Sunset `nats.url`/`NATS_URL` and implicit operator signing key/system account credentials lookup.
   url: ""
 
   # -- Operator-level NatsCluster configuration.

@@ -11,8 +11,13 @@ import (
 
 type Config struct {
 	OperatorNatsCluster *OperatorNatsCluster
-	OperatorNamespace   string
-	DefaultNatsURL      string
+	// OperatorNamespace is the Kubernetes namespace where the operator is deployed.
+	// TODO: [#102][#144] When sunsetting DefaultNatsURL, remove this field if it no longer serves a purpose.
+	OperatorNamespace string
+	// DefaultNatsURL is a comma-separated list of NATS server URLs to use when OperatorNatsCluster is not configured.
+	// Deprecated: This field is deprecated and will be removed in a future release.
+	// TODO: [#102][#144] Sunset DefaultNatsURL (NATS_URL)
+	DefaultNatsURL string
 }
 
 func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace string, defaultNatsURL string) (*Config, error) {

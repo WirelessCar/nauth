@@ -226,6 +226,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO: [#102][#144] Sunset NATS_URL in favor of explicit NatsClusterRef + NatsCluster resources.
 	defaultNatsURL := os.Getenv("NATS_URL")
 
 	var operatorNatsCluster *account.OperatorNatsCluster
