@@ -49,7 +49,7 @@ You can provide and resolve these secrets in three ways:
    - `nauth.io/secret-type: system-account-user-creds`
    - `nauth.io/secret-type: operator-sign`
 
-You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml). 
+You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml.md). 
 For a more secrets related example on how to set up NAuth using explicit secrets lookup based on `NatsClusterRef` and `NatsCluster` resources, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).
 
 ## Getting Started
