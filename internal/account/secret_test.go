@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -243,7 +242,7 @@ func (t *SecretManagerTestSuite) Test_ApplyRootSecret_ShouldSucceed() {
 	var caughtMeta metav1.ObjectMeta
 	t.secretClientMock.mockApply(
 		t.ctx,
-		(*ports.Owner)(nil),
+		nil,
 		mock.Anything,
 		map[string]string{
 			k8s.DefaultSecretKeyName: string(rootSeed),
@@ -274,7 +273,7 @@ func (t *SecretManagerTestSuite) Test_ApplySignSecret_ShouldSucceed() {
 	var caughtMeta metav1.ObjectMeta
 	t.secretClientMock.mockApply(
 		t.ctx,
-		(*ports.Owner)(nil),
+		nil,
 		mock.Anything,
 		map[string]string{
 			k8s.DefaultSecretKeyName: string(signSeed),

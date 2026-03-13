@@ -26,7 +26,7 @@ func NewClient(client client.Client) *Client {
 	}
 }
 
-func (k *Client) Apply(ctx context.Context, owner *ports.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *Client) Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
@@ -40,7 +40,7 @@ func (k *Client) Apply(ctx context.Context, owner *ports.Owner, meta metav1.Obje
 			StringData: valueMap,
 		}
 		if owner != nil {
-			if err := controllerutil.SetControllerReference(owner.Owner, newSecret, k.client.Scheme()); err != nil {
+			if err := controllerutil.SetControllerReference(owner, newSecret, k.client.Scheme()); err != nil {
 				return fmt.Errorf("failed to link secret to owner: %w", err)
 			}
 		}
@@ -68,12 +68,11 @@ func (k *Client) Apply(ctx context.Context, owner *ports.Owner, meta metav1.Obje
 	return nil
 }
 
-func addOwnerReferenceIfNotExists(secret *v1.Secret, secretOwner *ports.Owner) error {
-	if secretOwner == nil {
+func addOwnerReferenceIfNotExists(secret *v1.Secret, owner metav1.Object) error {
+	if owner == nil {
 		return nil
 	}
 
-	owner := secretOwner.Owner
 	rtObj, ok := owner.(runtime.Object)
 
 	if !ok {

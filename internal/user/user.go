@@ -72,9 +72,6 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		return fmt.Errorf("failed to format user credentials: %w", err)
 	}
 
-	secretOwner := &ports.Owner{
-		Owner: state,
-	}
 	secretMeta := metav1.ObjectMeta{
 		Name:      state.GetUserSecretName(),
 		Namespace: state.GetNamespace(),
@@ -86,7 +83,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	secretValue := map[string]string{
 		k8s.UserCredentialSecretKeyName: string(userCreds),
 	}
-	err = u.secretClient.Apply(ctx, secretOwner, secretMeta, secretValue)
+	err = u.secretClient.Apply(ctx, state, secretMeta, secretValue)
 	if err != nil {
 		return err
 	}

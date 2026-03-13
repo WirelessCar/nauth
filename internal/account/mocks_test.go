@@ -24,8 +24,8 @@ type SecretClientMock struct {
 	mock.Mock
 }
 
-func (s *SecretClientMock) Apply(ctx context.Context, secretOwner *ports.Owner, meta metav1.ObjectMeta, valueMap map[string]string) error {
-	args := s.Called(ctx, secretOwner, meta, valueMap)
+func (s *SecretClientMock) Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error {
+	args := s.Called(ctx, owner, meta, valueMap)
 	return args.Error(0)
 }
 

@@ -30,10 +30,6 @@ func (n NamespacedName) String() string {
 	return fmt.Sprintf("%s/%s", n.Namespace, n.Name)
 }
 
-type Owner struct {
-	Owner metav1.Object
-}
-
 type ConfigMapReader interface {
 	Get(ctx context.Context, namespace string, name string) (map[string]string, error)
 }
@@ -45,7 +41,7 @@ type SecretReader interface {
 
 type SecretClient interface {
 	SecretReader
-	Apply(ctx context.Context, owner *Owner, meta metav1.ObjectMeta, valueMap map[string]string) error
+	Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error
 	Delete(ctx context.Context, namespace string, name string) error
 	DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error
 	Label(ctx context.Context, namespace, name string, labels map[string]string) error
