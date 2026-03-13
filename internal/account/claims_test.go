@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
@@ -49,9 +50,9 @@ func TestClaims(t *testing.T) {
 
 			ctx := context.Background()
 			accountReaderMock := NewAccountReaderMock()
-			getAccountCall := accountReaderMock.On("Get", mock.Anything, mock.Anything, mock.Anything)
+			getAccountCall := accountReaderMock.On("Get", mock.Anything, mock.Anything)
 			getAccountCall.RunFn = func(args mock.Arguments) {
-				accountID := fakeAccountId(args.String(1), args.String(2))
+				accountID := fakeAccountId(args.Get(1).(domain.NamespacedName))
 				account := &v1alpha1.Account{}
 				account.Labels = map[string]string{
 					k8s.LabelAccountID: accountID,
@@ -158,8 +159,8 @@ func discoverTestCases(pattern string) []TestCaseInputFile {
 	return testCases
 }
 
-func fakeAccountId(accountNameRef string, namespace string) string {
-	return fmt.Sprintf("A%055s", strings.ToUpper(strings.ReplaceAll(accountNameRef+namespace, "-", "")))
+func fakeAccountId(accountRef domain.NamespacedName) string {
+	return fmt.Sprintf("A%055s", strings.ToUpper(strings.ReplaceAll(accountRef.Name+accountRef.Namespace, "-", "")))
 }
 
 func loadAccountSpec(filePath string) (*v1alpha1.AccountSpec, error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
@@ -47,11 +48,11 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldDoMultipleLookups() {
 		k8s.LabelAccountName: "my-account",
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
-	t.secretClientMock.mockGetError("account-namespace", "my-account-ac-root", fmt.Errorf("root_not_found"))
-	t.secretClientMock.mockGetError("account-namespace", "my-account-ac-sign", fmt.Errorf("sign_not_found"))
+	t.secretClientMock.mockGetError(domain.NewNamespacedName("account-namespace", "my-account-ac-root"), fmt.Errorf("root_not_found"))
+	t.secretClientMock.mockGetError(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"), fmt.Errorf("sign_not_found"))
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "my-account", "FAKE_ACCOUNT_ID")
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), "FAKE_ACCOUNT_ID")
 
 	// Then
 	t.Error(err)
@@ -82,7 +83,7 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountID
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "account-name", rootPub)
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.NoError(err)
@@ -115,7 +116,7 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountNa
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "account-name", rootPub)
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.NoError(err)
@@ -136,25 +137,27 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 		k8s.LabelAccountName: "my-account",
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
-	t.secretClientMock.mockGet(t.ctx, "account-namespace", "my-account-ac-root", map[string]string{
+	acRootRef := domain.NewNamespacedName("account-namespace", "my-account-ac-root")
+	t.secretClientMock.mockGet(t.ctx, acRootRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(rootSeed),
 	})
-	t.secretClientMock.mockLabel("account-namespace", "my-account-ac-root", map[string]string{
+	t.secretClientMock.mockLabel(acRootRef, map[string]string{
 		k8s.LabelAccountID:  rootPub,
 		k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	})
-	t.secretClientMock.mockGet(t.ctx, "account-namespace", "my-account-ac-sign", map[string]string{
+	acSignRef := domain.NewNamespacedName("account-namespace", "my-account-ac-sign")
+	t.secretClientMock.mockGet(t.ctx, acSignRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(signSeed),
 	})
-	t.secretClientMock.mockLabel("account-namespace", "my-account-ac-sign", map[string]string{
+	t.secretClientMock.mockLabel(acSignRef, map[string]string{
 		k8s.LabelAccountID:  rootPub,
 		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "my-account", rootPub)
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
 
 	// Then
 	t.NoError(err)
@@ -175,25 +178,27 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 		k8s.LabelAccountName: "my-account",
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
-	t.secretClientMock.mockGet(t.ctx, "account-namespace", "my-account-ac-root", map[string]string{
+	acRootRef := domain.NewNamespacedName("account-namespace", "my-account-ac-root")
+	t.secretClientMock.mockGet(t.ctx, acRootRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(rootSeed),
 	})
-	t.secretClientMock.mockLabel("account-namespace", "my-account-ac-root", map[string]string{
+	t.secretClientMock.mockLabel(acRootRef, map[string]string{
 		k8s.LabelAccountID:  rootPub,
 		k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	})
-	t.secretClientMock.mockGet(t.ctx, "account-namespace", "my-account-ac-sign", map[string]string{
+	acSignRef := domain.NewNamespacedName("account-namespace", "my-account-ac-sign")
+	t.secretClientMock.mockGet(t.ctx, acSignRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(signSeed),
 	})
-	t.secretClientMock.mockLabelError("account-namespace", "my-account-ac-sign", map[string]string{
+	t.secretClientMock.mockLabelError(acSignRef, map[string]string{
 		k8s.LabelAccountID:  rootPub,
 		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	}, fmt.Errorf("something went wrong"))
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "my-account", rootPub)
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
 
 	// Then
 	t.NoError(err)
@@ -227,7 +232,7 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenSecretRootPubKey
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, "account-namespace", "account-name", rootPub)
+	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.Error(err)
@@ -252,7 +257,7 @@ func (t *SecretManagerTestSuite) Test_ApplyRootSecret_ShouldSucceed() {
 	}).Return(nil)
 
 	// When
-	err := t.unitUnderTest.ApplyRootSecret(t.ctx, "account-namespace", "account-name", rootKey)
+	err := t.unitUnderTest.ApplyRootSecret(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootKey)
 
 	// Then
 	t.NoError(err)
@@ -283,7 +288,7 @@ func (t *SecretManagerTestSuite) Test_ApplySignSecret_ShouldSucceed() {
 	}).Return(nil)
 
 	// When
-	err := t.unitUnderTest.ApplySignSecret(t.ctx, "account-namespace", "account-name", rootPub, signKey)
+	err := t.unitUnderTest.ApplySignSecret(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub, signKey)
 
 	// Then
 	t.NoError(err)
@@ -306,7 +311,7 @@ func (t *SecretManagerTestSuite) Test_DeleteAll_ShouldSucceed() {
 	})
 
 	// When
-	err := t.unitUnderTest.DeleteAll(t.ctx, "account-namespace", "account-name", rootPub)
+	err := t.unitUnderTest.DeleteAll(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.NoError(err)

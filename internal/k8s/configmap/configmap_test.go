@@ -3,6 +3,7 @@ package configmap
 import (
 	"context"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,9 +22,12 @@ var _ = Describe("ConfigMap client", func() {
 
 		ctx := context.Background()
 		var cmClient *Client
+		var configMapRef domain.NamespacedName
 
 		BeforeEach(func() {
 			cmClient = NewClient(k8sClient)
+			configMapRef = domain.NewNamespacedName(namespace, configmapName)
+			Expect(configMapRef.Validate()).To(Succeed())
 		})
 
 		AfterEach(func() {
@@ -32,8 +36,11 @@ var _ = Describe("ConfigMap client", func() {
 		})
 
 		It("returns ErrNotFound when the ConfigMap does not exist", func() {
+			configMapRef := domain.NewNamespacedName(namespace, "non-existing-configmap")
+			Expect(configMapRef.Validate()).To(Succeed())
+
 			By("getting a non-existing ConfigMap")
-			_, err := cmClient.Get(ctx, namespace, "non-existing-configmap")
+			_, err := cmClient.Get(ctx, configMapRef)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
@@ -53,7 +60,7 @@ var _ = Describe("ConfigMap client", func() {
 			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 
 			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, namespace, configmapName)
+			data, err := cmClient.Get(ctx, configMapRef)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(data).To(HaveKeyWithValue("url", "nats://nats.example.com:4222"))
 			Expect(data).To(HaveKeyWithValue("other", "value"))
@@ -74,7 +81,7 @@ var _ = Describe("ConfigMap client", func() {
 			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 
 			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, namespace, configmapName)
+			data, err := cmClient.Get(ctx, configMapRef)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(data).To(HaveKeyWithValue("url", "nats://nats.example.com:4222"))
 			Expect(data).To(HaveLen(1))
@@ -97,7 +104,7 @@ var _ = Describe("ConfigMap client", func() {
 			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
 
 			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, namespace, configmapName)
+			data, err := cmClient.Get(ctx, configMapRef)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(data).To(HaveKeyWithValue("data-key", "data-value"))
 			Expect(data).To(HaveKeyWithValue("binary-key", "binary-value"))

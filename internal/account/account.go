@@ -7,6 +7,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
@@ -75,6 +76,11 @@ func (a *Manager) validate() error {
 }
 
 func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+	if err := accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+
 	var accountPublicKey string
 	var accountSigningPublicKey string
 	var accountKeyPair nkeys.KeyPair
@@ -84,7 +90,7 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
-	accountSecrets, err := a.secretManager.GetSecrets(ctx, state.GetNamespace(), state.GetName(), "")
+	accountSecrets, err := a.secretManager.GetSecrets(ctx, accountRef, "")
 	if err == nil {
 		accountKeyPair = accountSecrets.Root
 		accountPublicKey, err = accountKeyPair.PublicKey()
@@ -117,12 +123,12 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 		}
 	}
 
-	err = a.secretManager.ApplyRootSecret(ctx, state.GetNamespace(), state.GetName(), accountKeyPair)
+	err = a.secretManager.ApplyRootSecret(ctx, accountRef, accountKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply account root secret during creation: %w", err)
 	}
 
-	err = a.secretManager.ApplySignSecret(ctx, state.GetNamespace(), state.GetName(), accountPublicKey, accountSigningKeyPair)
+	err = a.secretManager.ApplySignSecret(ctx, accountRef, accountPublicKey, accountSigningKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply account signing secret during creation: %w", err)
 	}
@@ -166,13 +172,18 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+	if err := accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+
 	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
-	secrets, err := a.secretManager.GetSecrets(ctx, state.GetNamespace(), state.GetName(), accountID)
+	secrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +243,11 @@ func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+	if err := accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+
 	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
@@ -247,7 +263,7 @@ func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*control
 		return nil, fmt.Errorf("account ID is missing for account %s during import", state.GetName())
 	}
 
-	secrets, err := a.secretManager.GetSecrets(ctx, state.GetNamespace(), state.GetName(), accountID)
+	secrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secrets for account %s during import: %w", accountID, err)
 	}
@@ -287,6 +303,11 @@ func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*control
 }
 
 func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
+	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+	if err := accountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+
 	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
 		return fmt.Errorf("failed to resolve cluster target: %w", err)
@@ -320,7 +341,7 @@ func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 		return fmt.Errorf("failed to delete account: %w", err)
 	}
 
-	err = a.secretManager.DeleteAll(ctx, state.GetNamespace(), state.GetName(), accountID)
+	err = a.secretManager.DeleteAll(ctx, accountRef, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to delete account secrets: %w", err)
 	}

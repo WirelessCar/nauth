@@ -3,8 +3,10 @@ package k8s
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -22,11 +24,14 @@ func NewAccountClient(client client.Client) *AccountClient {
 	return ag
 }
 
-// Gets the referenced Account
+// Get the referenced Account
 // Requires the account to be reconciled and ready
-func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
+func (a *AccountClient) Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error) {
 	log := logf.FromContext(ctx)
-	key := client.ObjectKey{Namespace: namespace, Name: accountRefName}
+	if err = accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+	key := client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}
 
 	account = &v1alpha1.Account{}
 	err = a.client.Get(ctx, key, account)
@@ -35,7 +40,7 @@ func (a *AccountClient) Get(ctx context.Context, accountRefName string, namespac
 	}
 
 	if !isReady(account) {
-		log.Error(err, "account is not ready", "namespace", namespace, "accountName", accountRefName)
+		log.Error(err, "account is not ready", "accountRef", accountRef)
 		return nil, errors.Join(ErrAccountNotReady, err)
 	}
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,7 +41,7 @@ func TestClusterClient_GetNatsCluster(t *testing.T) {
 			Build()
 		unitUnderTest := NewNatsClusterClient(reader)
 
-		result, err := unitUnderTest.Get(context.Background(), ports.NamespacedName{Namespace: "test-namespace", Name: "test-cluster"})
+		result, err := unitUnderTest.Get(context.Background(), domain.NewNamespacedName("test-namespace", "test-cluster"))
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -59,7 +59,7 @@ func TestClusterClient_GetNatsCluster(t *testing.T) {
 			Build()
 		unitUnderTest := NewNatsClusterClient(reader)
 
-		result, err := unitUnderTest.Get(context.Background(), ports.NamespacedName{Namespace: "missing-namespace", Name: "missing-cluster"})
+		result, err := unitUnderTest.Get(context.Background(), domain.NewNamespacedName("missing-namespace", "missing-cluster"))
 
 		require.Error(t, err)
 		require.Nil(t, result)

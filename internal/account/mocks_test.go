@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/stretchr/testify/mock"
@@ -33,25 +34,25 @@ func (s *SecretClientMock) mockApply(arguments ...interface{}) *mock.Call {
 	return s.On("Apply", arguments...)
 }
 
-func (s *SecretClientMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
-	args := s.Called(ctx, namespace, name)
+func (s *SecretClientMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, error) {
+	args := s.Called(ctx, namespacedName)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (s *SecretClientMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
-	s.On("Get", ctx, namespace, name).Return(result, nil)
+func (s *SecretClientMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
+	s.On("Get", ctx, namespacedName).Return(result, nil)
 }
 
-func (s *SecretClientMock) mockGetError(namespace string, name string, err error) {
-	s.On("Get", mock.Anything, namespace, name).Return(map[string]string{}, err)
+func (s *SecretClientMock) mockGetError(namespacedName domain.NamespacedName, err error) {
+	s.On("Get", mock.Anything, namespacedName).Return(map[string]string{}, err)
 }
 
-func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*corev1.SecretList, error) {
+func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*corev1.SecretList, error) {
 	args := s.Called(ctx, namespace, labels)
 	return args.Get(0).(*corev1.SecretList), args.Error(1)
 }
 
-func (s *SecretClientMock) mockGetByLabels(namespace string, labels map[string]string, result *corev1.SecretList) {
+func (s *SecretClientMock) mockGetByLabels(namespace domain.Namespace, labels map[string]string, result *corev1.SecretList) {
 	s.On("GetByLabels", mock.Anything, namespace, labels).Return(result, nil)
 }
 
@@ -62,7 +63,7 @@ type mockSecret struct {
 	Value      []byte
 }
 
-func (s *SecretClientMock) mockGetByLabelsSimplified(namespace string, labels map[string]string, results []mockSecret) {
+func (s *SecretClientMock) mockGetByLabelsSimplified(namespace domain.Namespace, labels map[string]string, results []mockSecret) {
 	secretItems := make([]corev1.Secret, 0, len(results))
 	for i, r := range results {
 		key := r.Key
@@ -87,7 +88,7 @@ func (s *SecretClientMock) mockGetByLabelsSimplified(namespace string, labels ma
 		secretItems = append(secretItems, corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
-				Namespace: namespace,
+				Namespace: string(namespace),
 				Labels:    secretLabels,
 			},
 			Data: map[string][]byte{
@@ -100,36 +101,36 @@ func (s *SecretClientMock) mockGetByLabelsSimplified(namespace string, labels ma
 	s.mockGetByLabels(namespace, labels, secretList)
 }
 
-func (s *SecretClientMock) mockGetByLabelsSimple(namespace string, labels map[string]string, key string, value []byte) {
+func (s *SecretClientMock) mockGetByLabelsSimple(namespace domain.Namespace, labels map[string]string, key string, value []byte) {
 	result := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{key: value}}}}
 	s.mockGetByLabels(namespace, labels, result)
 }
 
-func (s *SecretClientMock) Delete(ctx context.Context, namespace string, name string) error {
-	args := s.Called(ctx, namespace, name)
+func (s *SecretClientMock) Delete(ctx context.Context, namespacedName domain.NamespacedName) error {
+	args := s.Called(ctx, namespacedName)
 	return args.Error(0)
 }
 
-func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
 	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
 }
 
-func (s *SecretClientMock) mockDeleteByLabels(namespace string, labels map[string]string) {
+func (s *SecretClientMock) mockDeleteByLabels(namespace domain.Namespace, labels map[string]string) {
 	s.On("DeleteByLabels", mock.Anything, namespace, labels).Return(nil)
 }
 
-func (s *SecretClientMock) Label(ctx context.Context, namespace, name string, labels map[string]string) error {
-	args := s.Called(ctx, namespace, name, labels)
+func (s *SecretClientMock) Label(ctx context.Context, namespacedName domain.NamespacedName, labels map[string]string) error {
+	args := s.Called(ctx, namespacedName, labels)
 	return args.Error(0)
 }
 
-func (s *SecretClientMock) mockLabel(namespace, name string, labels map[string]string) {
-	s.On("Label", mock.Anything, namespace, name, labels).Return(nil)
+func (s *SecretClientMock) mockLabel(namespacedName domain.NamespacedName, labels map[string]string) {
+	s.On("Label", mock.Anything, namespacedName, labels).Return(nil)
 }
 
-func (s *SecretClientMock) mockLabelError(namespace, name string, labels map[string]string, err error) {
-	s.On("Label", mock.Anything, namespace, name, labels).Return(err)
+func (s *SecretClientMock) mockLabelError(namespacedName domain.NamespacedName, labels map[string]string, err error) {
+	s.On("Label", mock.Anything, namespacedName, labels).Return(err)
 }
 
 var _ ports.SecretClient = (*SecretClientMock)(nil)
@@ -234,8 +235,8 @@ func NewAccountReaderMock() *AccountReaderMock {
 	return &AccountReaderMock{}
 }
 
-func (a *AccountReaderMock) Get(ctx context.Context, accountRefName string, namespace string) (account *v1alpha1.Account, err error) {
-	args := a.Called(ctx, accountRefName, namespace)
+func (a *AccountReaderMock) Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error) {
+	args := a.Called(ctx, accountRef)
 	anAccount := args.Get(0).(v1alpha1.Account)
 	return &anAccount, args.Error(1)
 }
@@ -253,7 +254,7 @@ func NewNatsClusterReaderMock() *NatsClusterReaderMock {
 	return &NatsClusterReaderMock{}
 }
 
-func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef domain.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -261,11 +262,11 @@ func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef ports.Namesp
 	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
 }
 
-func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef ports.NamespacedName, result *v1alpha1.NatsCluster) {
+func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef domain.NamespacedName, result *v1alpha1.NatsCluster) {
 	m.On("Get", ctx, clusterRef).Return(result, nil)
 }
 
-func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef ports.NamespacedName, err error) {
+func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef domain.NamespacedName, err error) {
 	m.On("Get", ctx, clusterRef).Return(nil, err)
 }
 
@@ -282,13 +283,13 @@ func NewConfigMapReaderMock() *ConfigMapReaderMock {
 	return &ConfigMapReaderMock{}
 }
 
-func (m *ConfigMapReaderMock) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
-	args := m.Called(ctx, namespace, name)
+func (m *ConfigMapReaderMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, error) {
+	args := m.Called(ctx, namespacedName)
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespace string, name string, result map[string]string) {
-	m.On("Get", ctx, namespace, name).Return(result, nil)
+func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
+	m.On("Get", ctx, namespacedName).Return(result, nil)
 }
 
 var _ ports.ConfigMapReader = (*ConfigMapReaderMock)(nil)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	k8sval "k8s.io/apimachinery/pkg/api/validation"
 )
 
@@ -13,14 +14,14 @@ type Config struct {
 	OperatorNatsCluster *OperatorNatsCluster
 	// OperatorNamespace is the Kubernetes namespace where the operator is deployed.
 	// TODO: [#102][#144] When sunsetting DefaultNatsURL, remove this field if it no longer serves a purpose.
-	OperatorNamespace string
+	OperatorNamespace domain.Namespace
 	// DefaultNatsURL is a comma-separated list of NATS server URLs to use when OperatorNatsCluster is not configured.
 	// Deprecated: This field is deprecated and will be removed in a future release.
 	// TODO: [#102][#144] Sunset DefaultNatsURL (NATS_URL)
 	DefaultNatsURL string
 }
 
-func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace string, defaultNatsURL string) (*Config, error) {
+func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace domain.Namespace, defaultNatsURL string) (*Config, error) {
 	config := &Config{
 		OperatorNatsCluster: operatorNatsCluster,
 		OperatorNamespace:   operatorNamespace,
@@ -42,8 +43,8 @@ func (c *Config) validate() error {
 		}
 	}
 	if c.OperatorNamespace != "" {
-		if errs := k8sval.ValidateNamespaceName(c.OperatorNamespace, false); len(errs) > 0 {
-			return fmt.Errorf("invalid operator namespace %q: %s", c.OperatorNamespace, strings.Join(errs, ", "))
+		if err := c.OperatorNamespace.Validate(); err != nil {
+			return fmt.Errorf("invalid operator namespace %q: %s", c.OperatorNamespace, err)
 		}
 	}
 	if c.DefaultNatsURL != "" {

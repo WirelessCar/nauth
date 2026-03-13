@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
@@ -164,12 +165,12 @@ func newClaimsBuilder(
 		imports := jwt.Imports{}
 
 		for _, importClaim := range spec.Imports {
-			importAccount, err := accountReader.Get(ctx, importClaim.AccountRef.Name, importClaim.AccountRef.Namespace)
+			accountRef := domain.NewNamespacedName(importClaim.AccountRef.Namespace, importClaim.AccountRef.Name)
+			importAccount, err := accountReader.Get(ctx, accountRef)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to get account for import %q (namespace: %q, account: %q): %w",
+				errs = append(errs, fmt.Errorf("failed to get account for import %q (account: %q): %w",
 					importClaim.Name,
-					importClaim.AccountRef.Namespace,
-					importClaim.AccountRef.Name,
+					accountRef,
 					err))
 			} else {
 				account := importAccount.Labels[k8s.LabelAccountID]

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,17 +20,20 @@ var _ = Describe("Secrets storer", func() {
 		const namespace = "default"
 		secretMeta := metav1.ObjectMeta{
 			Name:      resourceName,
-			Namespace: namespace,
+			Namespace: string(namespace),
 			Labels: map[string]string{
 				k8s.LabelManaged: k8s.LabelManagedValue,
 			},
 		}
 		ctx := context.Background()
 		var secretStorer *Client
+		var secretRef domain.NamespacedName
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
 			secretStorer = NewClient(k8sClient)
+			secretRef = domain.NewNamespacedName(namespace, resourceName)
+			Expect(secretRef.Validate()).NotTo(HaveOccurred())
 		})
 
 		AfterEach(func() {
@@ -45,7 +49,7 @@ var _ = Describe("Secrets storer", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the secret")
-			fetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
+			fetchedSecret, err := secretStorer.Get(ctx, secretRef)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(fetchedSecret).ToNot(BeNil())
 			Expect(fetchedSecret).To(Equal(secret))
@@ -56,7 +60,7 @@ var _ = Describe("Secrets storer", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the updated secret")
-			newFetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
+			newFetchedSecret, err := secretStorer.Get(ctx, secretRef)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(newFetchedSecret).ToNot(BeNil())
 			Expect(newFetchedSecret).To(Equal(newSecret))
@@ -79,10 +83,10 @@ var _ = Describe("Secrets storer", func() {
 				newSecret := map[string]string{"key": "new value"}
 				err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
 				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(fmt.Errorf("existing secret %s/%s not managed by nauth", namespace, resourceName)))
+				Expect(err).To(Equal(fmt.Errorf("existing secret %s not managed by nauth", secretRef)))
 
 				By("Retrieving the secret again to verify not mutated")
-				newFetchedSecret, err := secretStorer.Get(ctx, namespace, resourceName)
+				newFetchedSecret, err := secretStorer.Get(ctx, secretRef)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(newFetchedSecret).ToNot(BeNil())
 				Expect(newFetchedSecret).To(Equal(existingSecret))
@@ -97,13 +101,19 @@ var _ = Describe("Secrets storer", func() {
 				map[string]string{k8s.LabelManaged: "false"}))
 
 		It("should return success when deleting a non existing secret", func() {
+			nonExistingSecretRef := domain.NewNamespacedName(namespace, "non-existing-secret")
+			Expect(secretRef.Validate()).NotTo(HaveOccurred())
+
 			By("Trying to delete a non-existing secret")
-			err := secretStorer.Delete(ctx, namespace, "non-existing-secret")
+			err := secretStorer.Delete(ctx, nonExistingSecretRef)
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("should return an error when the secret does not exist", func() {
+			nonExistingSecretRef := domain.NewNamespacedName(namespace, "non-existing-secret")
+			Expect(secretRef.Validate()).NotTo(HaveOccurred())
+
 			By("Trying to retrieve a non-existing secret")
-			_, err := secretStorer.Get(ctx, namespace, "non-existing-secret")
+			_, err := secretStorer.Get(ctx, nonExistingSecretRef)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(k8s.ErrNotFound))
 		})
@@ -114,11 +124,11 @@ var _ = Describe("Secrets storer", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Deleting the secret")
-			err = secretStorer.Delete(ctx, namespace, resourceName)
+			err = secretStorer.Delete(ctx, secretRef)
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Retrieving the deleted secret")
-			_, err = secretStorer.Get(ctx, namespace, resourceName)
+			_, err = secretStorer.Get(ctx, secretRef)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(k8s.ErrNotFound))
 		})

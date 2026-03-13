@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	v1 "k8s.io/api/core/v1"
@@ -30,7 +31,8 @@ func (k *Client) Apply(ctx context.Context, owner metav1.Object, meta metav1.Obj
 	if !isManagedSecret(&meta) {
 		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
 	}
-	currentSecret, err := k.getSecret(ctx, meta.GetNamespace(), meta.GetName())
+	secretRef := domain.NewNamespacedName(meta.Namespace, meta.Name)
+	currentSecret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return fmt.Errorf("failed to get secret: %w", err)
@@ -103,8 +105,8 @@ func addOwnerReferenceIfNotExists(secret *v1.Secret, owner metav1.Object) error 
 	return nil
 }
 
-func (k *Client) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
-	secret, err := k.getSecret(ctx, namespace, name)
+func (k *Client) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error) {
+	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, k8s.ErrNotFound
@@ -120,14 +122,14 @@ func (k *Client) Get(ctx context.Context, namespace string, name string) (map[st
 	return secretData, nil
 }
 
-func (k *Client) GetByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+func (k *Client) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
 	return k.getSecretsByLabels(ctx, namespace, labels)
 }
 
-func (k *Client) Delete(ctx context.Context, namespace string, name string) error {
+func (k *Client) Delete(ctx context.Context, secretRef domain.NamespacedName) error {
 	log := logf.FromContext(ctx)
 
-	secret, err := k.getSecret(ctx, namespace, name)
+	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -135,7 +137,7 @@ func (k *Client) Delete(ctx context.Context, namespace string, name string) erro
 		return fmt.Errorf("failed to get secret while deleting: %w", err)
 	}
 
-	log.Info("Trying to delete secret", "secretName", name)
+	log.Info("Trying to delete secret", "secretRef", secretRef)
 	if err := k.client.Delete(ctx, secret); err != nil {
 		return fmt.Errorf("failed to delete secret: %w", err)
 	}
@@ -143,7 +145,7 @@ func (k *Client) Delete(ctx context.Context, namespace string, name string) erro
 	return nil
 }
 
-func (k *Client) DeleteByLabels(ctx context.Context, namespace string, labels map[string]string) error {
+func (k *Client) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
 	log := logf.FromContext(ctx)
 
 	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
@@ -164,8 +166,8 @@ func (k *Client) DeleteByLabels(ctx context.Context, namespace string, labels ma
 	return nil
 }
 
-func (k *Client) Label(ctx context.Context, namespace string, name string, labels map[string]string) error {
-	secret, err := k.getSecret(ctx, namespace, name)
+func (k *Client) Label(ctx context.Context, secretRef domain.NamespacedName, labels map[string]string) error {
+	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		return fmt.Errorf("failed to get secret: %w", err)
 	}
@@ -178,17 +180,21 @@ func (k *Client) Label(ctx context.Context, namespace string, name string, label
 	return k.client.Update(ctx, secret)
 }
 
-func (k *Client) getSecret(ctx context.Context, namespace string, name string) (*v1.Secret, error) {
+func (k *Client) getSecret(ctx context.Context, secretRef domain.NamespacedName) (*v1.Secret, error) {
+	if err := secretRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid namespaced name %q: %w", secretRef, err)
+	}
+
 	k8sSecret := &v1.Secret{}
 
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+	key := client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}
 	if err := k.client.Get(ctx, key, k8sSecret); err != nil {
 		return nil, err
 	}
 	return k8sSecret, nil
 }
 
-func (k *Client) getSecretsByLabels(ctx context.Context, namespace string, labels map[string]string) (*v1.SecretList, error) {
+func (k *Client) getSecretsByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
 	secretList := &v1.SecretList{}
 	matchingLabelsListOption := client.MatchingLabels{}
 	maps.Copy(matchingLabelsListOption, labels)

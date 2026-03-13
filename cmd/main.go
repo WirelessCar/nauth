@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/nats"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
@@ -265,7 +266,7 @@ func main() {
 		namespace = string(controllerNamespace)
 	}
 
-	accountConfig, err := account.NewConfig(operatorNatsCluster, namespace, defaultNatsURL)
+	accountConfig, err := account.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
 	if err != nil {
 		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)

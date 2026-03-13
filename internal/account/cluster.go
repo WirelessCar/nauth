@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/nkeys"
@@ -64,10 +65,10 @@ func newClusterTargetResolverImpl(
 		return nil, fmt.Errorf("config is required")
 	}
 	if config.OperatorNatsCluster != nil {
-		opClusterRef := ports.NamespacedName{
-			Namespace: config.OperatorNatsCluster.ClusterRef.Namespace,
-			Name:      config.OperatorNatsCluster.ClusterRef.Name,
-		}
+		opClusterRef := domain.NewNamespacedName(
+			config.OperatorNatsCluster.ClusterRef.Namespace,
+			config.OperatorNatsCluster.ClusterRef.Name,
+		)
 		if err := opClusterRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid operator cluster reference: %v", err)
 		}
@@ -105,7 +106,7 @@ func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accoun
 	var result *clusterTarget
 	var err error
 	if accountClusterRef != nil {
-		acClusterRef := ports.NamespacedName{Namespace: accountClusterRef.Namespace, Name: accountClusterRef.Name}
+		acClusterRef := domain.NewNamespacedName(accountClusterRef.Namespace, accountClusterRef.Name)
 		if err = acClusterRef.Validate(); err != nil {
 			return nil, fmt.Errorf("invalid account cluster reference: %v", err)
 		}
@@ -128,7 +129,7 @@ func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accoun
 	return result, nil
 }
 
-func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRef ports.NamespacedName) (*clusterTarget, error) {
+func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRef domain.NamespacedName) (*clusterTarget, error) {
 	cluster, err := r.natsClusterReader.Get(ctx, clusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
@@ -179,8 +180,9 @@ func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.
 }
 
 func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cluster *v1alpha1.NatsCluster) (*ports.NatsUserCreds, error) {
-	secretRef := cluster.Spec.SystemAccountUserCredsSecretRef
-	creds, err := r.resolveSecret(ctx, cluster.GetNamespace(), secretRef.Name, secretRef.Key)
+	secretKeyRef := cluster.Spec.SystemAccountUserCredsSecretRef
+	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
+	creds, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
 	if err != nil {
 		return nil, fmt.Errorf("resolve system account user creds for secret %s/%s: %w", cluster.GetNamespace(), secretRef.Name, err)
 	}
@@ -192,7 +194,7 @@ func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cl
 }
 
 // Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Context, namespace string) (*ports.NatsUserCreds, error) {
+func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Context, namespace domain.Namespace) (*ports.NatsUserCreds, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
@@ -209,8 +211,9 @@ func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Co
 }
 
 func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Context, cluster *v1alpha1.NatsCluster) (ports.NatsOperatorSigningKey, error) {
-	secretRef := cluster.Spec.OperatorSigningKeySecretRef
-	keyData, err := r.resolveSecret(ctx, cluster.GetNamespace(), secretRef.Name, secretRef.Key)
+	secretKeyRef := cluster.Spec.OperatorSigningKeySecretRef
+	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
+	keyData, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key for NatsCluster %s/%s: %w", cluster.GetNamespace(), cluster.GetName(), err)
 	}
@@ -222,7 +225,7 @@ func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Contex
 }
 
 // Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace string) (ports.NatsOperatorSigningKey, error) {
+func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace domain.Namespace) (ports.NatsOperatorSigningKey, error) {
 	labels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
 	seed, err := r.resolveSecretByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -235,7 +238,7 @@ func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx conte
 	return keyPair, err
 }
 
-func (r *clusterTargetResolverImpl) resolveSecretByLabels(ctx context.Context, namespace string, labels map[string]string) ([]byte, error) {
+func (r *clusterTargetResolverImpl) resolveSecretByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) ([]byte, error) {
 	secrets, err := r.secretReader.GetByLabels(ctx, namespace, labels)
 	if err != nil {
 		return nil, fmt.Errorf("get secrets by labels %v in namespace %q: %w", labels, namespace, err)
@@ -253,10 +256,10 @@ func (r *clusterTargetResolverImpl) resolveSecretByLabels(ctx context.Context, n
 	return value, nil
 }
 
-func (r *clusterTargetResolverImpl) resolveSecret(ctx context.Context, namespace, name, key string) ([]byte, error) {
-	secretData, err := r.secretReader.Get(ctx, namespace, name)
+func (r *clusterTargetResolverImpl) resolveSecret(ctx context.Context, namespacedName domain.NamespacedName, key string) ([]byte, error) {
+	secretData, err := r.secretReader.Get(ctx, namespacedName)
 	if err != nil {
-		return nil, fmt.Errorf("resolve secret %s/%s: %w", namespace, name, err)
+		return nil, fmt.Errorf("resolve secret %s: %w", namespacedName, err)
 	}
 
 	if key == "" {
@@ -265,7 +268,7 @@ func (r *clusterTargetResolverImpl) resolveSecret(ctx context.Context, namespace
 
 	value, ok := secretData[key]
 	if !ok {
-		return nil, fmt.Errorf("secret %s/%s does not contain key %q", namespace, name, key)
+		return nil, fmt.Errorf("secret %s does not contain key %q", namespacedName, key)
 	}
 
 	return []byte(value), nil
@@ -278,30 +281,30 @@ func (r *clusterTargetResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 
 	if cluster.Spec.URLFrom != nil {
 		urlFromRef := cluster.Spec.URLFrom
-		namespace := urlFromRef.Namespace
-		if namespace == "" {
-			namespace = cluster.GetNamespace()
+		resourceRef := domain.NewNamespacedName(urlFromRef.Namespace, urlFromRef.Name)
+		if resourceRef.Namespace == "" {
+			resourceRef.Namespace = cluster.GetNamespace()
 		}
 
 		switch urlFromRef.Kind {
 		case v1alpha1.URLFromKindConfigMap:
-			data, err := r.configMapReader.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.configMapReader.Get(ctx, resourceRef)
 			if err != nil {
-				return "", fmt.Errorf("get ConfigMap %s/%s: %w", namespace, urlFromRef.Name, err)
+				return "", fmt.Errorf("get ConfigMap %s: %w", resourceRef, err)
 			}
 			if natsURL, ok := data[urlFromRef.Key]; ok {
 				return natsURL, nil
 			}
-			return "", fmt.Errorf("configMap %s/%s has no key %q", namespace, urlFromRef.Name, urlFromRef.Key)
+			return "", fmt.Errorf("configMap %s has no key %q", resourceRef, urlFromRef.Key)
 		case v1alpha1.URLFromKindSecret:
-			data, err := r.secretReader.Get(ctx, namespace, urlFromRef.Name)
+			data, err := r.secretReader.Get(ctx, resourceRef)
 			if err != nil {
-				return "", fmt.Errorf("get Secret %s/%s: %w", namespace, urlFromRef.Name, err)
+				return "", fmt.Errorf("get Secret %s: %w", resourceRef, err)
 			}
 			if natsURL, ok := data[urlFromRef.Key]; ok {
 				return natsURL, nil
 			}
-			return "", fmt.Errorf("secret %s/%s has no key %q", namespace, urlFromRef.Name, urlFromRef.Key)
+			return "", fmt.Errorf("secret %s has no key %q", resourceRef, urlFromRef.Key)
 		default:
 			return "", fmt.Errorf("unsupported urlFrom.kind %q", urlFromRef.Kind)
 		}
@@ -310,7 +313,7 @@ func (r *clusterTargetResolverImpl) resolveNatsURL(ctx context.Context, cluster 
 	return "", fmt.Errorf("neither url nor urlFrom is set")
 }
 
-func (r *clusterTargetResolverImpl) validateAccountClusterRef(accountClusterRef ports.NamespacedName) error {
+func (r *clusterTargetResolverImpl) validateAccountClusterRef(accountClusterRef domain.NamespacedName) error {
 	opClusterRef := r.operatorClusterRef()
 	if opClusterRef != nil && !r.config.OperatorNatsCluster.Optional && !opClusterRef.Equals(accountClusterRef) {
 		return fmt.Errorf("account cluster reference %s does not match required operator cluster %s", accountClusterRef, opClusterRef)
@@ -319,12 +322,10 @@ func (r *clusterTargetResolverImpl) validateAccountClusterRef(accountClusterRef 
 	return nil
 }
 
-func (r *clusterTargetResolverImpl) operatorClusterRef() *ports.NamespacedName {
+func (r *clusterTargetResolverImpl) operatorClusterRef() *domain.NamespacedName {
 	if r.config == nil || r.config.OperatorNatsCluster == nil {
 		return nil
 	}
-	return &ports.NamespacedName{
-		Namespace: r.config.OperatorNatsCluster.ClusterRef.Namespace,
-		Name:      r.config.OperatorNatsCluster.ClusterRef.Name,
-	}
+	result := domain.NewNamespacedName(r.config.OperatorNatsCluster.ClusterRef.Namespace, r.config.OperatorNatsCluster.ClusterRef.Name)
+	return &result
 }

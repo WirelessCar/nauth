@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
@@ -28,18 +29,23 @@ func NewManager(accountsReader ports.AccountReader, secretClient ports.SecretCli
 }
 
 func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
-	account, err := u.accountsReader.Get(ctx, state.Spec.AccountName, state.Namespace)
+	userRef := domain.NewNamespacedName(state.Namespace, state.Name)
+	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
+	if err := accountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+	account, err := u.accountsReader.Get(ctx, accountRef)
 	if err != nil {
 		return err
 	}
 
 	accountID := account.GetLabels()[k8s.LabelAccountID]
 	if accountID == "" {
-		return fmt.Errorf("account %s/%s does not have an account ID yet", account.GetNamespace(), account.GetName())
+		return fmt.Errorf("account %s does not have an account ID yet", accountRef)
 	}
-	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, account.GetNamespace(), account.GetName(), accountID)
+	accountSigningKeyPair, err := u.getAccountSigningKeyPair(ctx, accountRef, accountID)
 	if err != nil {
-		return fmt.Errorf("failed to get signing key secret %s/%s: %w", account.GetNamespace(), account.GetName(), err)
+		return fmt.Errorf("failed to get signing key secret %s: %w", accountRef, err)
 	}
 	accountSigningKeyPublicKey, err := accountSigningKeyPair.PublicKey()
 	if err != nil {
@@ -63,8 +69,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		build()
 	userJwt, err := natsClaims.Encode(accountSigningKeyPair)
 	if err != nil {
-		userResource := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return fmt.Errorf("failed to sign user jwt for %s: %w", userResource, err)
+		return fmt.Errorf("failed to sign user jwt for %s: %w", userRef, err)
 	}
 
 	userCreds, err := jwt.FormatUserConfig(userJwt, userSeed)
@@ -109,20 +114,24 @@ func (u *Manager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	log := logf.FromContext(ctx)
 	log.Info("Delete user", "userName", state.GetName())
 
-	err := u.secretClient.Delete(ctx, state.Namespace, state.GetUserSecretName())
+	secretRef := domain.NewNamespacedName(state.Namespace, state.GetUserSecretName())
+	if err := secretRef.Validate(); err != nil {
+		return fmt.Errorf("invalid secret reference %q: %w", secretRef, err)
+	}
+	err := u.secretClient.Delete(ctx, secretRef)
 	if err != nil {
-		return fmt.Errorf("failed to delete user secret %s/%s: %w", state.Namespace, state.GetUserSecretName(), err)
+		return fmt.Errorf("failed to delete user secret %s: %w", secretRef, err)
 	}
 
 	return nil
 }
 
-func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
-	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, namespace, accountName, accountID); err == nil {
+func (u *Manager) getAccountSigningKeyPair(ctx context.Context, accountRef domain.NamespacedName, accountID string) (nkeys.KeyPair, error) {
+	if keyPair, err := u.getAccountSigningKeyPairByAccountID(ctx, accountRef, accountID); err == nil {
 		return keyPair, nil
 	}
 
-	keyPair, err := u.getDeprecatedAccountSigningKeyPair(ctx, namespace, accountName, accountID)
+	keyPair, err := u.getDeprecatedAccountSigningKeyPair(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,23 +139,23 @@ func (u *Manager) getAccountSigningKeyPair(ctx context.Context, namespace, accou
 	return keyPair, nil
 }
 
-func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *Manager) getAccountSigningKeyPairByAccountID(ctx context.Context, accountRef domain.NamespacedName, accountID string) (nkeys.KeyPair, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID:  accountID,
 		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
 		k8s.LabelManaged:    k8s.LabelManagedValue,
 	}
-	secrets, err := u.secretClient.GetByLabels(ctx, namespace, labels)
+	secrets, err := u.secretClient.GetByLabels(ctx, accountRef.GetNamespace(), labels)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get signing secret for account: %s-%s due to %w", namespace, accountName, err)
+		return nil, fmt.Errorf("failed to get signing secret for account: %s due to %w", accountRef, err)
 	}
 
 	if len(secrets.Items) < 1 {
-		return nil, fmt.Errorf("no signing secret found for account: %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("no signing secret found for account: %s", accountRef)
 	}
 
 	if len(secrets.Items) > 1 {
-		return nil, fmt.Errorf("more than 1 signing secret found for account: %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("more than 1 signing secret found for account: %s", accountRef)
 	}
 
 	seed, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
@@ -164,7 +173,7 @@ func getDisplayName(user *v1alpha1.User) string {
 }
 
 // Todo: Almost identical to the one in account/account.go - refactor ?
-func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namespace, accountName, accountID string) (nkeys.KeyPair, error) {
+func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, accountRef domain.NamespacedName, accountID string) (nkeys.KeyPair, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -174,31 +183,32 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 	var wg sync.WaitGroup
 	ch := make(chan goRoutineResult, 2)
 
+	namespace := accountRef.GetNamespace()
 	for _, s := range []struct {
-		secretName string
+		secretRef  domain.NamespacedName
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountName),
+			secretRef:  namespace.WithName(fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountRef.Name)),
 			secretType: k8s.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountName),
+			secretRef:  namespace.WithName(fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountRef.Name)),
 			secretType: k8s.SecretTypeAccountSign,
 		},
 	} {
 		wg.Add(1)
-		go func(secretName, secretType string) {
+		go func(secretRef domain.NamespacedName, secretType string) {
 			result := goRoutineResult{}
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s-%s of type %s: %v", namespace, secretName, secretType, r)
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s of type %s: %v", secretRef, secretType, r)
 					ch <- result
 				}
 			}()
 
-			accountSecret, err := u.secretClient.Get(ctx, namespace, secretName)
+			accountSecret, err := u.secretClient.Get(ctx, secretRef)
 			if err != nil {
 				result.err = err
 				ch <- result
@@ -210,13 +220,13 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 				k8s.LabelSecretType: secretType,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			if err := u.secretClient.Label(ctx, namespace, secretName, labels); err != nil {
-				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
+			if err := u.secretClient.Label(ctx, secretRef, labels); err != nil {
+				logger.Info("unable to label secret", "secretRef", secretRef, "secretType", secretType, "error", err)
 			}
 			accountSecret[k8s.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
-		}(s.secretName, s.secretType)
+		}(s.secretRef, s.secretType)
 	}
 
 	wg.Wait()
@@ -239,12 +249,12 @@ func (u *Manager) getDeprecatedAccountSigningKeyPair(ctx context.Context, namesp
 
 	accountSignSecret, ok := secrets[k8s.SecretTypeAccountSign]
 	if !ok {
-		return nil, fmt.Errorf("no deprecated signing key found for account %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("no deprecated signing key found for account %s", accountRef)
 	}
 
 	accountSignSecretSeed, ok := accountSignSecret[k8s.DefaultSecretKeyName]
 	if !ok {
-		return nil, fmt.Errorf("no deprecated signing key seed found for account %s-%s", namespace, accountName)
+		return nil, fmt.Errorf("no deprecated signing key seed found for account %s", accountRef)
 	}
 	return nkeys.FromSeed([]byte(accountSignSecretSeed))
 }

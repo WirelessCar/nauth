@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,11 +20,13 @@ var _ = Describe("Account getter", func() {
 		)
 
 		ctx := context.Background()
+		var accountRef domain.NamespacedName
 
 		BeforeEach(func() {
+			accountRef = domain.NewNamespacedName(namespace, accountName)
+			Expect(accountRef.Validate()).To(Succeed())
 			By("creating account to fetch")
-			err := createAccount(namespace, accountName)
-			Expect(err).ToNot(HaveOccurred())
+			Expect(createAccount(namespace, accountName)).To(Succeed())
 		})
 
 		AfterEach(func() {
@@ -36,7 +39,7 @@ var _ = Describe("Account getter", func() {
 			By("setting up a default account getter")
 			accountGetter := NewAccountClient(k8sClient)
 			By("getting the account")
-			fetchedAccount, err := accountGetter.Get(ctx, accountName, namespace)
+			fetchedAccount, err := accountGetter.Get(ctx, accountRef)
 
 			By("verifying the fetched account")
 			Expect(err).To(HaveOccurred())
@@ -52,7 +55,7 @@ var _ = Describe("Account getter", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("getting the account")
-			fetchedAccount, err := accountGetter.Get(ctx, accountName, namespace)
+			fetchedAccount, err := accountGetter.Get(ctx, accountRef)
 
 			By("verifying the fetched account")
 			Expect(err).ToNot(HaveOccurred())

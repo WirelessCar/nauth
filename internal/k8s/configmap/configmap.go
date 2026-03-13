@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	v1 "k8s.io/api/core/v1"
@@ -39,14 +40,17 @@ func NewClient(c client.Client) *Client {
 
 // Get returns the ConfigMap data as a map of key to string value.
 // Keys from both Data and BinaryData are included.
-func (c *Client) Get(ctx context.Context, namespace string, name string) (map[string]string, error) {
+func (c *Client) Get(ctx context.Context, configMapRef domain.NamespacedName) (map[string]string, error) {
+	if err := configMapRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid ConfigMap reference %q: %w", configMapRef, err)
+	}
 	cm := &v1.ConfigMap{}
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+	key := client.ObjectKey{Namespace: configMapRef.Namespace, Name: configMapRef.Name}
 	if err := c.client.Get(ctx, key, cm); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, k8s.ErrNotFound
 		}
-		return nil, fmt.Errorf("failed to get configmap: %w", err)
+		return nil, fmt.Errorf("failed to get ConfigMap %s: %w", configMapRef, err)
 	}
 	result := make(map[string]string)
 	for k, v := range cm.Data {

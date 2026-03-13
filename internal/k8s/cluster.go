@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -19,7 +20,7 @@ func NewNatsClusterClient(reader client.Reader) *NatsClusterClient {
 	}
 }
 
-func (c *NatsClusterClient) Get(ctx context.Context, clusterRef ports.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (c *NatsClusterClient) Get(ctx context.Context, clusterRef domain.NamespacedName) (*v1alpha1.NatsCluster, error) {
 	if err := clusterRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid NATS cluster reference %q: %w", clusterRef, err)
 	}

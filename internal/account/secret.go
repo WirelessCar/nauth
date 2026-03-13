@@ -9,6 +9,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/nkeys"
@@ -23,10 +24,10 @@ type Secrets struct {
 }
 
 type secretManager interface {
-	ApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) error
-	ApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) error
-	DeleteAll(ctx context.Context, namespace, accountName, accountID string) error
-	GetSecrets(ctx context.Context, namespace, accountName, accountID string) (*Secrets, error)
+	ApplyRootSecret(ctx context.Context, accountRef domain.NamespacedName, rootKeyPair nkeys.KeyPair) error
+	ApplySignSecret(ctx context.Context, accountRef domain.NamespacedName, accountID string, signKeyPair nkeys.KeyPair) error
+	DeleteAll(ctx context.Context, accountRef domain.NamespacedName, accountID string) error
+	GetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, error)
 }
 
 type secretManagerImpl struct {
@@ -43,36 +44,33 @@ func newSecretManagerImpl(secretClient ports.SecretClient) (*secretManagerImpl, 
 	}, nil
 }
 
-func (m *secretManagerImpl) ApplyRootSecret(ctx context.Context, namespace, accountName string, rootKeyPair nkeys.KeyPair) error {
+func (m *secretManagerImpl) ApplyRootSecret(ctx context.Context, accountRef domain.NamespacedName, rootKeyPair nkeys.KeyPair) error {
 	accountID, err := rootKeyPair.PublicKey()
 	if err != nil {
 		return fmt.Errorf("failed to get public key from account root secret: %w", err)
 	}
-	return m.applySecret(ctx, namespace, accountName, accountID, SecretNameAccountRootTemplate, k8s.SecretTypeAccountRoot, rootKeyPair)
+	return m.applySecret(ctx, accountRef, accountID, SecretNameAccountRootTemplate, k8s.SecretTypeAccountRoot, rootKeyPair)
 }
 
-func (m *secretManagerImpl) ApplySignSecret(ctx context.Context, namespace, accountName, accountID string, signKeyPair nkeys.KeyPair) error {
-	return m.applySecret(ctx, namespace, accountName, accountID, SecretNameAccountSignTemplate, k8s.SecretTypeAccountSign, signKeyPair)
+func (m *secretManagerImpl) ApplySignSecret(ctx context.Context, accountRef domain.NamespacedName, accountID string, signKeyPair nkeys.KeyPair) error {
+	return m.applySecret(ctx, accountRef, accountID, SecretNameAccountSignTemplate, k8s.SecretTypeAccountSign, signKeyPair)
 }
 
-func (m *secretManagerImpl) applySecret(ctx context.Context, namespace, accountName, accountID, nameTemplate, secretType string, keyPair nkeys.KeyPair) error {
-	if namespace == "" {
-		return fmt.Errorf("account namespace cannot be empty")
-	}
-	if accountName == "" {
-		return fmt.Errorf("account name cannot be empty")
+func (m *secretManagerImpl) applySecret(ctx context.Context, accountRef domain.NamespacedName, accountID, nameTemplate, secretType string, keyPair nkeys.KeyPair) error {
+	if err := accountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference %s: %w", accountRef, err)
 	}
 	if accountID == "" {
 		return fmt.Errorf("account ID cannot be empty")
 	}
 
-	secretName := fmt.Sprintf(nameTemplate, accountName, mustGenerateShortHashFromID(accountID))
+	secretName := fmt.Sprintf(nameTemplate, accountRef.Name, mustGenerateShortHashFromID(accountID))
 	secretMeta := metav1.ObjectMeta{
 		Name:      secretName,
-		Namespace: namespace,
+		Namespace: accountRef.Namespace,
 		Labels: map[string]string{
 			k8s.LabelAccountID:   accountID,
-			k8s.LabelAccountName: accountName,
+			k8s.LabelAccountName: accountRef.Name,
 			k8s.LabelSecretType:  secretType,
 			k8s.LabelManaged:     k8s.LabelManagedValue,
 		},
@@ -89,17 +87,21 @@ func (m *secretManagerImpl) applySecret(ctx context.Context, namespace, accountN
 	return nil
 }
 
-func (m *secretManagerImpl) DeleteAll(ctx context.Context, namespace, accountName, accountID string) error {
+func (m *secretManagerImpl) DeleteAll(ctx context.Context, accountRef domain.NamespacedName, accountID string) error {
+	if err := accountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference %s: %w", accountRef, err)
+	}
+
 	labels := map[string]string{
 		k8s.LabelAccountID:   accountID,
-		k8s.LabelAccountName: accountName,
+		k8s.LabelAccountName: accountRef.Name,
 	}
 	// TODO: Consider looking up secrets and then deleting them explicitly
 	// or delete first by only AccountID label and then by AccountName label, to ensure secrets are deleted even if
 	// they are not labelled correctly. This also allows for better error handling and logging of which secrets were
 	// attempted to be deleted.
 	// TODO: Consider secrets labelled nauth.io/managed=true, should we only delete those?
-	return m.secretClient.DeleteByLabels(ctx, namespace, labels)
+	return m.secretClient.DeleteByLabels(ctx, accountRef.GetNamespace(), labels)
 }
 
 func mustGenerateShortHashFromID(ID string) string {
@@ -116,27 +118,30 @@ func mustGenerateShortHashFromID(ID string) string {
 	return hash
 }
 
-func (m *secretManagerImpl) GetSecrets(ctx context.Context, namespace, accountName, accountID string) (*Secrets, error) {
+func (m *secretManagerImpl) GetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, error) {
 	var err error
+	if err = accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %s: %w", accountRef, err)
+	}
 	if accountID != "" {
-		secretsByAccountID, errByAccountID := m.getAccountSecretsByAccountID(ctx, namespace, accountID)
+		secretsByAccountID, errByAccountID := m.getAccountSecretsByAccountID(ctx, accountRef.GetNamespace(), accountID)
 		if errByAccountID == nil {
 			return m.validatedResult(secretsByAccountID, accountID)
 		}
 		err = fmt.Errorf("failed to get account secrets by account ID %q: %w", accountID, errByAccountID)
 	}
 
-	secretsByAccountName, errByAccountName := m.getAccountSecretsByAccountName(ctx, namespace, accountName)
+	secretsByAccountName, errByAccountName := m.getAccountSecretsByAccountName(ctx, accountRef)
 	if errByAccountName == nil {
 		return m.validatedResult(secretsByAccountName, accountID)
 	}
-	err = errors.Join(err, fmt.Errorf("failed to get account secrets by account name %q: %w", accountName, errByAccountName))
+	err = errors.Join(err, fmt.Errorf("failed to get account secrets by account name %q: %w", accountRef.Name, errByAccountName))
 
-	secretsBySecretName, errBySecretName := m.getDeprecatedAccountSecretsByName(ctx, namespace, accountName, accountID)
+	secretsBySecretName, errBySecretName := m.getDeprecatedAccountSecretsByName(ctx, accountRef, accountID)
 	if errBySecretName == nil {
 		return m.validatedResult(secretsBySecretName, accountID)
 	}
-	err = errors.Join(err, fmt.Errorf("failed to get account secrets by secret name (deprecated) for account name %q: %w", accountName, errBySecretName))
+	err = errors.Join(err, fmt.Errorf("failed to get account secrets by secret name (deprecated) for account name %q: %w", accountRef.Name, errBySecretName))
 
 	return nil, err
 }
@@ -152,7 +157,7 @@ func (m *secretManagerImpl) validatedResult(result *Secrets, accountID string) (
 	return result, nil
 }
 
-func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, namespace, accountID string) (*Secrets, error) {
+func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*Secrets, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID: accountID,
 		k8s.LabelManaged:   k8s.LabelManagedValue,
@@ -165,12 +170,12 @@ func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, na
 	return m.getAccountSecretsFromK8sSecrets(k8sSecrets)
 }
 
-func (m *secretManagerImpl) getAccountSecretsByAccountName(ctx context.Context, namespace, accountName string) (*Secrets, error) {
+func (m *secretManagerImpl) getAccountSecretsByAccountName(ctx context.Context, accountRef domain.NamespacedName) (*Secrets, error) {
 	labels := map[string]string{
-		k8s.LabelAccountName: accountName,
+		k8s.LabelAccountName: accountRef.Name,
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}
-	k8sSecrets, err := m.secretClient.GetByLabels(ctx, namespace, labels)
+	k8sSecrets, err := m.secretClient.GetByLabels(ctx, accountRef.GetNamespace(), labels)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +205,7 @@ func (m *secretManagerImpl) getAccountSecretsFromK8sSecrets(k8sSecrets *v1.Secre
 	return m.toAccountSecrets(secrets)
 }
 
-func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Context, namespace, accountName, accountID string) (*Secrets, error) {
+func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
@@ -210,31 +215,32 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 	var wg sync.WaitGroup
 	ch := make(chan goRoutineResult, 2)
 
+	namespace := accountRef.GetNamespace()
 	for _, s := range []struct {
-		secretName string
+		secretRef  domain.NamespacedName
 		secretType string
 	}{
 		{
-			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountName),
+			secretRef:  namespace.WithName(fmt.Sprintf(k8s.DeprecatedSecretNameAccountRootTemplate, accountRef.Name)),
 			secretType: k8s.SecretTypeAccountRoot,
 		},
 		{
-			secretName: fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountName),
+			secretRef:  namespace.WithName(fmt.Sprintf(k8s.DeprecatedSecretNameAccountSignTemplate, accountRef.Name)),
 			secretType: k8s.SecretTypeAccountSign,
 		},
 	} {
 		wg.Add(1)
-		go func(secretName, secretType string) {
+		go func(secretRef domain.NamespacedName, secretType string) {
 			result := goRoutineResult{}
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s/%s of type %s: %v", namespace, secretName, secretType, r)
+					result.err = fmt.Errorf("recovered panicked go routine from trying to get secret %s of type %s: %v", secretRef, secretType, r)
 					ch <- result
 				}
 			}()
 
-			accountSecret, err := m.secretClient.Get(ctx, namespace, secretName)
+			accountSecret, err := m.secretClient.Get(ctx, secretRef)
 			if err != nil {
 				result.err = err
 				ch <- result
@@ -246,13 +252,13 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 				k8s.LabelSecretType: secretType,
 				k8s.LabelManaged:    k8s.LabelManagedValue,
 			}
-			if err := m.secretClient.Label(ctx, namespace, secretName, labels); err != nil {
-				logger.Info("unable to label secret", "secretName", secretName, "namespace", namespace, "secretType", secretType, "error", err)
+			if err := m.secretClient.Label(ctx, secretRef, labels); err != nil {
+				logger.Info("unable to label secret", "secretRef", secretRef, "namespace", namespace, "secretType", secretType, "error", err)
 			}
 			accountSecret[k8s.LabelSecretType] = secretType
 			result.secret = accountSecret
 			ch <- result
-		}(s.secretName, s.secretType)
+		}(s.secretRef, s.secretType)
 	}
 
 	wg.Wait()
@@ -274,7 +280,7 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 	}
 
 	if len(secrets) < 2 {
-		return nil, fmt.Errorf("missing one or more deprecated secret(s) for account: %s/%s", namespace, accountName)
+		return nil, fmt.Errorf("missing one or more deprecated secret(s) for account: %s", accountRef)
 	}
 
 	return m.toAccountSecrets(secrets)
