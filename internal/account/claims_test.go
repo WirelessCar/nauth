@@ -50,15 +50,14 @@ func TestClaims(t *testing.T) {
 
 			ctx := context.Background()
 			accountReaderMock := NewAccountReaderMock()
-			getAccountCall := accountReaderMock.On("Get", mock.Anything, mock.Anything)
-			getAccountCall.RunFn = func(args mock.Arguments) {
-				accountID := fakeAccountId(args.Get(1).(domain.NamespacedName))
+			getAccountCall := accountReaderMock.mockGetCallback(mock.Anything, mock.Anything, func(accountRef domain.NamespacedName) (*v1alpha1.Account, error) {
+				accountID := fakeAccountId(accountRef)
 				account := &v1alpha1.Account{}
 				account.Labels = map[string]string{
 					k8s.LabelAccountID: accountID,
 				}
-				getAccountCall.Return(*account, nil)
-			}
+				return account, nil
+			})
 
 			// Build NATS JWT AccountClaims from AccountSpec
 			builder := newClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
@@ -95,7 +94,7 @@ func TestClaims(t *testing.T) {
 				account.Labels = map[string]string{
 					k8s.LabelAccountID: testClaimsFakeAccountID,
 				}
-				getAccountCall.Return(*account, nil)
+				getAccountCall.Return(account, nil)
 			}
 
 			// Verify that the resulting NAuth AccountClaim generates the same NATS JWT when encoded

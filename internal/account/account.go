@@ -10,6 +10,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/user"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -349,6 +350,43 @@ func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	return nil
 }
 
+func (a *Manager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
+	if err := accountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+	}
+	account, err := a.accountReader.Get(ctx, accountRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account for user JWT signing: %w", err)
+	}
+	accountID := account.GetLabels()[k8s.LabelAccountID]
+	if accountID == "" {
+		return nil, fmt.Errorf("account ID is missing for account %s during user JWT signing", accountRef)
+	}
+	if claims.IssuerAccount != "" && claims.IssuerAccount != accountID {
+		return nil, fmt.Errorf("claims issuer account ID %s does not match %s bound to account %q during user JWT signing", claims.IssuerAccount, accountID, accountRef)
+	}
+	if claims.IssuerAccount == "" {
+		claims.IssuerAccount = accountID
+	}
+	accountSecrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account secrets for user JWT signing: %w", err)
+	}
+	signPubKey, err := accountSecrets.Sign.PublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account signing public key for user JWT signing: %w", err)
+	}
+	userJWT, err := claims.Encode(accountSecrets.Sign)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign user JWT using %s for account %s (%q): %w", signPubKey, accountID, accountRef, err)
+	}
+	return &user.SignedUserJWT{
+		UserJWT:   userJWT,
+		AccountID: accountID,
+		SignedBy:  signPubKey,
+	}, nil
+}
+
 func (a *Manager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
@@ -365,3 +403,6 @@ func getDisplayName(account *v1alpha1.Account) string {
 	}
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
 }
+
+var _ controller.AccountManager = (*Manager)(nil)
+var _ user.JWTSigner = (*Manager)(nil)

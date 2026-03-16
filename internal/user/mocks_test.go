@@ -3,13 +3,40 @@ package user
 import (
 	"context"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+/* ****************************************************
+* JWTSigner Mock
+*****************************************************/
+
+func NewUserJWTSignerMock() *UserJWTSignerMock {
+	return &UserJWTSignerMock{}
+}
+
+type UserJWTSignerMock struct {
+	mock.Mock
+}
+
+func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
+	args := m.Called(ctx, accountRef, claims)
+	return args.Get(0).(*SignedUserJWT), args.Error(1)
+}
+
+func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef domain.NamespacedName, callback func(claims *jwt.UserClaims) *SignedUserJWT) {
+	call := m.On("SignUserJWT", ctx, accountRef, mock.Anything)
+	call.RunFn = func(args mock.Arguments) {
+		claims := args.Get(2).(*jwt.UserClaims)
+		call.Return(callback(claims), nil)
+	}
+}
+
+var _ JWTSigner = &UserJWTSignerMock{}
 
 /* ****************************************************
 * ports.SecretClient Mock
@@ -39,18 +66,10 @@ func (s *SecretClientMock) Get(ctx context.Context, secretRef domain.NamespacedN
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (s *SecretClientMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
-	s.On("Get", ctx, namespacedName).Return(result, nil)
-}
-
 // GetByLabels implements ports.SecretStorer.
 func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*corev1.SecretList, error) {
 	args := s.Called(ctx, namespace, labels)
 	return args.Get(0).(*corev1.SecretList), args.Error(1)
-}
-
-func (s *SecretClientMock) mockGetByLabels(ctx context.Context, namespace domain.Namespace, labels interface{}, list *corev1.SecretList) {
-	s.On("GetByLabels", ctx, namespace, labels).Return(list, nil)
 }
 
 // DeleteSecret implements ports.SecretStorer.
@@ -71,34 +90,5 @@ func (s *SecretClientMock) Label(ctx context.Context, secretRef domain.Namespace
 	return args.Error(0)
 }
 
-func (s *SecretClientMock) mockLabel(namespacedName domain.NamespacedName, labels map[string]string) {
-	s.On("Label", mock.Anything, namespacedName, labels).Return(nil)
-}
-
 // Compile-time assertion that implementation satisfies the ports interface
 var _ ports.SecretClient = &SecretClientMock{}
-
-/* ****************************************************
-* ports.AccountReader Mock
-*****************************************************/
-
-type AccountReaderMock struct {
-	mock.Mock
-}
-
-func NewAccountReaderMock() *AccountReaderMock {
-	return &AccountReaderMock{}
-}
-
-func (a *AccountReaderMock) Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error) {
-	args := a.Called(ctx, accountRef)
-	anAccount := args.Get(0).(v1alpha1.Account)
-	return &anAccount, args.Error(1)
-}
-
-func (a *AccountReaderMock) mockGet(ctx context.Context, accountRef domain.NamespacedName, result v1alpha1.Account) *mock.Call {
-	return a.On("Get", ctx, accountRef).Return(result, nil)
-}
-
-// Compile-time assertion that implementation satisfies the ports interface
-var _ ports.AccountReader = &AccountReaderMock{}

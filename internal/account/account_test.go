@@ -363,6 +363,104 @@ func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
 	t.Equal([]interface{}{accountID}, deleteClaims.Data["accounts"])
 }
 
+func (t *ManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+	accountSignKey, _ := nkeys.CreateAccount()
+	accountSignKeyPublic, _ := accountSignKey.PublicKey()
+
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+	}
+	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+
+	userKey, _ := nkeys.CreateUser()
+	userKeyPublic, _ := userKey.PublicKey()
+	claims := jwt.NewUserClaims(userKeyPublic)
+
+	// When
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(accountID, result.AccountID)
+	t.Equal(accountSignKeyPublic, result.SignedBy)
+
+	// Verify the JWT is signed with the account's signing key
+	parsedClaims, err := jwt.DecodeUserClaims(result.UserJWT)
+	t.NoError(err, "failed to decode signed user JWT")
+	t.Equal(accountID, parsedClaims.IssuerAccount)
+	t.Equal(accountSignKeyPublic, parsedClaims.Issuer)
+}
+
+func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotReady() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+		},
+	}
+	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+
+	userKey, _ := nkeys.CreateUser()
+	userKeyPublic, _ := userKey.PublicKey()
+	claims := jwt.NewUserClaims(userKeyPublic)
+
+	// When
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "account ID is missing for account account-namespace/account-name during user JWT signing")
+}
+
+func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoesNotMatchFoundAccountID() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+	}
+	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+
+	userKey, _ := nkeys.CreateUser()
+	userKeyPublic, _ := userKey.PublicKey()
+	claims := jwt.NewUserClaims(userKeyPublic)
+	claims.IssuerAccount = "some-other-account-id"
+
+	// When
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "claims issuer account ID some-other-account-id does not match "+
+		accountID+" bound to account \"account-namespace/account-name\" during user JWT signing")
+}
+
 /* ****************************************************
 * Helpers
 *****************************************************/

@@ -301,7 +301,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewManager(accountClient, secretClient)
+	userManager := user.NewManager(accountManager, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
