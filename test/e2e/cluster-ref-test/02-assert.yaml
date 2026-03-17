@@ -39,10 +39,6 @@ resourceRefs:
 assertAll:
   # Verify account ID label is set (starts with A)
   - celExpr: matches(account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 30
 commands:
   - script: |
       set -eu

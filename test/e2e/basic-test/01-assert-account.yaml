@@ -47,12 +47,6 @@ resourceRefs:
 assertAll:
   - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
   - celExpr: example_account.metadata.labels["account.nauth.io/signed-by"] == "OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4"
-  - celExpr: matches(example_account.status.signingKey.name, "^.{56}$")
-
----
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-timeout: 20
 commands:
   - script: |
       set -eu

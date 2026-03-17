@@ -16,7 +16,7 @@ helm-docs = "latest"
 golangci-lint = "latest"
 "ubi:elastic/crd-ref-docs" = "latest"
 "go:github.com/nats-io/natscli/nats" = "latest"
-kubectl-kuttl = "latest"
+kubectl-kuttl = "0.24.0"
 jq = "latest"
 
 [settings]

@@ -38,16 +38,16 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install KUTTL
-        run: |
-          curl -L https://github.com/kudobuilder/kuttl/releases/download/v0.15.0/kubectl-kuttl_0.15.0_linux_x86_64 -o /usr/local/bin/kubectl-kuttl
-          chmod +x /usr/local/bin/kubectl-kuttl
+      - name: Setup mise tools
+        uses: jdx/mise-action@v3
+        with:
+          install: true
+          install_args: "kubectl-kuttl kind jq"
+          experimental: true
 
-      - name: Install the latest version of KIND
+      - name: Verify test tools
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
+          kubectl kuttl version
           kind version
 
       - name: Running E2E Tests
