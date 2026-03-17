@@ -423,6 +423,13 @@ spec:
                         format: int64
                         type: integer
                     type: object
+                  signingKeys:
+                    items:
+                      properties:
+                        key:
+                          type: string
+                      type: object
+                    type: array
                 type: object
               conditions:
                 items:

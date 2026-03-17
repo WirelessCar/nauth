@@ -47,14 +47,15 @@ resourceRefs:
 assertAll:
   - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
   - celExpr: example_account.metadata.labels["account.nauth.io/signed-by"] == "OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4"
+  - celExpr: matches(example_account.status.claims.signingKeys[0].key, "^A.{55}$")
 commands:
   - script: |
       set -eu
-      
+
       # read account id from account
       aid="$(kubectl get accounts.nauth.io example-account -n "$NAMESPACE" -o jsonpath='{.metadata.labels.account\.nauth\.io/id}')"
       test -n "$aid"
-      
+
       # verify account root secret exists
       sec="$(kubectl get secret -n "$NAMESPACE" -l account.nauth.io/id="$aid",nauth.io/secret-type=account-root -o jsonpath='{.items[0].data.default}')"
       test -n "$sec"

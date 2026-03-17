@@ -45,8 +45,10 @@ resourceRefs:
     name: example-user
     ref: example_user
 assertAll:
+  - celExpr: matches(example_account.status.claims.signingKeys[0].key, "^A.{55}$")
   - celExpr: matches(example_user.metadata.labels["user.nauth.io/id"], "^U.{55}$")
   - celExpr: example_user.metadata.labels["user.nauth.io/account-id"] == example_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: example_user.metadata.labels["user.nauth.io/signed-by"] == example_account.status.claims.signingKeys[0].key
 commands:
   - script: |
       set -eu

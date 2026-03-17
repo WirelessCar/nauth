@@ -124,6 +124,43 @@ func TestClaims(t *testing.T) {
 	}
 }
 
+func TestClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T) {
+	// Given
+	claims := jwt.NewAccountClaims(testClaimsFakeAccountID)
+
+	// When
+	result := convertNatsAccountClaims(claims)
+
+	// Then
+	var ptrNoLimit int64 = -1
+	var ptrDisabled int64 = 0
+	var ptrTrue = true
+	require.Equal(t, v1alpha1.AccountClaims{
+		AccountLimits: &v1alpha1.AccountLimits{
+			Imports:         &ptrNoLimit,
+			Exports:         &ptrNoLimit,
+			WildcardExports: &ptrTrue,
+			Conn:            &ptrNoLimit,
+			LeafNodeConn:    &ptrNoLimit,
+		},
+		JetStreamLimits: &v1alpha1.JetStreamLimits{
+			MemoryStorage:        &ptrDisabled,
+			DiskStorage:          &ptrDisabled,
+			Streams:              &ptrDisabled,
+			Consumer:             &ptrDisabled,
+			MaxAckPending:        &ptrDisabled,
+			MemoryMaxStreamBytes: &ptrDisabled,
+			DiskMaxStreamBytes:   &ptrDisabled,
+			MaxBytesRequired:     false,
+		},
+		NatsLimits: &v1alpha1.NatsLimits{
+			Subs:    &ptrNoLimit,
+			Data:    &ptrNoLimit,
+			Payload: &ptrNoLimit,
+		},
+	}, result)
+}
+
 type TestCaseInputFile struct {
 	TestName  string
 	InputFile string

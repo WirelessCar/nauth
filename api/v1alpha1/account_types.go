@@ -58,6 +58,8 @@ type AccountClaims struct {
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
 	// +optional
+	SigningKeys SigningKeys `json:"signingKeys,omitempty"`
+	// +optional
 	Exports Exports `json:"exports,omitempty"`
 	// +optional
 	Imports Imports `json:"imports,omitempty"`
@@ -161,6 +163,13 @@ type RevocationList map[string]int64
 
 func init() {
 	SchemeBuilder.Register(&Account{}, &AccountList{})
+}
+
+type SigningKeys []*SigningKey
+
+type SigningKey struct {
+	Key string `json:"key,omitempty"`
+	// TODO: [https://github.com/WirelessCar/nauth/issues/140] Support optional *UserScope
 }
 
 type Exports []*Export
