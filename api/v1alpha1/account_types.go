@@ -82,15 +82,7 @@ type AccountStatus struct {
 	// +optional
 	ReconcileTimestamp metav1.Time `json:"reconcileTimestamp,omitempty"`
 	// +optional
-	SigningKey KeyInfo `json:"signingKey"`
-	// +optional
 	OperatorVersion string `json:"operatorVersion,omitempty"`
-}
-
-type KeyInfo struct {
-	Name           string      `json:"name,omitempty"`
-	CreationDate   metav1.Time `json:"creationDate,omitempty"`
-	ExpirationDate metav1.Time `json:"expirationDate,omitempty"`
 }
 
 // +kubebuilder:object:root=true
