@@ -15,7 +15,7 @@ jobs:
         if: >
           github.event.issue.author_association != 'OWNER' &&
           github.event.issue.author_association != 'MEMBER'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const label = "status/triage";
