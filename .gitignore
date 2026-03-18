@@ -49,3 +49,6 @@ test/logs/
 
 # Approval Tests
 **/.approval_tests_temp
+
+# Git worktrees in repo root
+.worktrees/
