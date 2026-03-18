@@ -16,7 +16,7 @@
         "type": "stream"
       },
       {
-        "account_token_position": 1234,
+        "account_token_position": 2,
         "advertise": true,
         "allow_trace": true,
         "name": "my-complex",

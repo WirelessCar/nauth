@@ -186,12 +186,6 @@ func newClaimsBuilder(
 			}
 		}
 		claim.Imports = imports
-
-		err := validateImports(imports)
-		if err != nil {
-			errs = append(errs, err)
-			claim.Imports = nil
-		}
 	}
 
 	return &claimsBuilder{
@@ -203,24 +197,6 @@ func newClaimsBuilder(
 func (b *claimsBuilder) signingKey(signingKey string) *claimsBuilder {
 	b.claim.SigningKeys.Add(signingKey)
 	return b
-}
-
-func validateImports(imports jwt.Imports) error {
-	seenSubjects := make(map[string]bool, len(imports))
-
-	for _, importClaim := range imports {
-		subject := string(importClaim.Subject)
-		if importClaim.LocalSubject != "" {
-			subject = string(importClaim.LocalSubject)
-		}
-
-		if seenSubjects[subject] {
-			return fmt.Errorf("conflicting import subject found: %s", subject)
-		}
-		seenSubjects[subject] = true
-	}
-
-	return nil
 }
 
 func (b *claimsBuilder) build() (*jwt.AccountClaims, error) {

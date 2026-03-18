@@ -1,0 +1,37 @@
+accountLimits:
+  conn: -1
+  exports: -1
+  imports: -1
+  leaf: -1
+  wildcards: true
+displayName: test-namespace/test-account
+imports:
+- account: A000000000000000000000000000000000000ACCOUNTAMYNAMESPACE
+  accountRef:
+    name: ""
+    namespace: ""
+  name: account-a-fc
+  subject: $JS.FC.>
+  type: service
+- account: A000000000000000000000000000000000000ACCOUNTBMYNAMESPACE
+  accountRef:
+    name: ""
+    namespace: ""
+  name: account-b-fc
+  subject: $JS.FC.>
+  type: service
+jetStreamLimits:
+  consumer: -1
+  diskMaxStreamBytes: -1
+  diskStorage: -1
+  maxAckPending: -1
+  memMaxStreamBytes: -1
+  memStorage: -1
+  streams: -1
+natsLimits:
+  data: -1
+  payload: -1
+  subs: -1
+signingKeys:
+- key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
+- key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

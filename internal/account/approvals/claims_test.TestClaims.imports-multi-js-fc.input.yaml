@@ -1,0 +1,13 @@
+imports:
+  - name: account-a-fc
+    accountRef:
+      namespace: my-namespace
+      name: account-a
+    subject: $JS.FC.>
+    type: service
+  - name: account-b-fc
+    accountRef:
+      namespace: my-namespace
+      name: account-b
+    subject: $JS.FC.>
+    type: service

@@ -9,7 +9,7 @@ exports:
 - name: my-stream
   subject: events.>
   type: stream
-- accountTokenPosition: 1234
+- accountTokenPosition: 2
   advertise: true
   allowTrace: true
   name: my-complex

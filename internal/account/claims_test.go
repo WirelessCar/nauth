@@ -68,7 +68,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, natsClaims)
 			// Ensure that the NATS JWT can be encoded
-			natsJwt, err := natsClaims.Encode(opSigningKey)
+			natsJwt, err := signAccountJWT(natsClaims, opSigningKey)
 			require.NoError(t, err)
 			require.NotEmpty(t, natsJwt)
 

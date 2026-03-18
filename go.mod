@@ -6,7 +6,7 @@ godebug default=go1.25
 
 require (
 	github.com/approvals/go-approval-tests v1.8.0
-	github.com/nats-io/jwt/v2 v2.8.0
+	github.com/nats-io/jwt/v2 v2.8.1
 	github.com/nats-io/nats.go v1.49.0
 	github.com/nats-io/nkeys v0.4.15
 	github.com/onsi/ginkgo/v2 v2.28.1

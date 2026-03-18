@@ -26,6 +26,6 @@ exports:
     serviceLatency:
       sampling: 25
       results: "metrics.latency.results"
-    accountTokenPosition: 1234
+    accountTokenPosition: 2
     advertise: true
     allowTrace: true

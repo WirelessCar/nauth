@@ -363,6 +363,36 @@ func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
 	t.Equal([]interface{}{accountID}, deleteClaims.Data["accounts"])
 }
 
+func (t *ManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
+	// Given
+	acRoot, _ := nkeys.CreateAccount()
+	acPub, _ := acRoot.PublicKey()
+	opSign, _ := nkeys.CreateOperator()
+	claims := jwt.NewAccountClaims(acPub)
+
+	acOtherRoot, _ := nkeys.CreateAccount()
+	acOtherPub, _ := acOtherRoot.PublicKey()
+	claims.Imports.Add(&jwt.Import{
+		Name:    "import-once",
+		Type:    jwt.Service,
+		Subject: "foo",
+		Account: acOtherPub,
+	})
+	claims.Imports.Add(&jwt.Import{
+		Name:    "import-twice",
+		Type:    jwt.Service,
+		Subject: "foo",
+		Account: acOtherPub,
+	})
+
+	// When
+	accountJWT, err := signAccountJWT(claims, opSign)
+
+	// Then
+	t.Empty(accountJWT)
+	t.ErrorContains(err, "account claims validation failed: [overlapping subject namespace for \"foo\" and \"foo\"")
+}
+
 func (t *ManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
@@ -459,6 +489,36 @@ func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoe
 	t.Nil(result)
 	t.ErrorContains(err, "claims issuer account ID some-other-account-id does not match "+
 		accountID+" bound to account \"account-namespace/account-name\" during user JWT signing")
+}
+
+func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidationFails() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+	}
+	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+
+	userKey, _ := nkeys.CreateUser()
+	userKeyPublic, _ := userKey.PublicKey()
+	claims := jwt.NewUserClaims(userKeyPublic)
+	claims.Locale = "funky-BUSINESS"
+
+	// When
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "claims validation failed during user JWT signing: [could not parse iana time zone by name")
 }
 
 /* ****************************************************

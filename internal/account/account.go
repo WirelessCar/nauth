@@ -143,13 +143,11 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
-		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return nil, fmt.Errorf("failed to build NATS account claims for %s during creation: %w", accountName, err)
+		return nil, fmt.Errorf("failed to build NATS account claims during creation: %w", err)
 	}
-	signedJwt, err := natsClaims.Encode(cluster.OperatorSigningKey)
+	signedJwt, err := signAccountJWT(natsClaims, cluster.OperatorSigningKey)
 	if err != nil {
-		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return nil, fmt.Errorf("failed to sign account jwt for %s during creation: %w", accountName, err)
+		return nil, fmt.Errorf("failed to sign account jwt during creation: %w", err)
 	}
 
 	conn, err := a.natsClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
@@ -170,6 +168,15 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
 	}, nil
+}
+
+func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair) (string, error) {
+	claimsVal := &jwt.ValidationResults{}
+	claims.Validate(claimsVal)
+	if errs := claimsVal.Errors(); len(errs) > 0 {
+		return "", fmt.Errorf("account claims validation failed: %v", errs)
+	}
+	return claims.Encode(operatorSigningKey)
 }
 
 func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
@@ -367,6 +374,11 @@ func (a *Manager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedN
 	}
 	if claims.IssuerAccount == "" {
 		claims.IssuerAccount = accountID
+	}
+	claimsVal := &jwt.ValidationResults{}
+	claims.Validate(claimsVal)
+	if errs := claimsVal.Errors(); len(errs) > 0 {
+		return nil, fmt.Errorf("claims validation failed during user JWT signing: %v", claimsVal.Errors())
 	}
 	accountSecrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
