@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/account"
+	account "github.com/WirelessCar/nauth/internal/core"
 )
 
 func TestNewOperatorNatsCluster(t *testing.T) {

@@ -45,8 +45,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/account"
 	"github.com/WirelessCar/nauth/internal/controller"
+	account "github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
