@@ -57,7 +57,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenLegacyImplici
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
+	require.Equal(t.T(), &domain.NatsClusterTarget{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -97,7 +97,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClust
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
+	require.Equal(t.T(), &domain.NatsClusterTarget{
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -137,7 +137,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
+	require.Equal(t.T(), &domain.NatsClusterTarget{
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -177,7 +177,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
+	require.Equal(t.T(), &domain.NatsClusterTarget{
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -221,7 +221,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
+	require.Equal(t.T(), &domain.NatsClusterTarget{
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,

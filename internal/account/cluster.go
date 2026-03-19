@@ -11,41 +11,8 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-type clusterTarget struct {
-	NatsURL            string
-	SystemAdminCreds   domain.NatsUserCreds
-	OperatorSigningKey domain.NatsOperatorSigningKey
-}
-
-func (c *clusterTarget) validate() error {
-	if c.NatsURL == "" {
-		return fmt.Errorf("NATS URL is required")
-	}
-	if err := c.SystemAdminCreds.Validate(); err != nil {
-		return fmt.Errorf("invalid system admin credentials: %w", err)
-	}
-	if c.OperatorSigningKey == nil {
-		return fmt.Errorf("operator signing key is required")
-	}
-	return nil
-}
-
-func newClusterTarget(natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*clusterTarget, error) {
-	result := &clusterTarget{
-		NatsURL:            natsURL,
-		SystemAdminCreds:   systemAdminCreds,
-		OperatorSigningKey: operatorSigningKey,
-	}
-
-	if err := result.validate(); err != nil {
-		return nil, fmt.Errorf("invalid clusterTarget: %w", err)
-	}
-
-	return result, nil
-}
-
 type clusterTargetResolver interface {
-	GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterTarget, error)
+	GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*domain.NatsClusterTarget, error)
 }
 
 type clusterTargetResolverImpl struct {
@@ -102,8 +69,8 @@ func (r *clusterTargetResolverImpl) validate() error {
 	return nil
 }
 
-func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterTarget, error) {
-	var result *clusterTarget
+func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*domain.NatsClusterTarget, error) {
+	var result *domain.NatsClusterTarget
 	var err error
 	if accountClusterRef != nil {
 		acClusterRef := domain.NewNamespacedName(accountClusterRef.Namespace, accountClusterRef.Name)
@@ -123,13 +90,13 @@ func (r *clusterTargetResolverImpl) GetClusterTarget(ctx context.Context, accoun
 	if err != nil {
 		return nil, fmt.Errorf("resolve cluster target: %w", err)
 	}
-	if err = result.validate(); err != nil {
+	if err = result.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid cluster target: %w", err)
 	}
 	return result, nil
 }
 
-func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRef domain.NamespacedName) (*clusterTarget, error) {
+func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRef domain.NamespacedName) (*domain.NatsClusterTarget, error) {
 	cluster, err := r.natsClusterReader.Get(ctx, clusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
@@ -146,7 +113,7 @@ func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRe
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key for NatsCluster %s: %w", clusterRef, err)
 	}
-	target, err := newClusterTarget(natsURL, *sysAdminCreds, opSigningKey)
+	target, err := domain.NewNatsClusterTarget(natsURL, *sysAdminCreds, opSigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("create cluster target for NatsCluster %s: %w", clusterRef, err)
 	}
@@ -156,7 +123,7 @@ func (r *clusterTargetResolverImpl) resolveTarget(ctx context.Context, clusterRe
 // resolveTargetFromImplicitLookup performs a best-effort resolution of cluster connection details based on the presence
 // of a default NATS URL and labeled secrets in the operator namespace.
 // Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.Context) (*clusterTarget, error) {
+func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.Context) (*domain.NatsClusterTarget, error) {
 	// TODO: [#102][#144] Sunset label-based secret lookup.
 	if r.config.DefaultNatsURL == "" {
 		return nil, fmt.Errorf("default NATS URL is not configured for implicit cluster lookup")
@@ -172,7 +139,7 @@ func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key via labels: %w", err)
 	}
-	target, err := newClusterTarget(r.config.DefaultNatsURL, *sysAdminCreds, opSigningKey)
+	target, err := domain.NewNatsClusterTarget(r.config.DefaultNatsURL, *sysAdminCreds, opSigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("create cluster target from implicit lookup: %w", err)
 	}

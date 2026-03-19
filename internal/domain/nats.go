@@ -55,3 +55,36 @@ func (n *NatsUserCreds) Validate() error {
 	}
 	return nil
 }
+
+type NatsClusterTarget struct {
+	NatsURL            string
+	SystemAdminCreds   NatsUserCreds
+	OperatorSigningKey NatsOperatorSigningKey
+}
+
+func (c *NatsClusterTarget) Validate() error {
+	if c.NatsURL == "" {
+		return fmt.Errorf("NATS URL is required")
+	}
+	if err := c.SystemAdminCreds.Validate(); err != nil {
+		return fmt.Errorf("invalid system admin credentials: %w", err)
+	}
+	if c.OperatorSigningKey == nil {
+		return fmt.Errorf("operator signing key is required")
+	}
+	return nil
+}
+
+func NewNatsClusterTarget(natsURL string, systemAdminCreds NatsUserCreds, operatorSigningKey NatsOperatorSigningKey) (*NatsClusterTarget, error) {
+	result := &NatsClusterTarget{
+		NatsURL:            natsURL,
+		SystemAdminCreds:   systemAdminCreds,
+		OperatorSigningKey: operatorSigningKey,
+	}
+
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid NatsClusterTarget: %w", err)
+	}
+
+	return result, nil
+}

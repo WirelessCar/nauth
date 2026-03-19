@@ -24,7 +24,7 @@ type ManagerTestSuite struct {
 	opSignKeyPublic string
 	sauCreds        domain.NatsUserCreds
 	natsURL         string
-	clusterTarget   clusterTarget
+	clusterTarget   domain.NatsClusterTarget
 
 	accountReaderMock         *AccountReaderMock
 	natsClientMock            *NatsClientMock
@@ -45,7 +45,7 @@ func (t *ManagerTestSuite) SetupTest() {
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}
 	t.natsURL = "nats://nats:4222"
-	t.clusterTarget = clusterTarget{
+	t.clusterTarget = domain.NatsClusterTarget{
 		NatsURL:            t.natsURL,
 		OperatorSigningKey: t.opSignKey,
 		SystemAdminCreds:   t.sauCreds,
@@ -558,17 +558,17 @@ func newClusterTargetResolverMock() *clusterTargetResolverMock {
 	return &clusterTargetResolverMock{}
 }
 
-func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterTarget, error) {
+func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*domain.NatsClusterTarget, error) {
 	args := m.Called(ctx, accountClusterRef)
-	return args.Get(0).(*clusterTarget), args.Error(1)
+	return args.Get(0).(*domain.NatsClusterTarget), args.Error(1)
 }
 
-func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *clusterTarget) {
+func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *domain.NatsClusterTarget) {
 	m.On("GetClusterTarget", ctx, accountClusterRef).Return(result, nil)
 }
 
 func (m *clusterTargetResolverMock) mockGetClusterTargetError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
-	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*clusterTarget)(nil), err)
+	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*domain.NatsClusterTarget)(nil), err)
 }
 
 var _ clusterTargetResolver = (*clusterTargetResolverMock)(nil)

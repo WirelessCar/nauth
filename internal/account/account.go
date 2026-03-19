@@ -399,7 +399,7 @@ func (a *Manager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedN
 	}, nil
 }
 
-func (a *Manager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
+func (a *Manager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*domain.NatsClusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
 		natsClusterRef = natsClusterRef.DeepCopy()
