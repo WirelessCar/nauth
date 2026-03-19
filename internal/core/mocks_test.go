@@ -8,6 +8,8 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/user"
+	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +34,14 @@ func (s *SecretClientMock) Apply(ctx context.Context, owner metav1.Object, meta 
 
 func (s *SecretClientMock) mockApply(arguments ...interface{}) *mock.Call {
 	return s.On("Apply", arguments...)
+}
+
+func (s *SecretClientMock) mockApplyWithCatch(ctx interface{}, owner interface{}, meta interface{}, valueMap interface{}, catcher func(map[string]string)) {
+	s.On("Apply", ctx, owner, meta, valueMap).
+		Run(func(args mock.Arguments) {
+			catcher(args.Get(3).(map[string]string))
+		}).
+		Return(nil)
 }
 
 func (s *SecretClientMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, error) {
@@ -111,6 +121,14 @@ func (s *SecretClientMock) Delete(ctx context.Context, namespacedName domain.Nam
 	return args.Error(0)
 }
 
+func (s *SecretClientMock) mockDelete(ctx context.Context, namespacedName domain.NamespacedName) {
+	s.On("Delete", ctx, namespacedName).Return(nil)
+}
+
+func (s *SecretClientMock) mockDeleteError(ctx context.Context, namespacedName domain.NamespacedName, err error) {
+	s.On("Delete", ctx, namespacedName).Return(err)
+}
+
 func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
 	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
@@ -134,6 +152,33 @@ func (s *SecretClientMock) mockLabelError(namespacedName domain.NamespacedName, 
 }
 
 var _ ports.SecretClient = (*SecretClientMock)(nil)
+
+/* ****************************************************
+* User JWT Signer
+*****************************************************/
+
+func NewUserJWTSignerMock() *UserJWTSignerMock {
+	return &UserJWTSignerMock{}
+}
+
+type UserJWTSignerMock struct {
+	mock.Mock
+}
+
+func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
+	args := m.Called(ctx, accountRef, claims)
+	return args.Get(0).(*user.SignedUserJWT), args.Error(1)
+}
+
+func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef domain.NamespacedName, callback func(claims *jwt.UserClaims) *user.SignedUserJWT) {
+	call := m.On("SignUserJWT", ctx, accountRef, mock.Anything)
+	call.RunFn = func(args mock.Arguments) {
+		claims := args.Get(2).(*jwt.UserClaims)
+		call.Return(callback(claims), nil)
+	}
+}
+
+var _ user.JWTSigner = (*UserJWTSignerMock)(nil)
 
 /* ****************************************************
 * NATS Client
