@@ -31,11 +31,6 @@ const (
 	testClaimsSigningKey02  = "ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG"
 )
 
-func TestMain(m *testing.M) {
-	approvals.UseFolder("approvals")
-	os.Exit(m.Run())
-}
-
 func TestClaims(t *testing.T) {
 
 	opSigningKey, _ := nkeys.FromSeed([]byte(testClaimsOperatorSeed))
