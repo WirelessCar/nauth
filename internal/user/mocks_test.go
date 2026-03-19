@@ -60,6 +60,14 @@ func (s *SecretClientMock) mockApply(ctx context.Context, owner interface{}, met
 	s.On("Apply", ctx, owner, meta, valueMap).Return(nil)
 }
 
+func (s *SecretClientMock) mockApplyWithCatch(ctx context.Context, owner interface{}, meta interface{}, valueMap interface{}, catcher func(map[string]string)) {
+	s.On("Apply", ctx, owner, meta, valueMap).
+		Run(func(args mock.Arguments) {
+			catcher(args.Get(3).(map[string]string))
+		}).
+		Return(nil)
+}
+
 // Get implements ports.SecretStorer.
 func (s *SecretClientMock) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error) {
 	args := s.Called(ctx, secretRef)
@@ -76,6 +84,14 @@ func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Nam
 func (s *SecretClientMock) Delete(ctx context.Context, secretRef domain.NamespacedName) error {
 	args := s.Called(ctx, secretRef)
 	return args.Error(0)
+}
+
+func (s *SecretClientMock) mockDelete(ctx context.Context, secretRef domain.NamespacedName) {
+	s.On("Delete", ctx, secretRef).Return(nil)
+}
+
+func (s *SecretClientMock) mockDeleteError(ctx context.Context, secretRef domain.NamespacedName, err error) {
+	s.On("Delete", ctx, secretRef).Return(err)
 }
 
 // DeleteSecret implements ports.SecretStorer.
