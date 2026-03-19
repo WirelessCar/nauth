@@ -46,7 +46,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/controller"
-	account "github.com/WirelessCar/nauth/internal/core"
+	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
@@ -230,7 +230,7 @@ func main() {
 	// TODO: [#102][#144] Sunset NATS_URL in favor of explicit NatsClusterRef + NatsCluster resources.
 	defaultNatsURL := os.Getenv("NATS_URL")
 
-	var operatorNatsCluster *account.OperatorNatsCluster
+	var operatorNatsCluster *core.OperatorNatsCluster
 	natsClusterRef := strings.TrimSpace(os.Getenv("NATS_CLUSTER_REF"))
 	natsClusterRefOptional := false
 	if rawOptional, ok := os.LookupEnv("NATS_CLUSTER_REF_OPTIONAL"); ok {
@@ -248,7 +248,7 @@ func main() {
 			setupLog.Error(err, "invalid NATS_CLUSTER_REF value", "NATS_CLUSTER_REF", natsClusterRef)
 			os.Exit(1)
 		}
-		operatorNatsCluster, err = account.NewOperatorNatsCluster(*operatorClusterRef, natsClusterRefOptional)
+		operatorNatsCluster, err = core.NewOperatorNatsCluster(*operatorClusterRef, natsClusterRefOptional)
 		if err != nil {
 			setupLog.Error(err, "invalid operator NATS cluster", "natsClusterRef", natsClusterRef)
 			os.Exit(1)
@@ -266,7 +266,7 @@ func main() {
 		namespace = string(controllerNamespace)
 	}
 
-	accountConfig, err := account.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
+	accountConfig, err := core.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
 	if err != nil {
 		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)
@@ -277,7 +277,7 @@ func main() {
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 
-	accountManager, err := account.NewManager(
+	accountManager, err := core.NewManager(
 		nats.NewClient(),
 		accountClient,
 		natsClusterClient,

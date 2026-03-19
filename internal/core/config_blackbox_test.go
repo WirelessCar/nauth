@@ -1,16 +1,16 @@
-package account_test
+package core_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	account "github.com/WirelessCar/nauth/internal/core"
+	"github.com/WirelessCar/nauth/internal/core"
 )
 
 func TestNewOperatorNatsCluster(t *testing.T) {
 	t.Run("should_succeed", func(t *testing.T) {
-		cluster, err := account.NewOperatorNatsCluster(v1alpha1.NatsClusterRef{
+		cluster, err := core.NewOperatorNatsCluster(v1alpha1.NatsClusterRef{
 			Namespace: "operator-system",
 			Name:      "nats-main",
 		}, true)
@@ -64,7 +64,7 @@ func TestNewOperatorNatsCluster(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			cluster, err := account.NewOperatorNatsCluster(tc.ref, false)
+			cluster, err := core.NewOperatorNatsCluster(tc.ref, false)
 			if err == nil {
 				t.Fatalf("expected error, got success with cluster=%+v", cluster)
 			}
@@ -77,7 +77,7 @@ func TestNewOperatorNatsCluster(t *testing.T) {
 
 func TestNewConfig(t *testing.T) {
 	t.Run("should_succeed_when_all_values_are_empty", func(t *testing.T) {
-		config, err := account.NewConfig(nil, "", "")
+		config, err := core.NewConfig(nil, "", "")
 		if err != nil {
 			t.Fatalf("expected success, got error: %v", err)
 		}
@@ -96,7 +96,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("should_succeed_when_namespace_and_default_nats_url_are_valid", func(t *testing.T) {
-		config, err := account.NewConfig(nil, "operator-system", "nats://n1:4222,nats://n2:4222")
+		config, err := core.NewConfig(nil, "operator-system", "nats://n1:4222,nats://n2:4222")
 		if err != nil {
 			t.Fatalf("expected success, got error: %v", err)
 		}
@@ -109,7 +109,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("should_fail_when_both_operator_cluster_and_default_nats_url_are_set", func(t *testing.T) {
-		cluster, err := account.NewOperatorNatsCluster(v1alpha1.NatsClusterRef{
+		cluster, err := core.NewOperatorNatsCluster(v1alpha1.NatsClusterRef{
 			Namespace: "operator-system",
 			Name:      "nats-main",
 		}, false)
@@ -117,7 +117,7 @@ func TestNewConfig(t *testing.T) {
 			t.Fatalf("failed to create operator cluster: %v", err)
 		}
 
-		config, err := account.NewConfig(cluster, "operator-system", "nats://localhost:4222")
+		config, err := core.NewConfig(cluster, "operator-system", "nats://localhost:4222")
 		if err == nil {
 			t.Fatalf("expected error, got success with config=%+v", config)
 		}
@@ -127,7 +127,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("should_fail_when_operator_cluster_is_invalid_even_if_constructed_directly", func(t *testing.T) {
-		config, err := account.NewConfig(&account.OperatorNatsCluster{
+		config, err := core.NewConfig(&core.OperatorNatsCluster{
 			ClusterRef: v1alpha1.NatsClusterRef{
 				Namespace: "invalid_namespace",
 				Name:      "nats-main",
@@ -142,7 +142,7 @@ func TestNewConfig(t *testing.T) {
 	})
 
 	t.Run("should_fail_when_operator_namespace_is_invalid", func(t *testing.T) {
-		config, err := account.NewConfig(nil, " invalid_namespace ", "")
+		config, err := core.NewConfig(nil, " invalid_namespace ", "")
 		if err == nil {
 			t.Fatalf("expected error, got success with config=%+v", config)
 		}
@@ -180,7 +180,7 @@ func TestNewConfig(t *testing.T) {
 
 	for _, tc := range urlErrorCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			config, err := account.NewConfig(nil, "", tc.defaultNatsURL)
+			config, err := core.NewConfig(nil, "", tc.defaultNatsURL)
 			if err == nil {
 				t.Fatalf("expected error, got success with config=%+v", config)
 			}
