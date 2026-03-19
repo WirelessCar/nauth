@@ -15,21 +15,21 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-type Manager struct {
+type AccountManager struct {
 	natsClient            ports.NatsClient
 	accountReader         ports.AccountReader
 	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
 }
 
-func NewManager(
+func NewAccountManager(
 	natsClient ports.NatsClient,
 	accountReader ports.AccountReader,
 	natsClusterReader ports.NatsClusterReader,
 	secretClient ports.SecretClient,
 	configMapReader ports.ConfigMapReader,
 	config *Config,
-) (*Manager, error) {
+) (*AccountManager, error) {
 	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, config)
 	if err != nil {
 		return nil, err
@@ -38,16 +38,16 @@ func NewManager(
 	if err != nil {
 		return nil, err
 	}
-	return newManager(natsClient, accountReader, ccr, sm)
+	return newAccountManager(natsClient, accountReader, ccr, sm)
 }
 
-func newManager(
+func newAccountManager(
 	natsClient ports.NatsClient,
 	accountReader ports.AccountReader,
 	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
-) (*Manager, error) {
-	m := &Manager{
+) (*AccountManager, error) {
+	m := &AccountManager{
 		natsClient:            natsClient,
 		accountReader:         accountReader,
 		clusterTargetResolver: clusterTargetResolver,
@@ -59,7 +59,7 @@ func newManager(
 	return m, nil
 }
 
-func (a *Manager) validate() error {
+func (a *AccountManager) validate() error {
 	if a.clusterTargetResolver == nil {
 		return errors.New("clusterTargetResolver is required")
 	}
@@ -76,7 +76,7 @@ func (a *Manager) validate() error {
 	return nil
 }
 
-func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -179,7 +179,7 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 	return claims.Encode(operatorSigningKey)
 }
 
-func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -250,7 +250,7 @@ func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*control
 	}, nil
 }
 
-func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -310,7 +310,7 @@ func (a *Manager) Import(ctx context.Context, state *v1alpha1.Account) (*control
 	}, nil
 }
 
-func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
+func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -357,7 +357,7 @@ func (a *Manager) Delete(ctx context.Context, state *v1alpha1.Account) error {
 	return nil
 }
 
-func (a *Manager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
+func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
@@ -399,7 +399,7 @@ func (a *Manager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedN
 	}, nil
 }
 
-func (a *Manager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
+func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
 		natsClusterRef = natsClusterRef.DeepCopy()
@@ -416,5 +416,5 @@ func getDisplayName(account *v1alpha1.Account) string {
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
 }
 
-var _ controller.AccountManager = (*Manager)(nil)
-var _ user.JWTSigner = (*Manager)(nil)
+var _ controller.AccountManager = (*AccountManager)(nil)
+var _ user.JWTSigner = (*AccountManager)(nil)

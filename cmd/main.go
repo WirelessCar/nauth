@@ -277,7 +277,7 @@ func main() {
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 
-	accountManager, err := core.NewManager(
+	accountManager, err := core.NewAccountManager(
 		nats.NewClient(),
 		accountClient,
 		natsClusterClient,

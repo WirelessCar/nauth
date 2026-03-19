@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type ManagerTestSuite struct {
+type AccountManagerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
@@ -32,10 +32,10 @@ type ManagerTestSuite struct {
 	clusterTargetResolverMock *clusterTargetResolverMock
 	secretManagerMock         *secretManagerMock
 
-	unitUnderTest *Manager
+	unitUnderTest *AccountManager
 }
 
-func (t *ManagerTestSuite) SetupTest() {
+func (t *AccountManagerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
 	t.opSignKey, _ = nkeys.CreateOperator()
@@ -58,7 +58,7 @@ func (t *ManagerTestSuite) SetupTest() {
 	t.natsConnMock = NewNatsConnectionMock()
 
 	var err error
-	t.unitUnderTest, err = newManager(
+	t.unitUnderTest, err = newAccountManager(
 		t.natsClientMock,
 		t.accountReaderMock,
 		t.clusterTargetResolverMock,
@@ -67,7 +67,7 @@ func (t *ManagerTestSuite) SetupTest() {
 	t.NoError(err)
 }
 
-func (t *ManagerTestSuite) TearDownTest() {
+func (t *AccountManagerTestSuite) TearDownTest() {
 	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountReaderMock.AssertExpectations(t.T())
@@ -75,11 +75,11 @@ func (t *ManagerTestSuite) TearDownTest() {
 	t.natsConnMock.AssertExpectations(t.T())
 }
 
-func TestManager_TestSuite(t *testing.T) {
-	suite.Run(t, new(ManagerTestSuite))
+func TestAccountManager_TestSuite(t *testing.T) {
+	suite.Run(t, new(AccountManagerTestSuite))
 }
 
-func (t *ManagerTestSuite) Test_Create_ShouldSucceed() {
+func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	// Given
 	var (
 		caughtAccountJWT    string
@@ -126,7 +126,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.Equal(natsLimitsSubs, jwtClaims.Limits.Subs)
 }
 
-func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitCluster() {
+func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitCluster() {
 	// Given
 	var (
 		caughtAccountJWT    string
@@ -180,7 +180,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitCluster(
 	t.Equal(natsLimitsSubs, jwtClaims.Limits.Subs)
 }
 
-func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
+func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 	// Given
 	var (
 		caughtAccountJWT string
@@ -224,7 +224,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyExist() {
 	t.Equal(natsLimitsSubs, jwtClaims.Limits.Subs)
 }
 
-func (t *ManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
+func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	// Given
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
@@ -242,7 +242,7 @@ func (t *ManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.Nil(result)
 }
 
-func (t *ManagerTestSuite) Test_Update_ShouldSucceed() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	// Given
 	var (
 		caughtAccountJWT string
@@ -280,7 +280,7 @@ func (t *ManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
 }
 
-func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
+func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
@@ -328,7 +328,7 @@ func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
 	t.Equal(existingNatsLimitsSubs, *result.Claims.NatsLimits.Subs)
 }
 
-func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
+func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	// Given
 	var (
 		caughtDeleteJWT string
@@ -362,7 +362,7 @@ func (t *ManagerTestSuite) Test_Delete_ShouldSucceed() {
 	t.Equal([]interface{}{accountID}, deleteClaims.Data["accounts"])
 }
 
-func (t *ManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
+func (t *AccountManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
 	// Given
 	acRoot, _ := nkeys.CreateAccount()
 	acPub, _ := acRoot.PublicKey()
@@ -392,7 +392,7 @@ func (t *ManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
 	t.ErrorContains(err, "account claims validation failed: [overlapping subject namespace for \"foo\" and \"foo\"")
 }
 
-func (t *ManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
+func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
@@ -435,7 +435,7 @@ func (t *ManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 	t.Equal(accountSignKeyPublic, parsedClaims.Issuer)
 }
 
-func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotReady() {
+func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotReady() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 
@@ -459,7 +459,7 @@ func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotReady() {
 	t.ErrorContains(err, "account ID is missing for account account-namespace/account-name during user JWT signing")
 }
 
-func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoesNotMatchFoundAccountID() {
+func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoesNotMatchFoundAccountID() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
@@ -490,7 +490,7 @@ func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoe
 		accountID+" bound to account \"account-namespace/account-name\" during user JWT signing")
 }
 
-func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidationFails() {
+func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidationFails() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
@@ -524,7 +524,7 @@ func (t *ManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidationFails(
 * Helpers
 *****************************************************/
 
-func (t *ManagerTestSuite) verifyAccountResult(result *controller.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
+func (t *AccountManagerTestSuite) verifyAccountResult(result *controller.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
 	rootKeyPublic, err := expectRootKey.PublicKey()
 	t.NoError(err, "failed to get public key from expect root key pair")
 	signKeyPublic, err := expectSignKey.PublicKey()
