@@ -58,7 +58,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 		return fmt.Errorf("failed to get user seed: %w", err)
 	}
 
-	natsClaims := newClaimsBuilder(u.getDisplayName(state), state.Spec, userPublicKey, existingUserAccountID).
+	natsClaims := newUserClaimsBuilder(u.getDisplayName(state), state.Spec, userPublicKey, existingUserAccountID).
 		build()
 	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, accountRef, natsClaims)
 	if err != nil {

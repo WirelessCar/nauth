@@ -5,16 +5,16 @@ import (
 	"github.com/nats-io/jwt/v2"
 )
 
-type claimsBuilder struct {
+type userClaimsBuilder struct {
 	claim *jwt.UserClaims
 }
 
-func newClaimsBuilder(
+func newUserClaimsBuilder(
 	displayName string,
 	spec v1alpha1.UserSpec,
 	userPublicKey string,
 	issuerAccountId string,
-) *claimsBuilder {
+) *userClaimsBuilder {
 	claim := jwt.NewUserClaims(userPublicKey)
 	claim.Name = displayName
 
@@ -66,12 +66,12 @@ func newClaimsBuilder(
 
 	claim.IssuerAccount = issuerAccountId
 
-	return &claimsBuilder{
+	return &userClaimsBuilder{
 		claim: claim,
 	}
 }
 
-func (u *claimsBuilder) build() *jwt.UserClaims {
+func (u *userClaimsBuilder) build() *jwt.UserClaims {
 	return u.claim
 }
 

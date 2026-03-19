@@ -34,7 +34,7 @@ func TestClaims(t *testing.T) {
 
 	acSigningKey, _ := nkeys.FromSeed([]byte(testClaimsAccountSignSeed))
 
-	testCases := discoverTestCases("approvals/claims_test.TestClaims.{TestCase}.input.yaml")
+	testCases := discoverTestCases("approvals/userClaims_test.TestClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
 
 	for _, testCase := range testCases {
@@ -43,7 +43,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build NATS JWT UserClaims from UserSpec
-			builder := newClaimsBuilder(testClaimsDisplayName, *spec, testClaimsUserPubKey, testClaimsAccountPubKey)
+			builder := newUserClaimsBuilder(testClaimsDisplayName, *spec, testClaimsUserPubKey, testClaimsAccountPubKey)
 
 			natsClaims := builder.build()
 			require.NotNil(t, natsClaims)
@@ -73,7 +73,7 @@ func TestClaims(t *testing.T) {
 				UserLimits:  nauthClaims.UserLimits,
 				NatsLimits:  nauthClaims.NatsLimits,
 			}
-			rebuilder := newClaimsBuilder(testClaimsDisplayName, *rebuiltNatsClaims, testClaimsUserPubKey, testClaimsAccountPubKey)
+			rebuilder := newUserClaimsBuilder(testClaimsDisplayName, *rebuiltNatsClaims, testClaimsUserPubKey, testClaimsAccountPubKey)
 
 			natsClaimsRebuilt := rebuilder.build()
 			require.NoError(t, err)
