@@ -1,4 +1,4 @@
-package user
+package core
 
 import (
 	"context"
@@ -20,16 +20,16 @@ type SignedUserJWT struct {
 	SignedBy  string
 }
 
-type JWTSigner interface {
+type UserJWTSigner interface {
 	SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error)
 }
 
 type UserManager struct {
-	userJWTSigner JWTSigner
+	userJWTSigner UserJWTSigner
 	secretClient  ports.SecretClient
 }
 
-func NewUserManager(userJWTSigner JWTSigner, secretClient ports.SecretClient) *UserManager {
+func NewUserManager(userJWTSigner UserJWTSigner, secretClient ports.SecretClient) *UserManager {
 	return &UserManager{
 		userJWTSigner: userJWTSigner,
 		secretClient:  secretClient,
@@ -58,7 +58,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) 
 		return fmt.Errorf("failed to get user seed: %w", err)
 	}
 
-	natsClaims := newUserClaimsBuilder(u.getDisplayName(state), state.Spec, userPublicKey, existingUserAccountID).
+	natsClaims := newUserClaimsBuilder(u.getUserDisplayName(state), state.Spec, userPublicKey, existingUserAccountID).
 		build()
 	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, accountRef, natsClaims)
 	if err != nil {
@@ -118,7 +118,7 @@ func (u *UserManager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	return nil
 }
 
-func (u *UserManager) getDisplayName(user *v1alpha1.User) string {
+func (u *UserManager) getUserDisplayName(user *v1alpha1.User) string {
 	if user.Spec.DisplayName != "" {
 		return user.Spec.DisplayName
 	}

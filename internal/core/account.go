@@ -10,7 +10,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
-	"github.com/WirelessCar/nauth/internal/user"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -357,7 +356,7 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 	return nil
 }
 
-func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
+func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
@@ -392,7 +391,7 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign user JWT using %s for account %s (%q): %w", signPubKey, accountID, accountRef, err)
 	}
-	return &user.SignedUserJWT{
+	return &SignedUserJWT{
 		UserJWT:   userJWT,
 		AccountID: accountID,
 		SignedBy:  signPubKey,
@@ -417,4 +416,4 @@ func getDisplayName(account *v1alpha1.Account) string {
 }
 
 var _ controller.AccountManager = (*AccountManager)(nil)
-var _ user.JWTSigner = (*AccountManager)(nil)
+var _ UserJWTSigner = (*AccountManager)(nil)

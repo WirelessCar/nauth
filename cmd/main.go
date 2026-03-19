@@ -50,7 +50,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/k8s/secret"
-	"github.com/WirelessCar/nauth/internal/user"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -301,7 +300,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	userManager := user.NewUserManager(accountManager, secretClient)
+	userManager := core.NewUserManager(accountManager, secretClient)
 	userReconciler := controller.NewUserReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),

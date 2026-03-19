@@ -8,7 +8,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
-	"github.com/WirelessCar/nauth/internal/user"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -165,12 +164,12 @@ type UserJWTSignerMock struct {
 	mock.Mock
 }
 
-func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*user.SignedUserJWT, error) {
+func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
 	args := m.Called(ctx, accountRef, claims)
-	return args.Get(0).(*user.SignedUserJWT), args.Error(1)
+	return args.Get(0).(*SignedUserJWT), args.Error(1)
 }
 
-func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef domain.NamespacedName, callback func(claims *jwt.UserClaims) *user.SignedUserJWT) {
+func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef domain.NamespacedName, callback func(claims *jwt.UserClaims) *SignedUserJWT) {
 	call := m.On("SignUserJWT", ctx, accountRef, mock.Anything)
 	call.RunFn = func(args mock.Arguments) {
 		claims := args.Get(2).(*jwt.UserClaims)
@@ -178,7 +177,7 @@ func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef doma
 	}
 }
 
-var _ user.JWTSigner = (*UserJWTSignerMock)(nil)
+var _ UserJWTSigner = (*UserJWTSignerMock)(nil)
 
 /* ****************************************************
 * NATS Client

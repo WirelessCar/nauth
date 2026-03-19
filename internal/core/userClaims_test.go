@@ -1,12 +1,9 @@
-package user
+package core
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -19,20 +16,14 @@ import (
 )
 
 const (
-	testClaimsDisplayName     = "test-namespace/test-user"
-	testClaimsAccountPubKey   = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
-	testClaimsAccountSignSeed = "SAAPQGHCXP3M5THZ4JIJ2X6DJPXIBDX4DHVEI2ODY37NKI7R7YTIHNSTW4"
-	testClaimsUserPubKey      = "UAP35KHDBNR3WKNJ76YJMKEOFWNMPUN4U5LX2A2BCYSSXL3AXKCAEIM7"
+	userClaimsTestDisplayName     = "test-namespace/test-user"
+	userClaimsTestAccountPubKey   = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
+	userClaimsTestAccountSignSeed = "SAAPQGHCXP3M5THZ4JIJ2X6DJPXIBDX4DHVEI2ODY37NKI7R7YTIHNSTW4"
+	userClaimsTestUserPubKey      = "UAP35KHDBNR3WKNJ76YJMKEOFWNMPUN4U5LX2A2BCYSSXL3AXKCAEIM7"
 )
 
-func TestMain(m *testing.M) {
-	approvals.UseFolder("approvals")
-	os.Exit(m.Run())
-}
-
 func TestClaims(t *testing.T) {
-
-	acSigningKey, _ := nkeys.FromSeed([]byte(testClaimsAccountSignSeed))
+	acSigningKey, _ := nkeys.FromSeed([]byte(userClaimsTestAccountSignSeed))
 
 	testCases := discoverTestCases("approvals/userClaims_test.TestClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
@@ -43,7 +34,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build NATS JWT UserClaims from UserSpec
-			builder := newUserClaimsBuilder(testClaimsDisplayName, *spec, testClaimsUserPubKey, testClaimsAccountPubKey)
+			builder := newUserClaimsBuilder(userClaimsTestDisplayName, *spec, userClaimsTestUserPubKey, userClaimsTestAccountPubKey)
 
 			natsClaims := builder.build()
 			require.NotNil(t, natsClaims)
@@ -52,7 +43,7 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, natsJwt)
 
-			normalizedNatsClaims := normalizeClaimsForApproval(natsClaims)
+			normalizedNatsClaims := normalizeUserClaimsForApproval(natsClaims)
 
 			// Verify NATS JWT claims structure
 			approvals.VerifyJSONStruct(t, normalizedNatsClaims,
@@ -73,7 +64,7 @@ func TestClaims(t *testing.T) {
 				UserLimits:  nauthClaims.UserLimits,
 				NatsLimits:  nauthClaims.NatsLimits,
 			}
-			rebuilder := newUserClaimsBuilder(testClaimsDisplayName, *rebuiltNatsClaims, testClaimsUserPubKey, testClaimsAccountPubKey)
+			rebuilder := newUserClaimsBuilder(userClaimsTestDisplayName, *rebuiltNatsClaims, userClaimsTestUserPubKey, userClaimsTestAccountPubKey)
 
 			natsClaimsRebuilt := rebuilder.build()
 			require.NoError(t, err)
@@ -82,45 +73,10 @@ func TestClaims(t *testing.T) {
 			_, err = natsClaimsRebuilt.Encode(acSigningKey)
 			require.NoError(t, err)
 
-			normalizedNatsClaimsRebuilt := normalizeClaimsForApproval(natsClaimsRebuilt)
+			normalizedNatsClaimsRebuilt := normalizeUserClaimsForApproval(natsClaimsRebuilt)
 			assert.Equal(t, normalizedNatsClaims, normalizedNatsClaimsRebuilt)
 		})
 	}
-
-}
-
-type TestCaseInputFile struct {
-	TestName  string
-	InputFile string
-}
-
-func discoverTestCases(pattern string) []TestCaseInputFile {
-	testCasePlaceholder := "{TestCase}"
-	if !strings.Contains(pattern, testCasePlaceholder) {
-		panic(fmt.Sprintf("pattern must contain %s placeholder: %s", testCasePlaceholder, pattern))
-	}
-	globPattern := strings.ReplaceAll(pattern, testCasePlaceholder, "*")
-	files, err := filepath.Glob(globPattern)
-	if err != nil {
-		panic(fmt.Sprintf("unable to glob pattern %q: %s", globPattern, err.Error()))
-	}
-	testPattern := strings.ReplaceAll(pattern, testCasePlaceholder, "(?P<TestCase>.*)")
-	regex := regexp.MustCompile(testPattern)
-	var testCases []TestCaseInputFile
-	for _, file := range files {
-		if regex.MatchString(file) {
-			match := regex.FindStringSubmatch(file)
-			for i, name := range regex.SubexpNames() {
-				if name == "TestCase" {
-					testCases = append(testCases, TestCaseInputFile{
-						TestName:  match[i],
-						InputFile: file,
-					})
-				}
-			}
-		}
-	}
-	return testCases
 }
 
 func loadUserSpec(filePath string) (*v1alpha1.UserSpec, error) {
@@ -137,7 +93,7 @@ func loadUserSpec(filePath string) (*v1alpha1.UserSpec, error) {
 	return &spec, nil
 }
 
-func normalizeClaimsForApproval(claims *jwt.UserClaims) map[string]interface{} {
+func normalizeUserClaimsForApproval(claims *jwt.UserClaims) map[string]interface{} {
 	data, _ := json.Marshal(claims)
 	var result map[string]interface{}
 	err := json.Unmarshal(data, &result)
