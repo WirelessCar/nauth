@@ -67,10 +67,10 @@ func (a *Manager) validate() error {
 		return errors.New("accountReader is required")
 	}
 	if a.secretManager == nil {
-		return errors.New("secret manager is required")
+		return errors.New("secretManager is required")
 	}
 	if a.natsClient == nil {
-		return errors.New("NATS client is required")
+		return errors.New("natsClient is required")
 	}
 
 	return nil
