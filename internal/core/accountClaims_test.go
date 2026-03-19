@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -31,11 +29,11 @@ const (
 	testClaimsSigningKey02  = "ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG"
 )
 
-func TestClaims(t *testing.T) {
+func Test_AccountClaims(t *testing.T) {
 
 	opSigningKey, _ := nkeys.FromSeed([]byte(testClaimsOperatorSeed))
 
-	testCases := discoverTestCases("approvals/claims_test.TestClaims.{TestCase}.input.yaml")
+	testCases := discoverTestCases("approvals/accountClaims_test.Test_AccountClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
 
 	for _, testCase := range testCases {
@@ -55,7 +53,7 @@ func TestClaims(t *testing.T) {
 			})
 
 			// Build NATS JWT AccountClaims from AccountSpec
-			builder := newClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
+			builder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
 			builder.signingKey(testClaimsSigningKey01)
 			builder.signingKey(testClaimsSigningKey02)
 
@@ -100,7 +98,7 @@ func TestClaims(t *testing.T) {
 				Exports:         nauthClaims.Exports,
 				Imports:         nauthClaims.Imports,
 			}
-			rebuilder := newClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountReaderMock)
+			rebuilder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountReaderMock)
 			rebuilder.signingKey(testClaimsSigningKey01)
 			rebuilder.signingKey(testClaimsSigningKey02)
 
@@ -119,7 +117,7 @@ func TestClaims(t *testing.T) {
 	}
 }
 
-func TestClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T) {
+func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T) {
 	// Given
 	claims := jwt.NewAccountClaims(testClaimsFakeAccountID)
 
@@ -154,40 +152,6 @@ func TestClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T)
 			Payload: &ptrNoLimit,
 		},
 	}, result)
-}
-
-type TestCaseInputFile struct {
-	TestName  string
-	InputFile string
-}
-
-func discoverTestCases(pattern string) []TestCaseInputFile {
-	testCasePlaceholder := "{TestCase}"
-	if !strings.Contains(pattern, testCasePlaceholder) {
-		panic(fmt.Sprintf("pattern must contain %s placeholder: %s", testCasePlaceholder, pattern))
-	}
-	globPattern := strings.ReplaceAll(pattern, testCasePlaceholder, "*")
-	files, err := filepath.Glob(globPattern)
-	if err != nil {
-		panic(fmt.Sprintf("unable to glob pattern %q: %s", globPattern, err.Error()))
-	}
-	testPattern := strings.ReplaceAll(pattern, testCasePlaceholder, "(?P<TestCase>.*)")
-	regex := regexp.MustCompile(testPattern)
-	var testCases []TestCaseInputFile
-	for _, file := range files {
-		if regex.MatchString(file) {
-			match := regex.FindStringSubmatch(file)
-			for i, name := range regex.SubexpNames() {
-				if name == "TestCase" {
-					testCases = append(testCases, TestCaseInputFile{
-						TestName:  match[i],
-						InputFile: file,
-					})
-				}
-			}
-		}
-	}
-	return testCases
 }
 
 func fakeAccountId(accountRef domain.NamespacedName) string {

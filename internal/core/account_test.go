@@ -294,7 +294,7 @@ func (t *ManagerTestSuite) Test_Import_ShouldSucceed() {
 			Subs: &existingNatsLimitsSubs,
 		},
 	}
-	existingClaims, err := newClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountReaderMock).
+	existingClaims, err := newAccountClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountReaderMock).
 		signingKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")

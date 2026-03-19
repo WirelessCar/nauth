@@ -13,18 +13,18 @@ import (
 	"github.com/nats-io/jwt/v2"
 )
 
-type claimsBuilder struct {
+type accountClaimsBuilder struct {
 	claim *jwt.AccountClaims
 	errs  []error
 }
 
-func newClaimsBuilder(
+func newAccountClaimsBuilder(
 	ctx context.Context,
 	displayName string,
 	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
 	accountReader ports.AccountReader,
-) *claimsBuilder {
+) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName
 	claim.Limits = jwt.OperatorLimits{}
@@ -188,18 +188,18 @@ func newClaimsBuilder(
 		claim.Imports = imports
 	}
 
-	return &claimsBuilder{
+	return &accountClaimsBuilder{
 		claim: claim,
 		errs:  errs,
 	}
 }
 
-func (b *claimsBuilder) signingKey(signingKey string) *claimsBuilder {
+func (b *accountClaimsBuilder) signingKey(signingKey string) *accountClaimsBuilder {
 	b.claim.SigningKeys.Add(signingKey)
 	return b
 }
 
-func (b *claimsBuilder) build() (*jwt.AccountClaims, error) {
+func (b *accountClaimsBuilder) build() (*jwt.AccountClaims, error) {
 	if err := errors.Join(b.errs...); err != nil {
 		return nil, err
 	}

@@ -139,7 +139,7 @@ func (a *Manager) Create(ctx context.Context, state *v1alpha1.Account) (*control
 		return nil, fmt.Errorf("failed to get operator signing public key during creation: %w", err)
 	}
 
-	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
+	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
@@ -218,7 +218,7 @@ func (a *Manager) Update(ctx context.Context, state *v1alpha1.Account) (*control
 		return nil, fmt.Errorf("failed to get operator signing public key during update: %w", err)
 	}
 
-	natsClaims, err := newClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
+	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
