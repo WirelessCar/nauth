@@ -25,7 +25,7 @@ var _ = Describe("User manager", func() {
 	Context("When handling NATS user resources", func() {
 		var (
 			ctx               = context.Background()
-			userManager       *Manager
+			userManager       *UserManager
 			userJWTSignerMock *UserJWTSignerMock
 			secretClientMock  *SecretClientMock
 		)
@@ -34,7 +34,7 @@ var _ = Describe("User manager", func() {
 			By("creating the user manager")
 			secretClientMock = NewSecretClientMock()
 			userJWTSignerMock = NewUserJWTSignerMock()
-			userManager = NewManager(userJWTSignerMock, secretClientMock)
+			userManager = NewUserManager(userJWTSignerMock, secretClientMock)
 		})
 
 		AfterEach(func() {

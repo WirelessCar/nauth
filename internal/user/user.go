@@ -24,19 +24,19 @@ type JWTSigner interface {
 	SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error)
 }
 
-type Manager struct {
+type UserManager struct {
 	userJWTSigner JWTSigner
 	secretClient  ports.SecretClient
 }
 
-func NewManager(userJWTSigner JWTSigner, secretClient ports.SecretClient) *Manager {
-	return &Manager{
+func NewUserManager(userJWTSigner JWTSigner, secretClient ports.SecretClient) *UserManager {
+	return &UserManager{
 		userJWTSigner: userJWTSigner,
 		secretClient:  secretClient,
 	}
 }
 
-func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
+func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
 	userRef := domain.NewNamespacedName(state.Namespace, state.Name)
 	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
 	if err := accountRef.Validate(); err != nil {
@@ -102,7 +102,7 @@ func (u *Manager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) erro
 	return nil
 }
 
-func (u *Manager) Delete(ctx context.Context, state *v1alpha1.User) error {
+func (u *UserManager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	log := logf.FromContext(ctx)
 	log.Info("Delete user", "userName", state.GetName())
 
@@ -118,7 +118,7 @@ func (u *Manager) Delete(ctx context.Context, state *v1alpha1.User) error {
 	return nil
 }
 
-func (u *Manager) getDisplayName(user *v1alpha1.User) string {
+func (u *UserManager) getDisplayName(user *v1alpha1.User) string {
 	if user.Spec.DisplayName != "" {
 		return user.Spec.DisplayName
 	}
