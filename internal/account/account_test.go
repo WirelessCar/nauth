@@ -9,7 +9,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
@@ -23,7 +22,7 @@ type ManagerTestSuite struct {
 
 	opSignKey       nkeys.KeyPair
 	opSignKeyPublic string
-	sauCreds        ports.NatsUserCreds
+	sauCreds        domain.NatsUserCreds
 	natsURL         string
 	clusterTarget   clusterTarget
 
@@ -41,7 +40,7 @@ func (t *ManagerTestSuite) SetupTest() {
 
 	t.opSignKey, _ = nkeys.CreateOperator()
 	t.opSignKeyPublic, _ = t.opSignKey.PublicKey()
-	t.sauCreds = ports.NatsUserCreds{
+	t.sauCreds = domain.NatsUserCreds{
 		Creds:     []byte("FAKE_CREDENTIALS"),
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}

@@ -8,7 +8,6 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
@@ -507,7 +506,7 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 	return u
 }
 
-func (t *ClusterTestSuite) generateSecrets() (ports.NatsOperatorSigningKey, ports.NatsUserCreds) {
+func (t *ClusterTestSuite) generateSecrets() (domain.NatsOperatorSigningKey, domain.NatsUserCreds) {
 	opSign, _ := nkeys.CreateOperator()
 
 	acKey, _ := nkeys.CreateAccount()
@@ -528,7 +527,7 @@ func (t *ClusterTestSuite) generateSecrets() (ports.NatsOperatorSigningKey, port
 	if err != nil {
 		t.Failf("failed to format SAU creds", "error: %v", err)
 	}
-	sauNatsUserCreds, err := ports.NewNatsUserCreds(sauCreds)
+	sauNatsUserCreds, err := domain.NewNatsUserCreds(sauCreds)
 	if err != nil {
 		t.Failf("failed to create NatsUserCreds from SAU creds", "error: %v", err)
 	}

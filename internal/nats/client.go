@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/nats-io/nats.go"
 )
@@ -35,7 +36,7 @@ func NewClient() *Client {
 	return &Client{}
 }
 
-func (n *Client) Connect(natsURL string, userCreds ports.NatsUserCreds) (ports.NatsConnection, error) {
+func (n *Client) Connect(natsURL string, userCreds domain.NatsUserCreds) (ports.NatsConnection, error) {
 	if natsURL == "" {
 		return nil, fmt.Errorf("NATS URL is required")
 	}
@@ -57,7 +58,7 @@ func (n *Client) Connect(natsURL string, userCreds ports.NatsUserCreds) (ports.N
 
 type Connection struct {
 	natsURL   string
-	userCreds ports.NatsUserCreds
+	userCreds domain.NatsUserCreds
 	conn      *nats.Conn
 }
 

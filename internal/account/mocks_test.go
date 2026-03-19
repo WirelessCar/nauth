@@ -147,12 +147,12 @@ type NatsClientMock struct {
 	mock.Mock
 }
 
-func (n *NatsClientMock) Connect(natsURL string, userCreds ports.NatsUserCreds) (ports.NatsConnection, error) {
+func (n *NatsClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (ports.NatsConnection, error) {
 	args := n.Called(natsURL, userCreds)
 	return args.Get(0).(ports.NatsConnection), args.Error(1)
 }
 
-func (n *NatsClientMock) mockConnect(natsURL string, userCreds ports.NatsUserCreds, result ports.NatsConnection) {
+func (n *NatsClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result ports.NatsConnection) {
 	n.On("Connect", natsURL, userCreds).Return(result, nil)
 }
 

@@ -13,8 +13,8 @@ import (
 
 type clusterTarget struct {
 	NatsURL            string
-	SystemAdminCreds   ports.NatsUserCreds
-	OperatorSigningKey ports.NatsOperatorSigningKey
+	SystemAdminCreds   domain.NatsUserCreds
+	OperatorSigningKey domain.NatsOperatorSigningKey
 }
 
 func (c *clusterTarget) validate() error {
@@ -30,7 +30,7 @@ func (c *clusterTarget) validate() error {
 	return nil
 }
 
-func newClusterTarget(natsURL string, systemAdminCreds ports.NatsUserCreds, operatorSigningKey ports.NatsOperatorSigningKey) (*clusterTarget, error) {
+func newClusterTarget(natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*clusterTarget, error) {
 	result := &clusterTarget{
 		NatsURL:            natsURL,
 		SystemAdminCreds:   systemAdminCreds,
@@ -179,14 +179,14 @@ func (r *clusterTargetResolverImpl) resolveTargetFromImplicitLookup(ctx context.
 	return target, nil
 }
 
-func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cluster *v1alpha1.NatsCluster) (*ports.NatsUserCreds, error) {
+func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cluster *v1alpha1.NatsCluster) (*domain.NatsUserCreds, error) {
 	secretKeyRef := cluster.Spec.SystemAccountUserCredsSecretRef
 	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
 	creds, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
 	if err != nil {
 		return nil, fmt.Errorf("resolve system account user creds for secret %s/%s: %w", cluster.GetNamespace(), secretRef.Name, err)
 	}
-	userCreds, err := ports.NewNatsUserCreds(creds)
+	userCreds, err := domain.NewNatsUserCreds(creds)
 	if err != nil {
 		return nil, fmt.Errorf("invalid system account user creds in secret %s/%s: %w", cluster.GetNamespace(), secretRef.Name, err)
 	}
@@ -194,7 +194,7 @@ func (r *clusterTargetResolverImpl) resolveSysAdminCreds(ctx context.Context, cl
 }
 
 // Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Context, namespace domain.Namespace) (*ports.NatsUserCreds, error) {
+func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Context, namespace domain.Namespace) (*domain.NatsUserCreds, error) {
 	labels := map[string]string{
 		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
 	}
@@ -203,14 +203,14 @@ func (r *clusterTargetResolverImpl) resolveSysAdminCredsViaLabels(ctx context.Co
 		return nil, fmt.Errorf("resolve system account user creds via labels in namespace %s: %w", namespace, err)
 	}
 
-	userCreds, err := ports.NewNatsUserCreds(creds)
+	userCreds, err := domain.NewNatsUserCreds(creds)
 	if err != nil {
 		return nil, fmt.Errorf("invalid system account user creds found via labels in namespace %s: %w", namespace, err)
 	}
 	return userCreds, nil
 }
 
-func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Context, cluster *v1alpha1.NatsCluster) (ports.NatsOperatorSigningKey, error) {
+func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Context, cluster *v1alpha1.NatsCluster) (domain.NatsOperatorSigningKey, error) {
 	secretKeyRef := cluster.Spec.OperatorSigningKeySecretRef
 	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
 	keyData, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
@@ -225,7 +225,7 @@ func (r *clusterTargetResolverImpl) resolveOperatorSigningKey(ctx context.Contex
 }
 
 // Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace domain.Namespace) (ports.NatsOperatorSigningKey, error) {
+func (r *clusterTargetResolverImpl) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace domain.Namespace) (domain.NatsOperatorSigningKey, error) {
 	labels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
 	seed, err := r.resolveSecretByLabels(ctx, namespace, labels)
 	if err != nil {
