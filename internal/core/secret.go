@@ -49,14 +49,14 @@ func (m *secretManagerImpl) ApplyRootSecret(ctx context.Context, accountRef doma
 	if err != nil {
 		return fmt.Errorf("failed to get public key from account root secret: %w", err)
 	}
-	return m.applySecret(ctx, accountRef, accountID, SecretNameAccountRootTemplate, k8s.SecretTypeAccountRoot, rootKeyPair)
+	return m.applyAccountSecret(ctx, accountRef, accountID, SecretNameAccountRootTemplate, k8s.SecretTypeAccountRoot, rootKeyPair)
 }
 
 func (m *secretManagerImpl) ApplySignSecret(ctx context.Context, accountRef domain.NamespacedName, accountID string, signKeyPair nkeys.KeyPair) error {
-	return m.applySecret(ctx, accountRef, accountID, SecretNameAccountSignTemplate, k8s.SecretTypeAccountSign, signKeyPair)
+	return m.applyAccountSecret(ctx, accountRef, accountID, SecretNameAccountSignTemplate, k8s.SecretTypeAccountSign, signKeyPair)
 }
 
-func (m *secretManagerImpl) applySecret(ctx context.Context, accountRef domain.NamespacedName, accountID, nameTemplate, secretType string, keyPair nkeys.KeyPair) error {
+func (m *secretManagerImpl) applyAccountSecret(ctx context.Context, accountRef domain.NamespacedName, accountID, nameTemplate, secretType string, keyPair nkeys.KeyPair) error {
 	if err := accountRef.Validate(); err != nil {
 		return fmt.Errorf("invalid account reference %s: %w", accountRef, err)
 	}
@@ -81,6 +81,8 @@ func (m *secretManagerImpl) applySecret(ctx context.Context, accountRef domain.N
 	}
 	accountSecretValue := map[string]string{k8s.DefaultSecretKeyName: string(seed)}
 
+	// Intentionally do not set an owner reference on account secrets. If the Account resource is deleted by mistake,
+	// the secrets should remain so the same account can be recreated from the preserved root seed.
 	if err = m.secretClient.Apply(ctx, nil, secretMeta, accountSecretValue); err != nil {
 		return fmt.Errorf("unable to apply secret: %w", err)
 	}
