@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: Controller must not depend on other adapter code
+	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Controller must not depend on other adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
 	. "github.com/onsi/gomega"
