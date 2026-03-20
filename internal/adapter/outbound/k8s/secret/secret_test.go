@@ -6,7 +6,7 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
-	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

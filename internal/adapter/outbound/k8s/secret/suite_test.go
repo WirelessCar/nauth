@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
