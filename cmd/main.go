@@ -311,6 +311,17 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "User")
 		os.Exit(1)
 	}
+
+	natsClusterReconciler := controller.NewNatsClusterReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		clusterManager,
+		mgr.GetEventRecorder("natscluster-controller"),
+	)
+	if err = natsClusterReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NatsCluster")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {
