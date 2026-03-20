@@ -40,7 +40,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "charts", "nauth", "resources", "crds")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "..", "charts", "nauth", "resources", "crds")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -64,7 +64,7 @@ var _ = AfterSuite(func() {
 })
 
 func getFirstFoundEnvTestBinaryDir() string {
-	basePath := filepath.Join("..", "..", "..", "bin", "k8s")
+	basePath := filepath.Join("..", "..", "..", "..", "..", "bin", "k8s")
 	entries, err := os.ReadDir(basePath)
 	if err != nil {
 		logf.Log.Error(err, "Failed to read directory", "path", basePath)

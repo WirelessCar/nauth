@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"

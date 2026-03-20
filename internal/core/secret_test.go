@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
