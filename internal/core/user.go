@@ -7,8 +7,8 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,10 +27,10 @@ type UserJWTSigner interface {
 
 type UserManager struct {
 	userJWTSigner UserJWTSigner
-	secretClient  ports.SecretClient
+	secretClient  outbound.SecretClient
 }
 
-func NewUserManager(userJWTSigner UserJWTSigner, secretClient ports.SecretClient) *UserManager {
+func NewUserManager(userJWTSigner UserJWTSigner, secretClient outbound.SecretClient) *UserManager {
 	return &UserManager{
 		userJWTSigner: userJWTSigner,
 		secretClient:  secretClient,

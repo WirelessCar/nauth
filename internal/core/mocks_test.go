@@ -7,7 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -150,7 +150,7 @@ func (s *SecretClientMock) mockLabelError(namespacedName domain.NamespacedName, 
 	s.On("Label", mock.Anything, namespacedName, labels).Return(err)
 }
 
-var _ ports.SecretClient = (*SecretClientMock)(nil)
+var _ outbound.SecretClient = (*SecretClientMock)(nil)
 
 /* ****************************************************
 * User JWT Signer
@@ -191,16 +191,16 @@ type NatsClientMock struct {
 	mock.Mock
 }
 
-func (n *NatsClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (ports.NatsConnection, error) {
+func (n *NatsClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsConnection, error) {
 	args := n.Called(natsURL, userCreds)
-	return args.Get(0).(ports.NatsConnection), args.Error(1)
+	return args.Get(0).(outbound.NatsConnection), args.Error(1)
 }
 
-func (n *NatsClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result ports.NatsConnection) {
+func (n *NatsClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsConnection) {
 	n.On("Connect", natsURL, userCreds).Return(result, nil)
 }
 
-var _ ports.NatsClient = (*NatsClientMock)(nil)
+var _ outbound.NatsClient = (*NatsClientMock)(nil)
 
 func NewNatsConnectionMock() *NatsConnectionMock {
 	return &NatsConnectionMock{}
@@ -265,10 +265,10 @@ func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
 		})
 }
 
-var _ ports.NatsConnection = (*NatsConnectionMock)(nil)
+var _ outbound.NatsConnection = (*NatsConnectionMock)(nil)
 
 /* ****************************************************
-* ports.AccountReader Resolver
+* outbound.AccountReader Resolver
 *****************************************************/
 
 type AccountReaderMock struct {
@@ -296,7 +296,7 @@ func (a *AccountReaderMock) mockGetCallback(ctx interface{}, accountRef interfac
 	return call
 }
 
-var _ ports.AccountReader = &AccountReaderMock{}
+var _ outbound.AccountReader = &AccountReaderMock{}
 
 /* ****************************************************
 * NatsCluster Resolver
@@ -325,10 +325,10 @@ func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clu
 	m.On("Get", ctx, clusterRef).Return(nil, err)
 }
 
-var _ ports.NatsClusterReader = (*NatsClusterReaderMock)(nil)
+var _ outbound.NatsClusterReader = (*NatsClusterReaderMock)(nil)
 
 /* ****************************************************
-* ports.ConfigMapReader Mock
+* outbound.ConfigMapReader Mock
 *****************************************************/
 type ConfigMapReaderMock struct {
 	mock.Mock
@@ -347,4 +347,4 @@ func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespacedName domain
 	m.On("Get", ctx, namespacedName).Return(result, nil)
 }
 
-var _ ports.ConfigMapReader = (*ConfigMapReaderMock)(nil)
+var _ outbound.ConfigMapReader = (*ConfigMapReaderMock)(nil)

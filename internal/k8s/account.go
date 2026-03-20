@@ -7,7 +7,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -53,4 +53,4 @@ func isReady(account *v1alpha1.Account) bool {
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.AccountReader = (*AccountClient)(nil)
+var _ outbound.AccountReader = (*AccountClient)(nil)

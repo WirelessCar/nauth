@@ -9,7 +9,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -23,7 +23,7 @@ func newAccountClaimsBuilder(
 	displayName string,
 	spec v1alpha1.AccountSpec,
 	accountPublicKey string,
-	accountReader ports.AccountReader,
+	accountReader outbound.AccountReader,
 ) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName

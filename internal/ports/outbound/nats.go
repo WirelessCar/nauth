@@ -1,4 +1,4 @@
-package ports
+package outbound
 
 import (
 	"github.com/WirelessCar/nauth/internal/domain"

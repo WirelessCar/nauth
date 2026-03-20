@@ -11,7 +11,7 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/nkeys"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,10 +31,10 @@ type secretManager interface {
 }
 
 type secretManagerImpl struct {
-	secretClient ports.SecretClient
+	secretClient outbound.SecretClient
 }
 
-func newSecretManagerImpl(secretClient ports.SecretClient) (*secretManagerImpl, error) {
+func newSecretManagerImpl(secretClient outbound.SecretClient) (*secretManagerImpl, error) {
 	if secretClient == nil {
 		return nil, fmt.Errorf("secret client is required")
 	}

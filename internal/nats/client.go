@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/nats.go"
 )
 
@@ -36,7 +36,7 @@ func NewClient() *Client {
 	return &Client{}
 }
 
-func (n *Client) Connect(natsURL string, userCreds domain.NatsUserCreds) (ports.NatsConnection, error) {
+func (n *Client) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsConnection, error) {
 	if natsURL == "" {
 		return nil, fmt.Errorf("NATS URL is required")
 	}
@@ -155,5 +155,5 @@ func (n *Connection) connect() error {
 }
 
 // Compile-time assertion that implementations fulfills ports
-var _ ports.NatsClient = (*Client)(nil)
-var _ ports.NatsConnection = (*Connection)(nil)
+var _ outbound.NatsClient = (*Client)(nil)
+var _ outbound.NatsConnection = (*Connection)(nil)

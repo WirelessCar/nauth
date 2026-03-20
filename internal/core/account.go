@@ -8,25 +8,25 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
 
 type AccountManager struct {
-	natsClient            ports.NatsClient
-	accountReader         ports.AccountReader
+	natsClient            outbound.NatsClient
+	accountReader         outbound.AccountReader
 	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
 }
 
 func NewAccountManager(
-	natsClient ports.NatsClient,
-	accountReader ports.AccountReader,
-	natsClusterReader ports.NatsClusterReader,
-	secretClient ports.SecretClient,
-	configMapReader ports.ConfigMapReader,
+	natsClient outbound.NatsClient,
+	accountReader outbound.AccountReader,
+	natsClusterReader outbound.NatsClusterReader,
+	secretClient outbound.SecretClient,
+	configMapReader outbound.ConfigMapReader,
 	config *Config,
 ) (*AccountManager, error) {
 	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, config)
@@ -41,8 +41,8 @@ func NewAccountManager(
 }
 
 func newAccountManager(
-	natsClient ports.NatsClient,
-	accountReader ports.AccountReader,
+	natsClient outbound.NatsClient,
+	accountReader outbound.AccountReader,
 	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*AccountManager, error) {

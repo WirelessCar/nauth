@@ -7,7 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/nkeys"
 )
 
@@ -49,16 +49,16 @@ type clusterTargetResolver interface {
 }
 
 type clusterTargetResolverImpl struct {
-	natsClusterReader ports.NatsClusterReader
-	secretReader      ports.SecretReader
-	configMapReader   ports.ConfigMapReader
+	natsClusterReader outbound.NatsClusterReader
+	secretReader      outbound.SecretReader
+	configMapReader   outbound.ConfigMapReader
 	config            *Config
 }
 
 func newClusterTargetResolverImpl(
-	natsClusterReader ports.NatsClusterReader,
-	secretReader ports.SecretReader,
-	configMapReader ports.ConfigMapReader,
+	natsClusterReader outbound.NatsClusterReader,
+	secretReader outbound.SecretReader,
+	configMapReader outbound.ConfigMapReader,
 	config *Config,
 ) (*clusterTargetResolverImpl, error) {
 	if config == nil {

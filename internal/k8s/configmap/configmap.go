@@ -22,7 +22,7 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
-	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,4 +63,4 @@ func (c *Client) Get(ctx context.Context, configMapRef domain.NamespacedName) (m
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ ports.ConfigMapReader = (*Client)(nil)
+var _ outbound.ConfigMapReader = (*Client)(nil)
