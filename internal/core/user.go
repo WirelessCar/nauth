@@ -8,6 +8,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,3 +125,5 @@ func (u *UserManager) getUserDisplayName(user *v1alpha1.User) string {
 	}
 	return fmt.Sprintf("%s/%s", user.GetNamespace(), user.GetName())
 }
+
+var _ inbound.UserManager = (*UserManager)(nil)

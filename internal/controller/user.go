@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,20 +38,15 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
-type UserManager interface {
-	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
-	Delete(ctx context.Context, desired *v1alpha1.User) error
-}
-
 // UserReconciler reconciles a User object
 type UserReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	manager  UserManager
+	manager  inbound.UserManager
 	reporter *statusReporter
 }
 
-func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager UserManager, recorder events.EventRecorder) *UserReconciler {
+func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.UserManager, recorder events.EventRecorder) *UserReconciler {
 	return &UserReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,

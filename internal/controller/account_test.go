@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -107,7 +108,7 @@ var _ = Describe("Account Controller", func() {
 			It("should successfully reconcile the account", func() {
 				By("Reconciling the created account")
 
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -157,7 +158,7 @@ var _ = Describe("Account Controller", func() {
 
 		Context("Account delete reconciliation", func() {
 			It("should not remove account from manager in observe mode", func() {
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -191,7 +192,7 @@ var _ = Describe("Account Controller", func() {
 			})
 
 			It("should successfully remove the account marked for deletion", func() {
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -224,7 +225,7 @@ var _ = Describe("Account Controller", func() {
 
 			It("should fail to remove the account when delete client fails", func() {
 				deletionErr := fmt.Errorf("Unable to delete account")
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -265,7 +266,7 @@ var _ = Describe("Account Controller", func() {
 
 		Context("Account observe reconciliation", func() {
 			It("should import account in observe mode", func() {
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -289,7 +290,7 @@ var _ = Describe("Account Controller", func() {
 			It("should successfully reconcile the account when the operator version change", func() {
 				By("Reconciling the created account")
 
-				mockResult := &AccountResult{
+				mockResult := &domain.AccountResult{
 					AccountID:       accountPublicKey,
 					AccountSignedBy: "OPERATOR_SIGNING_KEY",
 					Claims:          &v1alpha1.AccountClaims{},
@@ -327,19 +328,7 @@ type AccountManagerMock struct {
 	mock.Mock
 }
 
-type AccountManagerFactoryStub struct {
-	manager AccountManager
-	err     error
-}
-
-func (f *AccountManagerFactoryStub) ForAccount(_ context.Context, _ *v1alpha1.Account) (AccountManager, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.manager, nil
-}
-
-func (o *AccountManagerMock) Create(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error) {
+func (o *AccountManagerMock) Create(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	args := o.Called(state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -347,10 +336,10 @@ func (o *AccountManagerMock) Create(ctx context.Context, state *v1alpha1.Account
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*domain.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Update(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error) {
+func (o *AccountManagerMock) Update(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	args := o.Called(state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -358,10 +347,10 @@ func (o *AccountManagerMock) Update(ctx context.Context, state *v1alpha1.Account
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*domain.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error) {
+func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	args := o.Called(state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -369,7 +358,7 @@ func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-	return args.Get(0).(*AccountResult), nil
+	return args.Get(0).(*domain.AccountResult), nil
 }
 
 func (o *AccountManagerMock) Delete(ctx context.Context, desired *v1alpha1.Account) error {

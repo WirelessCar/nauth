@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,28 +39,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type AccountManager interface {
-	Create(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
-	Update(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
-	Import(ctx context.Context, state *v1alpha1.Account) (*AccountResult, error)
-	Delete(ctx context.Context, desired *v1alpha1.Account) error
-}
-
-type AccountResult struct {
-	AccountID       string
-	AccountSignedBy string
-	Claims          *v1alpha1.AccountClaims
-}
-
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	manager  AccountManager
+	manager  inbound.AccountManager
 	reporter *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager AccountManager, recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
@@ -184,7 +173,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
-	var result *AccountResult
+	var result *domain.AccountResult
 
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
 		result, err = r.manager.Import(ctx, natsAccount)

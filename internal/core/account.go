@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/WirelessCar/nauth/internal/ports"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
@@ -75,7 +75,7 @@ func (a *AccountManager) validate() error {
 	return nil
 }
 
-func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -162,7 +162,7 @@ func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*
 
 	// Return immutable result - controller will apply to state
 	nauthClaims := convertNatsAccountClaims(natsClaims)
-	return &controller.AccountResult{
+	return &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
@@ -178,7 +178,7 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 	return claims.Encode(operatorSigningKey)
 }
 
-func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -242,14 +242,14 @@ func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
-	return &controller.AccountResult{
+	return &domain.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
 	}, nil
 }
 
-func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*controller.AccountResult, error) {
+func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -302,7 +302,7 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
-	return &controller.AccountResult{
+	return &domain.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
@@ -415,5 +415,5 @@ func getDisplayName(account *v1alpha1.Account) string {
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
 }
 
-var _ controller.AccountManager = (*AccountManager)(nil)
+var _ inbound.AccountManager = (*AccountManager)(nil)
 var _ UserJWTSigner = (*AccountManager)(nil)

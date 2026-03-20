@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/controller"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/k8s"
 	"github.com/nats-io/jwt/v2"
@@ -524,7 +523,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 * Helpers
 *****************************************************/
 
-func (t *AccountManagerTestSuite) verifyAccountResult(result *controller.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
+func (t *AccountManagerTestSuite) verifyAccountResult(result *domain.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
 	rootKeyPublic, err := expectRootKey.PublicKey()
 	t.NoError(err, "failed to get public key from expect root key pair")
 	signKeyPublic, err := expectSignKey.PublicKey()
