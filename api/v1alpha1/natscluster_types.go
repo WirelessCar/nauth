@@ -74,15 +74,39 @@ type NatsClusterSpec struct {
 	SystemAccountUserCredsSecretRef SecretKeyReference `json:"systemAccountUserCredsSecretRef"`
 }
 
+// NatsClusterStatus defines the observed state of NatsCluster.
+type NatsClusterStatus struct {
+	// +listType=map
+	// +listMapKey=type
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// +optional
+	ReconcileTimestamp metav1.Time `json:"reconcileTimestamp,omitempty"`
+	// +optional
+	OperatorVersion string `json:"operatorVersion,omitempty"`
+}
+
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
 
 // NatsCluster is the Schema for the natsclusters API
 type NatsCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec NatsClusterSpec `json:"spec,omitempty"`
+	Spec   NatsClusterSpec   `json:"spec,omitempty"`
+	Status NatsClusterStatus `json:"status,omitempty"`
+}
+
+func (n *NatsCluster) GetConditions() *[]metav1.Condition {
+	return &n.Status.Conditions
 }
 
 // +kubebuilder:object:root=true
