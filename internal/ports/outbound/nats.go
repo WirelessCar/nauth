@@ -11,6 +11,7 @@ type NatsClient interface {
 type NatsConnection interface {
 	Disconnect()
 	EnsureConnected() error
+	VerifySystemAccountAccess() error
 	LookupAccountJWT(accountID string) (string, error)
 	UploadAccountJWT(jwt string) error
 	DeleteAccountJWT(jwt string) error

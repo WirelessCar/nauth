@@ -83,6 +83,19 @@ func (n *Connection) Disconnect() {
 	}
 }
 
+func (n *Connection) VerifySystemAccountAccess() error {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	_, err := n.conn.Request("$SYS.REQ.SERVER.PING", nil, natsMaxTimeout)
+	if err != nil {
+		return fmt.Errorf("failed system account ping: %w", err)
+	}
+
+	return nil
+}
+
 func (n *Connection) LookupAccountJWT(accountID string) (string, error) {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return "", fmt.Errorf("NATS connection is not established or lost")

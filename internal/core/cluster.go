@@ -51,6 +51,7 @@ type clusterTargetResolver interface {
 
 type ClusterManager struct {
 	natsClusterReader outbound.NatsClusterReader
+	natsClient        outbound.NatsClient
 	secretReader      outbound.SecretReader
 	configMapReader   outbound.ConfigMapReader
 	config            *Config
@@ -58,6 +59,7 @@ type ClusterManager struct {
 
 func NewClusterManager(
 	natsClusterReader outbound.NatsClusterReader,
+	natsClient outbound.NatsClient,
 	secretReader outbound.SecretReader,
 	configMapReader outbound.ConfigMapReader,
 	config *Config,
@@ -77,6 +79,7 @@ func NewClusterManager(
 
 	impl := &ClusterManager{
 		natsClusterReader: natsClusterReader,
+		natsClient:        natsClient,
 		secretReader:      secretReader,
 		configMapReader:   configMapReader,
 		config:            config,
@@ -91,6 +94,9 @@ func (r *ClusterManager) validate() error {
 	if r.natsClusterReader == nil {
 		return fmt.Errorf("natsClusterReader is required")
 	}
+	if r.natsClient == nil {
+		return fmt.Errorf("natsClient is required")
+	}
 	if r.secretReader == nil {
 		return fmt.Errorf("secretReader is required")
 	}
@@ -100,6 +106,33 @@ func (r *ClusterManager) validate() error {
 	if r.config == nil {
 		return fmt.Errorf("config is required")
 	}
+	return nil
+}
+
+func (r *ClusterManager) Validate(ctx context.Context, state *v1alpha1.NatsCluster) error {
+	if state == nil {
+		return fmt.Errorf("NatsCluster is required")
+	}
+
+	if err := domain.NewNamespacedName(state.Namespace, state.Name).Validate(); err != nil {
+		return fmt.Errorf("invalid NatsCluster namespaced name: %w", err)
+	}
+
+	target, err := r.resolveTargetFromCluster(ctx, state)
+	if err != nil {
+		return err
+	}
+
+	conn, err := r.natsClient.Connect(target.NatsURL, target.SystemAdminCreds)
+	if err != nil {
+		return fmt.Errorf("connect to NATS cluster using System Account User Credentials: %w", err)
+	}
+
+	defer conn.Disconnect()
+	if err := conn.VerifySystemAccountAccess(); err != nil {
+		return fmt.Errorf("verify NATS System Account access: %w", err)
+	}
+
 	return nil
 }
 
@@ -135,6 +168,17 @@ func (r *ClusterManager) resolveTarget(ctx context.Context, clusterRef domain.Na
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve NATS cluster %s: %w", clusterRef, err)
 	}
+
+	target, err := r.resolveTargetFromCluster(ctx, cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	return target, nil
+}
+
+func (r *ClusterManager) resolveTargetFromCluster(ctx context.Context, cluster *v1alpha1.NatsCluster) (*clusterTarget, error) {
+	clusterRef := domain.NewNamespacedName(cluster.GetNamespace(), cluster.GetName())
 	natsURL, err := r.resolveNatsURL(ctx, cluster)
 	if err != nil {
 		return nil, fmt.Errorf("resolve NATS URL for NatsCluster %s: %w", clusterRef, err)
@@ -185,11 +229,11 @@ func (r *ClusterManager) resolveSysAdminCreds(ctx context.Context, cluster *v1al
 	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
 	creds, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
 	if err != nil {
-		return nil, fmt.Errorf("resolve system account user creds for secret %s/%s: %w", cluster.GetNamespace(), secretRef.Name, err)
+		return nil, err
 	}
 	userCreds, err := domain.NewNatsUserCreds(creds)
 	if err != nil {
-		return nil, fmt.Errorf("invalid system account user creds in secret %s/%s: %w", cluster.GetNamespace(), secretRef.Name, err)
+		return nil, fmt.Errorf("invalid user creds: %w", err)
 	}
 	return userCreds, nil
 }
@@ -216,11 +260,11 @@ func (r *ClusterManager) resolveOperatorSigningKey(ctx context.Context, cluster 
 	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
 	keyData, err := r.resolveSecret(ctx, secretRef, secretKeyRef.Key)
 	if err != nil {
-		return nil, fmt.Errorf("resolve operator signing key for NatsCluster %s/%s: %w", cluster.GetNamespace(), cluster.GetName(), err)
+		return nil, err
 	}
 	opSigningKey, err := nkeys.FromSeed(keyData)
 	if err != nil {
-		return nil, fmt.Errorf("invalid operator signing key for NatsCluster %s/%s: %w", cluster.GetNamespace(), cluster.GetName(), err)
+		return nil, fmt.Errorf("invalid operator signing key: %w", err)
 	}
 	return opSigningKey, nil
 }

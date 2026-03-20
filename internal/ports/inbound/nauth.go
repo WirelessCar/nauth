@@ -19,4 +19,6 @@ type UserManager interface {
 	Delete(ctx context.Context, desired *v1alpha1.User) error
 }
 
-type NatsClusterManager interface{}
+type NatsClusterManager interface {
+	Validate(ctx context.Context, state *v1alpha1.NatsCluster) error
+}

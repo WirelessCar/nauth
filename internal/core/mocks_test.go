@@ -193,11 +193,18 @@ type NatsClientMock struct {
 
 func (n *NatsClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsConnection, error) {
 	args := n.Called(natsURL, userCreds)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(outbound.NatsConnection), args.Error(1)
 }
 
 func (n *NatsClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsConnection) {
 	n.On("Connect", natsURL, userCreds).Return(result, nil)
+}
+
+func (n *NatsClientMock) mockConnectError(natsURL string, userCreds domain.NatsUserCreds, err error) {
+	n.On("Connect", natsURL, userCreds).Return(nil, err)
 }
 
 var _ outbound.NatsClient = (*NatsClientMock)(nil)
@@ -227,6 +234,19 @@ func (n *NatsConnectionMock) HasAccount(accountID string) (bool, error) {
 func (n *NatsConnectionMock) EnsureConnected() error {
 	args := n.Called()
 	return args.Error(0)
+}
+
+func (n *NatsConnectionMock) VerifySystemAccountAccess() error {
+	args := n.Called()
+	return args.Error(0)
+}
+
+func (n *NatsConnectionMock) mockVerifySystemAccountAccess() {
+	n.On("VerifySystemAccountAccess").Return(nil)
+}
+
+func (n *NatsConnectionMock) mockVerifySystemAccountAccessError(err error) {
+	n.On("VerifySystemAccountAccess").Return(err)
 }
 
 func (n *NatsConnectionMock) Disconnect() {
@@ -345,6 +365,10 @@ func (m *ConfigMapReaderMock) Get(ctx context.Context, namespacedName domain.Nam
 
 func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
 	m.On("Get", ctx, namespacedName).Return(result, nil)
+}
+
+func (m *ConfigMapReaderMock) mockGetError(ctx context.Context, namespacedName domain.NamespacedName, err error) {
+	m.On("Get", ctx, namespacedName).Return(map[string]string{}, err)
 }
 
 var _ outbound.ConfigMapReader = (*ConfigMapReaderMock)(nil)

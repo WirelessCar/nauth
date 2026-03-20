@@ -277,7 +277,7 @@ func main() {
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 	natsClient := nats.NewClient()
 
-	clusterManager, err := core.NewClusterManager(natsClusterClient, secretClient, configMapClient, config)
+	clusterManager, err := core.NewClusterManager(natsClusterClient, natsClient, secretClient, configMapClient, config)
 	if err != nil {
 		setupLog.Error(err, "failed to create cluster manager")
 		os.Exit(1)
