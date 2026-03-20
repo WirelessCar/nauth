@@ -18,3 +18,5 @@ type UserManager interface {
 	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
 	Delete(ctx context.Context, desired *v1alpha1.User) error
 }
+
+type NatsClusterManager interface{}

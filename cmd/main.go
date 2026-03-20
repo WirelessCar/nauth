@@ -265,7 +265,7 @@ func main() {
 		namespace = string(controllerNamespace)
 	}
 
-	accountConfig, err := core.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
+	config, err := core.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
 	if err != nil {
 		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)
@@ -275,15 +275,15 @@ func main() {
 	configMapClient := configmap.NewClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
+	natsClient := nats.NewClient()
 
-	accountManager, err := core.NewAccountManager(
-		nats.NewClient(),
-		accountClient,
-		natsClusterClient,
-		secretClient,
-		configMapClient,
-		accountConfig,
-	)
+	clusterManager, err := core.NewClusterManager(natsClusterClient, secretClient, configMapClient, config)
+	if err != nil {
+		setupLog.Error(err, "failed to create cluster manager")
+		os.Exit(1)
+	}
+
+	accountManager, err := core.NewAccountManager(natsClient, accountClient, secretClient, clusterManager)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
 		os.Exit(1)

@@ -36,7 +36,7 @@ func (t *ClusterTestSuite) TearDownTest() {
 	t.configMapResolverMock.AssertExpectations(t.T())
 }
 
-func TestClusterTargetResolver_TestSuite(t *testing.T) {
+func TestClusterManager_TestSuite(t *testing.T) {
 	suite.Run(t, new(ClusterTestSuite))
 }
 
@@ -333,7 +333,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenLegacyLookupAndO
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	t.configMapResolverMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-config"),
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -360,7 +360,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithExplicitNamespace() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	t.configMapResolverMock.mockGet(t.ctx, domain.NewNamespacedName("config-namespace", "my-config"),
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -388,7 +388,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithEx
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-secret"),
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -415,7 +415,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExplicitNamespace() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("config-namespace", "my-secret"),
 		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
@@ -443,7 +443,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExpli
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenNoNatsURLReferenceProvided() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	// When
 	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{})
@@ -455,7 +455,7 @@ func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenNoNatsURLReference
 
 func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenUnsupportedFromKindProvided() {
 	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults().(*clusterTargetResolverImpl)
+	unitUnderTest := t.newUnitUnderTestWithDefaults().(*ClusterManager)
 
 	// When
 	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
@@ -492,14 +492,14 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 		return nil
 	}
 
-	u, err := newClusterTargetResolverImpl(
+	u, err := NewClusterManager(
 		t.natsClusterResolverMock,
 		t.secretClientMock,
 		t.configMapResolverMock,
 		config,
 	)
 	if err != nil {
-		t.Failf("failed to create clusterTargetResolverImpl", "error: %v", err)
+		t.Failf("failed to create ClusterManager", "error: %v", err)
 		return nil
 	}
 

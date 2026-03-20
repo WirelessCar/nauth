@@ -24,20 +24,14 @@ type AccountManager struct {
 func NewAccountManager(
 	natsClient outbound.NatsClient,
 	accountReader outbound.AccountReader,
-	natsClusterReader outbound.NatsClusterReader,
 	secretClient outbound.SecretClient,
-	configMapReader outbound.ConfigMapReader,
-	config *Config,
+	clusterManager *ClusterManager,
 ) (*AccountManager, error) {
-	ccr, err := newClusterTargetResolverImpl(natsClusterReader, secretClient, configMapReader, config)
-	if err != nil {
-		return nil, err
-	}
 	sm, err := newSecretManagerImpl(secretClient)
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsClient, accountReader, ccr, sm)
+	return newAccountManager(natsClient, accountReader, clusterManager, sm)
 }
 
 func newAccountManager(
