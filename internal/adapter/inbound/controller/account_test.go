@@ -58,7 +58,7 @@ var _ = Describe("Account Controller", func() {
 		ctx := context.Background()
 
 		BeforeEach(func() {
-			operatorVersion = "0.0-SNAPSHOT"
+			operatorVersion = testOperatorVersion
 			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
 
 			accountManagerMock = &AccountManagerMock{}

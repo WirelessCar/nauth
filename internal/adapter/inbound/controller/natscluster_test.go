@@ -52,7 +52,7 @@ var _ = Describe("NatsCluster Controller", func() {
 		ctx := context.Background()
 
 		BeforeEach(func() {
-			operatorVersion = "0.0-SNAPSHOT"
+			operatorVersion = testOperatorVersion
 			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
 
 			natsClusterManagerMock = &NatsClusterManagerMock{}
