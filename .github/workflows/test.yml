@@ -17,6 +17,7 @@ name: Operator tests
 on:
   pull_request:
     paths:
+      - 'api/**'
       - 'dir/**'
       - 'cmd/**'
       - 'internal/**'
