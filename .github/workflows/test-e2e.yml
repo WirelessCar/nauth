@@ -18,6 +18,7 @@ name: E2E Tests
 on:
   pull_request:
     paths:
+      - 'api/**'
       - 'dir/**'
       - 'charts/**'
       - 'cmd/**'
