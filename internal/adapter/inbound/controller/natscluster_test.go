@@ -19,132 +19,141 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/stretchr/testify/mock"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
-const (
-	natsClusterBaseName  = "test-nats-cluster"
-	natsClusterNamespace = "test-nats-cluster-namespace"
-)
+type NatsClusterControllerTestSuite struct {
+	suite.Suite
+	ctx context.Context
 
-var _ = Describe("NatsCluster Controller", func() {
-	Context("When reconciling a NatsCluster", func() {
-		var (
-			natsClusterManagerMock *NatsClusterManagerMock
-			natsClusterName        string
-			testIndex              int
-			resourceName           ktypes.NamespacedName
-			controllerReconciler   *NatsClusterReconciler
-			fakeRecorder           *events.FakeRecorder
-			operatorVersion        string
-		)
+	natsClusterManagerMock *NatsClusterManagerMock
+	fakeRecorder           *events.FakeRecorder
 
-		ctx := context.Background()
+	resourceName    ktypes.NamespacedName
+	operatorVersion string
 
-		BeforeEach(func() {
-			operatorVersion = testOperatorVersion
-			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
+	unitUnderTest *NatsClusterReconciler
+}
 
-			natsClusterManagerMock = &NatsClusterManagerMock{}
+func TestNatsClusterController_TestSuite(t *testing.T) {
+	suite.Run(t, new(NatsClusterControllerTestSuite))
+}
 
-			testIndex += 1
-			natsClusterName = fmt.Sprintf("%s-%d", natsClusterBaseName, testIndex)
-			resourceName = ktypes.NamespacedName{
-				Name:      natsClusterName,
-				Namespace: natsClusterNamespace,
-			}
+func (t *NatsClusterControllerTestSuite) SetupTest() {
+	t.ctx = context.Background()
+	t.operatorVersion = testOperatorVersion
+	t.Require().NoError(os.Setenv(EnvOperatorVersion, t.operatorVersion))
 
-			fakeRecorder = events.NewFakeRecorder(5)
-			controllerReconciler = NewNatsClusterReconciler(
-				k8sClient,
-				k8sClient.Scheme(),
-				natsClusterManagerMock,
-				fakeRecorder,
-			)
+	testName := t.T().Name()
+	namespace := scopedTestName("natscluster", testName)
+	name := scopedTestName("test-nats-cluster", testName)
+	t.resourceName = ktypes.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}
 
-			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: natsClusterNamespace}}
-			_ = k8sClient.Create(ctx, ns)
+	t.natsClusterManagerMock = &NatsClusterManagerMock{}
+	t.fakeRecorder = events.NewFakeRecorder(5)
+	t.unitUnderTest = NewNatsClusterReconciler(
+		k8sClient,
+		k8sClient.Scheme(),
+		t.natsClusterManagerMock,
+		t.fakeRecorder,
+	)
 
-			cluster := &v1alpha1.NatsCluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      natsClusterName,
-					Namespace: natsClusterNamespace,
-				},
-				Spec: v1alpha1.NatsClusterSpec{
-					URL:                             "nats://my-cluster:4222",
-					OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-					SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-				},
-			}
-			Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		})
+	t.Require().NoError(ensureNamespace(t.ctx, namespace))
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.NatsCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.NatsClusterSpec{
+			URL:                             "nats://my-cluster:4222",
+			OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
+			SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
+		},
+	}))
+}
 
-		AfterEach(func() {
-			natsClusterManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(EnvOperatorVersion)
-		})
+func (t *NatsClusterControllerTestSuite) TearDownTest() {
+	t.natsClusterManagerMock.AssertExpectations(t.T())
+	t.Require().NoError(os.Unsetenv(EnvOperatorVersion))
+}
 
-		It("should successfully reconcile the NatsCluster", func() {
-			natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
+func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSucceed() {
+	// Given
+	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: resourceName})
-			Expect(err).NotTo(HaveOccurred())
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
 
-			cluster := &v1alpha1.NatsCluster{}
-			Expect(k8sClient.Get(ctx, resourceName, cluster)).To(Succeed())
-			Expect(cluster.Status.OperatorVersion).To(Equal(operatorVersion))
-			Expect(cluster.Status.ObservedGeneration).To(Equal(cluster.Generation))
-			Expect(cluster.Status.ReconcileTimestamp.IsZero()).To(BeFalse())
-			for _, c := range cluster.Status.Conditions {
-				Expect(c.Status).To(Equal(metav1.ConditionTrue))
-				Expect(c.Reason).To(Equal(controllerReasonReconciled))
-			}
-			Expect(fakeRecorder.Events).To(BeEmpty())
-		})
+	// Then
+	t.NoError(err)
 
-		It("should fail to reconcile the NatsCluster", func() {
-			validateErr := fmt.Errorf("a test error")
-			natsClusterManagerMock.On("Validate", mock.Anything).Return(validateErr).Once()
+	cluster := &v1alpha1.NatsCluster{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.resourceName, cluster))
+	t.Equal(t.operatorVersion, cluster.Status.OperatorVersion)
+	t.Equal(cluster.Generation, cluster.Status.ObservedGeneration)
+	t.False(cluster.Status.ReconcileTimestamp.IsZero())
+	for _, c := range cluster.Status.Conditions {
+		t.Equal(metav1.ConditionTrue, c.Status)
+		t.Equal(controllerReasonReconciled, c.Reason)
+	}
+	t.Empty(t.fakeRecorder.Events)
+}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: resourceName})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(validateErr.Error()))
+func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail() {
+	// Given
+	validateErr := fmt.Errorf("a test error")
+	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(validateErr).Once()
 
-			cluster := &v1alpha1.NatsCluster{}
-			Expect(k8sClient.Get(ctx, resourceName, cluster)).To(Succeed())
-			for _, c := range cluster.Status.Conditions {
-				Expect(c.Status).To(Equal(metav1.ConditionFalse))
-				Expect(c.Reason).To(Equal(controllerReasonErrored))
-			}
-			Expect(fakeRecorder.Events).To(HaveLen(1))
-			Expect(<-fakeRecorder.Events).To(ContainSubstring("failed to validate NatsCluster: a test error"))
-		})
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
 
-		It("should skip reconciliation when generation and operator version are unchanged", func() {
-			natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
+	// Then
+	t.Error(err)
+	t.Contains(err.Error(), validateErr.Error())
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: resourceName})
-			Expect(err).NotTo(HaveOccurred())
+	cluster := &v1alpha1.NatsCluster{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.resourceName, cluster))
+	for _, c := range cluster.Status.Conditions {
+		t.Equal(metav1.ConditionFalse, c.Status)
+		t.Equal(controllerReasonErrored, c.Reason)
+	}
+	t.Len(t.fakeRecorder.Events, 1)
+	t.Contains(<-t.fakeRecorder.Events, "failed to validate NatsCluster: a test error")
+}
 
-			cluster := &v1alpha1.NatsCluster{}
-			Expect(k8sClient.Get(ctx, resourceName, cluster)).To(Succeed())
-			Expect(cluster.Status.ObservedGeneration).To(Equal(cluster.Generation))
+func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSkip_WhenGenerationAndOperatorVersionAreUnchanged() {
+	// Given
+	// Note: Expect manager.Validate during setup only
+	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
 
-			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: resourceName})
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-})
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
+
+	t.Require().NoError(err)
+
+	cluster := &v1alpha1.NatsCluster{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.resourceName, cluster))
+	t.Equal(cluster.Generation, cluster.Status.ObservedGeneration)
+
+	// Note: assert mock calls during setup and reset for test case
+	t.natsClusterManagerMock.AssertExpectations(t.T())
+
+	// When (expect no manager calls)
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
+
+	// Then
+	t.NoError(err)
+}
 
 type NatsClusterManagerMock struct {
 	mock.Mock

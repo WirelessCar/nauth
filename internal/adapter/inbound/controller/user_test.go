@@ -4,238 +4,237 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"testing"
 
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/mock"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/stretchr/testify/suite"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
-var _ = Describe("User Controller", func() {
-	Context("When reconciling a user", func() {
-		const (
-			userBaseName  = "test-resource"
-			userNamespace = "test-namespace"
-		)
+type UserControllerTestSuite struct {
+	suite.Suite
+	ctx context.Context
 
-		var (
-			userManagerMock      *UserManagerMock
-			controllerReconciler *UserReconciler
-			userNamespacedName   ktypes.NamespacedName
-			fakeRecorder         *events.FakeRecorder
-			testIndex            int
-			operatorVersion      string
-		)
+	userManagerMock *UserManagerMock
+	fakeRecorder    *events.FakeRecorder
 
-		ctx := context.Background()
+	userNamespacedName ktypes.NamespacedName
+	operatorVersion    string
 
-		BeforeEach(func() {
-			operatorVersion = testOperatorVersion
-			_ = os.Setenv(EnvOperatorVersion, operatorVersion)
+	unitUnderTest *UserReconciler
+}
 
-			userManagerMock = &UserManagerMock{}
+func TestUserController_TestSuite(t *testing.T) {
+	suite.Run(t, new(UserControllerTestSuite))
+}
 
-			testIndex += 1
-			userName := fmt.Sprintf("%s-%d", userBaseName, testIndex)
-			userNamespacedName = ktypes.NamespacedName{
-				Name:      userName,
-				Namespace: userNamespace,
-			}
+func (t *UserControllerTestSuite) SetupTest() {
+	t.ctx = context.Background()
+	t.operatorVersion = testOperatorVersion
+	t.Require().NoError(os.Setenv(EnvOperatorVersion, t.operatorVersion))
 
-			By("setting up the controller")
-			fakeRecorder = events.NewFakeRecorder(5)
-			controllerReconciler = NewUserReconciler(
-				k8sClient,
-				k8sClient.Scheme(),
-				userManagerMock,
-				fakeRecorder,
-			)
+	testName := t.T().Name()
+	userName := scopedTestName("test-resource", testName)
+	namespace := scopedTestName("user", testName)
+	t.userNamespacedName = ktypes.NamespacedName{
+		Name:      userName,
+		Namespace: namespace,
+	}
 
-			By("ensuring the namespace exists")
-			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: userNamespacedName.Namespace}}
-			_ = k8sClient.Create(ctx, ns)
+	t.userManagerMock = &UserManagerMock{}
+	t.fakeRecorder = events.NewFakeRecorder(5)
+	t.unitUnderTest = NewUserReconciler(
+		k8sClient,
+		k8sClient.Scheme(),
+		t.userManagerMock,
+		t.fakeRecorder,
+	)
 
-			By("creating the custom user for the Kind User")
-			user := &v1alpha1.User{}
-			err := k8sClient.Get(ctx, userNamespacedName, user)
-			if err != nil && k8err.IsNotFound(err) {
-				user = &v1alpha1.User{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      userName,
-						Namespace: userNamespace,
-					},
-				}
-				Expect(k8sClient.Create(ctx, user)).To(Succeed())
-			}
-		})
+	t.Require().NoError(ensureNamespace(t.ctx, namespace))
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.User{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userName,
+			Namespace: namespace,
+		},
+	}))
+}
 
-		AfterEach(func() {
-			userManagerMock.AssertExpectations(GinkgoT())
-			_ = os.Unsetenv(EnvOperatorVersion)
-		})
+func (t *UserControllerTestSuite) TearDownTest() {
+	t.userManagerMock.AssertExpectations(t.T())
+	t.Require().NoError(os.Unsetenv(EnvOperatorVersion))
+}
 
-		Context("User create/ update reconciliation", func() {
-			It("should successfully reconcile the user", func() {
-				By("Reconciling the created user")
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpdatingUser() {
+	// Given
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
+	user := &v1alpha1.User{}
 
-				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
-				user := &v1alpha1.User{}
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).NotTo(HaveOccurred())
+	// Then
+	t.NoError(err)
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).NotTo(HaveOccurred())
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
 
-				for _, c := range user.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(controllerReasonReconciled))
-				}
-				Expect(user.Status.OperatorVersion).To(Equal(operatorVersion))
+	for _, c := range user.Status.Conditions {
+		t.Equal(metav1.ConditionTrue, c.Status)
+		t.Equal(controllerReasonReconciled, c.Reason)
+	}
+	t.Equal(t.operatorVersion, user.Status.OperatorVersion)
+	t.Empty(t.fakeRecorder.Events)
+}
 
-				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(BeEmpty())
-			})
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFailsBecauseNoAccountExists() {
+	// Given
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(k8s.ErrNoAccountFound).Once()
 
-			It("should fails when trying to create a new user without a valid account", func() {
-				By("Not able to reconcile the created user due to missing account")
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
-				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(k8s.ErrNoAccountFound)
+	// Then
+	t.Error(err)
+	t.Equal(k8s.ErrNoAccountFound, err)
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).To(MatchError(k8s.ErrNoAccountFound))
+	user := &v1alpha1.User{}
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
 
-				user := &v1alpha1.User{}
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).NotTo(HaveOccurred())
+	for _, c := range user.Status.Conditions {
+		t.Equal(metav1.ConditionFalse, c.Status)
+		t.Equal(controllerReasonErrored, c.Reason)
+	}
 
-				for _, c := range user.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(controllerReasonErrored))
-				}
+	t.Len(t.fakeRecorder.Events, 1)
+	t.Contains(<-t.fakeRecorder.Events, k8s.ErrNoAccountFound.Error())
+}
 
-				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(HaveLen(1))
-				Expect(<-fakeRecorder.Events).To(ContainSubstring(k8s.ErrNoAccountFound.Error()))
-			})
-		})
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeletion() {
+	// Given
+	// Note: Expect manager.CreateOrUpdate during setup only
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
+	user := &v1alpha1.User{}
 
-		Context("User delete reconciliation", func() {
-			It("should successfully remove the user marked for deletion", func() {
-				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
-				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(nil)
-				user := &v1alpha1.User{}
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).ToNot(HaveOccurred())
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	t.True(controllerutil.ContainsFinalizer(user, controllerUserFinalizer))
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(user, controllerUserFinalizer)).To(BeTrue())
+	err = k8sClient.Delete(t.ctx, user)
+	t.Require().NoError(err)
 
-				err = k8sClient.Delete(ctx, user)
-				Expect(err).ToNot(HaveOccurred())
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	t.False(user.ObjectMeta.DeletionTimestamp.IsZero())
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(user.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
+	// Note: assert mock calls during setup and reset for test case
+	t.userManagerMock.AssertExpectations(t.T())
+	t.userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(nil)
 
-				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).ToNot(HaveOccurred())
+	// When (expect manager.Delete)
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
-				for _, c := range user.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(controllerReasonReconciled))
-				}
+	// Then
+	t.NoError(err)
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).To(HaveOccurred())
-				Expect(k8err.IsNotFound(err)).To(BeTrue())
+	for _, c := range user.Status.Conditions {
+		t.Equal(metav1.ConditionTrue, c.Status)
+		t.Equal(controllerReasonReconciled, c.Reason)
+	}
 
-				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(BeEmpty())
-			})
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Error(err)
+	t.True(k8err.IsNotFound(err))
+	t.Empty(t.fakeRecorder.Events)
+}
 
-			It("should fail to remove the user when delete client fails", func() {
-				userDeleteError := fmt.Errorf("unable to remove the user")
-				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil)
-				userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(userDeleteError)
-				user := &v1alpha1.User{}
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
+	// Given
+	userDeleteError := fmt.Errorf("unable to remove the user")
+	// Note: Expect manager.CreateOrUpdate during setup only
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
+	user := &v1alpha1.User{}
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).ToNot(HaveOccurred())
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(controllerutil.ContainsFinalizer(user, controllerUserFinalizer)).To(BeTrue())
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	t.True(controllerutil.ContainsFinalizer(user, controllerUserFinalizer))
 
-				err = k8sClient.Delete(ctx, user)
-				Expect(err).ToNot(HaveOccurred())
+	err = k8sClient.Delete(t.ctx, user)
+	t.Require().NoError(err)
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(user.ObjectMeta.DeletionTimestamp.IsZero()).To(BeFalse())
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	t.False(user.ObjectMeta.DeletionTimestamp.IsZero())
 
-				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(userDeleteError.Error()))
+	// Note: assert mock calls during setup and reset for test case
+	t.userManagerMock.AssertExpectations(t.T())
+	t.userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(userDeleteError).Once()
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).ToNot(HaveOccurred())
-				for _, c := range user.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionFalse))
-					Expect(c.Reason).To(Equal(controllerReasonErrored))
-				}
+	// When (expect manager.Delete)
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
-				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(HaveLen(1))
-				Expect(<-fakeRecorder.Events).To(ContainSubstring(userDeleteError.Error()))
+	// Then
+	t.Error(err)
+	t.Contains(err.Error(), userDeleteError.Error())
 
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).NotTo(HaveOccurred())
-			})
-		})
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	for _, c := range user.Status.Conditions {
+		t.Equal(metav1.ConditionFalse, c.Status)
+		t.Equal(controllerReasonErrored, c.Reason)
+	}
 
-		Context("User update reconciliation", func() {
-			It("should successfully reconcile the user", func() {
-				By("Reconciling the created user")
+	t.Len(t.fakeRecorder.Events, 1)
+	t.Contains(<-t.fakeRecorder.Events, userDeleteError.Error())
 
-				userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Twice()
-				user := &v1alpha1.User{}
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.NoError(err)
+}
 
-				_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).NotTo(HaveOccurred())
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
+	// Given
+	// Note: Expect manager.CreateOrUpdate during setup once
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
+	user := &v1alpha1.User{}
 
-				newOperatorVersion := "1.1-SNAPSHOT"
-				_ = os.Setenv(EnvOperatorVersion, newOperatorVersion)
-				_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: userNamespacedName})
-				Expect(err).NotTo(HaveOccurred())
-				err = k8sClient.Get(ctx, userNamespacedName, user)
-				Expect(err).NotTo(HaveOccurred())
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
 
-				for _, c := range user.Status.Conditions {
-					Expect(c.Status).To(Equal(metav1.ConditionTrue))
-					Expect(c.Reason).To(Equal(controllerReasonReconciled))
-				}
-				Expect(user.Status.OperatorVersion).To(Equal(newOperatorVersion))
+	newOperatorVersion := "1.1-SNAPSHOT"
+	t.Require().NoError(os.Setenv(EnvOperatorVersion, newOperatorVersion))
 
-				By("Asserting the recorded events match the condition message")
-				Expect(fakeRecorder.Events).To(BeEmpty())
-			})
-		})
-	})
-})
+	// Note: assert mock calls during setup and reset for test case
+	t.userManagerMock.AssertExpectations(t.T())
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
 
-// MOCKS
+	// When
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+
+	// Then
+	t.NoError(err)
+
+	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	t.Require().NoError(err)
+	for _, c := range user.Status.Conditions {
+		t.Equal(metav1.ConditionTrue, c.Status)
+		t.Equal(controllerReasonReconciled, c.Reason)
+	}
+	t.Equal(newOperatorVersion, user.Status.OperatorVersion)
+	t.Empty(t.fakeRecorder.Events)
+}
 
 type UserManagerMock struct {
 	mock.Mock
