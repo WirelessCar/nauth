@@ -1,10 +1,9 @@
-package secret
+package k8s
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
 	. "github.com/onsi/gomega"
@@ -22,16 +21,16 @@ var _ = Describe("Secrets storer", func() {
 			Name:      resourceName,
 			Namespace: string(namespace),
 			Labels: map[string]string{
-				k8s.LabelManaged: k8s.LabelManagedValue,
+				LabelManaged: LabelManagedValue,
 			},
 		}
 		ctx := context.Background()
-		var secretStorer *Client
+		var secretStorer *SecretClient
 		var secretRef domain.NamespacedName
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind Account")
-			secretStorer = NewClient(k8sClient)
+			secretStorer = NewSecretClient(k8sClient)
 			secretRef = domain.NewNamespacedName(namespace, resourceName)
 			Expect(secretRef.Validate()).NotTo(HaveOccurred())
 		})
@@ -98,7 +97,7 @@ var _ = Describe("Secrets storer", func() {
 			Entry("due to irrelevant labels",
 				map[string]string{"foo": "bar"}),
 			Entry("due to existing managed label with unexpected value",
-				map[string]string{k8s.LabelManaged: "false"}))
+				map[string]string{LabelManaged: "false"}))
 
 		It("should return success when deleting a non existing secret", func() {
 			nonExistingSecretRef := domain.NewNamespacedName(namespace, "non-existing-secret")
@@ -115,7 +114,7 @@ var _ = Describe("Secrets storer", func() {
 			By("Trying to retrieve a non-existing secret")
 			_, err := secretStorer.Get(ctx, nonExistingSecretRef)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(k8s.ErrNotFound))
+			Expect(err).To(Equal(ErrNotFound))
 		})
 		It("should return success when deleting existing secret", func() {
 			By("Creating a new secret from scratch")
@@ -130,7 +129,7 @@ var _ = Describe("Secrets storer", func() {
 			By("Retrieving the deleted secret")
 			_, err = secretStorer.Get(ctx, secretRef)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(k8s.ErrNotFound))
+			Expect(err).To(Equal(ErrNotFound))
 		})
 	})
 })

@@ -1,11 +1,10 @@
-package secret
+package k8s
 
 import (
 	"context"
 	"fmt"
 	"maps"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	v1 "k8s.io/api/core/v1"
@@ -17,19 +16,19 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-type Client struct {
+type SecretClient struct {
 	client client.Client
 }
 
-func NewClient(client client.Client) *Client {
-	return &Client{
+func NewSecretClient(client client.Client) *SecretClient {
+	return &SecretClient{
 		client: client,
 	}
 }
 
-func (k *Client) Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error {
+func (k *SecretClient) Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error {
 	if !isManagedSecret(&meta) {
-		return fmt.Errorf("label %s not supplied by secret %s/%s", k8s.LabelManaged, meta.Namespace, meta.Name)
+		return fmt.Errorf("label %s not supplied by secret %s/%s", LabelManaged, meta.Namespace, meta.Name)
 	}
 	secretRef := domain.NewNamespacedName(meta.Namespace, meta.Name)
 	currentSecret, err := k.getSecret(ctx, secretRef)
@@ -105,11 +104,11 @@ func addOwnerReferenceIfNotExists(secret *v1.Secret, owner metav1.Object) error 
 	return nil
 }
 
-func (k *Client) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error) {
+func (k *SecretClient) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error) {
 	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, k8s.ErrNotFound
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get secret: %w", err)
 	}
@@ -122,11 +121,11 @@ func (k *Client) Get(ctx context.Context, secretRef domain.NamespacedName) (map[
 	return secretData, nil
 }
 
-func (k *Client) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
+func (k *SecretClient) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
 	return k.getSecretsByLabels(ctx, namespace, labels)
 }
 
-func (k *Client) Delete(ctx context.Context, secretRef domain.NamespacedName) error {
+func (k *SecretClient) Delete(ctx context.Context, secretRef domain.NamespacedName) error {
 	log := logf.FromContext(ctx)
 
 	secret, err := k.getSecret(ctx, secretRef)
@@ -145,7 +144,7 @@ func (k *Client) Delete(ctx context.Context, secretRef domain.NamespacedName) er
 	return nil
 }
 
-func (k *Client) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
+func (k *SecretClient) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
 	log := logf.FromContext(ctx)
 
 	secrets, err := k.getSecretsByLabels(ctx, namespace, labels)
@@ -166,7 +165,7 @@ func (k *Client) DeleteByLabels(ctx context.Context, namespace domain.Namespace,
 	return nil
 }
 
-func (k *Client) Label(ctx context.Context, secretRef domain.NamespacedName, labels map[string]string) error {
+func (k *SecretClient) Label(ctx context.Context, secretRef domain.NamespacedName, labels map[string]string) error {
 	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		return fmt.Errorf("failed to get secret: %w", err)
@@ -180,7 +179,7 @@ func (k *Client) Label(ctx context.Context, secretRef domain.NamespacedName, lab
 	return k.client.Update(ctx, secret)
 }
 
-func (k *Client) getSecret(ctx context.Context, secretRef domain.NamespacedName) (*v1.Secret, error) {
+func (k *SecretClient) getSecret(ctx context.Context, secretRef domain.NamespacedName) (*v1.Secret, error) {
 	if err := secretRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid namespaced name %q: %w", secretRef, err)
 	}
@@ -194,7 +193,7 @@ func (k *Client) getSecret(ctx context.Context, secretRef domain.NamespacedName)
 	return k8sSecret, nil
 }
 
-func (k *Client) getSecretsByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
+func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {
 	secretList := &v1.SecretList{}
 	matchingLabelsListOption := client.MatchingLabels{}
 	maps.Copy(matchingLabelsListOption, labels)
@@ -206,8 +205,8 @@ func (k *Client) getSecretsByLabels(ctx context.Context, namespace domain.Namesp
 }
 
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
-	return meta.Labels != nil && meta.Labels[k8s.LabelManaged] == k8s.LabelManagedValue
+	return meta.Labels != nil && meta.Labels[LabelManaged] == LabelManagedValue
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ outbound.SecretClient = (*Client)(nil)
+var _ outbound.SecretClient = (*SecretClient)(nil)
