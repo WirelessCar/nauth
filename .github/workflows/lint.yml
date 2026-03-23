@@ -12,20 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Operator tests
+name: Lint
 
 on:
   pull_request:
     paths:
-      - 'dir/**'
+      - 'api/**'
       - 'cmd/**'
       - 'internal/**'
-      - Dockerfile
-      - go.*
 
 jobs:
-  test:
-    name: go test
+  lint:
+    name: golangci-lint
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
@@ -38,14 +36,5 @@ jobs:
           cache-dependency-path: |
             go.sum
 
-      - name: Cache envtest binaries
-        uses: actions/cache@v3
-        id: envtest-cache
-        with:
-          path: bin
-          key: ${{ runner.os }}-envtest-cache
-
-      - name: Running Tests
-        run: |
-          go mod tidy
-          make test
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9.1.0
