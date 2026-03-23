@@ -3,150 +3,169 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"strings"
+	"testing"
 
 	"github.com/WirelessCar/nauth/internal/domain"
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Secrets storer", func() {
-	Context("When handling secrets", func() {
-		const resourceName = "test-resource"
-		const namespace = "default"
-		secretMeta := metav1.ObjectMeta{
-			Name:      resourceName,
-			Namespace: string(namespace),
-			Labels: map[string]string{
-				LabelManaged: LabelManagedValue,
-			},
-		}
-		ctx := context.Background()
-		var secretStorer *SecretClient
-		var secretRef domain.NamespacedName
+type SecretClientTestSuite struct {
+	suite.Suite
+	ctx        context.Context
+	secretName string
+	secretMeta metav1.ObjectMeta
+	secretRef  domain.NamespacedName
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind Account")
-			secretStorer = NewSecretClient(k8sClient)
-			secretRef = domain.NewNamespacedName(namespace, resourceName)
-			Expect(secretRef.Validate()).NotTo(HaveOccurred())
-		})
+	unitUnderTest *SecretClient
+}
 
-		AfterEach(func() {
-			By("Cleanup the secret")
-			err := cleanSecret(secretMeta.Namespace, secretMeta.Name)
-			Expect(err).ToNot(HaveOccurred())
-		})
+func TestSecretClient_TestSuite(t *testing.T) {
+	suite.Run(t, new(SecretClientTestSuite))
+}
 
-		It("should successfully create and update an existing secret", func() {
-			By("Creating a new secret from scratch")
-			secret := map[string]string{"key": "value"}
-			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
-			Expect(err).ToNot(HaveOccurred())
+func (t *SecretClientTestSuite) SetupTest() {
+	t.ctx = context.Background()
+	t.secretName = sanitizeTestName(t.T().Name())
+	t.secretMeta = metav1.ObjectMeta{
+		Name:      t.secretName,
+		Namespace: testNamespace,
+		Labels: map[string]string{
+			LabelManaged: LabelManagedValue,
+		},
+	}
+	t.secretRef = domain.NewNamespacedName(t.secretMeta.Namespace, t.secretMeta.Name)
+	t.Require().NoError(t.secretRef.Validate())
+	t.unitUnderTest = NewSecretClient(k8sClient)
+	t.Require().NoError(cleanSecret(t.ctx, t.secretRef))
+}
 
-			By("Retrieving the secret")
-			fetchedSecret, err := secretStorer.Get(ctx, secretRef)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fetchedSecret).ToNot(BeNil())
-			Expect(fetchedSecret).To(Equal(secret))
+func (t *SecretClientTestSuite) TearDownTest() {
+	t.Require().NoError(cleanSecret(t.ctx, t.secretRef))
+}
 
-			By("Updating the secret with a new value")
+func (t *SecretClientTestSuite) Test_Apply_ShouldSucceed_WhenCreatingAndUpdatingSecret() {
+	// Given
+	secret := map[string]string{"key": "value"}
+
+	// When
+	err := t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, secret)
+
+	// Then
+	t.NoError(err)
+
+	fetchedSecret, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	t.NoError(err)
+	t.Equal(secret, fetchedSecret)
+
+	newSecret := map[string]string{"key": "new value"}
+	err = t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, newSecret)
+
+	t.NoError(err)
+
+	newFetchedSecret, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	t.NoError(err)
+	t.Equal(newSecret, newFetchedSecret)
+}
+
+func (t *SecretClientTestSuite) Test_Apply_ShouldFail_WhenExistingSecretNotManagedByNauth() {
+	testCases := map[string]map[string]string{
+		"absent_labels_map":                          nil,
+		"empty_labels_map":                           {},
+		"irrelevant_labels":                          {"foo": "bar"},
+		"existing_managed_label_with_unexpected_val": {LabelManaged: "false"},
+	}
+
+	for name, existingSecretLabels := range testCases {
+		t.Run(name, func() {
+			// Given
+			existingSecret := map[string]string{"key": "value"}
+			err := k8sClient.Create(t.ctx, &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      t.secretName,
+					Namespace: t.secretMeta.Namespace,
+					Labels:    existingSecretLabels,
+				},
+				StringData: existingSecret,
+			})
+			t.Require().NoError(err)
+
+			// When
 			newSecret := map[string]string{"key": "new value"}
-			err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
-			Expect(err).ToNot(HaveOccurred())
+			err = t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, newSecret)
 
-			By("Retrieving the updated secret")
-			newFetchedSecret, err := secretStorer.Get(ctx, secretRef)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(newFetchedSecret).ToNot(BeNil())
-			Expect(newFetchedSecret).To(Equal(newSecret))
+			// Then
+			t.Error(err)
+			t.EqualError(err, fmt.Sprintf("existing secret %s not managed by nauth", t.secretRef))
+
+			fetchedSecret, fetchErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
+			t.NoError(fetchErr)
+			t.Equal(existingSecret, fetchedSecret)
+
+			t.Require().NoError(cleanSecret(t.ctx, t.secretRef))
 		})
-		DescribeTable("should fail to update an existing secret not managed by nauth",
-			func(existingSecretLabels map[string]string) {
-				By("Creating the existing secret from scratch without managed label")
-				existingSecret := map[string]string{"key": "value"}
-				err := k8sClient.Create(ctx, &v1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: namespace,
-						Labels:    existingSecretLabels,
-					},
-					StringData: existingSecret,
-				})
-				Expect(err).ToNot(HaveOccurred())
+	}
+}
 
-				By("Trying to update the existing secret with a new value")
-				newSecret := map[string]string{"key": "new value"}
-				err = secretStorer.Apply(ctx, nil, secretMeta, newSecret)
-				Expect(err).To(HaveOccurred())
-				Expect(err).To(Equal(fmt.Errorf("existing secret %s not managed by nauth", secretRef)))
+func (t *SecretClientTestSuite) Test_Delete_ShouldSucceed_WhenSecretDoesNotExist() {
+	nonExistingSecretRef := domain.NewNamespacedName(testNamespace, "non-existing-secret")
+	t.Require().NoError(nonExistingSecretRef.Validate())
 
-				By("Retrieving the secret again to verify not mutated")
-				newFetchedSecret, err := secretStorer.Get(ctx, secretRef)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(newFetchedSecret).ToNot(BeNil())
-				Expect(newFetchedSecret).To(Equal(existingSecret))
-			},
-			Entry("due to absent labels map",
-				nil),
-			Entry("due to empty labels map",
-				map[string]string{}),
-			Entry("due to irrelevant labels",
-				map[string]string{"foo": "bar"}),
-			Entry("due to existing managed label with unexpected value",
-				map[string]string{LabelManaged: "false"}))
+	err := t.unitUnderTest.Delete(t.ctx, nonExistingSecretRef)
 
-		It("should return success when deleting a non existing secret", func() {
-			nonExistingSecretRef := domain.NewNamespacedName(namespace, "non-existing-secret")
-			Expect(secretRef.Validate()).NotTo(HaveOccurred())
+	t.NoError(err)
+}
 
-			By("Trying to delete a non-existing secret")
-			err := secretStorer.Delete(ctx, nonExistingSecretRef)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		It("should return an error when the secret does not exist", func() {
-			nonExistingSecretRef := domain.NewNamespacedName(namespace, "non-existing-secret")
-			Expect(secretRef.Validate()).NotTo(HaveOccurred())
+func (t *SecretClientTestSuite) Test_Get_ShouldFail_WhenSecretDoesNotExist() {
+	nonExistingSecretRef := domain.NewNamespacedName(testNamespace, "non-existing-secret")
+	t.Require().NoError(nonExistingSecretRef.Validate())
 
-			By("Trying to retrieve a non-existing secret")
-			_, err := secretStorer.Get(ctx, nonExistingSecretRef)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNotFound))
-		})
-		It("should return success when deleting existing secret", func() {
-			By("Creating a new secret from scratch")
-			secret := map[string]string{"key": "value"}
-			err := secretStorer.Apply(ctx, nil, secretMeta, secret)
-			Expect(err).ToNot(HaveOccurred())
+	result, err := t.unitUnderTest.Get(t.ctx, nonExistingSecretRef)
 
-			By("Deleting the secret")
-			err = secretStorer.Delete(ctx, secretRef)
-			Expect(err).ToNot(HaveOccurred())
+	t.Error(err)
+	t.Nil(result)
+	t.ErrorIs(err, ErrNotFound)
+}
 
-			By("Retrieving the deleted secret")
-			_, err = secretStorer.Get(ctx, secretRef)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNotFound))
-		})
-	})
-})
+func (t *SecretClientTestSuite) Test_Delete_ShouldSucceed_WhenSecretExists() {
+	secret := map[string]string{"key": "value"}
+	err := t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, secret)
+	t.Require().NoError(err)
 
-func cleanSecret(namespace string, name string) error {
+	err = t.unitUnderTest.Delete(t.ctx, t.secretRef)
+
+	t.NoError(err)
+
+	result, getErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	t.Error(getErr)
+	t.Nil(result)
+	t.ErrorIs(getErr, ErrNotFound)
+}
+
+func cleanSecret(ctx context.Context, secretRef domain.NamespacedName) error {
 	k8sSecret := &v1.Secret{}
 
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+	key := client.ObjectKey{Namespace: secretRef.Namespace, Name: secretRef.Name}
 	if err := k8sClient.Get(ctx, key, k8sSecret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
-	err := k8sClient.Delete(ctx, k8sSecret)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return k8sClient.Delete(ctx, k8sSecret)
+}
+
+func sanitizeTestName(name string) string {
+	replacer := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-", "_", "-")
+	return strings.ToLower(replacer.Replace(name))
+}
+
+func TestSanitizeTestName(t *testing.T) {
+	require.Equal(t, "test-name", sanitizeTestName("Test Name"))
 }

@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
-
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,8 +36,7 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-// These tests use Ginkgo (BDD-style Go testing framework). Refer to
-// http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
+const testNamespace = "k8s-adapter-test"
 
 var (
 	ctx       context.Context
@@ -47,50 +46,53 @@ var (
 	k8sClient client.Client
 )
 
-func TestK8sSecrets(t *testing.T) {
-	RegisterFailHandler(Fail)
+func TestMain(m *testing.M) {
+	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
-	RunSpecs(t, "K8sSecrets Suite")
-}
-
-var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
-
-	ctx, cancel = context.WithCancel(context.TODO())
+	ctx, cancel = context.WithCancel(context.Background())
 
 	var err error
 	err = v1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	if err != nil {
+		panic(err)
+	}
 
-	// +kubebuilder:scaffold:scheme
-
-	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "charts", "nauth", "resources", "crds")},
 		ErrorIfCRDPathMissing: true,
 	}
 
-	// Retrieve the first found binary directory to allow running tests from IDEs
-	if getFirstFoundEnvTestBinaryDir() != "" {
-		testEnv.BinaryAssetsDirectory = getFirstFoundEnvTestBinaryDir()
+	binaryAssetsDir := getFirstFoundEnvTestBinaryDir()
+	if binaryAssetsDir != "" {
+		testEnv.BinaryAssetsDirectory = binaryAssetsDir
 	}
 
-	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()
-	Expect(err).NotTo(HaveOccurred())
-	Expect(cfg).NotTo(BeNil())
+	if err != nil {
+		panic(err)
+	}
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
-})
+	if err != nil {
+		panic(err)
+	}
 
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
+	err = k8sClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: testNamespace},
+	})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		panic(err)
+	}
+
+	code := m.Run()
+
 	cancel()
-	err := testEnv.Stop()
-	Expect(err).NotTo(HaveOccurred())
-})
+	if err := testEnv.Stop(); err != nil {
+		panic(err)
+	}
+
+	os.Exit(code)
+}
 
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
 // ENVTEST-based tests depend on specific binaries, usually located in paths set by

@@ -2,119 +2,117 @@ package k8s
 
 import (
 	"context"
+	"testing"
 
 	"github.com/WirelessCar/nauth/internal/domain"
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("ConfigMap client", func() {
-	Context("When reading ConfigMaps", func() {
-		const (
-			configmapName = "test-configmap"
-			namespace     = "default"
-		)
+type ConfigMapClientTestSuite struct {
+	suite.Suite
+	ctx          context.Context
+	configMapRef domain.NamespacedName
 
-		ctx := context.Background()
-		var cmClient *ConfigMapClient
-		var configMapRef domain.NamespacedName
+	unitUnderTest *ConfigMapClient
+}
 
-		BeforeEach(func() {
-			cmClient = NewConfigMapClient(k8sClient)
-			configMapRef = domain.NewNamespacedName(namespace, configmapName)
-			Expect(configMapRef.Validate()).To(Succeed())
-		})
+func TestConfigMapClient_TestSuite(t *testing.T) {
+	suite.Run(t, new(ConfigMapClientTestSuite))
+}
 
-		AfterEach(func() {
-			By("cleaning up the ConfigMap")
-			_ = cleanConfigMap(namespace, configmapName)
-		})
+func (t *ConfigMapClientTestSuite) SetupTest() {
+	t.ctx = context.Background()
+	t.configMapRef = domain.NewNamespacedName(testNamespace, sanitizeTestName(t.T().Name()))
+	t.Require().NoError(t.configMapRef.Validate())
+	t.unitUnderTest = NewConfigMapClient(k8sClient)
+	t.Require().NoError(cleanConfigMap(t.ctx, t.configMapRef))
+}
 
-		It("returns ErrNotFound when the ConfigMap does not exist", func() {
-			configMapRef := domain.NewNamespacedName(namespace, "non-existing-configmap")
-			Expect(configMapRef.Validate()).To(Succeed())
+func (t *ConfigMapClientTestSuite) TearDownTest() {
+	t.Require().NoError(cleanConfigMap(t.ctx, t.configMapRef))
+}
 
-			By("getting a non-existing ConfigMap")
-			_, err := cmClient.Get(ctx, configMapRef)
-			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(ErrNotFound))
-		})
+func (t *ConfigMapClientTestSuite) Test_Get_ShouldFail_WhenConfigMapDoesNotExist() {
+	nonExistingConfigMapRef := domain.NewNamespacedName(testNamespace, "non-existing-configmap")
+	t.Require().NoError(nonExistingConfigMapRef.Validate())
 
-		It("retrieves ConfigMap Data keys", func() {
-			By("creating a ConfigMap with Data")
-			cm := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configmapName,
-					Namespace: namespace,
-				},
-				Data: map[string]string{
-					"url":   "nats://nats.example.com:4222",
-					"other": "value",
-				},
-			}
-			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+	result, err := t.unitUnderTest.Get(t.ctx, nonExistingConfigMapRef)
 
-			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, configMapRef)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(data).To(HaveKeyWithValue("url", "nats://nats.example.com:4222"))
-			Expect(data).To(HaveKeyWithValue("other", "value"))
-			Expect(data).To(HaveLen(2))
-		})
+	t.Error(err)
+	t.Nil(result)
+	t.Equal(ErrNotFound, err)
+}
 
-		It("retrieves ConfigMap BinaryData keys", func() {
-			By("creating a ConfigMap with BinaryData")
-			cm := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configmapName,
-					Namespace: namespace,
-				},
-				BinaryData: map[string][]byte{
-					"url": []byte("nats://nats.example.com:4222"),
-				},
-			}
-			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+func (t *ConfigMapClientTestSuite) Test_Get_ShouldSucceed_WhenConfigMapContainsData() {
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.configMapRef.Name,
+			Namespace: t.configMapRef.Namespace,
+		},
+		Data: map[string]string{
+			"url":   "nats://nats.example.com:4222",
+			"other": "value",
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, cm))
 
-			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, configMapRef)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(data).To(HaveKeyWithValue("url", "nats://nats.example.com:4222"))
-			Expect(data).To(HaveLen(1))
-		})
+	data, err := t.unitUnderTest.Get(t.ctx, t.configMapRef)
 
-		It("retrieves both Data and BinaryData keys", func() {
-			By("creating a ConfigMap with Data and BinaryData")
-			cm := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      configmapName,
-					Namespace: namespace,
-				},
-				Data: map[string]string{
-					"data-key": "data-value",
-				},
-				BinaryData: map[string][]byte{
-					"binary-key": []byte("binary-value"),
-				},
-			}
-			Expect(k8sClient.Create(ctx, cm)).To(Succeed())
+	t.NoError(err)
+	t.Equal("nats://nats.example.com:4222", data["url"])
+	t.Equal("value", data["other"])
+	t.Len(data, 2)
+}
 
-			By("getting the ConfigMap")
-			data, err := cmClient.Get(ctx, configMapRef)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(data).To(HaveKeyWithValue("data-key", "data-value"))
-			Expect(data).To(HaveKeyWithValue("binary-key", "binary-value"))
-			Expect(data).To(HaveLen(2))
-		})
-	})
-})
+func (t *ConfigMapClientTestSuite) Test_Get_ShouldSucceed_WhenConfigMapContainsBinaryData() {
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.configMapRef.Name,
+			Namespace: t.configMapRef.Namespace,
+		},
+		BinaryData: map[string][]byte{
+			"url": []byte("nats://nats.example.com:4222"),
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, cm))
 
-func cleanConfigMap(namespace string, name string) error {
+	data, err := t.unitUnderTest.Get(t.ctx, t.configMapRef)
+
+	t.NoError(err)
+	t.Equal("nats://nats.example.com:4222", data["url"])
+	t.Len(data, 1)
+}
+
+func (t *ConfigMapClientTestSuite) Test_Get_ShouldSucceed_WhenConfigMapContainsDataAndBinaryData() {
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.configMapRef.Name,
+			Namespace: t.configMapRef.Namespace,
+		},
+		Data: map[string]string{
+			"data-key": "data-value",
+		},
+		BinaryData: map[string][]byte{
+			"binary-key": []byte("binary-value"),
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, cm))
+
+	data, err := t.unitUnderTest.Get(t.ctx, t.configMapRef)
+
+	t.NoError(err)
+	t.Equal("data-value", data["data-key"])
+	t.Equal("binary-value", data["binary-key"])
+	t.Len(data, 2)
+}
+
+func cleanConfigMap(ctx context.Context, configMapRef domain.NamespacedName) error {
 	cm := &v1.ConfigMap{}
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+	key := client.ObjectKey{Namespace: configMapRef.Namespace, Name: configMapRef.Name}
 	if err := k8sClient.Get(ctx, key, cm); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil

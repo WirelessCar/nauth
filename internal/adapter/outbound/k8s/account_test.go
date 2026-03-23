@@ -2,82 +2,71 @@ package k8s
 
 import (
 	"context"
+	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
-	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/suite"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Account getter", func() {
-	Context("When getting account CRs", func() {
-		const (
-			accountName = "test-account"
-			namespace   = "default"
-		)
+type AccountClientTestSuite struct {
+	suite.Suite
+	ctx        context.Context
+	accountRef domain.NamespacedName
 
-		ctx := context.Background()
-		var accountRef domain.NamespacedName
+	unitUnderTest *AccountClient
+}
 
-		BeforeEach(func() {
-			accountRef = domain.NewNamespacedName(namespace, accountName)
-			Expect(accountRef.Validate()).To(Succeed())
-			By("creating account to fetch")
-			Expect(createAccount(namespace, accountName)).To(Succeed())
-		})
+func TestAccountClient_TestSuite(t *testing.T) {
+	suite.Run(t, new(AccountClientTestSuite))
+}
 
-		AfterEach(func() {
-			By("cleaning up the accounts")
-			err := cleanAccount(namespace, accountName)
-			Expect(err).ToNot(HaveOccurred())
-		})
+func (t *AccountClientTestSuite) SetupTest() {
+	t.ctx = context.Background()
+	t.accountRef = domain.NewNamespacedName(testNamespace, sanitizeTestName(t.T().Name()))
+	t.Require().NoError(t.accountRef.Validate())
+	t.unitUnderTest = NewAccountClient(k8sClient)
+	t.Require().NoError(cleanAccount(t.ctx, t.accountRef))
+	t.Require().NoError(createAccount(t.ctx, t.accountRef))
+}
 
-		It("does not allow non-ready accounts by default", func() {
-			By("setting up a default account getter")
-			accountGetter := NewAccountClient(k8sClient)
-			By("getting the account")
-			fetchedAccount, err := accountGetter.Get(ctx, accountRef)
+func (t *AccountClientTestSuite) TearDownTest() {
+	t.Require().NoError(cleanAccount(t.ctx, t.accountRef))
+}
 
-			By("verifying the fetched account")
-			Expect(err).To(HaveOccurred())
-			Expect(fetchedAccount).To(BeNil())
-		})
+func (t *AccountClientTestSuite) Test_Get_ShouldFail_WhenAccountIsNotReady() {
+	fetchedAccount, err := t.unitUnderTest.Get(t.ctx, t.accountRef)
 
-		It("fetches the relevant ready account", func() {
-			By("setting up a default account getter")
-			accountGetter := NewAccountClient(k8sClient)
+	t.Error(err)
+	t.Nil(fetchedAccount)
+}
 
-			By("reconciling target account successfully")
-			err := accountIsReady(namespace, accountName)
-			Expect(err).ToNot(HaveOccurred())
+func (t *AccountClientTestSuite) Test_Get_ShouldSucceed_WhenAccountIsReady() {
+	t.Require().NoError(accountIsReady(t.ctx, t.accountRef))
 
-			By("getting the account")
-			fetchedAccount, err := accountGetter.Get(ctx, accountRef)
+	fetchedAccount, err := t.unitUnderTest.Get(t.ctx, t.accountRef)
 
-			By("verifying the fetched account")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fetchedAccount).ToNot(BeNil())
-			Expect(fetchedAccount.Name).To(Equal(accountName))
-		})
-	})
-})
+	t.NoError(err)
+	t.NotNil(fetchedAccount)
+	t.Equal(t.accountRef.Name, fetchedAccount.Name)
+}
 
-func createAccount(namespace string, name string) error {
+func createAccount(ctx context.Context, accountRef domain.NamespacedName) error {
 	account := &v1alpha1.Account{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      accountRef.Name,
+			Namespace: accountRef.Namespace,
 		},
 	}
 
 	return k8sClient.Create(ctx, account)
 }
 
-func accountIsReady(namespace string, name string) error {
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+func accountIsReady(ctx context.Context, accountRef domain.NamespacedName) error {
+	key := client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}
 	account := &v1alpha1.Account{}
 
 	err := k8sClient.Get(ctx, key, account)
@@ -85,27 +74,23 @@ func accountIsReady(namespace string, name string) error {
 		return err
 	}
 
-	accountLabels := map[string]string{
+	account.SetLabels(map[string]string{
 		LabelAccountID: "account-id",
-	}
-	account.SetLabels(accountLabels)
+	})
 
 	return k8sClient.Update(ctx, account)
 }
 
-func cleanAccount(namespace string, name string) error {
+func cleanAccount(ctx context.Context, accountRef domain.NamespacedName) error {
 	account := &v1alpha1.Account{}
 
-	key := client.ObjectKey{Namespace: namespace, Name: name}
+	key := client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}
 	if err := k8sClient.Get(ctx, key, account); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	}
-	err := k8sClient.Delete(ctx, account)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	return k8sClient.Delete(ctx, account)
 }
