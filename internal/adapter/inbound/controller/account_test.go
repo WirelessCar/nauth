@@ -174,7 +174,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
-	t.False(account.ObjectMeta.DeletionTimestamp.IsZero())
+	t.False(account.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
@@ -213,7 +213,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
-	t.False(account.ObjectMeta.DeletionTimestamp.IsZero())
+	t.False(account.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())

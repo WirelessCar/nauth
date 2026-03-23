@@ -135,7 +135,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeleti
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.False(user.ObjectMeta.DeletionTimestamp.IsZero())
+	t.False(user.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
 	t.userManagerMock.AssertExpectations(t.T())
@@ -177,7 +177,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.False(user.ObjectMeta.DeletionTimestamp.IsZero())
+	t.False(user.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
 	t.userManagerMock.AssertExpectations(t.T())
