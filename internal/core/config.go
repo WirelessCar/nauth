@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -13,19 +12,13 @@ import (
 type Config struct {
 	OperatorNatsCluster *OperatorNatsCluster
 	// OperatorNamespace is the Kubernetes namespace where the operator is deployed.
-	// TODO: [#102][#144] When sunsetting DefaultNatsURL, remove this field if it no longer serves a purpose.
 	OperatorNamespace domain.Namespace
-	// DefaultNatsURL is a comma-separated list of NATS server URLs to use when OperatorNatsCluster is not configured.
-	// Deprecated: This field is deprecated and will be removed in a future release.
-	// TODO: [#102][#144] Sunset DefaultNatsURL (NATS_URL)
-	DefaultNatsURL string
 }
 
-func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace domain.Namespace, defaultNatsURL string) (*Config, error) {
+func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace domain.Namespace) (*Config, error) {
 	config := &Config{
 		OperatorNatsCluster: operatorNatsCluster,
 		OperatorNamespace:   operatorNamespace,
-		DefaultNatsURL:      defaultNatsURL,
 	}
 	if err := config.validate(); err != nil {
 		return nil, err
@@ -34,9 +27,6 @@ func NewConfig(operatorNatsCluster *OperatorNatsCluster, operatorNamespace domai
 }
 
 func (c *Config) validate() error {
-	if c.OperatorNatsCluster != nil && c.DefaultNatsURL != "" {
-		return fmt.Errorf("operator NATS cluster and default NATS URL cannot both be set; when operator NATS cluster is configured it supersedes default NATS URL")
-	}
 	if c.OperatorNatsCluster != nil {
 		if err := c.OperatorNatsCluster.validate(); err != nil {
 			return fmt.Errorf("invalid operator NATS cluster: %w", err)
@@ -45,32 +35,6 @@ func (c *Config) validate() error {
 	if c.OperatorNamespace != "" {
 		if err := c.OperatorNamespace.Validate(); err != nil {
 			return fmt.Errorf("invalid operator namespace %q: %s", c.OperatorNamespace, err)
-		}
-	}
-	if c.DefaultNatsURL != "" {
-		if err := validateNatsURLs(c.DefaultNatsURL); err != nil {
-			return fmt.Errorf("invalid default NATS URL %q: %w", c.DefaultNatsURL, err)
-		}
-	}
-
-	return nil
-}
-
-func validateNatsURLs(value string) error {
-	for _, natsURL := range strings.Split(value, ",") {
-		if strings.TrimSpace(natsURL) == "" {
-			return fmt.Errorf("contains an empty URL entry")
-		}
-
-		parsedURL, err := url.Parse(natsURL)
-		if err != nil {
-			return fmt.Errorf("parse URL %q: %w", natsURL, err)
-		}
-		if parsedURL.Scheme == "" {
-			return fmt.Errorf("URL %q must include a scheme", natsURL)
-		}
-		if parsedURL.Host == "" {
-			return fmt.Errorf("URL %q must include a host", natsURL)
 		}
 	}
 

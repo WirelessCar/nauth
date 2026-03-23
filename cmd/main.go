@@ -224,9 +224,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: [#102][#144] Sunset NATS_URL in favor of explicit NatsClusterRef + NatsCluster resources.
-	defaultNatsURL := os.Getenv("NATS_URL")
-
 	var operatorNatsCluster *core.OperatorNatsCluster
 	natsClusterRef := strings.TrimSpace(os.Getenv("NATS_CLUSTER_REF"))
 	natsClusterRefOptional := false
@@ -263,7 +260,7 @@ func main() {
 		namespace = string(controllerNamespace)
 	}
 
-	config, err := core.NewConfig(operatorNatsCluster, domain.Namespace(namespace), defaultNatsURL)
+	config, err := core.NewConfig(operatorNatsCluster, domain.Namespace(namespace))
 	if err != nil {
 		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)

@@ -110,11 +110,6 @@ func (s *SecretClientMock) mockGetByLabelsSimplified(namespace domain.Namespace,
 	s.mockGetByLabels(namespace, labels, secretList)
 }
 
-func (s *SecretClientMock) mockGetByLabelsSimple(namespace domain.Namespace, labels map[string]string, key string, value []byte) {
-	result := &corev1.SecretList{Items: []corev1.Secret{{Data: map[string][]byte{key: value}}}}
-	s.mockGetByLabels(namespace, labels, result)
-}
-
 func (s *SecretClientMock) Delete(ctx context.Context, namespacedName domain.NamespacedName) error {
 	args := s.Called(ctx, namespacedName)
 	return args.Error(0)

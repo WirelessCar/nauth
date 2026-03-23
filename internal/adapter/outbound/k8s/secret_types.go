@@ -6,11 +6,9 @@ const (
 )
 
 const (
-	SecretTypeAccountRoot            = "account-root"
-	SecretTypeAccountSign            = "account-sign"
-	SecretTypeOperatorSign           = "operator-sign"
-	SecretTypeSystemAccountUserCreds = "system-account-user-creds"
-	SecretTypeUserCredentials        = "user-creds"
-	DefaultSecretKeyName             = "default"
-	UserCredentialSecretKeyName      = "user.creds"
+	SecretTypeAccountRoot       = "account-root"
+	SecretTypeAccountSign       = "account-sign"
+	SecretTypeUserCredentials   = "user-creds"
+	DefaultSecretKeyName        = "default"
+	UserCredentialSecretKeyName = "user.creds"
 )

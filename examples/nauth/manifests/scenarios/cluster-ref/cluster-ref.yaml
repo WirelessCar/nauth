@@ -1,4 +1,4 @@
-# Cluster-ref scenario: using NatsClusterRef instead of deprecated NATS_URL + label-based secrets.
+# Cluster-ref scenario: using NatsClusterRef to reference a NatsCluster for Account.
 #
 # Prerequisites:
 # - Create an operator signing key secret (e.g. my-operator-signing-key) with key "seed"
@@ -6,7 +6,7 @@
 # - Create a ConfigMap or Secret containing the NATS URL (see nats-url-config below)
 #
 # This approach allows multiple NatsClusters in the cluster and lets Accounts/Users
-# target a specific cluster via natsClusterRef instead of relying on NATS_URL env var.
+# target a specific cluster via natsClusterRef.
 ---
 apiVersion: v1
 kind: Namespace

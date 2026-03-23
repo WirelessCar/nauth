@@ -32,9 +32,6 @@ Nauth requires the **system account user credentials** and the [**operator signi
 
 You can provide and resolve these secrets in three ways:
 
-> [!WARNING]
-> `NATS_URL` and the implicit label-based lookup path are deprecated and will be sunset in favor of explicit `NatsClusterRef` + `NatsCluster` resources (tracking: [#102](https://github.com/WirelessCar/nauth/issues/102)).
-
 **A.** For single-cluster deployments, set `NATS_CLUSTER_REF` on the nauth controller (`namespace/name`, for example `nats/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
    - Default behavior (`NATS_CLUSTER_REF_OPTIONAL=false`) is strict mode: account-level `spec.natsClusterRef` must match `NATS_CLUSTER_REF`.
    - `NATS_CLUSTER_REF_OPTIONAL=true` is explicit opt-in default mode: accounts without `spec.natsClusterRef` use `NATS_CLUSTER_REF`, while accounts may override with their own ref.
@@ -44,10 +41,6 @@ You can provide and resolve these secrets in three ways:
      3) Remove `NATS_CLUSTER_REF` and rely on explicit `spec.natsClusterRef` in each `Account`.
 
 **B.** Define an explicit `spec.natsClusterRef` reference in each `Account` CR to a specific `NatsCluster`.
-
-**C. (Deprecated)** Use the legacy label-based lookup together with `NATS_URL`:
-   - `nauth.io/secret-type: system-account-user-creds`
-   - `nauth.io/secret-type: operator-sign`
 
 You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml.md). 
 For a more secrets related example on how to set up NAuth using explicit secrets lookup based on `NatsClusterRef` and `NatsCluster` resources, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).

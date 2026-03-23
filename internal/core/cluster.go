@@ -152,7 +152,7 @@ func (r *ClusterManager) GetClusterTarget(ctx context.Context, accountClusterRef
 	} else if opClusterRef := r.operatorClusterRef(); opClusterRef != nil {
 		result, err = r.resolveTarget(ctx, *opClusterRef)
 	} else {
-		result, err = r.resolveTargetFromImplicitLookup(ctx)
+		return nil, fmt.Errorf("no cluster reference provided and no operator cluster configured")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("resolve cluster target: %w", err)
@@ -198,32 +198,6 @@ func (r *ClusterManager) resolveTargetFromCluster(ctx context.Context, cluster *
 	return target, nil
 }
 
-// resolveTargetFromImplicitLookup performs a best-effort resolution of cluster connection details based on the presence
-// of a default NATS URL and labeled secrets in the operator namespace.
-// Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *ClusterManager) resolveTargetFromImplicitLookup(ctx context.Context) (*clusterTarget, error) {
-	// TODO: [#102][#144] Sunset label-based secret lookup.
-	if r.config.DefaultNatsURL == "" {
-		return nil, fmt.Errorf("default NATS URL is not configured for implicit cluster lookup")
-	}
-	if r.config.OperatorNamespace == "" {
-		return nil, fmt.Errorf("operator namespace is required for implicit cluster lookup")
-	}
-	sysAdminCreds, err := r.resolveSysAdminCredsViaLabels(ctx, r.config.OperatorNamespace)
-	if err != nil {
-		return nil, fmt.Errorf("resolve system account user creds via labels: %w", err)
-	}
-	opSigningKey, err := r.resolveOperatorSigningKeyViaLabels(ctx, r.config.OperatorNamespace)
-	if err != nil {
-		return nil, fmt.Errorf("resolve operator signing key via labels: %w", err)
-	}
-	target, err := newClusterTarget(r.config.DefaultNatsURL, *sysAdminCreds, opSigningKey)
-	if err != nil {
-		return nil, fmt.Errorf("create cluster target from implicit lookup: %w", err)
-	}
-	return target, nil
-}
-
 func (r *ClusterManager) resolveSysAdminCreds(ctx context.Context, cluster *v1alpha1.NatsCluster) (*domain.NatsUserCreds, error) {
 	secretKeyRef := cluster.Spec.SystemAccountUserCredsSecretRef
 	secretRef := domain.NewNamespacedName(cluster.GetNamespace(), secretKeyRef.Name)
@@ -234,23 +208,6 @@ func (r *ClusterManager) resolveSysAdminCreds(ctx context.Context, cluster *v1al
 	userCreds, err := domain.NewNatsUserCreds(creds)
 	if err != nil {
 		return nil, fmt.Errorf("invalid user creds: %w", err)
-	}
-	return userCreds, nil
-}
-
-// Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *ClusterManager) resolveSysAdminCredsViaLabels(ctx context.Context, namespace domain.Namespace) (*domain.NatsUserCreds, error) {
-	labels := map[string]string{
-		k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds,
-	}
-	creds, err := r.resolveSecretByLabels(ctx, namespace, labels)
-	if err != nil {
-		return nil, fmt.Errorf("resolve system account user creds via labels in namespace %s: %w", namespace, err)
-	}
-
-	userCreds, err := domain.NewNatsUserCreds(creds)
-	if err != nil {
-		return nil, fmt.Errorf("invalid system account user creds found via labels in namespace %s: %w", namespace, err)
 	}
 	return userCreds, nil
 }
@@ -267,38 +224,6 @@ func (r *ClusterManager) resolveOperatorSigningKey(ctx context.Context, cluster 
 		return nil, fmt.Errorf("invalid operator signing key: %w", err)
 	}
 	return opSigningKey, nil
-}
-
-// Deprecated: This method relies on legacy patterns and will sunset in a future release.
-func (r *ClusterManager) resolveOperatorSigningKeyViaLabels(ctx context.Context, namespace domain.Namespace) (domain.NatsOperatorSigningKey, error) {
-	labels := map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign}
-	seed, err := r.resolveSecretByLabels(ctx, namespace, labels)
-	if err != nil {
-		return nil, fmt.Errorf("resolve operator signing key via labels: %w", err)
-	}
-	keyPair, err := nkeys.FromSeed(seed)
-	if err != nil {
-		return nil, fmt.Errorf("invalid operator signing key in secret found via labels in namespace %s: %w", namespace, err)
-	}
-	return keyPair, err
-}
-
-func (r *ClusterManager) resolveSecretByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) ([]byte, error) {
-	secrets, err := r.secretReader.GetByLabels(ctx, namespace, labels)
-	if err != nil {
-		return nil, fmt.Errorf("get secrets by labels %v in namespace %q: %w", labels, namespace, err)
-	}
-	if len(secrets.Items) == 0 {
-		return nil, fmt.Errorf("no secrets found with labels %v in namespace %q", labels, namespace)
-	}
-	if len(secrets.Items) > 1 {
-		return nil, fmt.Errorf("multiple secrets found with labels %v in namespace %q, expected exactly one", labels, namespace)
-	}
-	value, ok := secrets.Items[0].Data[k8s.DefaultSecretKeyName]
-	if !ok {
-		return nil, fmt.Errorf("secret %s/%s found with labels %v does not contain key %q", namespace, secrets.Items[0].Name, labels, k8s.DefaultSecretKeyName)
-	}
-	return value, nil
 }
 
 func (r *ClusterManager) resolveSecret(ctx context.Context, namespacedName domain.NamespacedName, key string) ([]byte, error) {

@@ -43,37 +43,13 @@ func TestClusterManager_TestSuite(t *testing.T) {
 	suite.Run(t, new(ClusterTestSuite))
 }
 
-func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenLegacyImplicitLookup() {
-	// Given
-	unitUnderTest := t.newUnitUnderTest(nil, false, "nats", "nats://nats:4222")
-
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-	t.secretClientMock.mockGetByLabelsSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeOperatorSign},
-		k8s.DefaultSecretKeyName, opSignSeed)
-	t.secretClientMock.mockGetByLabelsSimple("nats", map[string]string{k8s.LabelSecretType: k8s.SecretTypeSystemAccountUserCreds},
-		k8s.DefaultSecretKeyName, sauCreds.Creds)
-
-	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
-
-	// Then
-	require.NoError(t.T(), err)
-	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
-		NatsURL:            "nats://nats:4222",
-		SystemAdminCreds:   sauCreds,
-		OperatorSigningKey: opSignKey,
-	}, result)
-}
-
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClusterRef() {
 	// Given
 	opClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
@@ -109,7 +85,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClust
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountClusterRef() {
 	// Given´
-	unitUnderTest := t.newUnitUnderTest(nil, false, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(nil, false, "nats")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -153,7 +129,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(clusterRef, false, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(clusterRef, false, "nats")
 
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
@@ -193,7 +169,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -237,7 +213,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterRe
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -258,7 +234,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenOperatorClusterN
 		Namespace: "my-namespace",
 		Name:      "my-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
 
 	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, domain.NewNamespacedName("my-namespace", "my-cluster"),
 		fmt.Errorf("the root cause"))
@@ -271,13 +247,25 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenOperatorClusterN
 	require.Nil(t.T(), result)
 }
 
+func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenNeitherAccountNorOperatorClusterRefDefined() {
+	// Given
+	unitUnderTest := t.newUnitUnderTest(nil, false, "nats")
+
+	// When
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
+
+	// Then
+	require.ErrorContains(t.T(), err, "no cluster reference provided and no operator cluster configured")
+	require.Nil(t.T(), result)
+}
+
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterNotFound() {
 	// Given
 	opClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "op-namespace",
 		Name:      "op-cluster",
 	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats", "")
+	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats")
 
 	acClusterRef := &v1alpha1.NatsClusterRef{
 		Namespace: "ac-namespace",
@@ -307,30 +295,6 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterRe
 
 	// Then
 	require.ErrorContains(t.T(), err, "invalid account cluster reference: namespace required")
-	require.Nil(t.T(), result)
-}
-
-func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenLegacyLookupAndDefaultNatsURLNotProvided() {
-	// Given
-	unitUnderTest := t.newUnitUnderTest(nil, false, "nats", "")
-
-	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
-
-	// Then
-	require.ErrorContains(t.T(), err, "resolve cluster target: default NATS URL is not configured for implicit cluster lookup")
-	require.Nil(t.T(), result)
-}
-
-func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenLegacyLookupAndOperatorNamespaceNotProvided() {
-	// Given
-	unitUnderTest := t.newUnitUnderTest(nil, false, "", "nats://nats:4222")
-
-	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
-
-	// Then
-	require.ErrorContains(t.T(), err, "resolve cluster target: operator namespace is required for implicit cluster lookup")
 	require.Nil(t.T(), result)
 }
 
@@ -587,10 +551,10 @@ func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenVerifySystemAccountAcces
 }
 
 func (t *ClusterTestSuite) newUnitUnderTestWithDefaults() *ClusterManager {
-	return t.newUnitUnderTest(nil, false, "", "")
+	return t.newUnitUnderTest(nil, false, "")
 }
 
-func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace domain.Namespace, defaultNatsURL string) *ClusterManager {
+func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace domain.Namespace) *ClusterManager {
 	var operatorNatsCluster *OperatorNatsCluster
 	var err error
 	if opClusterRef != nil {
@@ -601,7 +565,7 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 		}
 	}
 
-	config, err := NewConfig(operatorNatsCluster, opNamespace, defaultNatsURL)
+	config, err := NewConfig(operatorNatsCluster, opNamespace)
 	if err != nil {
 		t.Failf("failed to create operator config", "error: %v", err)
 		return nil

@@ -19,7 +19,6 @@
 | nameOverride | string | `""` | Override the chart name |
 | namespace | object | `{"nameOverride":""}` | Override the namespace |
 | namespaced | bool | `false` | If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched. |
-| nats.url | string | `""` | DEPRECATED legacy implicit lookup URL (`NATS_URL`). Prefer `nats.clusterRef.*`; `nats.url` is valid only when `nats.clusterRef.name` is empty and must not be set together with it (sunset tracked in `#102`). |
 | nats.clusterRef | object | `{"name":"","namespace":"","optional":false}` | Operator NatsCluster reference object. Set `name` to enable operator-level binding. |
 | nats.clusterRef.name | string | `""` | NatsCluster resource name. Leave empty to disable operator-level binding. |
 | nats.clusterRef.namespace | string | `""` | NatsCluster resource namespace. When empty and `name` is set, defaults to the chart namespace. |

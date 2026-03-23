@@ -35,7 +35,7 @@ The task scripts live under `.mise-tasks/nauth` and can be run individually.
 ## Local overrides
 
 - `local/nats/values.yaml`: NATS chart overrides for the test environment.
-- `local/nauth/values.yaml`: Nauth chart overrides for the test environment (no legacy `nats.url` override).
+- `local/nauth/values.yaml`: Nauth chart overrides for the test environment.
 - `local/nauth/manifests/operator.yaml`: shared bootstrap manifests applied during setup, including `NatsCluster` (`local-nats`) and referenced secrets.
 - `local/prometheus/values.yaml`: Prometheus chart overrides (if used).
 

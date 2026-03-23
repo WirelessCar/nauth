@@ -152,13 +152,3 @@ tests:
           content:
             name: NATS_CLUSTER_REF_OPTIONAL
             value: "false"
-
-  - it: fails when nats.url and nats.clusterRef.name are both set
-    set:
-      nats:
-        url: nats://nats.nats.svc.cluster.local:4222
-        clusterRef:
-          name: shared-cluster
-    asserts:
-      - failedTemplate:
-          errorMessage: "nats.url and nats.clusterRef.name cannot both be set"

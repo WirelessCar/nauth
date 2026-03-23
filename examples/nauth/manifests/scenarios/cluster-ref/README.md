@@ -1,6 +1,6 @@
 # Cluster-ref scenario
 
-This scenario demonstrates the **cluster approach**: using `NatsCluster` and `natsClusterRef` instead of the legacy `NATS_URL` environment variable and label-based secrets.
+This scenario demonstrates the **cluster approach**: using `NatsCluster` and `natsClusterRef`.
 
 ## Overview
 

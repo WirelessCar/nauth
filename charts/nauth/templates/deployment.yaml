@@ -42,13 +42,6 @@ spec:
             {{- end }}
           name: manager
           env:
-            {{- if and .Values.nats.url .Values.nats.clusterRef.name }}
-            {{- fail "nats.url and nats.clusterRef.name cannot both be set" }}
-            {{- end }}
-            {{- if .Values.nats.url }}
-            - name: NATS_URL
-              value: {{ .Values.nats.url | quote }}
-            {{- end }}
             {{- if .Values.nats.clusterRef.name }}
             - name: NATS_CLUSTER_REF
               value: {{ default (include "nauth.namespaceName" .) .Values.nats.clusterRef.namespace }}/{{ .Values.nats.clusterRef.name }}
