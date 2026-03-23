@@ -1,9 +1,8 @@
-package configmap
+package k8s
 
 import (
 	"context"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	. "github.com/onsi/ginkgo/v2" // TODO: [#183] Replace Ginkgo tests with Testify
 	. "github.com/onsi/gomega"
@@ -21,11 +20,11 @@ var _ = Describe("ConfigMap client", func() {
 		)
 
 		ctx := context.Background()
-		var cmClient *Client
+		var cmClient *ConfigMapClient
 		var configMapRef domain.NamespacedName
 
 		BeforeEach(func() {
-			cmClient = NewClient(k8sClient)
+			cmClient = NewConfigMapClient(k8sClient)
 			configMapRef = domain.NewNamespacedName(namespace, configmapName)
 			Expect(configMapRef.Validate()).To(Succeed())
 		})
@@ -42,7 +41,7 @@ var _ = Describe("ConfigMap client", func() {
 			By("getting a non-existing ConfigMap")
 			_, err := cmClient.Get(ctx, configMapRef)
 			Expect(err).To(HaveOccurred())
-			Expect(err).To(Equal(k8s.ErrNotFound))
+			Expect(err).To(Equal(ErrNotFound))
 		})
 
 		It("retrieves ConfigMap Data keys", func() {

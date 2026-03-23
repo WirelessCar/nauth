@@ -45,7 +45,6 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/inbound/controller"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s/configmap"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/nats"
 	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -271,7 +270,7 @@ func main() {
 	}
 
 	secretClient := k8s.NewSecretClient(mgr.GetClient())
-	configMapClient := configmap.NewClient(mgr.GetClient())
+	configMapClient := k8s.NewConfigMapClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 	natsClient := nats.NewClient()

@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package configmap
+package k8s
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	v1 "k8s.io/api/core/v1"
@@ -28,19 +27,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Client reads ConfigMap data from the cluster.
-type Client struct {
+// ConfigMapClient reads ConfigMap data from the cluster.
+type ConfigMapClient struct {
 	client client.Client
 }
 
-// NewClient creates a new ConfigMap client.
-func NewClient(c client.Client) *Client {
-	return &Client{client: c}
+// NewConfigMapClient creates a new ConfigMap client.
+func NewConfigMapClient(c client.Client) *ConfigMapClient {
+	return &ConfigMapClient{client: c}
 }
 
 // Get returns the ConfigMap data as a map of key to string value.
 // Keys from both Data and BinaryData are included.
-func (c *Client) Get(ctx context.Context, configMapRef domain.NamespacedName) (map[string]string, error) {
+func (c *ConfigMapClient) Get(ctx context.Context, configMapRef domain.NamespacedName) (map[string]string, error) {
 	if err := configMapRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid ConfigMap reference %q: %w", configMapRef, err)
 	}
@@ -48,7 +47,7 @@ func (c *Client) Get(ctx context.Context, configMapRef domain.NamespacedName) (m
 	key := client.ObjectKey{Namespace: configMapRef.Namespace, Name: configMapRef.Name}
 	if err := c.client.Get(ctx, key, cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, k8s.ErrNotFound
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get ConfigMap %s: %w", configMapRef, err)
 	}
@@ -63,4 +62,4 @@ func (c *Client) Get(ctx context.Context, configMapRef domain.NamespacedName) (m
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ outbound.ConfigMapReader = (*Client)(nil)
+var _ outbound.ConfigMapReader = (*ConfigMapClient)(nil)
