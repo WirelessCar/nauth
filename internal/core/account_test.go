@@ -26,8 +26,8 @@ type AccountManagerTestSuite struct {
 	clusterTarget   clusterTarget
 
 	accountReaderMock         *AccountReaderMock
-	natsClientMock            *NatsClientMock
-	natsConnMock              *NatsConnectionMock
+	natsSysClientMock         *NatsSysClientMock
+	natsSysConnMock           *NatsSysConnectionMock
 	clusterTargetResolverMock *clusterTargetResolverMock
 	secretManagerMock         *secretManagerMock
 
@@ -53,12 +53,12 @@ func (t *AccountManagerTestSuite) SetupTest() {
 	t.clusterTargetResolverMock = newClusterTargetResolverMock()
 	t.secretManagerMock = newSecretManagerMock()
 	t.accountReaderMock = NewAccountReaderMock()
-	t.natsClientMock = NewNatsClientMock()
-	t.natsConnMock = NewNatsConnectionMock()
+	t.natsSysClientMock = NewNatsSysClientMock()
+	t.natsSysConnMock = NewNatsSysConnectionMock()
 
 	var err error
 	t.unitUnderTest, err = newAccountManager(
-		t.natsClientMock,
+		t.natsSysClientMock,
 		t.accountReaderMock,
 		t.clusterTargetResolverMock,
 		t.secretManagerMock,
@@ -70,8 +70,8 @@ func (t *AccountManagerTestSuite) TearDownTest() {
 	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountReaderMock.AssertExpectations(t.T())
-	t.natsClientMock.AssertExpectations(t.T())
-	t.natsConnMock.AssertExpectations(t.T())
+	t.natsSysClientMock.AssertExpectations(t.T())
+	t.natsSysConnMock.AssertExpectations(t.T())
 }
 
 func TestAccountManager_TestSuite(t *testing.T) {
@@ -98,9 +98,9 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 		caughtSignAccountID = accountID
 		caughtSignKeyPair = signKeyPair
 	})
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
@@ -149,9 +149,9 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 		caughtSignAccountID = accountID
 		caughtSignKeyPair = signKeyPair
 	})
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
@@ -197,9 +197,9 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	})
 	t.secretManagerMock.mockApplyRootSecret(t.ctx, accountRef, accountRootKey)
 	t.secretManagerMock.mockApplySignSecret(t.ctx, accountRef, accountID, accountSignKey)
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
@@ -256,9 +256,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 		Root: accountRootKey,
 		Sign: accountSignKey,
 	})
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
@@ -305,9 +305,9 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 		Root: accountRootKey,
 		Sign: accountSignKey,
 	})
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockLookupAccountJWT(accountID, existingJWT)
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.Import(t.ctx, &v1alpha1.Account{
@@ -337,9 +337,9 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	accountID, _ := accountRootKey.PublicKey()
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
-	t.natsClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsConnMock)
-	t.natsConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt })
-	t.natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
 	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID)
 
 	// When

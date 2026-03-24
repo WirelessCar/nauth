@@ -19,7 +19,8 @@ type ClusterTestSuite struct {
 	suite.Suite
 	ctx                     context.Context
 	natsClusterResolverMock *NatsClusterReaderMock
-	natsClientMock          *NatsClientMock
+	natsSysClientMock       *NatsSysClientMock
+	natsSysConnMock         *NatsSysConnectionMock
 	secretClientMock        *SecretClientMock
 	configMapResolverMock   *ConfigMapReaderMock
 }
@@ -27,14 +28,16 @@ type ClusterTestSuite struct {
 func (t *ClusterTestSuite) SetupTest() {
 	t.ctx = context.Background()
 	t.natsClusterResolverMock = NewNatsClusterReaderMock()
-	t.natsClientMock = NewNatsClientMock()
+	t.natsSysClientMock = NewNatsSysClientMock()
+	t.natsSysConnMock = NewNatsSysConnectionMock()
 	t.secretClientMock = NewSecretClientMock()
 	t.configMapResolverMock = NewConfigMapReaderMock()
 }
 
 func (t *ClusterTestSuite) TearDownTest() {
 	t.natsClusterResolverMock.AssertExpectations(t.T())
-	t.natsClientMock.AssertExpectations(t.T())
+	t.natsSysClientMock.AssertExpectations(t.T())
+	t.natsSysConnMock.AssertExpectations(t.T())
 	t.secretClientMock.AssertExpectations(t.T())
 	t.configMapResolverMock.AssertExpectations(t.T())
 }
@@ -444,15 +447,14 @@ func (t *ClusterTestSuite) Test_Validate_ShouldSucceed() {
 	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	natsConnMock := NewNatsConnectionMock()
 
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsClientMock.mockConnect("nats://my-cluster:4222", sauCreds, natsConnMock)
-	natsConnMock.mockVerifySystemAccountAccess()
-	natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect("nats://my-cluster:4222", sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockVerifySystemAccountAccess()
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	err := unitUnderTest.Validate(t.ctx, cluster)
@@ -518,7 +520,7 @@ func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenNatsConnectionFails() {
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsClientMock.mockConnectError("nats://my-cluster:4222", sauCreds, fmt.Errorf("authentication failed"))
+	t.natsSysClientMock.mockConnectError("nats://my-cluster:4222", sauCreds, fmt.Errorf("authentication failed"))
 
 	// When
 	err := unitUnderTest.Validate(t.ctx, cluster)
@@ -533,15 +535,14 @@ func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenVerifySystemAccountAcces
 	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
 	opSignKey, sauCreds := t.generateSecrets()
 	opSignSeed, _ := opSignKey.Seed()
-	natsConnMock := NewNatsConnectionMock()
 
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
 		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
 	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
 		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsClientMock.mockConnect("nats://my-cluster:4222", sauCreds, natsConnMock)
-	natsConnMock.mockVerifySystemAccountAccessError(fmt.Errorf("permission denied"))
-	natsConnMock.mockDisconnect()
+	t.natsSysClientMock.mockConnect("nats://my-cluster:4222", sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockVerifySystemAccountAccessError(fmt.Errorf("permission denied"))
+	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	err := unitUnderTest.Validate(t.ctx, cluster)
@@ -573,7 +574,7 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 
 	u, err := NewClusterManager(
 		t.natsClusterResolverMock,
-		t.natsClientMock,
+		t.natsSysClientMock,
 		t.secretClientMock,
 		t.configMapResolverMock,
 		config,

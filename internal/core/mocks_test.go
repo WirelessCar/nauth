@@ -175,103 +175,106 @@ func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef doma
 var _ UserJWTSigner = (*UserJWTSignerMock)(nil)
 
 /* ****************************************************
-* NATS Client
+* outbound.NatsSysClient mock
 *****************************************************/
 
-func NewNatsClientMock() *NatsClientMock {
-	return &NatsClientMock{}
+func NewNatsSysClientMock() *NatsSysClientMock {
+	return &NatsSysClientMock{}
 }
 
-type NatsClientMock struct {
+type NatsSysClientMock struct {
 	mock.Mock
 }
 
-func (n *NatsClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsConnection, error) {
+func (n *NatsSysClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
 	args := n.Called(natsURL, userCreds)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(outbound.NatsConnection), args.Error(1)
+	return args.Get(0).(outbound.NatsSysConnection), args.Error(1)
 }
 
-func (n *NatsClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsConnection) {
+func (n *NatsSysClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsSysConnection) {
 	n.On("Connect", natsURL, userCreds).Return(result, nil)
 }
 
-func (n *NatsClientMock) mockConnectError(natsURL string, userCreds domain.NatsUserCreds, err error) {
+func (n *NatsSysClientMock) mockConnectError(natsURL string, userCreds domain.NatsUserCreds, err error) {
 	n.On("Connect", natsURL, userCreds).Return(nil, err)
 }
 
-var _ outbound.NatsClient = (*NatsClientMock)(nil)
+var _ outbound.NatsSysClient = (*NatsSysClientMock)(nil)
 
-func NewNatsConnectionMock() *NatsConnectionMock {
-	return &NatsConnectionMock{}
+/* ****************************************************
+* outbound.NatsSysConnection mock
+*****************************************************/
+
+func NewNatsSysConnectionMock() *NatsSysConnectionMock {
+	return &NatsSysConnectionMock{}
 }
 
-type NatsConnectionMock struct {
+type NatsSysConnectionMock struct {
 	mock.Mock
 }
 
-func (n *NatsConnectionMock) LookupAccountJWT(accountID string) (string, error) {
+func (n *NatsSysConnectionMock) LookupAccountJWT(accountID string) (string, error) {
 	args := n.Called(accountID)
 	return args.String(0), args.Error(1)
 }
 
-func (n *NatsConnectionMock) mockLookupAccountJWT(accountID, result string) {
+func (n *NatsSysConnectionMock) mockLookupAccountJWT(accountID, result string) {
 	n.On("LookupAccountJWT", accountID).Return(result, nil)
 }
 
-func (n *NatsConnectionMock) HasAccount(accountID string) (bool, error) {
+func (n *NatsSysConnectionMock) HasAccount(accountID string) (bool, error) {
 	args := n.Called(accountID)
 	return args.Bool(0), args.Error(1)
 }
 
-func (n *NatsConnectionMock) EnsureConnected() error {
+func (n *NatsSysConnectionMock) EnsureConnected() error {
 	args := n.Called()
 	return args.Error(0)
 }
 
-func (n *NatsConnectionMock) VerifySystemAccountAccess() error {
+func (n *NatsSysConnectionMock) VerifySystemAccountAccess() error {
 	args := n.Called()
 	return args.Error(0)
 }
 
-func (n *NatsConnectionMock) mockVerifySystemAccountAccess() {
+func (n *NatsSysConnectionMock) mockVerifySystemAccountAccess() {
 	n.On("VerifySystemAccountAccess").Return(nil)
 }
 
-func (n *NatsConnectionMock) mockVerifySystemAccountAccessError(err error) {
+func (n *NatsSysConnectionMock) mockVerifySystemAccountAccessError(err error) {
 	n.On("VerifySystemAccountAccess").Return(err)
 }
 
-func (n *NatsConnectionMock) Disconnect() {
+func (n *NatsSysConnectionMock) Disconnect() {
 	n.Called()
 }
 
-func (n *NatsConnectionMock) mockDisconnect() {
+func (n *NatsSysConnectionMock) mockDisconnect() {
 	n.On("Disconnect").Return()
 }
 
-func (n *NatsConnectionMock) UploadAccountJWT(jwt string) error {
+func (n *NatsSysConnectionMock) UploadAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
 }
 
-func (n *NatsConnectionMock) mockUploadAccountJWTCatch(catch func(jwt string)) {
+func (n *NatsSysConnectionMock) mockUploadAccountJWTCatch(catch func(jwt string)) {
 	n.On("UploadAccountJWT", mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			jwt := args.String(0)
-			catch(jwt)
+			catch(args.String(0))
 		})
 }
 
-func (n *NatsConnectionMock) DeleteAccountJWT(jwt string) error {
+func (n *NatsSysConnectionMock) DeleteAccountJWT(jwt string) error {
 	args := n.Called(jwt)
 	return args.Error(0)
 }
 
-func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
+func (n *NatsSysConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
 	n.On("DeleteAccountJWT", mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
@@ -280,7 +283,7 @@ func (n *NatsConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
 		})
 }
 
-var _ outbound.NatsConnection = (*NatsConnectionMock)(nil)
+var _ outbound.NatsSysConnection = (*NatsSysConnectionMock)(nil)
 
 /* ****************************************************
 * outbound.AccountReader Resolver

@@ -51,7 +51,7 @@ type clusterTargetResolver interface {
 
 type ClusterManager struct {
 	natsClusterReader outbound.NatsClusterReader
-	natsClient        outbound.NatsClient
+	natsSysClient     outbound.NatsSysClient
 	secretReader      outbound.SecretReader
 	configMapReader   outbound.ConfigMapReader
 	config            *Config
@@ -59,7 +59,7 @@ type ClusterManager struct {
 
 func NewClusterManager(
 	natsClusterReader outbound.NatsClusterReader,
-	natsClient outbound.NatsClient,
+	natsSysClient outbound.NatsSysClient,
 	secretReader outbound.SecretReader,
 	configMapReader outbound.ConfigMapReader,
 	config *Config,
@@ -79,7 +79,7 @@ func NewClusterManager(
 
 	impl := &ClusterManager{
 		natsClusterReader: natsClusterReader,
-		natsClient:        natsClient,
+		natsSysClient:     natsSysClient,
 		secretReader:      secretReader,
 		configMapReader:   configMapReader,
 		config:            config,
@@ -94,8 +94,8 @@ func (r *ClusterManager) validate() error {
 	if r.natsClusterReader == nil {
 		return fmt.Errorf("natsClusterReader is required")
 	}
-	if r.natsClient == nil {
-		return fmt.Errorf("natsClient is required")
+	if r.natsSysClient == nil {
+		return fmt.Errorf("natsSysClient is required")
 	}
 	if r.secretReader == nil {
 		return fmt.Errorf("secretReader is required")
@@ -123,13 +123,13 @@ func (r *ClusterManager) Validate(ctx context.Context, state *v1alpha1.NatsClust
 		return err
 	}
 
-	conn, err := r.natsClient.Connect(target.NatsURL, target.SystemAdminCreds)
+	sysConn, err := r.natsSysClient.Connect(target.NatsURL, target.SystemAdminCreds)
 	if err != nil {
 		return fmt.Errorf("connect to NATS cluster using System Account User Credentials: %w", err)
 	}
 
-	defer conn.Disconnect()
-	if err := conn.VerifySystemAccountAccess(); err != nil {
+	defer sysConn.Disconnect()
+	if err := sysConn.VerifySystemAccountAccess(); err != nil {
 		return fmt.Errorf("verify NATS System Account access: %w", err)
 	}
 

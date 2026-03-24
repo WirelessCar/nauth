@@ -4,11 +4,11 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 )
 
-type NatsClient interface {
-	Connect(natsURL string, userCreds domain.NatsUserCreds) (NatsConnection, error)
+type NatsSysClient interface {
+	Connect(natsURL string, userCreds domain.NatsUserCreds) (NatsSysConnection, error)
 }
 
-type NatsConnection interface {
+type NatsSysConnection interface {
 	Disconnect()
 	EnsureConnected() error
 	VerifySystemAccountAccess() error

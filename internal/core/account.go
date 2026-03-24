@@ -15,14 +15,14 @@ import (
 )
 
 type AccountManager struct {
-	natsClient            outbound.NatsClient
+	natsSysClient         outbound.NatsSysClient
 	accountReader         outbound.AccountReader
 	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
 }
 
 func NewAccountManager(
-	natsClient outbound.NatsClient,
+	natsSysClient outbound.NatsSysClient,
 	accountReader outbound.AccountReader,
 	secretClient outbound.SecretClient,
 	clusterManager *ClusterManager,
@@ -31,17 +31,17 @@ func NewAccountManager(
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsClient, accountReader, clusterManager, sm)
+	return newAccountManager(natsSysClient, accountReader, clusterManager, sm)
 }
 
 func newAccountManager(
-	natsClient outbound.NatsClient,
+	natsSysClient outbound.NatsSysClient,
 	accountReader outbound.AccountReader,
 	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*AccountManager, error) {
 	m := &AccountManager{
-		natsClient:            natsClient,
+		natsSysClient:         natsSysClient,
 		accountReader:         accountReader,
 		clusterTargetResolver: clusterTargetResolver,
 		secretManager:         secretManager,
@@ -62,8 +62,8 @@ func (a *AccountManager) validate() error {
 	if a.secretManager == nil {
 		return errors.New("secretManager is required")
 	}
-	if a.natsClient == nil {
-		return errors.New("natsClient is required")
+	if a.natsSysClient == nil {
+		return errors.New("natsSysClient is required")
 	}
 
 	return nil
@@ -143,13 +143,13 @@ func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("failed to sign account jwt during creation: %w", err)
 	}
 
-	conn, err := a.natsClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during creation: %w", err)
 	}
 
-	defer conn.Disconnect()
-	err = conn.UploadAccountJWT(signedJwt)
+	defer sysConn.Disconnect()
+	err = sysConn.UploadAccountJWT(signedJwt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload account jwt during creation: %w", err)
 	}
@@ -224,13 +224,13 @@ func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("failed to sign account jwt for %s during update: %w", accountName, err)
 	}
 
-	conn, err := a.natsClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during update: %w", err)
 	}
-	defer conn.Disconnect()
+	defer sysConn.Disconnect()
 
-	err = conn.UploadAccountJWT(signedJwt)
+	err = sysConn.UploadAccountJWT(signedJwt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload account jwt during update: %w", err)
 	}
@@ -278,12 +278,12 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("account root seed does not match account ID during import: expected %s, got %s", accountID, accountRootPublicKey)
 	}
 
-	conn, err := a.natsClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during import: %w", err)
 	}
-	defer conn.Disconnect()
-	accountJWT, err := conn.LookupAccountJWT(accountID)
+	defer sysConn.Disconnect()
+	accountJWT, err := sysConn.LookupAccountJWT(accountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to lookup account jwt for account %s during import: %w", accountID, err)
 	}
@@ -331,13 +331,13 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to sign account jwt for %s during deletion: %w", accountName, err)
 	}
 
-	conn, err := a.natsClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS cluster during deletion: %w", err)
 	}
-	defer conn.Disconnect()
+	defer sysConn.Disconnect()
 
-	err = conn.DeleteAccountJWT(deleteJwt)
+	err = sysConn.DeleteAccountJWT(deleteJwt)
 	if err != nil {
 		return fmt.Errorf("failed to delete account: %w", err)
 	}

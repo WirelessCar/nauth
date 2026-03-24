@@ -29,14 +29,13 @@ type ClaimUpdateError struct {
 	Description string `json:"description,omitempty"`
 }
 
-type Client struct {
+type SysClient struct{}
+
+func NewSysClient() *SysClient {
+	return &SysClient{}
 }
 
-func NewClient() *Client {
-	return &Client{}
-}
-
-func (n *Client) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsConnection, error) {
+func (n *SysClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
 	if natsURL == "" {
 		return nil, fmt.Errorf("NATS URL is required")
 	}
@@ -168,5 +167,5 @@ func (n *Connection) connect() error {
 }
 
 // Compile-time assertion that implementations fulfills ports
-var _ outbound.NatsClient = (*Client)(nil)
-var _ outbound.NatsConnection = (*Connection)(nil)
+var _ outbound.NatsSysClient = (*SysClient)(nil)
+var _ outbound.NatsSysConnection = (*Connection)(nil)
