@@ -59,8 +59,9 @@ func (t *SecretClientTestSuite) Test_Apply_ShouldSucceed_WhenCreatingAndUpdating
 	// Then
 	t.NoError(err)
 
-	fetchedSecret, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	fetchedSecret, found, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
 	t.NoError(err)
+	t.True(found)
 	t.Equal(secret, fetchedSecret)
 
 	newSecret := map[string]string{"key": "new value"}
@@ -68,8 +69,9 @@ func (t *SecretClientTestSuite) Test_Apply_ShouldSucceed_WhenCreatingAndUpdating
 
 	t.NoError(err)
 
-	newFetchedSecret, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	newFetchedSecret, found, err := t.unitUnderTest.Get(t.ctx, t.secretRef)
 	t.NoError(err)
+	t.True(found)
 	t.Equal(newSecret, newFetchedSecret)
 }
 
@@ -103,8 +105,9 @@ func (t *SecretClientTestSuite) Test_Apply_ShouldFail_WhenExistingSecretNotManag
 			t.Error(err)
 			t.EqualError(err, fmt.Sprintf("existing secret %s not managed by nauth", t.secretRef))
 
-			fetchedSecret, fetchErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
+			fetchedSecret, found, fetchErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
 			t.NoError(fetchErr)
+			t.True(found)
 			t.Equal(existingSecret, fetchedSecret)
 
 			t.Require().NoError(cleanSecret(t.ctx, t.secretRef))
@@ -125,11 +128,11 @@ func (t *SecretClientTestSuite) Test_Get_ShouldFail_WhenSecretDoesNotExist() {
 	nonExistingSecretRef := domain.NewNamespacedName(testNamespace, "non-existing-secret")
 	t.Require().NoError(nonExistingSecretRef.Validate())
 
-	result, err := t.unitUnderTest.Get(t.ctx, nonExistingSecretRef)
+	result, found, err := t.unitUnderTest.Get(t.ctx, nonExistingSecretRef)
 
-	t.Error(err)
+	t.NoError(err)
+	t.False(found)
 	t.Nil(result)
-	t.ErrorIs(err, ErrNotFound)
 }
 
 func (t *SecretClientTestSuite) Test_Delete_ShouldSucceed_WhenSecretExists() {
@@ -141,10 +144,10 @@ func (t *SecretClientTestSuite) Test_Delete_ShouldSucceed_WhenSecretExists() {
 
 	t.NoError(err)
 
-	result, getErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
-	t.Error(getErr)
+	result, found, getErr := t.unitUnderTest.Get(t.ctx, t.secretRef)
+	t.NoError(getErr)
+	t.False(found)
 	t.Nil(result)
-	t.ErrorIs(getErr, ErrNotFound)
 }
 
 func cleanSecret(ctx context.Context, secretRef domain.NamespacedName) error {

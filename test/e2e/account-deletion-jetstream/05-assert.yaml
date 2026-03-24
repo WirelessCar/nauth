@@ -1,0 +1,14 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account
+    ref: example_account
+assertAll:
+  - celExpr: has(example_account.metadata.deletionTimestamp)
+  - celExpr: example_account.metadata.finalizers.exists(f, f == "account.nauth.io/finalizer")
+  - celExpr: example_account.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "Errored")
+  - celExpr: example_account.status.conditions.exists(c, c.message.contains("1 JetStream Stream(s) still exist for account"))
+  - celExpr: example_account.status.conditions.exists(c, c.message.contains("ORDERS"))

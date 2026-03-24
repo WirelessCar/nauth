@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
@@ -16,6 +17,7 @@ import (
 
 type AccountManager struct {
 	natsSysClient         outbound.NatsSysClient
+	natsAccClient         outbound.NatsAccountClient
 	accountReader         outbound.AccountReader
 	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
@@ -23,6 +25,7 @@ type AccountManager struct {
 
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
+	natsAccClient outbound.NatsAccountClient,
 	accountReader outbound.AccountReader,
 	secretClient outbound.SecretClient,
 	clusterManager *ClusterManager,
@@ -31,17 +34,19 @@ func NewAccountManager(
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, accountReader, clusterManager, sm)
+	return newAccountManager(natsSysClient, natsAccClient, accountReader, clusterManager, sm)
 }
 
 func newAccountManager(
 	natsSysClient outbound.NatsSysClient,
+	natsAccClient outbound.NatsAccountClient,
 	accountReader outbound.AccountReader,
 	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*AccountManager, error) {
 	m := &AccountManager{
 		natsSysClient:         natsSysClient,
+		natsAccClient:         natsAccClient,
 		accountReader:         accountReader,
 		clusterTargetResolver: clusterTargetResolver,
 		secretManager:         secretManager,
@@ -65,6 +70,9 @@ func (a *AccountManager) validate() error {
 	if a.natsSysClient == nil {
 		return errors.New("natsSysClient is required")
 	}
+	if a.natsAccClient == nil {
+		return errors.New("natsAccClient is required")
+	}
 
 	return nil
 }
@@ -84,8 +92,8 @@ func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
-	accountSecrets, err := a.secretManager.GetSecrets(ctx, accountRef, "")
-	if err == nil {
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, "")
+	if err == nil && found {
 		accountKeyPair = accountSecrets.Root
 		accountPublicKey, err = accountKeyPair.PublicKey()
 		if err != nil {
@@ -184,9 +192,12 @@ func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*
 	}
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
-	secrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	secrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("account secrets not found for account %s during update", accountID)
 	}
 
 	sysAccountID := cluster.SystemAdminCreds.AccountID
@@ -264,9 +275,12 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("account ID is missing for account %s during import", state.GetName())
 	}
 
-	secrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	secrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secrets for account %s during import: %w", accountID, err)
+	}
+	if !found {
+		return nil, fmt.Errorf("account secrets not found for account %s during import", accountID)
 	}
 
 	accountRootKeyPair := secrets.Root
@@ -314,13 +328,29 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
-	accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 	operatorPublicKey, err := cluster.OperatorSigningKey.PublicKey()
 	if err != nil {
-		return fmt.Errorf("failed to get operator signing public key during deletion: %w", err)
+		return fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
 	accountID := state.GetLabels()[k8s.LabelAccountID]
+	if accountID == "" {
+		return fmt.Errorf("account ID is missing for account %s", accountRef)
+	}
+
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	if err != nil {
+		return fmt.Errorf("failed to get secrets for account: %w", err)
+	}
+	if found {
+		streams, err := a.listAccountStreams(cluster, accountSecrets, accountID)
+		if err != nil {
+			return fmt.Errorf("failed to list account streams: %w", err)
+		}
+		if len(streams) > 0 {
+			return fmt.Errorf("account deletion aborted due to %d JetStream Stream(s) still exist for account: %s", len(streams), streams)
+		}
+	}
 
 	// Delete is done by signing a jwt with a list of accounts to be deleted
 	deleteClaim := jwt.NewGenericClaims(operatorPublicKey)
@@ -328,18 +358,18 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 
 	deleteJwt, err := deleteClaim.Encode(cluster.OperatorSigningKey)
 	if err != nil {
-		return fmt.Errorf("failed to sign account jwt for %s during deletion: %w", accountName, err)
+		return fmt.Errorf("failed to sign account JWT: %w", err)
 	}
 
 	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
-		return fmt.Errorf("failed to connect to NATS cluster during deletion: %w", err)
+		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
 	defer sysConn.Disconnect()
 
 	err = sysConn.DeleteAccountJWT(deleteJwt)
 	if err != nil {
-		return fmt.Errorf("failed to delete account: %w", err)
+		return fmt.Errorf("failed to delete account JWT in NATS: %w", err)
 	}
 
 	err = a.secretManager.DeleteAll(ctx, accountRef, accountID)
@@ -348,6 +378,58 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 	}
 
 	return nil
+}
+
+func (a *AccountManager) listAccountStreams(cluster *clusterTarget, accountSecrets *Secrets, accountID string) ([]string, error) {
+	tempUserCreds, err := createTempJetStreamCreds(accountID, accountSecrets.Root)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary account JetStream credentials: %w", err)
+	}
+
+	accConn, err := a.natsAccClient.Connect(cluster.NatsURL, *tempUserCreds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to NATS cluster for JetStream streams lookup: %w", err)
+	}
+	defer accConn.Disconnect()
+
+	streamNames, err := accConn.ListAccountStreams()
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup account JetStream streams: %w", err)
+	}
+	return streamNames, nil
+}
+
+func createTempJetStreamCreds(accountID string, accountKeyPair nkeys.KeyPair) (*domain.NatsUserCreds, error) {
+	userKeyPair, _ := nkeys.CreateUser()
+	userPublicKey, _ := userKeyPair.PublicKey()
+	userSeed, _ := userKeyPair.Seed()
+
+	claims := jwt.NewUserClaims(userPublicKey)
+	claims.IssuerAccount = accountID
+	claims.Expires = time.Now().Add(30 * time.Second).Unix()
+	claims.Permissions = jwt.Permissions{
+		Pub: jwt.Permission{
+			Allow: jwt.StringList{"$JS.API.>"},
+		},
+		Sub: jwt.Permission{
+			Allow: jwt.StringList{"_INBOX.>"},
+		},
+	}
+
+	userJWT, err := claims.Encode(accountKeyPair)
+	if err != nil {
+		return nil, fmt.Errorf("sign temporary user JWT: %w", err)
+	}
+	userCreds, err := jwt.FormatUserConfig(userJWT, userSeed)
+	if err != nil {
+		return nil, fmt.Errorf("format temporary user credentials: %w", err)
+	}
+
+	natsUserCreds, err := domain.NewNatsUserCreds(userCreds)
+	if err != nil {
+		return nil, fmt.Errorf("build user credentials: %w", err)
+	}
+	return natsUserCreds, nil
 }
 
 func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
@@ -373,9 +455,12 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	if errs := claimsVal.Errors(); len(errs) > 0 {
 		return nil, fmt.Errorf("claims validation failed during user JWT signing: %v", claimsVal.Errors())
 	}
-	accountSecrets, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get account secrets for user JWT signing: %w", err)
+	}
+	if !found {
+		return nil, fmt.Errorf("account secrets not found for user JWT signing")
 	}
 	signPubKey, err := accountSecrets.Sign.PublicKey()
 	if err != nil {

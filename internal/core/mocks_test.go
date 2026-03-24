@@ -43,17 +43,24 @@ func (s *SecretClientMock) mockApplyWithCatch(ctx interface{}, owner interface{}
 		Return(nil)
 }
 
-func (s *SecretClientMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, error) {
+func (s *SecretClientMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, bool, error) {
 	args := s.Called(ctx, namespacedName)
-	return args.Get(0).(map[string]string), args.Error(1)
+	if args.Get(0) == nil {
+		return nil, args.Bool(1), args.Error(2)
+	}
+	return args.Get(0).(map[string]string), args.Bool(1), args.Error(2)
 }
 
 func (s *SecretClientMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
-	s.On("Get", ctx, namespacedName).Return(result, nil)
+	s.On("Get", ctx, namespacedName).Return(result, true, nil)
+}
+
+func (s *SecretClientMock) mockGetNotFound(namespacedName domain.NamespacedName) {
+	s.On("Get", mock.Anything, namespacedName).Return(nil, false, nil)
 }
 
 func (s *SecretClientMock) mockGetError(namespacedName domain.NamespacedName, err error) {
-	s.On("Get", mock.Anything, namespacedName).Return(map[string]string{}, err)
+	s.On("Get", mock.Anything, namespacedName).Return(nil, false, err)
 }
 
 func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*corev1.SecretList, error) {
@@ -63,6 +70,10 @@ func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Nam
 
 func (s *SecretClientMock) mockGetByLabels(namespace domain.Namespace, labels map[string]string, result *corev1.SecretList) {
 	s.On("GetByLabels", mock.Anything, namespace, labels).Return(result, nil)
+}
+
+func (s *SecretClientMock) mockGetByLabelsError(namespace domain.Namespace, labels map[string]string, err error) {
+	s.On("GetByLabels", mock.Anything, namespace, labels).Return(&corev1.SecretList{}, err)
 }
 
 type mockSecret struct {
@@ -194,8 +205,8 @@ func (n *NatsSysClientMock) Connect(natsURL string, userCreds domain.NatsUserCre
 	return args.Get(0).(outbound.NatsSysConnection), args.Error(1)
 }
 
-func (n *NatsSysClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsSysConnection) {
-	n.On("Connect", natsURL, userCreds).Return(result, nil)
+func (n *NatsSysClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsSysConnection) *mock.Call {
+	return n.On("Connect", natsURL, userCreds).Return(result, nil)
 }
 
 func (n *NatsSysClientMock) mockConnectError(natsURL string, userCreds domain.NatsUserCreds, err error) {
@@ -252,8 +263,8 @@ func (n *NatsSysConnectionMock) Disconnect() {
 	n.Called()
 }
 
-func (n *NatsSysConnectionMock) mockDisconnect() {
-	n.On("Disconnect").Return()
+func (n *NatsSysConnectionMock) mockDisconnect() *mock.Call {
+	return n.On("Disconnect").Return()
 }
 
 func (n *NatsSysConnectionMock) UploadAccountJWT(jwt string) error {
@@ -274,16 +285,77 @@ func (n *NatsSysConnectionMock) DeleteAccountJWT(jwt string) error {
 	return args.Error(0)
 }
 
-func (n *NatsSysConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) {
-	n.On("DeleteAccountJWT", mock.Anything).
+func (n *NatsSysConnectionMock) mockDeleteAccountJWTCatch(catch func(jwt string)) *mock.Call {
+	return n.On("DeleteAccountJWT", mock.Anything).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			jwt := args.String(0)
-			catch(jwt)
+			catch(args.String(0))
 		})
 }
 
 var _ outbound.NatsSysConnection = (*NatsSysConnectionMock)(nil)
+
+/* ********
+* outbound.NatsAccountClient mock
+ */
+
+func NewNatsAccountClientMock() *NatsAccountClientMock {
+	return &NatsAccountClientMock{}
+}
+
+type NatsAccountClientMock struct {
+	mock.Mock
+}
+
+func (n *NatsAccountClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
+	args := n.Called(natsURL, userCreds)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(outbound.NatsAccountConnection), args.Error(1)
+}
+
+func (n *NatsAccountClientMock) mockConnectMatchingCreds(natsURL string, credsMatcher func(userCreds domain.NatsUserCreds) bool, result outbound.NatsAccountConnection) *mock.Call {
+	return n.On("Connect", natsURL, mock.MatchedBy(credsMatcher)).Return(result, nil)
+}
+
+var _ outbound.NatsAccountClient = (*NatsAccountClientMock)(nil)
+
+/* ****************************************************
+* outbound.NatsAccountConnection mock
+*****************************************************/
+
+func NewNatsAccountConnectionMock() *NatsAccConnectionMock {
+	return &NatsAccConnectionMock{}
+}
+
+type NatsAccConnectionMock struct {
+	mock.Mock
+}
+
+func (n *NatsAccConnectionMock) Disconnect() {
+	n.Called()
+}
+
+func (n *NatsAccConnectionMock) mockDisconnect() *mock.Call {
+	return n.On("Disconnect").Return()
+}
+
+func (n *NatsAccConnectionMock) EnsureConnected() error {
+	args := n.Called()
+	return args.Error(0)
+}
+
+func (n *NatsAccConnectionMock) ListAccountStreams() ([]string, error) {
+	args := n.Called()
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (n *NatsAccConnectionMock) mockListAccountStreams(result []string) *mock.Call {
+	return n.On("ListAccountStreams").Return(result, nil)
+}
+
+var _ outbound.NatsAccountConnection = (*NatsAccConnectionMock)(nil)
 
 /* ****************************************************
 * outbound.AccountReader Resolver

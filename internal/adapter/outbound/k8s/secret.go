@@ -104,13 +104,13 @@ func addOwnerReferenceIfNotExists(secret *v1.Secret, owner metav1.Object) error 
 	return nil
 }
 
-func (k *SecretClient) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error) {
+func (k *SecretClient) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, bool, error) {
 	secret, err := k.getSecret(ctx, secretRef)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, ErrNotFound
+			return nil, false, nil
 		}
-		return nil, fmt.Errorf("failed to get secret: %w", err)
+		return nil, false, fmt.Errorf("failed to get secret: %w", err)
 	}
 
 	secretData := make(map[string]string)
@@ -118,7 +118,7 @@ func (k *SecretClient) Get(ctx context.Context, secretRef domain.NamespacedName)
 		secretData[key] = string(value)
 	}
 
-	return secretData, nil
+	return secretData, true, nil
 }
 
 func (k *SecretClient) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error) {

@@ -1,13 +1,17 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const (
@@ -36,6 +40,20 @@ func NewSysClient() *SysClient {
 }
 
 func (n *SysClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
+	return connect(natsURL, userCreds)
+}
+
+type AccountClient struct{}
+
+func NewAccountClient() *AccountClient {
+	return &AccountClient{}
+}
+
+func (c AccountClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
+	return connect(natsURL, userCreds)
+}
+
+func connect(natsURL string, userCreds domain.NatsUserCreds) (*connection, error) {
 	if natsURL == "" {
 		return nil, fmt.Errorf("NATS URL is required")
 	}
@@ -44,7 +62,7 @@ func (n *SysClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (out
 		return nil, fmt.Errorf("invalid NATS user credentials: %w", err)
 	}
 
-	c := &Connection{
+	c := &connection{
 		natsURL:   natsURL,
 		userCreds: userCreds,
 	}
@@ -55,20 +73,20 @@ func (n *SysClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (out
 	return c, nil
 }
 
-type Connection struct {
+type connection struct {
 	natsURL   string
 	userCreds domain.NatsUserCreds
 	conn      *nats.Conn
 }
 
-func (n *Connection) EnsureConnected() error {
+func (n *connection) EnsureConnected() error {
 	if n.conn != nil && n.conn.IsConnected() {
 		return nil
 	}
 	return n.connect()
 }
 
-func (n *Connection) Disconnect() {
+func (n *connection) Disconnect() {
 	if n.conn == nil {
 		return
 	}
@@ -82,7 +100,7 @@ func (n *Connection) Disconnect() {
 	}
 }
 
-func (n *Connection) VerifySystemAccountAccess() error {
+func (n *connection) VerifySystemAccountAccess() error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -95,7 +113,40 @@ func (n *Connection) VerifySystemAccountAccess() error {
 	return nil
 }
 
-func (n *Connection) LookupAccountJWT(accountID string) (string, error) {
+func (n *connection) ListAccountStreams() ([]string, error) {
+	if n.conn == nil || !n.conn.IsConnected() {
+		return nil, fmt.Errorf("NATS connection is not established or lost")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), natsMaxTimeout)
+	defer cancel()
+
+	js, err := jetstream.New(n.conn)
+	if err != nil {
+		return nil, fmt.Errorf("create JetStream client: %w", err)
+	}
+
+	if _, err := js.AccountInfo(ctx); err != nil {
+		if errors.Is(err, jetstream.ErrJetStreamNotEnabled) || errors.Is(err, jetstream.ErrJetStreamNotEnabledForAccount) {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("lookup JetStream account state: %w", err)
+	}
+
+	streamNames := js.StreamNames(ctx)
+	names := make([]string, 0)
+	for name := range streamNames.Name() {
+		names = append(names, name)
+	}
+	if err := streamNames.Err(); err != nil {
+		return nil, fmt.Errorf("list JetStream streams: %w", err)
+	}
+
+	sort.Strings(names)
+	return names, nil
+}
+
+func (n *connection) LookupAccountJWT(accountID string) (string, error) {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return "", fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -108,15 +159,15 @@ func (n *Connection) LookupAccountJWT(accountID string) (string, error) {
 	return string(msg.Data), nil
 }
 
-func (n *Connection) UploadAccountJWT(jwt string) error {
+func (n *connection) UploadAccountJWT(jwt string) error {
 	return n.updateClaimsJWT("$SYS.REQ.CLAIMS.UPDATE", jwt)
 }
 
-func (n *Connection) DeleteAccountJWT(jwt string) error {
+func (n *connection) DeleteAccountJWT(jwt string) error {
 	return n.updateClaimsJWT("$SYS.REQ.CLAIMS.DELETE", jwt)
 }
 
-func (n *Connection) updateClaimsJWT(subject string, jwt string) error {
+func (n *connection) updateClaimsJWT(subject string, jwt string) error {
 	if n.conn == nil || !n.conn.IsConnected() {
 		return fmt.Errorf("NATS connection is not established or lost")
 	}
@@ -149,7 +200,7 @@ func (n *Connection) updateClaimsJWT(subject string, jwt string) error {
 	return nil
 }
 
-func (n *Connection) connect() error {
+func (n *connection) connect() error {
 	var err error
 
 	n.conn, err = nats.Connect(
@@ -168,4 +219,6 @@ func (n *Connection) connect() error {
 
 // Compile-time assertion that implementations fulfills ports
 var _ outbound.NatsSysClient = (*SysClient)(nil)
-var _ outbound.NatsSysConnection = (*Connection)(nil)
+var _ outbound.NatsAccountClient = (*AccountClient)(nil)
+var _ outbound.NatsSysConnection = (*connection)(nil)
+var _ outbound.NatsAccountConnection = (*connection)(nil)

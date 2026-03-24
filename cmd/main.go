@@ -271,14 +271,27 @@ func main() {
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
 	natsSysClient := nats.NewSysClient()
+	natsAccClient := nats.NewAccountClient()
 
-	clusterManager, err := core.NewClusterManager(natsClusterClient, natsSysClient, secretClient, configMapClient, config)
+	clusterManager, err := core.NewClusterManager(
+		natsClusterClient,
+		natsSysClient,
+		secretClient,
+		configMapClient,
+		config,
+	)
 	if err != nil {
 		setupLog.Error(err, "failed to create cluster manager")
 		os.Exit(1)
 	}
 
-	accountManager, err := core.NewAccountManager(natsSysClient, accountClient, secretClient, clusterManager)
+	accountManager, err := core.NewAccountManager(
+		natsSysClient,
+		natsAccClient,
+		accountClient,
+		secretClient,
+		clusterManager,
+	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
 		os.Exit(1)

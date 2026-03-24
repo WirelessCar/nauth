@@ -38,7 +38,7 @@ func TestSecretManager_TestSuite(t *testing.T) {
 	suite.Run(t, new(SecretManagerTestSuite))
 }
 
-func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldDoMultipleLookups() {
+func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldReturnNotFoundAfterTryingMultipleLookups() {
 	// Given
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
 		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
@@ -48,18 +48,15 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldDoMultipleLookups() {
 		k8s.LabelAccountName: "my-account",
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
-	t.secretClientMock.mockGetError(domain.NewNamespacedName("account-namespace", "my-account-ac-root"), fmt.Errorf("root_not_found"))
-	t.secretClientMock.mockGetError(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"), fmt.Errorf("sign_not_found"))
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), "FAKE_ACCOUNT_ID")
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), "FAKE_ACCOUNT_ID")
 
 	// Then
-	t.Error(err)
-	t.ErrorContains(err, "failed to get account secrets by account ID \"FAKE_ACCOUNT_ID\"")
-	t.ErrorContains(err, "failed to get account secrets by account name \"my-account\"")
-	t.ErrorContains(err, "failed to get account secrets by secret name (deprecated) for account name \"my-account\"")
-	t.NotContains(err.Error(), "panicked go routine") // Ensure getDeprecatedAccountSecretsByName parallel lookup does not panic
+	t.NoError(err)
+	t.False(found)
 	t.Nil(result)
 }
 
@@ -83,10 +80,11 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountID
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.NoError(err)
+	t.True(found)
 	t.NotNil(result)
 	t.Equal(&Secrets{Root: rootKey, Sign: signKey}, result)
 }
@@ -116,10 +114,11 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountNa
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.NoError(err)
+	t.True(found)
 	t.NotNil(result)
 	t.Equal(&Secrets{Root: rootKey, Sign: signKey}, result)
 }
@@ -157,10 +156,11 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
 
 	// Then
 	t.NoError(err)
+	t.True(found)
 	t.NotNil(result)
 	t.Equal(&Secrets{Root: rootKey, Sign: signKey}, result)
 }
@@ -198,12 +198,58 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 	}, fmt.Errorf("something went wrong"))
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), rootPub)
 
 	// Then
 	t.NoError(err)
+	t.True(found)
 	t.NotNil(result)
 	t.Equal(&Secrets{Root: rootKey, Sign: signKey}, result)
+}
+
+func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldReturnNotFound_WhenSecretsAreMissing() {
+	// Given
+	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
+		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
+		k8s.LabelManaged:   k8s.LabelManagedValue,
+	}, []mockSecret{})
+	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
+		k8s.LabelAccountName: "my-account",
+		k8s.LabelManaged:     k8s.LabelManagedValue,
+	}, []mockSecret{})
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
+
+	// When
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), "FAKE_ACCOUNT_ID")
+
+	// Then
+	t.NoError(err)
+	t.False(found)
+	t.Nil(result)
+}
+
+func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenLookupFailsUnexpectedly() {
+	// Given
+	t.secretClientMock.mockGetByLabelsError("account-namespace", map[string]string{
+		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
+		k8s.LabelManaged:   k8s.LabelManagedValue,
+	}, fmt.Errorf("boom"))
+	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
+		k8s.LabelAccountName: "my-account",
+		k8s.LabelManaged:     k8s.LabelManagedValue,
+	}, []mockSecret{})
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
+
+	// When
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "my-account"), "FAKE_ACCOUNT_ID")
+
+	// Then
+	t.Error(err)
+	t.False(found)
+	t.Nil(result)
+	t.ErrorContains(err, "failed to get account secrets by account ID")
 }
 
 func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenSecretRootPubKeyDoesNotMatchSuppliedAccountID() {
@@ -232,10 +278,11 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenSecretRootPubKey
 	})
 
 	// When
-	result, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), rootPub)
 
 	// Then
 	t.Error(err)
+	t.True(found)
 	t.Nil(result)
 	t.ErrorContains(err, fmt.Sprintf("account root public key (%s) in found secret does not match expected account ID (%s)", secretRootPub, rootPub))
 }

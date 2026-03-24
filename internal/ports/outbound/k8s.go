@@ -14,7 +14,7 @@ type ConfigMapReader interface {
 }
 
 type SecretReader interface {
-	Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, error)
+	Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, bool, error)
 	GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*v1.SecretList, error)
 }
 

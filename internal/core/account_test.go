@@ -28,6 +28,8 @@ type AccountManagerTestSuite struct {
 	accountReaderMock         *AccountReaderMock
 	natsSysClientMock         *NatsSysClientMock
 	natsSysConnMock           *NatsSysConnectionMock
+	natsAccClientMock         *NatsAccountClientMock
+	natsAccConnMock           *NatsAccConnectionMock
 	clusterTargetResolverMock *clusterTargetResolverMock
 	secretManagerMock         *secretManagerMock
 
@@ -55,10 +57,13 @@ func (t *AccountManagerTestSuite) SetupTest() {
 	t.accountReaderMock = NewAccountReaderMock()
 	t.natsSysClientMock = NewNatsSysClientMock()
 	t.natsSysConnMock = NewNatsSysConnectionMock()
+	t.natsAccClientMock = NewNatsAccountClientMock()
+	t.natsAccConnMock = NewNatsAccountConnectionMock()
 
 	var err error
 	t.unitUnderTest, err = newAccountManager(
 		t.natsSysClientMock,
+		t.natsAccClientMock,
 		t.accountReaderMock,
 		t.clusterTargetResolverMock,
 		t.secretManagerMock,
@@ -72,6 +77,8 @@ func (t *AccountManagerTestSuite) TearDownTest() {
 	t.accountReaderMock.AssertExpectations(t.T())
 	t.natsSysClientMock.AssertExpectations(t.T())
 	t.natsSysConnMock.AssertExpectations(t.T())
+	t.natsAccClientMock.AssertExpectations(t.T())
+	t.natsAccConnMock.AssertExpectations(t.T())
 }
 
 func TestAccountManager_TestSuite(t *testing.T) {
@@ -330,17 +337,35 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	// Given
 	var (
-		caughtDeleteJWT string
+		caughtDeleteJWT    string
+		caughtNatsAccCreds *domain.NatsUserCreds
 	)
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
+	accountSignKey, _ := nkeys.CreateAccount()
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
-	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
-	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt })
-	t.natsSysConnMock.mockDisconnect()
-	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID)
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+
+	t.natsAccClientMock.mockConnectMatchingCreds(t.natsURL, func(userCreds domain.NatsUserCreds) bool {
+		if userCreds.AccountID == accountID {
+			caughtNatsAccCreds = &userCreds
+			return true
+		}
+		return false
+	}, t.natsAccConnMock).Once()
+	t.natsAccConnMock.mockListAccountStreams([]string{}).Once()
+	t.natsAccConnMock.mockDisconnect().Once()
+
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt }).Once()
+	t.natsSysConnMock.mockDisconnect().Once()
+	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID).Once()
 
 	// When
 	err := t.unitUnderTest.Delete(t.ctx, &v1alpha1.Account{
@@ -354,11 +379,54 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	})
 
 	// Then
-	t.NoError(err, "failed to delete account")
-	t.NotEmpty(caughtDeleteJWT, "expected deletion JWT to be published to NATS")
+	t.Require().NoError(err)
+
+	t.Require().NotNil(caughtNatsAccCreds, "expected to connect to NATS account with credentials for account ID "+accountID)
+	t.Equal(accountID, caughtNatsAccCreds.AccountID)
+	t.NotEmpty(caughtNatsAccCreds.Creds, "expected credentials for account to be non-empty")
+	accUserJWT, err := jwt.ParseDecoratedJWT(caughtNatsAccCreds.Creds)
+	t.Require().NoError(err)
+	accUserClaims, err := jwt.DecodeUserClaims(accUserJWT)
+	t.Require().NoError(err)
+	t.Equal(accountID, accUserClaims.Issuer, "expected account user JWT to be issued by the account root key")
+	t.Equal(accountID, accUserClaims.IssuerAccount)
+	t.Equal(jwt.StringList{"$JS.API.>"}, accUserClaims.Pub.Allow)
+	t.Equal(jwt.StringList{"_INBOX.>"}, accUserClaims.Sub.Allow)
+
+	t.Require().NotEmpty(caughtDeleteJWT, "expected deletion JWT to be published to NATS")
 	deleteClaims, err := jwt.DecodeGeneric(caughtDeleteJWT)
-	t.NoError(err, "failed to decode deletion JWT")
+	t.Require().NoError(err, "failed to decode deletion JWT")
 	t.Equal([]interface{}{accountID}, deleteClaims.Data["accounts"])
+}
+
+func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAreMissing() {
+	// Given
+	var caughtDeleteJWT string
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt }).Once()
+	t.natsSysConnMock.mockDisconnect().Once()
+	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID).Once()
+
+	// When
+	err := t.unitUnderTest.Delete(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotEmpty(caughtDeleteJWT, "expected deletion JWT to be published to NATS")
 }
 
 func (t *AccountManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
@@ -627,24 +695,28 @@ func (m *secretManagerMock) DeleteAll(ctx context.Context, accountRef domain.Nam
 	return args.Error(0)
 }
 
-func (m *secretManagerMock) mockDeleteAll(ctx context.Context, accountRef domain.NamespacedName, accountID string) {
-	m.On("DeleteAll", ctx, accountRef, accountID).Return(nil)
+func (m *secretManagerMock) mockDeleteAll(ctx context.Context, accountRef domain.NamespacedName, accountID string) *mock.Call {
+	return m.On("DeleteAll", ctx, accountRef, accountID).Return(nil)
 }
 
-func (m *secretManagerMock) GetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, error) {
+func (m *secretManagerMock) GetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, bool, error) {
 	args := m.Called(ctx, accountRef, accountID)
 	if args.Get(0) == nil {
-		return nil, args.Error(1)
+		return nil, args.Bool(1), args.Error(2)
 	}
-	return args.Get(0).(*Secrets), args.Error(1)
+	return args.Get(0).(*Secrets), args.Bool(1), args.Error(2)
 }
 
 func (m *secretManagerMock) mockGetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string, result *Secrets) {
-	m.On("GetSecrets", ctx, accountRef, accountID).Return(result, nil)
+	m.On("GetSecrets", ctx, accountRef, accountID).Return(result, true, nil)
 }
 
 func (m *secretManagerMock) mockGetSecretsError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {
-	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, err)
+	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, false, err)
+}
+
+func (m *secretManagerMock) mockGetSecretsMissing(ctx context.Context, accountRef domain.NamespacedName, accountID string) {
+	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, false, nil)
 }
 
 var _ secretManager = (*secretManagerMock)(nil)

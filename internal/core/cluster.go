@@ -227,9 +227,12 @@ func (r *ClusterManager) resolveOperatorSigningKey(ctx context.Context, cluster 
 }
 
 func (r *ClusterManager) resolveSecret(ctx context.Context, namespacedName domain.NamespacedName, key string) ([]byte, error) {
-	secretData, err := r.secretReader.Get(ctx, namespacedName)
+	secretData, found, err := r.secretReader.Get(ctx, namespacedName)
 	if err != nil {
 		return nil, fmt.Errorf("resolve secret %s: %w", namespacedName, err)
+	}
+	if !found {
+		return nil, fmt.Errorf("secret %s not found", namespacedName)
 	}
 
 	if key == "" {
@@ -267,9 +270,12 @@ func (r *ClusterManager) resolveNatsURL(ctx context.Context, cluster *v1alpha1.N
 			}
 			return "", fmt.Errorf("configMap %s has no key %q", resourceRef, urlFromRef.Key)
 		case v1alpha1.URLFromKindSecret:
-			data, err := r.secretReader.Get(ctx, resourceRef)
+			data, found, err := r.secretReader.Get(ctx, resourceRef)
 			if err != nil {
 				return "", fmt.Errorf("get Secret %s: %w", resourceRef, err)
+			}
+			if !found {
+				return "", fmt.Errorf("secret %s not found", resourceRef)
 			}
 			if natsURL, ok := data[urlFromRef.Key]; ok {
 				return natsURL, nil

@@ -1,0 +1,22 @@
+# This file contains resources that will cause test to fail if they exist.
+# Once the blocking JetStream stream has been removed, the already-requested
+# Account deletion should be able to complete and clean up its secrets.
+
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    nauth.io/secret-type: account-root
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    nauth.io/secret-type: account-sign

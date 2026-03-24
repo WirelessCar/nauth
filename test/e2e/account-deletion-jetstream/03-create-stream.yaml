@@ -1,0 +1,24 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      set -eu
+
+      creds_file="$(mktemp)"
+      trap 'rm -f "$creds_file"' EXIT
+
+      bash ../../script/create-temp-account-creds.sh "$NAMESPACE" example-account > "$creds_file"
+      grep -q 'BEGIN USER NKEY SEED' "$creds_file" || { echo "temporary creds missing seed block"; sed -n '1,40p' "$creds_file"; exit 1; }
+
+      pod="$(kubectl get pods -n nats -o name | grep 'pod/nats-box' | head -1 | cut -d'/' -f2)"
+      test -n "$pod"
+
+      kubectl exec -i -n nats "$pod" -- sh -c "cat > /tmp/stream-writer.creds" < "$creds_file"
+      kubectl exec -n nats "$pod" -- sh -c "grep -q 'BEGIN USER NKEY SEED' /tmp/stream-writer.creds"
+
+      response="$(
+        kubectl exec -n nats "$pod" -- sh -lc \
+          "nats --server='nats://nats.nats.svc.cluster.local:4222' --creds /tmp/stream-writer.creds req '\$JS.API.STREAM.CREATE.ORDERS' '{\"name\":\"ORDERS\",\"subjects\":[\"orders.>\"]}' && rm -f /tmp/stream-writer.creds"
+      )"
+
+      printf '%s' "$response" | grep -q '"type":"io.nats.jetstream.api.v1.stream_create_response"'
