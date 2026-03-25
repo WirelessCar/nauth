@@ -34,8 +34,6 @@ type secretManagerImpl struct {
 	secretClient outbound.SecretClient
 }
 
-var errAccountSecretsUnavailable = errors.New("account secrets unavailable")
-
 func newSecretManagerImpl(secretClient outbound.SecretClient) (*secretManagerImpl, error) {
 	if secretClient == nil {
 		return nil, fmt.Errorf("secret client is required")
@@ -128,38 +126,35 @@ func (m *secretManagerImpl) GetSecrets(ctx context.Context, accountRef domain.Na
 		return nil, false, fmt.Errorf("invalid account reference %s: %w", accountRef, err)
 	}
 	if accountID != "" {
-		secretsByAccountID, errByAccountID := m.getAccountSecretsByAccountID(ctx, accountRef.GetNamespace(), accountID)
-		if errByAccountID == nil {
+		secretsByAccountID, found, errByAccountID := m.getAccountSecretsByAccountID(ctx, accountRef.GetNamespace(), accountID)
+		if errByAccountID == nil && found {
 			result, err := m.validatedResult(secretsByAccountID, accountID)
 			return result, true, err
 		}
-		if !isAccountSecretsUnavailable(errByAccountID) {
+		if errByAccountID != nil {
 			err = fmt.Errorf("failed to get account secrets by account ID %q: %w", accountID, errByAccountID)
 		}
 	}
 
-	secretsByAccountName, errByAccountName := m.getAccountSecretsByAccountName(ctx, accountRef)
-	if errByAccountName == nil {
+	secretsByAccountName, found, errByAccountName := m.getAccountSecretsByAccountName(ctx, accountRef)
+	if errByAccountName == nil && found {
 		result, err := m.validatedResult(secretsByAccountName, accountID)
 		return result, true, err
 	}
-	if !isAccountSecretsUnavailable(errByAccountName) {
+	if errByAccountName != nil {
 		err = errors.Join(err, fmt.Errorf("failed to get account secrets by account name %q: %w", accountRef.Name, errByAccountName))
 	}
 
-	secretsBySecretName, errBySecretName := m.getDeprecatedAccountSecretsByName(ctx, accountRef, accountID)
-	if errBySecretName == nil {
+	secretsBySecretName, found, errBySecretName := m.getDeprecatedAccountSecretsByName(ctx, accountRef, accountID)
+	if errBySecretName == nil && found {
 		result, err := m.validatedResult(secretsBySecretName, accountID)
 		return result, true, err
 	}
-	if !isAccountSecretsUnavailable(errBySecretName) {
+	if errBySecretName != nil {
 		err = errors.Join(err, fmt.Errorf("failed to get account secrets by secret name (deprecated) for account name %q: %w", accountRef.Name, errBySecretName))
 	}
 
-	if err != nil {
-		return nil, false, err
-	}
-	return nil, false, nil
+	return nil, false, err
 }
 
 func (m *secretManagerImpl) validatedResult(result *Secrets, accountID string) (*Secrets, error) {
@@ -173,42 +168,42 @@ func (m *secretManagerImpl) validatedResult(result *Secrets, accountID string) (
 	return result, nil
 }
 
-func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*Secrets, error) {
+func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*Secrets, bool, error) {
 	labels := map[string]string{
 		k8s.LabelAccountID: accountID,
 		k8s.LabelManaged:   k8s.LabelManagedValue,
 	}
 	k8sSecrets, err := m.secretClient.GetByLabels(ctx, namespace, labels)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	return m.getAccountSecretsFromK8sSecrets(k8sSecrets)
 }
 
-func (m *secretManagerImpl) getAccountSecretsByAccountName(ctx context.Context, accountRef domain.NamespacedName) (*Secrets, error) {
+func (m *secretManagerImpl) getAccountSecretsByAccountName(ctx context.Context, accountRef domain.NamespacedName) (*Secrets, bool, error) {
 	labels := map[string]string{
 		k8s.LabelAccountName: accountRef.Name,
 		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}
 	k8sSecrets, err := m.secretClient.GetByLabels(ctx, accountRef.GetNamespace(), labels)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	return m.getAccountSecretsFromK8sSecrets(k8sSecrets)
 }
 
-func (m *secretManagerImpl) getAccountSecretsFromK8sSecrets(k8sSecrets *v1.SecretList) (*Secrets, error) {
+func (m *secretManagerImpl) getAccountSecretsFromK8sSecrets(k8sSecrets *v1.SecretList) (*Secrets, bool, error) {
 	if len(k8sSecrets.Items) != 2 {
-		return nil, fmt.Errorf("%w: expected 2 secrets, got %d", errAccountSecretsUnavailable, len(k8sSecrets.Items))
+		return nil, false, nil
 	}
 
 	secrets := make(map[string]map[string]string, len(k8sSecrets.Items))
 	for _, secret := range k8sSecrets.Items {
 		secretType := secret.GetLabels()[k8s.LabelSecretType]
 		if _, ok := secrets[secretType]; ok {
-			return nil, fmt.Errorf("multiple secrets of type '%s' found", secretType)
+			return nil, false, fmt.Errorf("multiple secrets of type '%s' found", secretType)
 		}
 
 		secretData := make(map[string]string, len(secret.Data))
@@ -218,14 +213,19 @@ func (m *secretManagerImpl) getAccountSecretsFromK8sSecrets(k8sSecrets *v1.Secre
 		secrets[secretType] = secretData
 	}
 
-	return m.toAccountSecrets(secrets)
+	result, err := m.toAccountSecrets(secrets)
+	if err != nil {
+		return nil, false, err
+	}
+	return result, true, nil
 }
 
-func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, error) {
+func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, bool, error) {
 	logger := logf.FromContext(ctx)
 
 	type goRoutineResult struct {
 		secret map[string]string
+		found  bool
 		err    error
 	}
 	var wg sync.WaitGroup
@@ -263,7 +263,6 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 				return
 			}
 			if !found {
-				result.err = fmt.Errorf("%w: deprecated secret %s not found", errAccountSecretsUnavailable, secretRef)
 				ch <- result
 				return
 			}
@@ -278,6 +277,7 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 			}
 			accountSecret[k8s.LabelSecretType] = secretType
 			result.secret = accountSecret
+			result.found = true
 			ch <- result
 		}(s.secretRef, s.secretType)
 	}
@@ -293,18 +293,25 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 			errs = append(errs, res.err)
 			continue
 		}
+		if !res.found {
+			continue
+		}
 		secrets[res.secret[k8s.LabelSecretType]] = res.secret
 	}
 
 	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
+		return nil, false, errors.Join(errs...)
 	}
 
 	if len(secrets) < 2 {
-		return nil, fmt.Errorf("%w: missing one or more deprecated secret(s) for account: %s", errAccountSecretsUnavailable, accountRef)
+		return nil, false, nil
 	}
 
-	return m.toAccountSecrets(secrets)
+	result, err := m.toAccountSecrets(secrets)
+	if err != nil {
+		return nil, false, err
+	}
+	return result, true, nil
 }
 
 func (m *secretManagerImpl) toAccountSecrets(secrets map[string]map[string]string) (*Secrets, error) {
@@ -326,7 +333,7 @@ func (m *secretManagerImpl) toAccountSecrets(secrets map[string]map[string]strin
 func (m *secretManagerImpl) toKeyPair(secrets map[string]map[string]string, secretType string) (nkeys.KeyPair, error) {
 	secret, ok := secrets[secretType]
 	if !ok {
-		return nil, fmt.Errorf("%w: secret of type '%s' not found", errAccountSecretsUnavailable, secretType)
+		return nil, fmt.Errorf("secret of type '%s' not found", secretType)
 	}
 	seed, ok := secret[k8s.DefaultSecretKeyName]
 	if !ok {
@@ -337,10 +344,6 @@ func (m *secretManagerImpl) toKeyPair(secrets map[string]map[string]string, secr
 		return nil, fmt.Errorf("create key pair from secret of type '%s': %w", secretType, err)
 	}
 	return keyPair, nil
-}
-
-func isAccountSecretsUnavailable(err error) bool {
-	return errors.Is(err, errAccountSecretsUnavailable)
 }
 
 var _ secretManager = (*secretManagerImpl)(nil)
