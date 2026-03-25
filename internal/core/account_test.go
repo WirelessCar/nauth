@@ -248,6 +248,28 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.Nil(result)
 }
 
+func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreInvalid() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
+
+	// When
+	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+		},
+		Spec: v1alpha1.AccountSpec{},
+	})
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "existing account secrets are invalid; account creation requires manual intervention")
+	t.ErrorContains(err, "root secret is malformed")
+}
+
 func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	// Given
 	var (
@@ -713,6 +735,10 @@ func (m *secretManagerMock) mockGetSecrets(ctx context.Context, accountRef domai
 
 func (m *secretManagerMock) mockGetSecretsError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {
 	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, false, err)
+}
+
+func (m *secretManagerMock) mockGetSecretsFoundError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {
+	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, true, err)
 }
 
 func (m *secretManagerMock) mockGetSecretsMissing(ctx context.Context, accountRef domain.NamespacedName, accountID string) {

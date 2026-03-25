@@ -93,7 +93,10 @@ func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, "")
-	if err == nil && found {
+	if found {
+		if err != nil {
+			return nil, fmt.Errorf("existing account secrets are invalid; account creation requires manual intervention: %w", err)
+		}
 		accountKeyPair = accountSecrets.Root
 		accountPublicKey, err = accountKeyPair.PublicKey()
 		if err != nil {
@@ -343,6 +346,9 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to get secrets for account: %w", err)
 	}
 	if found {
+		// Account secrets may already be gone if secretManager.DeleteAll partially failed during previous attempt.
+		// Then we won't be able to sign a JWT to lookup account streams, but we can skip the check since the account
+		// is effectively already deleted in NATS.
 		streams, err := a.listAccountStreams(cluster, accountSecrets, accountID)
 		if err != nil {
 			return fmt.Errorf("failed to list account streams: %w", err)
