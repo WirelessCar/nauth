@@ -92,6 +92,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, fixedAccountID)
 	if fixedAccountID != "" {
 		// Update
+		// FIXME: Fail (or handle) if NatsCluster has changed, to prevent orphaned Account JWTs in other NATS cluster.
 		if !found {
 			return nil, fmt.Errorf("account secrets not found for account %s", fixedAccountID)
 		}
@@ -161,6 +162,8 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 		return nil, fmt.Errorf("failed to sign account jwt: %w", err)
 	}
 
+	// FIXME: Hash signedJwt and check with State + cluster
+
 	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
@@ -176,6 +179,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 	return &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
+		NatsClusterRef:  &cluster.Reference,
 		Claims:          &nauthClaims,
 	}, nil
 }
@@ -248,6 +252,7 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	return &domain.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: operatorSigningPublicKey,
+		NatsClusterRef:  &cluster.Reference,
 		Claims:          &nauthClaims,
 	}, nil
 }
@@ -262,6 +267,7 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 	if err != nil {
 		return fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
+	// FIXME: Fail (or handle) if NatsCluster has changed, to prevent orphaned Account JWTs in other NATS cluster.
 
 	operatorPublicKey, err := cluster.OperatorSigningKey.PublicKey()
 	if err != nil {

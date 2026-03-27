@@ -37,6 +37,18 @@ func NewNamespacedName(namespace, name string) NamespacedName {
 	return r
 }
 
+func ParseNamespacedName(namespacedName string) (*NamespacedName, error) {
+	parts := strings.SplitN(namespacedName, "/", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid namespaced name %q: expected format <namespace>/<name>", namespacedName)
+	}
+	result := &NamespacedName{
+		Namespace: parts[0],
+		Name:      parts[1],
+	}
+	return result, result.Validate()
+}
+
 func (n NamespacedName) GetNamespace() Namespace {
 	return Namespace(n.Namespace)
 }

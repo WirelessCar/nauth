@@ -15,3 +15,8 @@ const (
 const (
 	EnvOperatorVersion = "OPERATOR_VERSION"
 )
+
+const (
+	LabelAccountNatsClusterRef = "account.nauth.io/nats-cluster-ref"
+	LabelValueUnknown          = "UNKNOWN"
+)

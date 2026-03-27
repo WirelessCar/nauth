@@ -80,6 +80,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClust
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
 	require.Equal(t.T(), &clusterTarget{
+		Reference:          domain.NewNamespacedName("my-namespace", "my-cluster"),
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -120,6 +121,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
 	require.Equal(t.T(), &clusterTarget{
+		Reference:          domain.NewNamespacedName("ac-namespace", "ac-cluster"),
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -160,6 +162,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
 	require.Equal(t.T(), &clusterTarget{
+		Reference:          domain.NewNamespacedName("my-namespace", "my-cluster"),
 		NatsURL:            "nats://my-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,
@@ -204,6 +207,7 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountCluste
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
 	require.Equal(t.T(), &clusterTarget{
+		Reference:          domain.NewNamespacedName("ac-namespace", "ac-cluster"),
 		NatsURL:            "nats://ac-cluster:4222",
 		SystemAdminCreds:   sauCreds,
 		OperatorSigningKey: opSignKey,

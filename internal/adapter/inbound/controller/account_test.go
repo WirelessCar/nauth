@@ -101,6 +101,7 @@ func (t *AccountControllerTestSuite) TearDownTest() {
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAccount() {
 	// Given
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
@@ -151,6 +152,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccount() {
 	// Given
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
@@ -193,6 +195,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedForDeletion() {
 	// Given
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
@@ -234,6 +237,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	// Given
 	deletionErr := fmt.Errorf("Unable to delete account")
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
@@ -276,6 +280,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount() {
 	// Given
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
@@ -301,6 +306,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
 	// Given
 	mockResult := &domain.AccountResult{
+		// FIXME: Consider NatsClusterRef
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},

@@ -27,11 +27,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,6 +150,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Nothing has changed
 	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
+		// FIXME: Revise statement as we are now dependant on external (changeable) resources, like NatsCluster
 		return ctrl.Result{}, nil
 	}
 
@@ -175,6 +179,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// RECONCILE ACCOUNT
 	var result *domain.AccountResult
 
+	_, _ = r.getLabelNatsClusterRef(natsAccount) // FIXME: Supply the previous NatsClusterRef to the manager
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
 		result, err = r.manager.Import(ctx, natsAccount)
 		if err != nil {
@@ -193,8 +198,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	natsAccount.Labels[k8s.LabelAccountID] = result.AccountID
 	natsAccount.Labels[k8s.LabelAccountSignedBy] = result.AccountSignedBy
+	r.setLabelNatsClusterRefLabel(result, natsAccount)
 
 	// UPDATE ACCOUNT STATUS
+	natsAccount.Status.Claims = v1alpha1.AccountClaims{}
 	if result.Claims != nil {
 		natsAccount.Status.Claims = *result.Claims
 	}
@@ -220,14 +227,75 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.reporter.status(ctx, natsAccount)
 }
 
+func (r *AccountReconciler) getLabelNatsClusterRef(natsAccount *v1alpha1.Account) (*domain.NamespacedName, error) {
+	return domain.ParseNamespacedName(natsAccount.Labels[LabelAccountNatsClusterRef])
+}
+
+func (r *AccountReconciler) setLabelNatsClusterRefLabel(result *domain.AccountResult, natsAccount *v1alpha1.Account) {
+	var natsClusterRef string
+	if result.NatsClusterRef != nil {
+		natsClusterRef = result.NatsClusterRef.Name
+		natsAccount.Labels[LabelAccountNatsClusterRef] = result.NatsClusterRef.String()
+	}
+	if natsClusterRef == "" {
+		natsClusterRef = LabelValueUnknown
+	}
+	natsAccount.Labels[LabelAccountNatsClusterRef] = natsClusterRef
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Account{}).
 		Named("account").
+		Watches(
+			&v1alpha1.NatsCluster{},
+			handler.EnqueueRequestsFromMapFunc(r.requestsForNatsCluster),
+		).
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
+}
+
+func (r *AccountReconciler) requestsForNatsCluster(ctx context.Context, obj client.Object) []reconcile.Request {
+	natsCluster, ok := obj.(*v1alpha1.NatsCluster)
+	if !ok {
+		return nil
+	}
+	natsClusterRef := domain.NewNamespacedName(natsCluster.Namespace, natsCluster.Name)
+
+	if err := natsClusterRef.Validate(); err != nil {
+		logf.FromContext(ctx).Error(err, "failed to parse NamespacedName from NatsCluster reference",
+			"namespace", natsCluster.Namespace,
+			"name", natsCluster.Name)
+		return []reconcile.Request{}
+	}
+
+	var requests []reconcile.Request
+	var accounts v1alpha1.AccountList
+	if err := r.List(ctx, &accounts, client.MatchingLabels{LabelAccountNatsClusterRef: natsClusterRef.String()}); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list accounts labelled with NatsCluster", "natsCluster", natsClusterRef)
+		return nil
+	}
+	for _, account := range accounts.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: account.Namespace,
+			Name:      account.Name,
+		}})
+	}
+
+	if err := r.List(ctx, &accounts, client.MatchingLabels{LabelAccountNatsClusterRef: LabelValueUnknown}); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list accounts labelled with unknown NatsCluster")
+		return nil
+	}
+	for _, account := range accounts.Items {
+		requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{
+			Namespace: account.Namespace,
+			Name:      account.Name,
+		}})
+	}
+
+	return requests
 }

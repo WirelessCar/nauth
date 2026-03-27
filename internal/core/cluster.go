@@ -13,6 +13,7 @@ import (
 )
 
 type clusterTarget struct {
+	Reference          domain.NamespacedName
 	NatsURL            string
 	SystemAdminCreds   domain.NatsUserCreds
 	OperatorSigningKey domain.NatsOperatorSigningKey
@@ -31,8 +32,14 @@ func (c *clusterTarget) validate() error {
 	return nil
 }
 
-func newClusterTarget(natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*clusterTarget, error) {
+func newClusterTarget(
+	reference domain.NamespacedName,
+	natsURL string,
+	systemAdminCreds domain.NatsUserCreds,
+	operatorSigningKey domain.NatsOperatorSigningKey,
+) (*clusterTarget, error) {
 	result := &clusterTarget{
+		Reference:          reference,
 		NatsURL:            natsURL,
 		SystemAdminCreds:   systemAdminCreds,
 		OperatorSigningKey: operatorSigningKey,
@@ -191,7 +198,7 @@ func (r *ClusterManager) resolveTargetFromCluster(ctx context.Context, cluster *
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key for NatsCluster %s: %w", clusterRef, err)
 	}
-	target, err := newClusterTarget(natsURL, *sysAdminCreds, opSigningKey)
+	target, err := newClusterTarget(clusterRef, natsURL, *sysAdminCreds, opSigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("create cluster target for NatsCluster %s: %w", clusterRef, err)
 	}
