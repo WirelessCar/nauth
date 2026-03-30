@@ -97,7 +97,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	var natsLimitsSubs int64 = 100
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
-	t.secretManagerMock.mockGetSecretsError(t.ctx, accountRef, "", fmt.Errorf("no secrets found"))
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
 	})
@@ -148,7 +148,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 		Namespace: "account-namespace",
 		Name:      "account-namespace-cluster",
 	}, &t.clusterTarget)
-	t.secretManagerMock.mockGetSecretsError(t.ctx, accountRef, "", fmt.Errorf("no secrets found"))
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
 	})
@@ -731,10 +731,6 @@ func (m *secretManagerMock) GetSecrets(ctx context.Context, accountRef domain.Na
 
 func (m *secretManagerMock) mockGetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string, result *Secrets) {
 	m.On("GetSecrets", ctx, accountRef, accountID).Return(result, true, nil)
-}
-
-func (m *secretManagerMock) mockGetSecretsError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {
-	m.On("GetSecrets", ctx, accountRef, accountID).Return(nil, false, err)
 }
 
 func (m *secretManagerMock) mockGetSecretsFoundError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {
