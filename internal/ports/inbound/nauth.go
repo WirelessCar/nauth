@@ -8,8 +8,7 @@ import (
 )
 
 type AccountManager interface {
-	Create(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error)
-	Update(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error)
+	CreateOrUpdate(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error)
 	Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error)
 	Delete(ctx context.Context, desired *v1alpha1.Account) error
 }

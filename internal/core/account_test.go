@@ -110,7 +110,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -161,7 +161,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -193,7 +193,6 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	)
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountRootKey, _ := nkeys.CreateAccount()
-	accountID, _ := accountRootKey.PublicKey()
 	accountSignKey, _ := nkeys.CreateAccount()
 	var natsLimitsSubs int64 = 100
 
@@ -202,14 +201,12 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 		Root: accountRootKey,
 		Sign: accountSignKey,
 	})
-	t.secretManagerMock.mockApplyRootSecret(t.ctx, accountRef, accountRootKey)
-	t.secretManagerMock.mockApplySignSecret(t.ctx, accountRef, accountID, accountSignKey)
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -235,7 +232,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
-	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -256,7 +253,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreI
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
-	result, err := t.unitUnderTest.Create(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -290,7 +287,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -317,7 +314,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
-	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -330,7 +327,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "account secrets not found for account ACMISSINGACCOUNTID during update")
+	t.ErrorContains(err, "account secrets not found for account ACMISSINGACCOUNTID")
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccount() {
@@ -347,7 +344,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	})
 
 	// When
-	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -360,7 +357,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "updating system account is not supported")
+	t.ErrorContains(err, "reconciling system account is not supported")
 	t.ErrorContains(err, fmt.Sprintf("%s: %s", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue))
 }
 
@@ -390,7 +387,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	})
 
 	// When
-	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "account-namespace",
 			Name:      "account-name",
@@ -424,7 +421,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "failed to sign account jwt for account-namespace-account-name during update")
+	t.ErrorContains(err, "failed to sign account jwt")
 	t.ErrorContains(err, "account claims validation failed")
 }
 
@@ -799,10 +796,6 @@ func (m *secretManagerMock) ApplyRootSecret(ctx context.Context, accountRef doma
 	return args.Error(0)
 }
 
-func (m *secretManagerMock) mockApplyRootSecret(ctx context.Context, accountRef domain.NamespacedName, rootKeyPair nkeys.KeyPair) {
-	m.On("ApplyRootSecret", ctx, accountRef, rootKeyPair).Return(nil)
-}
-
 func (m *secretManagerMock) mockApplyRootSecretUnknown(ctx context.Context, accountRef domain.NamespacedName, catch func(rootKeyPair nkeys.KeyPair)) {
 	m.On("ApplyRootSecret", ctx, accountRef, mock.Anything).
 		Return(nil).
@@ -816,10 +809,6 @@ func (m *secretManagerMock) mockApplyRootSecretUnknown(ctx context.Context, acco
 func (m *secretManagerMock) ApplySignSecret(ctx context.Context, accountRef domain.NamespacedName, accountID string, signKeyPair nkeys.KeyPair) error {
 	args := m.Called(ctx, accountRef, accountID, signKeyPair)
 	return args.Error(0)
-}
-
-func (m *secretManagerMock) mockApplySignSecret(ctx context.Context, accountRef domain.NamespacedName, accountID string, signKeyPair nkeys.KeyPair) {
-	m.On("ApplySignSecret", ctx, accountRef, accountID, signKeyPair).Return(nil)
 }
 
 func (m *secretManagerMock) mockApplySignSecretUnknown(ctx context.Context, accountRef domain.NamespacedName, catch func(accountID string, signKeyPair nkeys.KeyPair)) {

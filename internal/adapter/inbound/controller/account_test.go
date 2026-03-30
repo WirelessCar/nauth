@@ -105,9 +105,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
 	}
-	t.accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
 
-	// When (expect manager.Create)
+	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
@@ -124,13 +124,13 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 	t.Empty(t.fakeRecorder.Events)
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateFails() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFails() {
 	// Given
 	accountsManagerErr := fmt.Errorf("a test error")
 
-	t.accountManagerMock.On("Create", mock.Anything).Return(nil, accountsManagerErr).Once()
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(nil, accountsManagerErr).Once()
 
-	// When (expect manager.Create)
+	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
@@ -145,7 +145,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateFails()
 		t.Equal(controllerReasonErrored, c.Reason)
 	}
 	t.Len(t.fakeRecorder.Events, 1)
-	t.Contains(<-t.fakeRecorder.Events, "failed to create the account: a test error")
+	t.Contains(<-t.fakeRecorder.Events, "failed to apply account: a test error")
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccount() {
@@ -197,8 +197,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
 	}
-	// Note: Expect manager.Create during setup only
-	t.accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
+	// Note: Expect manager.CreateOrUpdate during setup only
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -238,8 +238,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
 	}
-	// Note: Expect manager.Create during setup only
-	t.accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
+	// Note: Expect manager.CreateOrUpdate during setup only
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -305,8 +305,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
 	}
-	// Note: Expect manager.Create during setup only
-	t.accountManagerMock.On("Create", mock.Anything).Return(mockResult, nil).Once()
+	// Note: Expect manager.CreateOrUpdate during setup only
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -317,9 +317,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
-	t.accountManagerMock.On("Update", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
 
-	// When (expect manager.Update)
+	// When (expect manager.CreateOrUpdate)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
@@ -339,18 +339,7 @@ type AccountManagerMock struct {
 	mock.Mock
 }
 
-func (o *AccountManagerMock) Create(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
-	args := o.Called(state)
-	if args.Error(1) != nil {
-		return nil, args.Error(1)
-	}
-	if args.Get(0) == nil {
-		return nil, nil
-	}
-	return args.Get(0).(*domain.AccountResult), nil
-}
-
-func (o *AccountManagerMock) Update(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
+func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	args := o.Called(state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)

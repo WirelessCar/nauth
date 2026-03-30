@@ -77,95 +77,101 @@ func (a *AccountManager) validate() error {
 	return nil
 }
 
-func (a *AccountManager) Create(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
+func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
 
-	var accountPublicKey string
-	var accountSigningPublicKey string
-	var accountKeyPair nkeys.KeyPair
-	var accountSigningKeyPair nkeys.KeyPair
-
 	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
-	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, "")
-	if found {
-		if err != nil {
-			return nil, fmt.Errorf("existing account secrets are invalid; account creation requires manual intervention: %w", err)
+
+	fixedAccountID := state.GetLabels()[k8s.LabelAccountID]
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, fixedAccountID)
+	if fixedAccountID != "" {
+		// Update
+		if !found {
+			return nil, fmt.Errorf("account secrets not found for account %s", fixedAccountID)
 		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account secrets for account %s: %w", fixedAccountID, err)
+		}
+		if fixedAccountID == cluster.SystemAdminCreds.AccountID {
+			return nil, fmt.Errorf("reconciling system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
+		}
+	} else if found && err != nil {
+		// Create
+		return nil, fmt.Errorf("existing account secrets are invalid; account creation requires manual intervention: %w", err)
+	}
+
+	var accountKeyPair nkeys.KeyPair
+	var accountPublicKey string
+	var accountSigningKeyPair nkeys.KeyPair
+	if found {
 		accountKeyPair = accountSecrets.Root
 		accountPublicKey, err = accountKeyPair.PublicKey()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get account public key from existing secret during creation: %w", err)
+			return nil, fmt.Errorf("failed to extract account root public key from existing secret: %w", err)
 		}
-
 		accountSigningKeyPair = accountSecrets.Sign
-		accountSigningPublicKey, err = accountSigningKeyPair.PublicKey()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get account signing public key from existing secret during creation: %w", err)
-		}
 	} else {
 		accountKeyPair, err = nkeys.CreateAccount()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create account key pair during creation: %w", err)
+			return nil, fmt.Errorf("failed to create account root key pair: %w", err)
 		}
-		accountPublicKey, err = accountKeyPair.PublicKey()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get account public key during creation: %w", err)
-		}
+		accountPublicKey, _ = accountKeyPair.PublicKey() // Safe due to new nkey
 
 		accountSigningKeyPair, err = nkeys.CreateAccount()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create account signing key pair during creation: %w", err)
+			return nil, fmt.Errorf("failed to create account signing key pair: %w", err)
 		}
-		accountSigningPublicKey, err = accountSigningKeyPair.PublicKey()
+
+		err = a.secretManager.ApplyRootSecret(ctx, accountRef, accountKeyPair)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get account signing public key during creation: %w", err)
+			return nil, fmt.Errorf("failed to apply account root secret: %w", err)
+		}
+
+		err = a.secretManager.ApplySignSecret(ctx, accountRef, accountPublicKey, accountSigningKeyPair)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply account signing secret: %w", err)
 		}
 	}
 
-	err = a.secretManager.ApplyRootSecret(ctx, accountRef, accountKeyPair)
+	accountSigningPublicKey, err := accountSigningKeyPair.PublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to apply account root secret during creation: %w", err)
-	}
-
-	err = a.secretManager.ApplySignSecret(ctx, accountRef, accountPublicKey, accountSigningKeyPair)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply account signing secret during creation: %w", err)
+		return nil, fmt.Errorf("failed to extract account signing public key: %w", err)
 	}
 
 	operatorSigningPublicKey, err := cluster.OperatorSigningKey.PublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get operator signing public key during creation: %w", err)
+		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
 	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build NATS account claims during creation: %w", err)
+		return nil, fmt.Errorf("failed to build NATS account claims: %w", err)
 	}
+
 	signedJwt, err := signAccountJWT(natsClaims, cluster.OperatorSigningKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign account jwt during creation: %w", err)
+		return nil, fmt.Errorf("failed to sign account jwt: %w", err)
 	}
 
 	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS cluster during creation: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
-
 	defer sysConn.Disconnect()
+
 	err = sysConn.UploadAccountJWT(signedJwt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to upload account jwt during creation: %w", err)
+		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 
-	// Return immutable result - controller will apply to state
 	nauthClaims := convertNatsAccountClaims(natsClaims)
 	return &domain.AccountResult{
 		AccountID:       accountPublicKey,
@@ -181,80 +187,6 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 		return "", fmt.Errorf("account claims validation failed: %v", errs)
 	}
 	return claims.Encode(operatorSigningKey)
-}
-
-func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
-	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
-	if err := accountRef.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
-	}
-
-	cluster, err := a.resolveClusterTarget(ctx, state)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
-	}
-
-	accountID := state.GetLabels()[k8s.LabelAccountID]
-	secrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("account secrets not found for account %s during update", accountID)
-	}
-
-	sysAccountID := cluster.SystemAdminCreds.AccountID
-	if sysAccountID == accountID {
-		return nil, fmt.Errorf("updating system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
-	}
-
-	accountKeyPair := secrets.Root
-	accountPublicKey, err := accountKeyPair.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get account public key from existing seed during update: %w", err)
-	}
-
-	accountSigningKeyPair := secrets.Sign
-	accountSigningPublicKey, err := accountSigningKeyPair.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get account signing public key from existing seed during update: %w", err)
-	}
-
-	operatorSigningPublicKey, err := cluster.OperatorSigningKey.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator signing public key during update: %w", err)
-	}
-
-	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
-		signingKey(accountSigningPublicKey).
-		build()
-	if err != nil {
-		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return nil, fmt.Errorf("failed to build NATS account claims for %s during update: %w", accountName, err)
-	}
-	signedJwt, err := signAccountJWT(natsClaims, cluster.OperatorSigningKey)
-	if err != nil {
-		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
-		return nil, fmt.Errorf("failed to sign account jwt for %s during update: %w", accountName, err)
-	}
-
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS cluster during update: %w", err)
-	}
-	defer sysConn.Disconnect()
-
-	err = sysConn.UploadAccountJWT(signedJwt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload account jwt during update: %w", err)
-	}
-
-	nauthClaims := convertNatsAccountClaims(natsClaims)
-	return &domain.AccountResult{
-		AccountID:       accountID,
-		AccountSignedBy: operatorSigningPublicKey,
-		Claims:          &nauthClaims,
-	}, nil
 }
 
 func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {

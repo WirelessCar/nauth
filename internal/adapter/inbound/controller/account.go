@@ -172,7 +172,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// RECONCILE ACCOUNT - Import/Create/Update the NATS Account
+	// RECONCILE ACCOUNT
 	var result *domain.AccountResult
 
 	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
@@ -180,15 +180,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
-	} else if accountID == "" {
-		result, err = r.manager.Create(ctx, natsAccount)
-		if err != nil {
-			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create the account: %w", err))
-		}
 	} else {
-		result, err = r.manager.Update(ctx, natsAccount)
+		result, err = r.manager.CreateOrUpdate(ctx, natsAccount)
 		if err != nil {
-			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to update the account: %w", err))
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
 	}
 
