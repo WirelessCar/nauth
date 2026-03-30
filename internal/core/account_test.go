@@ -308,6 +308,62 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
 }
 
+func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMissing() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := "ACMISSINGACCOUNTID"
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
+
+	// When
+	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+		Spec: v1alpha1.AccountSpec{},
+	})
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "account secrets not found for account ACMISSINGACCOUNTID during update")
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccount() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := t.sauCreds.AccountID
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountSignKey, _ := nkeys.CreateAccount()
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+
+	// When
+	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+		Spec: v1alpha1.AccountSpec{},
+	})
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "updating system account is not supported")
+	t.ErrorContains(err, fmt.Sprintf("%s: %s", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue))
+}
+
 func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInvalid() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
