@@ -27,6 +27,7 @@ go.work.sum
 
 # Go Cache
 .gocache
+.cache/
 
 # env file
 .env
