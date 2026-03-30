@@ -308,6 +308,70 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
 }
 
+func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInvalid() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+	accountSignKey, _ := nkeys.CreateAccount()
+	importAccountKey, _ := nkeys.CreateAccount()
+	importAccountID, _ := importAccountKey.PublicKey()
+	importAccountRef := domain.NewNamespacedName("import-namespace", "import-account")
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+	t.accountReaderMock.mockGet(t.ctx, importAccountRef, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "import-namespace",
+			Name:      "import-account",
+			Labels: map[string]string{
+				k8s.LabelAccountID: importAccountID,
+			},
+		},
+	})
+
+	// When
+	result, err := t.unitUnderTest.Update(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "account-namespace",
+			Name:      "account-name",
+			Labels: map[string]string{
+				k8s.LabelAccountID: accountID,
+			},
+		},
+		Spec: v1alpha1.AccountSpec{
+			Imports: v1alpha1.Imports{
+				{
+					Name: "import-once",
+					AccountRef: v1alpha1.AccountRef{
+						Namespace: "import-namespace",
+						Name:      "import-account",
+					},
+					Subject: "foo",
+					Type:    v1alpha1.Service,
+				},
+				{
+					Name: "import-twice",
+					AccountRef: v1alpha1.AccountRef{
+						Namespace: "import-namespace",
+						Name:      "import-account",
+					},
+					Subject: "foo",
+					Type:    v1alpha1.Service,
+				},
+			},
+		},
+	})
+
+	// Then
+	t.Nil(result)
+	t.ErrorContains(err, "failed to sign account jwt for account-namespace-account-name during update")
+	t.ErrorContains(err, "account claims validation failed")
+}
+
 func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")

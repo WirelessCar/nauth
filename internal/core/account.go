@@ -232,7 +232,7 @@ func (a *AccountManager) Update(ctx context.Context, state *v1alpha1.Account) (*
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return nil, fmt.Errorf("failed to build NATS account claims for %s during update: %w", accountName, err)
 	}
-	signedJwt, err := natsClaims.Encode(cluster.OperatorSigningKey)
+	signedJwt, err := signAccountJWT(natsClaims, cluster.OperatorSigningKey)
 	if err != nil {
 		accountName := fmt.Sprintf("%s-%s", state.GetNamespace(), state.GetName())
 		return nil, fmt.Errorf("failed to sign account jwt for %s during update: %w", accountName, err)
