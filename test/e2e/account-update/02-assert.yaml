@@ -1,0 +1,28 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  claims:
+    displayName: Updated Example Account
+    natsLimits:
+      data: 2048
+      payload: 1000
+      subs: 200
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: example-account
+    ref: example_account
+assertAll:
+  - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
+  - celExpr: example_account.metadata.labels["account.nauth.io/id"] == example_account.metadata.annotations["test.nauth.io/id-before"]

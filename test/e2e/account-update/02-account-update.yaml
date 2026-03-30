@@ -1,0 +1,13 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  displayName: Updated Example Account
+  natsLimits:
+    data: 2048
+    payload: 1000
+    subs: 200
