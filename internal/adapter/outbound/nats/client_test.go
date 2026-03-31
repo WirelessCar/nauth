@@ -2,8 +2,6 @@ package nats
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -15,22 +13,11 @@ import (
 )
 
 func TestConnection_ListAccountStreams_ShouldReturnExistingStreamNames(t *testing.T) {
-	server := runNatsServerFromConfig(t, fmt.Sprintf(`
-listen: 127.0.0.1:-1
-jetstream: enabled
-store_dir: %q
-no_auth_user: foo
-accounts: {
-  A: {
-    jetstream: enabled
-    users: [ {user: foo} ]
-  },
-}
-`, filepath.Join(t.TempDir(), "store")))
-
-	nc, err := nats.Connect(server.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	server := runNatsServer(t, natsServerConfig{
+		serverJetStream:  true,
+		accountJetStream: true,
+	})
+	nc := connectTestAccount(t, server)
 
 	js, err := jetstream.New(nc)
 	require.NoError(t, err)
@@ -48,22 +35,11 @@ accounts: {
 }
 
 func TestConnection_ListAccountStreams_ShouldReturnEmpty_WhenNoStreamsExist(t *testing.T) {
-	server := runNatsServerFromConfig(t, fmt.Sprintf(`
-listen: 127.0.0.1:-1
-jetstream: enabled
-store_dir: %q
-no_auth_user: foo
-accounts: {
-  A: {
-    jetstream: enabled
-    users: [ {user: foo} ]
-  },
-}
-`, filepath.Join(t.TempDir(), "store")))
-
-	nc, err := nats.Connect(server.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	server := runNatsServer(t, natsServerConfig{
+		serverJetStream:  true,
+		accountJetStream: true,
+	})
+	nc := connectTestAccount(t, server)
 
 	conn := &connection{conn: nc}
 
@@ -73,21 +49,10 @@ accounts: {
 }
 
 func TestConnection_ListAccountStreams_ShouldReturnEmpty_WhenJetStreamDisabledForAccount(t *testing.T) {
-	server := runNatsServerFromConfig(t, fmt.Sprintf(`
-listen: 127.0.0.1:-1
-jetstream: enabled
-store_dir: %q
-no_auth_user: foo
-accounts: {
-  A: {
-    users: [ {user: foo} ]
-  },
-}
-`, filepath.Join(t.TempDir(), "store")))
-
-	nc, err := nats.Connect(server.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	server := runNatsServer(t, natsServerConfig{
+		serverJetStream: true,
+	})
+	nc := connectTestAccount(t, server)
 
 	conn := &connection{conn: nc}
 
@@ -97,19 +62,8 @@ accounts: {
 }
 
 func TestConnection_ListAccountStreams_ShouldReturnEmpty_WhenJetStreamDisabledOnServer(t *testing.T) {
-	server := runNatsServerFromConfig(t, `
-listen: 127.0.0.1:-1
-no_auth_user: foo
-accounts: {
-  A: {
-    users: [ {user: foo} ]
-  },
-}
-`)
-
-	nc, err := nats.Connect(server.ClientURL())
-	require.NoError(t, err)
-	t.Cleanup(nc.Close)
+	server := runNatsServer(t, natsServerConfig{})
+	nc := connectTestAccount(t, server)
 
 	conn := &connection{conn: nc}
 
@@ -119,21 +73,11 @@ accounts: {
 }
 
 func TestConnection_ListAccountStreams_ShouldFail_WhenConnectionIsLost(t *testing.T) {
-	server := runNatsServerFromConfig(t, fmt.Sprintf(`
-listen: 127.0.0.1:-1
-jetstream: enabled
-store_dir: %q
-no_auth_user: foo
-accounts: {
-  A: {
-    jetstream: enabled
-    users: [ {user: foo} ]
-  },
-}
-`, filepath.Join(t.TempDir(), "store")))
-
-	nc, err := nats.Connect(server.ClientURL())
-	require.NoError(t, err)
+	server := runNatsServer(t, natsServerConfig{
+		serverJetStream:  true,
+		accountJetStream: true,
+	})
+	nc := connectTestAccount(t, server)
 
 	conn := &connection{conn: nc}
 	nc.Close()
@@ -143,14 +87,30 @@ accounts: {
 	require.Nil(t, names)
 }
 
-func runNatsServerFromConfig(t *testing.T, config string) *natsserver.Server {
+type natsServerConfig struct {
+	serverJetStream  bool
+	accountJetStream bool
+}
+
+func runNatsServer(t *testing.T, cfg natsServerConfig) *natsserver.Server {
 	t.Helper()
 
-	configPath := filepath.Join(t.TempDir(), "nats.conf")
-	require.NoError(t, os.WriteFile(configPath, []byte(config), 0o600))
-
-	opts, err := natsserver.ProcessConfigFile(configPath)
-	require.NoError(t, err)
+	account := natsserver.NewAccount("A")
+	opts := &natsserver.Options{
+		Host:                  "127.0.0.1",
+		Port:                  -1,
+		NoLog:                 true,
+		NoSigs:                true,
+		DisableShortFirstPing: true,
+		JetStream:             cfg.serverJetStream,
+		StoreDir:              filepath.Join(t.TempDir(), "store"),
+		Accounts:              []*natsserver.Account{account},
+		Users: []*natsserver.User{{
+			Username: "foo",
+			Password: "bar",
+			Account:  account,
+		}},
+	}
 
 	server, err := natsserver.NewServer(opts)
 	require.NoError(t, err)
@@ -158,10 +118,26 @@ func runNatsServerFromConfig(t *testing.T, config string) *natsserver.Server {
 	go server.Start()
 	require.True(t, server.ReadyForConnections(10*time.Second), "nats-server did not become ready in time")
 
+	if cfg.accountJetStream {
+		registeredAccount, err := server.LookupAccount(account.Name)
+		require.NoError(t, err)
+		require.NoError(t, registeredAccount.EnableJetStream(nil, nil))
+	}
+
 	t.Cleanup(func() {
 		server.Shutdown()
 		server.WaitForShutdown()
 	})
 
 	return server
+}
+
+func connectTestAccount(t *testing.T, server *natsserver.Server) *nats.Conn {
+	t.Helper()
+
+	nc, err := nats.Connect(server.ClientURL(), nats.UserInfo("foo", "bar"))
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	return nc
 }
