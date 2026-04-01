@@ -8,14 +8,14 @@ description: API reference for nauth CRDs
 
 ## nauth.io/v1alpha1
 
-Package `v1alpha1` contains schema definitions for NAuth custom resources (see [Kubernetes API conventions](https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md)).
+Package `v1alpha1` contains the schema definitions for NAuth custom resources (see [Kubernetes API conventions](https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md)).
 
 ### Kubernetes Resource Conventions
 
 All NAuth CRDs are standard Kubernetes resources and include:
 
-- `apiVersion`: API group/version for the resource (for example `nauth.io/v1alpha1`)
-- `kind`: resource type (for example `Account`, `User`, `NatsCluster`)
+- `apiVersion`: API group/version, for example `nauth.io/v1alpha1`
+- `kind`: resource type, for example `Account`, `User`, or `NatsCluster`
 - `metadata`: Kubernetes object metadata (`name`, `namespace`, labels, annotations, etc.). See [Kubernetes `ObjectMeta`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#objectmeta-v1-meta)
 
 ### Resource Types
@@ -42,9 +42,9 @@ All NAuth CRDs are standard Kubernetes resources and include:
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `natsClusterRef` | [NatsClusterRef](#natsclusterref) | No | Explicit `NatsCluster` reference for reconciliation |
-| `displayName` | string | No | Optional display name for the NATS account |
-| `accountLimits` | [AccountLimits](#accountlimits) | No | Account limits |
+| `natsClusterRef` | [NatsClusterRef](#natsclusterref) | No | Explicit `NatsCluster` reference |
+| `displayName` | string | No | Optional account display name |
+| `accountLimits` | [AccountLimits](#accountlimits) | No | Account-level limits |
 | `exports` | [Export[]](#export) | No | Account exports |
 | `imports` | [Import[]](#import) | No | Account imports |
 | `jetStreamLimits` | [JetStreamLimits](#jetstreamlimits) | No | JetStream limits |
@@ -58,15 +58,15 @@ All NAuth CRDs are standard Kubernetes resources and include:
 | `conditions` | `metav1.Condition[]` | No | Standard Kubernetes conditions |
 | `observedGeneration` | int64 | No | Last observed generation |
 | `reconcileTimestamp` | `metav1.Time` | No | Last reconcile timestamp |
-| `signingKey` | [KeyInfo](#keyinfo) | No | Account signing key metadata |
 | `operatorVersion` | string | No | Operator version that reconciled the resource |
 
 ### AccountClaims
 
 | Field | Type |
 | --- | --- |
-| `displayName` | string |
 | `accountLimits` | [AccountLimits](#accountlimits) |
+| `displayName` | string |
+| `signingKeys` | [SigningKey[]](#signingkey) |
 | `exports` | [Export[]](#export) |
 | `imports` | [Import[]](#import) |
 | `jetStreamLimits` | [JetStreamLimits](#jetstreamlimits) |
@@ -95,6 +95,12 @@ All NAuth CRDs are standard Kubernetes resources and include:
 | `diskMaxStreamBytes` | int64 | `-1` |
 | `maxBytesRequired` | bool | `false` |
 
+### SigningKey
+
+| Field | Type |
+| --- | --- |
+| `key` | string |
+
 ## User
 
 `User` is the schema for users.
@@ -111,8 +117,8 @@ All NAuth CRDs are standard Kubernetes resources and include:
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `accountName` | string | Yes | Account name reference |
-| `displayName` | string | No | Optional display name for the NATS user |
+| `accountName` | string | Yes | Referenced account name |
+| `displayName` | string | No | Optional user display name |
 | `permissions` | [Permissions](#permissions) | No | Publish/subscribe/response permissions |
 | `userLimits` | [UserLimits](#userlimits) | No | User limits |
 | `natsLimits` | [NatsLimits](#natslimits) | No | NATS limits |
@@ -121,8 +127,8 @@ All NAuth CRDs are standard Kubernetes resources and include:
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `claims` | [UserClaims](#userclaims) | No | Effective user claims |
 | `conditions` | `metav1.Condition[]` | No | Standard Kubernetes conditions |
+| `claims` | [UserClaims](#userclaims) | No | Effective user claims |
 | `observedGeneration` | int64 | No | Last observed generation |
 | `reconcileTimestamp` | `metav1.Time` | No | Last reconcile timestamp |
 | `operatorVersion` | string | No | Operator version that reconciled the resource |
@@ -139,16 +145,15 @@ All NAuth CRDs are standard Kubernetes resources and include:
 
 ## NatsCluster
 
-`NatsCluster` is an information-bearing resource that defines NATS connection and secret references.
-
-NAuth does not reconcile this resource and there is no status contract for it.
+`NatsCluster` is the schema for cluster connection configuration and secret references.
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `apiVersion` | string | Yes | `nauth.io/v1alpha1` |
 | `kind` | string | Yes | `NatsCluster` |
 | `metadata` | ObjectMeta | Yes | Kubernetes metadata |
-| `spec` | [NatsClusterSpec](#natsclusterspec) | No | Connection and secret references |
+| `spec` | [NatsClusterSpec](#natsclusterspec) | No | Desired state |
+| `status` | [NatsClusterStatus](#natsclusterstatus) | No | Observed state |
 
 ### NatsClusterSpec
 
@@ -157,9 +162,18 @@ Validation rule: exactly one of `url` or `urlFrom` must be specified.
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `url` | string | Conditional | Direct NATS URL. Mutually exclusive with `urlFrom` |
-| `urlFrom` | [URLFromReference](#urlfromreference) | Conditional | Source reference for URL. Mutually exclusive with `url` |
-| `operatorSigningKeySecretRef` | [SecretKeyReference](#secretkeyreference) | Yes | Operator signing key secret ref |
-| `systemAccountUserCredsSecretRef` | [SecretKeyReference](#secretkeyreference) | Yes | System account user creds secret ref |
+| `urlFrom` | [URLFromReference](#urlfromreference) | Conditional | Indirect URL source. Mutually exclusive with `url` |
+| `operatorSigningKeySecretRef` | [SecretKeyReference](#secretkeyreference) | Yes | Operator signing key secret reference |
+| `systemAccountUserCredsSecretRef` | [SecretKeyReference](#secretkeyreference) | Yes | System account user creds secret reference |
+
+### NatsClusterStatus
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `conditions` | `metav1.Condition[]` | No | Standard Kubernetes conditions |
+| `observedGeneration` | int64 | No | Last observed generation |
+| `reconcileTimestamp` | `metav1.Time` | No | Last reconcile timestamp |
+| `operatorVersion` | string | No | Operator version that reconciled the resource |
 
 ## Shared Types
 
@@ -239,32 +253,39 @@ Enum values:
 
 ### Export
 
-| Field | Type |
-| --- | --- |
-| `name` | string |
-| `subject` | string |
-| `type` | enum (`stream`, `service`) |
-| `tokenReq` | bool |
-| `revocations` | map[string]int64 |
-| `responseType` | enum (`Singleton`, `Stream`, `Chunked`) |
-| `responseThreshold` | duration |
-| `serviceLatency` | [ServiceLatency](#servicelatency) |
-| `accountTokenPosition` | uint |
-| `advertise` | bool |
-| `allowTrace` | bool |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | string | |
+| `subject` | string | |
+| `type` | enum (`stream`, `service`) | |
+| `tokenReq` | bool | |
+| `revocations` | map[string]int64 | |
+| `responseType` | enum (`Singleton`, `Stream`, `Chunked`) | Service exports only |
+| `responseThreshold` | duration | |
+| `serviceLatency` | [ServiceLatency](#servicelatency) | |
+| `accountTokenPosition` | uint | |
+| `advertise` | bool | |
+| `allowTrace` | bool | |
 
 ### Import
 
-| Field | Type |
-| --- | --- |
-| `accountRef` | [AccountRef](#accountref) |
-| `name` | string |
-| `subject` | string |
-| `account` | string |
-| `localSubject` | string |
-| `type` | enum (`stream`, `service`) |
-| `share` | bool |
-| `allowTrace` | bool |
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `accountRef` | [AccountRef](#accountref) | Yes | Referenced account resource |
+| `name` | string | No | |
+| `subject` | string | No | Exported subject to import |
+| `account` | string | No | Raw account id |
+| `localSubject` | string | No | Local remapped subject |
+| `type` | enum (`stream`, `service`) | No | |
+| `share` | bool | No | |
+| `allowTrace` | bool | No | |
+
+### ServiceLatency
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `sampling` | int | Yes |
+| `results` | string | Yes |
 
 ### AccountRef
 
@@ -273,28 +294,16 @@ Enum values:
 | `name` | string | Yes |
 | `namespace` | string | Yes |
 
-### ServiceLatency
-
-| Field | Type |
-| --- | --- |
-| `sampling` | int |
-| `results` | string |
-
-### KeyInfo
-
-| Field | Type |
-| --- | --- |
-| `name` | string |
-| `creationDate` | `metav1.Time` |
-| `expirationDate` | `metav1.Time` |
-
 ## List Types
 
 ### AccountList
+
 Contains a list of [Account](#account).
 
 ### UserList
+
 Contains a list of [User](#user).
 
 ### NatsClusterList
+
 Contains a list of [NatsCluster](#natscluster).
