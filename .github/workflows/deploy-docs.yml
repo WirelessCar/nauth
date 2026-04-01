@@ -34,7 +34,7 @@ jobs:
           bun-version: latest
       
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v6
       
       - name: Install dependencies
         working-directory: ./www
@@ -45,7 +45,7 @@ jobs:
         run: bun run build
       
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./www/dist/
 
