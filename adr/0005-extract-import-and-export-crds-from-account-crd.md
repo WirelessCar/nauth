@@ -1,4 +1,4 @@
-# ADR-5: Split import and export CRDs from Account CRD
+# ADR-5: Extract Import- and Export CRDs from Account CRD
 
 Date: 2026-03-26
 
@@ -11,13 +11,13 @@ Splitting the import and export CRDs from the Account CRD would allow for better
 
 ## Status
 
-In progress
+Accepted
 
 ## Context
 
 There exists several identified issues or improvements related to imports and exports, such as: validation of imports
 and matching exports, import and export using activation tokens, support for grouping of related imports and exports (
-for example, jetstream related API topics), getting rid of need to apply imports and exports in correct order.
+for example, JetStream related API subjects).
 
 All these are concerns of imports and exports, and might benefit from the split as well as make the account resources
 more robust and easier to manage.
@@ -36,7 +36,7 @@ they are important to keep in mind when evaluating the options.
 
 - How to handle partial failures, for example, if one of the imports or exports is invalid, should the entire account
   be left out / invalidated or should the valid imports and exports still be applied?
-- Account JWT must be reconciled before imports and exports, otherwise the account might be left in a "broken" state.
+- Account CRD must be reconciled before imports and exports, otherwise the account might be left in a "broken" state.
 - Changes in imports and exports must be reflected in the account JWT, which means that the account JWT must be
   reconciled after any change in imports and exports.
 - How to present reconciliation state in a good way in tools such as `kubectl`, `k9s` and `argoCD`?
@@ -49,7 +49,7 @@ they are important to keep in mind when evaluating the options.
 
 * Cross-cluster imports/exports
 * import and export activation tokens
-* import and export drift detection and Approval workflows
+* import and export drift detection and approval workflows
 
 ## Options
 
@@ -65,7 +65,6 @@ separate CRD.
 
 Same as Option 1 but with separate CRDs for imports and exports.
 Better for separating import and export specific fields and concerns.
-For example `export` has `TokenReq (bool)` field, while `import` has `Token` field.
 
 ### Option 3 - One import/export per import/export CRD
 
@@ -93,12 +92,12 @@ fragments directly in `Account`.
 ## Decision
 
 * Extract import/export to separate CRDs
+* First release must support what is supported today by inline imports and exports
 * Deprecate the import and export fields in `Account` CRD.
 * Use `Option 4 - Contract-based imports/exports` as a target vision
-* First release must support what is supported today by inline imports and exports
-* `tokenReq` and `revocations` in export will be deferred, as these are not implemented today  
+* `tokenReq` and `revocations` in export will be deferred, as these are not implemented today
 
 ## Consequences
 
-* Import and export CRDs can reconcile by themselves. 
+* Import and export CRDs can reconcile by themselves.
 * Failing import and export CRDs will not block account reconciliation.

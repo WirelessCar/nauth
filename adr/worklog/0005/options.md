@@ -51,6 +51,7 @@ AccountImportExport A3:
 
 - Invites users to define both Export and Import in the same file, even if that's not desired.
 - It's harder to present the data in a good way in `kubectl` and `k9s` as the columns might differ.
+- Needs to handle partial failures.
 
 ## Option 2 - Separate AccountImport and AccountExport CRDs
 
@@ -217,6 +218,7 @@ To identify conflicts, we will use nats.io's JWT imports validation function.
 ### Drawbacks:
 
 * More complex controller logic to handle the relationships and validation
+* Needs to handle partial failures.
 
 ### Working Notes
 
