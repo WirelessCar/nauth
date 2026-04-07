@@ -13,8 +13,6 @@ Splitting the import and export CRDs from the Account CRD would allow for better
 
 In progress
 
-_Allowed values: In progress/Accepted/Superceeded/Rejected/Obsolete._
-
 ## Context
 
 There exists several identified issues or improvements related to imports and exports, such as: validation of imports
@@ -31,12 +29,6 @@ This ADR describes some options for splitting import / export into separate CRDs
 features that exist today and only introduce new features if they are necessary or small enough. Other features are
 deferred.
 
-### Out of Scope - Deferred to future ADRs
-
-* Cross-cluster imports/exports
-* import and export activation tokens
-* import and export drift detection and Approval workflows
-
 ### Concerns
 
 These concerns have been lifted during the writing of the ADR. They are not necessarily all solved by the solutions, but
@@ -47,13 +39,21 @@ they are important to keep in mind when evaluating the options.
 - Account JWT must be reconciled before imports and exports, otherwise the account might be left in a "broken" state.
 - Changes in imports and exports must be reflected in the account JWT, which means that the account JWT must be
   reconciled after any change in imports and exports.
-- How to present the data in a good way in `kubectl` and `k9s`?
+- How to present reconciliation state in a good way in tools such as `kubectl`, `k9s` and `argoCD`?
 - How to handle overlapping subjects for same target account, from one or more CRs?
 - Can an account in one namespace reference exports/imports in another namespace?
 - Will import/export activation tokens work with these options?
 - Must use deterministic ordering of imports/exports, so that reconciliation does not go into loop.
 
+### Out of Scope - Deferred to future ADRs
+
+* Cross-cluster imports/exports
+* import and export activation tokens
+* import and export drift detection and Approval workflows
+
 ## Options
+
+See [work log](worklog/0005/options.md) for details about options.
 
 ### Option 1 - AccountImportExport CRD
 
@@ -61,117 +61,17 @@ Imports and exports are simply moved to a separate CRD, but they are still manag
 to the account. This option is in essence the same as the current state, but with imports and exports moved to a
 separate CRD.
 
-```yaml
-# simplified example of the new CRD structure
-AccountImportExport A:
-    account: A
-    imports:
-        - foo.> from Account B
-        - bar.> from Account C
-    exports:
-        - def.> to Account X
-
-AccountImportExport B:
-    account: B
-    exports:
-        - foo.> to Account A
-
-AccountImportExport C:
-    account: C
-    exports:
-        - bar.> to Account A
-
-# alternative for A, can be used if it makes sense to split imports/exports
-AccountImportExport A1:
-    account: A
-    imports:
-        - foo.> from Account B
-
-AccountImportExport A2:
-    account: A
-    imports:
-        - bar.> from Account C
-
-AccountImportExport A3:
-    account: A
-    exports:
-        - def.> to Account X
-```
-
-#### Benefits
-
-- Allows for easiest migration of the existing imports and exports to the new CRD.
-
-#### Drawbacks
-
-- Invites users to define both Export and Import in the same file, even if that's not desired.
-- It's harder to present the data in a good way in `kubectl` and `k9s` as the columns might differ.
-
 ### Option 2 - Separate AccountImport and AccountExport CRDs
 
 Same as Option 1 but with separate CRDs for imports and exports.
 Better for separating import and export specific fields and concerns.
 For example `export` has `TokenReq (bool)` field, while `import` has `Token` field.
 
-```yaml
-# simplified example of the new CRD structure
-AccountImport A:
-    account: A
-    imports:
-        - foo.> from Account B
-        - bar.> from Account C
-
-AccountExport A:
-    account: A
-    exports:
-        - def.> to Account X
-```
-
-#### Benefits
-
-- Allows for configuration that affects all listed subjects.
-- Allows for configuration of individual subjects.
-- Less verbose but still allows user to define one import or export per AccountXport if so desired.
-- Allows grouping of related imports and exports, for example, all jetstream related API topics can be grouped together
-  in one CRD.
-    - And as a consequence, it is "all or nothing" for that group, which makes sense when it comes to jetstream.
-
-#### Drawbacks
-
-- Needs to handle partial failures.
-
 ### Option 3 - One import/export per import/export CRD
 
 Each import and export is represented as a separate CRD.
 This allows for better granularity and easier management of individual imports and exports,
 but it can lead to a large number of CRDs if there are many imports and exports.
-
-```yaml
-# simplified example of the new CRD structure
-AccountImport A1:
-    account: A
-    subject: foo.>
-    fromAccount: B
-
-AccountImport A2:
-    account: A
-    subject: bar.>
-    fromAccount: C
-
-AccountExport A3:
-    account: A
-    subject: def.>
-    toAccount: X
-```
-
-#### Benefits:
-
-- Very granular validation, i.e. an entire group of rules wouldn't be left out just because one of the subjects are
-  conflicting or invalid.
-
-#### Drawbacks:
-
-- Extremely verbose, at least if we think about import/export for JetStream stuff.
 
 ### Option 4 - Contract-based imports/exports
 
@@ -190,102 +90,15 @@ The key idea is that both sides describe their own part of the relationship:
 This makes the relationship explicit, easier to validate, and easier to reason about than embedding raw import/export
 fragments directly in `Account`.
 
-**Example**
-
-```yaml
-AccountExport:
-    name: orders-and-stock-info     # unique name, referenced in imports
-    namespace: namespace-a
-    accountName: Account A          # parent account, expected to be in same namespace
-    rules:
-        -   name: "orders"          # human-readable name
-            subject: "orders.>"     # example: orders.<region>.<id> (orders.eu-west-1.12345) 
-            type: service           # service/stream
-            responseType: Singleton # service response type
-        -   name: "stock-info"
-            subject: "stock-info"
-            type: stream
-```
-
-```yaml
-
-AccountImport:
-    name: account-a-eu-orders         # unique name
-    namespace: namespace-b
-    accountName: Account B            # parent account, expected to be in same namespace
-    exportRef: # reference to the export this import wants to consume
-        name: orders-and-stock-info   # must match the export name
-        namespace: namespace-a
-    exportAccountName: Account A      # expected exporting account, used for validation
-    ruleBindings:
-        -   name: "orders eu-west-1"        # human-readable name
-            subject: "orders.eu-west-1.>"   # must match or be a subset of an export rule subject
-            type: service                   # must match the export rule type
-            localSubject: "eu.orders.>"     # optional local subject 
-```
-
-In this example:
-
-* Account A says: "I export these subjects and I allow any account to import them"
-* Account B says: "I want to import only eu-west-1 related orders from the export, and rename the local subject."
-* NAuth only renders final account JWT on the export account when `AccountExport` is ready
-* NAuth only renders final account JWT on the import account when `AccountImport` is ready
-
-#### How validation and readiness work
-
-This option introduces a fail-closed readiness model.
-
-`AccountExport` validates the exporter-owned side of the contract.
-`AccountImport` validates the importer-owned side of the contract.
-
-Only ready `AccountExport` and ready `AccountImport` resources contribute to the final rendered account JWT.
-
-This makes partial failures easier to reason about:
-
-* if one import is invalid, that import becomes `Ready=False`
-* any invalid rule makes the entire resource `Ready=False`
-* other valid imports and exports can still remain usable
-* the final account state only includes resources that are ready
-
-For example, if an import references a subject that does not exist as whole or subset in the export, that import does
-not become active.
-
-#### How conflicts are handled
-
-Because multiple imports and exports may contribute to the final account state, the controller must resolve them
-deterministically.
-
-This includes:
-
-* deterministic ordering of imports and exports
-* conflict detection when subjects overlap
-* clear reporting when two resources cannot be merged safely
-
-To identify conflicts, we will use nats.io's JWT imports validation function.
-
-#### Benefits:
-
-* Imports and Exports can be created in any order.
-* Allows for exporting of group of related subjects, for example, all JetStream API subjects.
-* Open to future improvements such as restricted exports (handling activation tokens) and approval workflows.
-
-#### Drawbacks:
-
-* More complex controller logic to handle the relationships and validation
-
-#### Working Notes
-
-These documents are working documents and notes related to the options. They might be incomplete and are not meant to be
-part of the final ADR, but they are included here for reference.
-
-* [appendix: Reconcile flow](worklog/0005/option-4-appendix-reconcile-flow.md)
-* [appendix: Resource relationships and reconcile triggers](worklog/0005/option-4-appendix-resource-relationships.md)
-* [appendix: Future improvements and notes](worklog/0005/option-4-appendix-future-improvements.md)
-
 ## Decision
 
-Option 4 - Contract-based imports/exports
+* Extract import/export to separate CRDs
+* Deprecate the import and export fields in `Account` CRD.
+* Use `Option 4 - Contract-based imports/exports` as a target vision
+* First release must support what is supported today by inline imports and exports
+* `tokenReq` and `revocations` in export will be deferred, as these are not implemented today  
 
 ## Consequences
 
-TBD
+* Import and export CRDs can reconcile by themselves. 
+* Failing import and export CRDs will not block account reconciliation.
