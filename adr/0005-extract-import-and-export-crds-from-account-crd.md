@@ -1,7 +1,6 @@
-# ADR-5: Extract Import- and Export CRDs from Account CRD
+# ADR-5: Separate AccountImport and AccountExport CRDs and deprecate inline importing and exporting in Account CRD
 
 Date: 2026-03-26
-
 ## Problem statement
 
 The `Account` CRD is currently used to manage everything related to the account, which includes limits, imports and
@@ -91,10 +90,10 @@ fragments directly in `Account`.
 
 ## Decision
 
-* Extract import/export to separate CRDs
+* Extract import/export to separate CRDs (`option 2`).
 * First release must support what is supported today by inline imports and exports
 * Deprecate the import and export fields in `Account` CRD.
-* Use `Option 4 - Contract-based imports/exports` as a target vision
+* Use `Option 4 - Contract-based imports/exports` as a target vision (not all features might be necessary)
 * `tokenReq` and `revocations` in export will be deferred, as these are not implemented today
 
 ## Consequences
