@@ -69,6 +69,7 @@ func main() {
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
+	var experimentalAccountExport bool // TODO: [#11] Remove experimental flag for AccountExport CRD
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
@@ -93,6 +94,12 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(
+		&experimentalAccountExport,
+		"experimental-account-export",
+		false,
+		"Enable experimental AccountExport reconciliation. Temporary flag that will be removed once AccountExport is fully implemented.",
+	)
 	opts := zap.Options{
 		Development: true,
 	}
@@ -306,6 +313,19 @@ func main() {
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")
 		os.Exit(1)
+	}
+
+	if experimentalAccountExport {
+		accountExportReconciler := controller.NewAccountExportReconciler(
+			mgr.GetClient(),
+			mgr.GetScheme(),
+			mgr.GetEventRecorder("accountexport-controller"),
+		)
+		if err = accountExportReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AccountExport")
+			os.Exit(1)
+		}
+		setupLog.Info("experimental controller enabled", "controller", "AccountExport")
 	}
 
 	userManager := core.NewUserManager(accountManager, secretClient)

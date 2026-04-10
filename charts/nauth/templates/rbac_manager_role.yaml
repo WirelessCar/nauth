@@ -25,6 +25,14 @@ rules:
 - apiGroups:
   - nauth.io
   resources:
+  - accountexports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - nauth.io
+  resources:
   - natsclusters
   verbs:
   - get
@@ -41,6 +49,7 @@ rules:
   - nauth.io
   resources:
   - accounts/status
+  - accountexports/status
   - natsclusters/status
   - users/status
   verbs:
