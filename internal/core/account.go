@@ -88,7 +88,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
-	fixedAccountID := state.GetLabels()[k8s.LabelAccountID]
+	fixedAccountID := state.GetAccountID()
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, fixedAccountID)
 	if fixedAccountID != "" {
 		// Update
@@ -205,7 +205,7 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 		return nil, fmt.Errorf("failed to get operator signing public key during import: %w", err)
 	}
 
-	accountID := state.GetLabels()[k8s.LabelAccountID]
+	accountID := state.GetAccountID()
 	if accountID == "" {
 		return nil, fmt.Errorf("account ID is missing for account %s during import", state.GetName())
 	}
@@ -268,7 +268,7 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
-	accountID := state.GetLabels()[k8s.LabelAccountID]
+	accountID := state.GetAccountID()
 	if accountID == "" {
 		return fmt.Errorf("account ID is missing for account %s", accountRef)
 	}
@@ -378,7 +378,7 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	if err != nil {
 		return nil, fmt.Errorf("failed to get account for user JWT signing: %w", err)
 	}
-	accountID := account.GetLabels()[k8s.LabelAccountID]
+	accountID := account.GetAccountID()
 	if accountID == "" {
 		return nil, fmt.Errorf("account ID is missing for account %s during user JWT signing", accountRef)
 	}

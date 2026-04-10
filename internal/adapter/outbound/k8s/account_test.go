@@ -74,9 +74,7 @@ func accountIsReady(ctx context.Context, accountRef domain.NamespacedName) error
 		return err
 	}
 
-	account.SetLabels(map[string]string{
-		LabelAccountID: "account-id",
-	})
+	account.SetLabel(v1alpha1.AccountLabelAccountID, "account-id")
 
 	return k8sClient.Update(ctx, account)
 }

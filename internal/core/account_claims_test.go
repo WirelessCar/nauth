@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
@@ -46,9 +45,7 @@ func Test_AccountClaims(t *testing.T) {
 			getAccountCall := accountReaderMock.mockGetCallback(mock.Anything, mock.Anything, func(accountRef domain.NamespacedName) (*v1alpha1.Account, error) {
 				accountID := fakeAccountId(accountRef)
 				account := &v1alpha1.Account{}
-				account.Labels = map[string]string{
-					k8s.LabelAccountID: accountID,
-				}
+				account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 				return account, nil
 			})
 
@@ -84,9 +81,7 @@ func Test_AccountClaims(t *testing.T) {
 			// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
 			getAccountCall.RunFn = func(args mock.Arguments) {
 				account := &v1alpha1.Account{}
-				account.Labels = map[string]string{
-					k8s.LabelAccountID: testClaimsFakeAccountID,
-				}
+				account.SetLabel(v1alpha1.AccountLabelAccountID, testClaimsFakeAccountID)
 				getAccountCall.Return(account, nil)
 			}
 

@@ -48,8 +48,7 @@ func (a *AccountClient) Get(ctx context.Context, accountRef domain.NamespacedNam
 }
 
 func isReady(account *v1alpha1.Account) bool {
-	_, ok := account.GetLabels()[LabelAccountID]
-	return ok
+	return account.GetAccountID() != ""
 }
 
 // Compile-time assertion that implementation satisfies the ports interface

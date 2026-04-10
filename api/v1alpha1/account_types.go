@@ -22,6 +22,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type AccountLabel string
+
+const (
+	AccountLabelAccountID AccountLabel = "account.nauth.io/id"
+	AccountLabelSignedBy  AccountLabel = "account.nauth.io/signed-by"
+)
+
 // NatsClusterRef references a NatsCluster resource
 type NatsClusterRef struct {
 	// Name of the NatsCluster
@@ -103,6 +110,21 @@ type Account struct {
 
 func (a *Account) GetConditions() *[]metav1.Condition {
 	return &a.Status.Conditions
+}
+
+func (a *Account) GetAccountID() string {
+	return a.GetLabel(AccountLabelAccountID)
+}
+
+func (a *Account) GetLabel(label AccountLabel) string {
+	return a.GetLabels()[string(label)]
+}
+
+func (a *Account) SetLabel(label AccountLabel, value string) {
+	if a.Labels == nil {
+		a.Labels = make(map[string]string)
+	}
+	a.Labels[string(label)] = value
 }
 
 type JetStreamLimits struct {

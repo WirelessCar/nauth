@@ -84,12 +84,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
-	var accountID string
+	accountID := natsAccount.GetAccountID()
 	var managementPolicy string
 	{
 		labels := natsAccount.GetLabels()
 		if labels != nil {
-			accountID = labels[k8s.LabelAccountID]
 			managementPolicy = labels[k8s.LabelManagementPolicy]
 		}
 	}
@@ -188,11 +187,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Apply result to Account resource labels and status
-	if natsAccount.Labels == nil {
-		natsAccount.Labels = make(map[string]string)
-	}
-	natsAccount.Labels[k8s.LabelAccountID] = result.AccountID
-	natsAccount.Labels[k8s.LabelAccountSignedBy] = result.AccountSignedBy
+	natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
+	natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
 
 	// UPDATE ACCOUNT STATUS
 	if result.Claims != nil {

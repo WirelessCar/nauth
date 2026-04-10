@@ -292,7 +292,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 		Spec: v1alpha1.AccountSpec{},
@@ -319,7 +319,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 		Spec: v1alpha1.AccountSpec{},
@@ -349,7 +349,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 		Spec: v1alpha1.AccountSpec{},
@@ -381,7 +381,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 			Namespace: "import-namespace",
 			Name:      "import-account",
 			Labels: map[string]string{
-				k8s.LabelAccountID: importAccountID,
+				string(v1alpha1.AccountLabelAccountID): importAccountID,
 			},
 		},
 	})
@@ -392,7 +392,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 		Spec: v1alpha1.AccountSpec{
@@ -461,7 +461,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	})
@@ -512,7 +512,7 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	})
@@ -558,7 +558,7 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAr
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	})
@@ -611,7 +611,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	}
@@ -676,7 +676,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAcc
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	}
@@ -707,7 +707,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 			Namespace: "account-namespace",
 			Name:      "account-name",
 			Labels: map[string]string{
-				k8s.LabelAccountID: accountID,
+				string(v1alpha1.AccountLabelAccountID): accountID,
 			},
 		},
 	}
