@@ -110,7 +110,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &v1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{k8s.LabelUserAccountID: accountID}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): accountID}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err

@@ -44,7 +44,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) 
 		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
 
-	existingUserAccountID := state.GetLabels()[k8s.LabelUserAccountID]
+	existingUserAccountID := state.GetLabelledAccountID()
 
 	userKeyPair, err := nkeys.CreateUser()
 	if err != nil {
@@ -88,14 +88,9 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) 
 	}
 
 	state.Status.Claims = toNAuthUserClaims(natsClaims)
-
-	if state.Labels == nil {
-		state.Labels = make(map[string]string, 3)
-	}
-
-	state.GetLabels()[k8s.LabelUserID] = userPublicKey
-	state.GetLabels()[k8s.LabelUserAccountID] = signedUserJWT.AccountID
-	state.GetLabels()[k8s.LabelUserSignedBy] = signedUserJWT.SignedBy
+	state.SetLabel(v1alpha1.UserLabelUserID, userPublicKey)
+	state.SetLabel(v1alpha1.UserLabelAccountID, signedUserJWT.AccountID)
+	state.SetLabel(v1alpha1.UserLabelSignedBy, signedUserJWT.SignedBy)
 
 	state.Status.ObservedGeneration = state.Generation
 	state.Status.ReconcileTimestamp = metav1.Now()

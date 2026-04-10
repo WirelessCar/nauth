@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -96,10 +95,10 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabels()[k8s.LabelUserID]
+	userID := user.GetLabelledUserID()
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabels()[k8s.LabelUserAccountID])
-	t.Equal(accountSignPub, user.GetLabels()[k8s.LabelUserSignedBy])
+	t.Equal(accountID, user.GetLabelledAccountID())
+	t.Equal(accountSignPub, user.GetLabelledSignedBy())
 	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
 }
 
@@ -115,9 +114,9 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 			Name:      "my-user",
 			Namespace: "my-namespace",
 			Labels: map[string]string{
-				k8s.LabelUserAccountID: accountID,
-				k8s.LabelUserID:        "fake-prev-user-pub-key",
-				k8s.LabelUserSignedBy:  "fake-prev-sign-pub-key",
+				string(v1alpha1.UserLabelAccountID): accountID,
+				string(v1alpha1.UserLabelUserID):    "fake-prev-user-pub-key",
+				string(v1alpha1.UserLabelSignedBy):  "fake-prev-sign-pub-key",
 			},
 		},
 		Spec: v1alpha1.UserSpec{
@@ -160,10 +159,10 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabels()[k8s.LabelUserID]
+	userID := user.GetLabelledUserID()
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabels()[k8s.LabelUserAccountID])
-	t.Equal(accountSignPub, user.GetLabels()[k8s.LabelUserSignedBy])
+	t.Equal(accountID, user.GetLabelledAccountID())
+	t.Equal(accountSignPub, user.GetLabelledSignedBy())
 	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
 }
 

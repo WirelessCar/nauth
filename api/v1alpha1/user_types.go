@@ -23,6 +23,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type UserLabel string
+
+const (
+	UserLabelUserID    UserLabel = "user.nauth.io/id"
+	UserLabelAccountID UserLabel = "user.nauth.io/account-id"
+	UserLabelSignedBy  UserLabel = "user.nauth.io/signed-by"
+)
+
 // UserSpec defines the desired state of User.
 type UserSpec struct {
 	// AccountName references the account used to create the user.
@@ -87,6 +95,29 @@ type User struct {
 
 func (u *User) GetConditions() *[]metav1.Condition {
 	return &u.Status.Conditions
+}
+
+func (u *User) GetLabel(label UserLabel) string {
+	return u.GetLabels()[string(label)]
+}
+
+func (u *User) GetLabelledUserID() string {
+	return u.GetLabel(UserLabelUserID)
+}
+
+func (u *User) GetLabelledAccountID() string {
+	return u.GetLabel(UserLabelAccountID)
+}
+
+func (u *User) GetLabelledSignedBy() string {
+	return u.GetLabel(UserLabelSignedBy)
+}
+
+func (u *User) SetLabel(label UserLabel, value string) {
+	if u.Labels == nil {
+		u.Labels = make(map[string]string)
+	}
+	u.Labels[string(label)] = value
 }
 
 func (u *User) GetUserSecretName() string {
