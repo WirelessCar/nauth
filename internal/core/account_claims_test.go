@@ -33,7 +33,7 @@ func Test_AccountClaims(t *testing.T) {
 
 	opSigningKey, _ := nkeys.FromSeed([]byte(testClaimsOperatorSeed))
 
-	testCases := discoverTestCases("approvals/accountClaims_test.Test_AccountClaims.{TestCase}.input.yaml")
+	testCases := discoverTestCases("approvals/account_claims_test.Test_AccountClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
 
 	for _, testCase := range testCases {

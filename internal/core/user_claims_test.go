@@ -25,7 +25,7 @@ const (
 func TestClaims(t *testing.T) {
 	acSigningKey, _ := nkeys.FromSeed([]byte(userClaimsTestAccountSignSeed))
 
-	testCases := discoverTestCases("approvals/userClaims_test.TestClaims.{TestCase}.input.yaml")
+	testCases := discoverTestCases("approvals/user_claims_test.TestClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
 
 	for _, testCase := range testCases {
