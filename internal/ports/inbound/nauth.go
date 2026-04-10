@@ -13,6 +13,10 @@ type AccountManager interface {
 	Delete(ctx context.Context, desired *v1alpha1.Account) error
 }
 
+type AccountExportManager interface {
+	CreateClaim(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error)
+}
+
 type UserManager interface {
 	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
 	Delete(ctx context.Context, desired *v1alpha1.User) error

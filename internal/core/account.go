@@ -188,6 +188,11 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 	return claims.Encode(operatorSigningKey)
 }
 
+func (a *AccountManager) ValidateExports(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error) {
+	// TODO: [#22] Implement ValidateExports
+	panic("TODO: [#22] Implement ValidateExports")
+}
+
 func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {

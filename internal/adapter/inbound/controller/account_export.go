@@ -18,12 +18,13 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -34,15 +35,17 @@ import (
 // AccountExportReconciler reconciles an AccountExport object.
 type AccountExportReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	reporter *statusReporter
+	Scheme        *runtime.Scheme
+	manager       inbound.AccountExportManager
+	accountReader outbound.AccountReader
 }
 
-func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme, recorder events.EventRecorder) *AccountExportReconciler {
+func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountExportManager, accountReader outbound.AccountReader) *AccountExportReconciler {
 	return &AccountExportReconciler{
-		Client:   k8sClient,
-		Scheme:   scheme,
-		reporter: newStatusReporter(k8sClient, recorder),
+		Client:        k8sClient,
+		Scheme:        scheme,
+		manager:       manager,
+		accountReader: accountReader,
 	}
 }
 
@@ -51,20 +54,53 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-
-	accountExport := &v1alpha1.AccountExport{}
-	if err := r.Get(ctx, req.NamespacedName, accountExport); err != nil {
+	state := &v1alpha1.AccountExport{}
+	statusWrapper := &accountExportStatus{accountExport: state}
+	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
+		log := logf.FromContext(ctx)
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 
 		log.Error(err, "Failed to get resource")
-		return r.reporter.error(ctx, accountExport, err)
+		statusWrapper.setFailed(err)
+
+		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
+			log.Error(updateErr, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
+			return ctrl.Result{}, updateErr
+		}
+		return ctrl.Result{}, err
 	}
 
-	return r.reporter.error(ctx, accountExport, fmt.Errorf("AccountExport CRD reconciliation not implemented yet"))
+	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
+	account, err := r.accountReader.Get(ctx, accountRef)
+	if err != nil {
+		statusWrapper.setAccountFoundFalse(err)
+	} else {
+		accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
+		statusWrapper.setAccountFound(accountID)
+	}
+
+	claims, err := r.manager.CreateClaim(ctx, state)
+	if err != nil {
+		statusWrapper.setStatusValidRulesFalse(err)
+	} else {
+		statusWrapper.setStatusValidRules(claims.Rules)
+	}
+
+	statusWrapper.setAdoptedByAccount()
+	if account != nil {
+		// TODO: [#22] Verify that current Generation is used in Account Status []children
+	} else {
+	}
+
+	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
+		log := logf.FromContext(ctx)
+		log.Error(updateErr, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
+		return ctrl.Result{}, updateErr
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
