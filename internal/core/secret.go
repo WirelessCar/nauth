@@ -18,6 +18,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const (
+	SecretLabelAccountID   = "account.nauth.io/id"
+	SecretLabelAccountName = "account.nauth.io/name"
+)
+
 type Secrets struct {
 	Root nkeys.KeyPair
 	Sign nkeys.KeyPair
@@ -69,10 +74,10 @@ func (m *secretManagerImpl) applyAccountSecret(ctx context.Context, accountRef d
 		Name:      secretName,
 		Namespace: accountRef.Namespace,
 		Labels: map[string]string{
-			k8s.LabelAccountID:   accountID,
-			k8s.LabelAccountName: accountRef.Name,
-			k8s.LabelSecretType:  secretType,
-			k8s.LabelManaged:     k8s.LabelManagedValue,
+			SecretLabelAccountID:   accountID,
+			SecretLabelAccountName: accountRef.Name,
+			k8s.LabelSecretType:    secretType,
+			k8s.LabelManaged:       k8s.LabelManagedValue,
 		},
 	}
 	seed, err := keyPair.Seed()
@@ -95,8 +100,8 @@ func (m *secretManagerImpl) DeleteAll(ctx context.Context, accountRef domain.Nam
 	}
 
 	labels := map[string]string{
-		k8s.LabelAccountID:   accountID,
-		k8s.LabelAccountName: accountRef.Name,
+		SecretLabelAccountID:   accountID,
+		SecretLabelAccountName: accountRef.Name,
 	}
 	// TODO: Consider looking up secrets and then deleting them explicitly
 	// or delete first by only AccountID label and then by AccountName label, to ensure secrets are deleted even if
@@ -170,8 +175,8 @@ func (m *secretManagerImpl) validatedResult(result *Secrets, accountID string) (
 
 func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*Secrets, bool, error) {
 	labels := map[string]string{
-		k8s.LabelAccountID: accountID,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: accountID,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}
 	k8sSecrets, err := m.secretClient.GetByLabels(ctx, namespace, labels)
 	if err != nil {
@@ -183,8 +188,8 @@ func (m *secretManagerImpl) getAccountSecretsByAccountID(ctx context.Context, na
 
 func (m *secretManagerImpl) getAccountSecretsByAccountName(ctx context.Context, accountRef domain.NamespacedName) (*Secrets, bool, error) {
 	labels := map[string]string{
-		k8s.LabelAccountName: accountRef.Name,
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: accountRef.Name,
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}
 	k8sSecrets, err := m.secretClient.GetByLabels(ctx, accountRef.GetNamespace(), labels)
 	if err != nil {
@@ -268,9 +273,9 @@ func (m *secretManagerImpl) getDeprecatedAccountSecretsByName(ctx context.Contex
 			}
 
 			labels := map[string]string{
-				k8s.LabelAccountID:  accountID, // TODO: We are not adding AccountName label, hence those secrets will currently not be deleted on DeleteAll
-				k8s.LabelSecretType: secretType,
-				k8s.LabelManaged:    k8s.LabelManagedValue,
+				SecretLabelAccountID: accountID, // TODO: We are not adding AccountName label, hence those secrets will currently not be deleted on DeleteAll
+				k8s.LabelSecretType:  secretType,
+				k8s.LabelManaged:     k8s.LabelManagedValue,
 			}
 			if err := m.secretClient.Label(ctx, secretRef, labels); err != nil {
 				logger.Info("unable to label secret", "secretRef", secretRef, "namespace", namespace, "secretType", secretType, "error", err)

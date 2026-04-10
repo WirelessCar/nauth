@@ -41,12 +41,12 @@ func TestSecretManager_TestSuite(t *testing.T) {
 func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldReturnNotFoundAfterTryingMultipleLookups() {
 	// Given
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: "FAKE_ACCOUNT_ID",
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "my-account",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "my-account",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
@@ -66,8 +66,8 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountID
 	signKey, signSeed, _ := t.generateAccount()
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: rootPub,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{
 		{
 			SecretType: k8s.SecretTypeAccountRoot,
@@ -95,13 +95,13 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountNa
 	signKey, signSeed, _ := t.generateAccount()
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: rootPub,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "account-name",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "account-name",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{
 		{
 			SecretType: k8s.SecretTypeAccountRoot,
@@ -129,30 +129,30 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 	signKey, signSeed, _ := t.generateAccount()
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: rootPub,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "my-account",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "my-account",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{})
 	acRootRef := domain.NewNamespacedName("account-namespace", "my-account-ac-root")
 	t.secretClientMock.mockGet(t.ctx, acRootRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(rootSeed),
 	})
 	t.secretClientMock.mockLabel(acRootRef, map[string]string{
-		k8s.LabelAccountID:  rootPub,
-		k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
-		k8s.LabelManaged:    k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	})
 	acSignRef := domain.NewNamespacedName("account-namespace", "my-account-ac-sign")
 	t.secretClientMock.mockGet(t.ctx, acSignRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(signSeed),
 	})
 	t.secretClientMock.mockLabel(acSignRef, map[string]string{
-		k8s.LabelAccountID:  rootPub,
-		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
-		k8s.LabelManaged:    k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	})
 
 	// When
@@ -171,30 +171,30 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 	signKey, signSeed, _ := t.generateAccount()
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: rootPub,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "my-account",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "my-account",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{})
 	acRootRef := domain.NewNamespacedName("account-namespace", "my-account-ac-root")
 	t.secretClientMock.mockGet(t.ctx, acRootRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(rootSeed),
 	})
 	t.secretClientMock.mockLabel(acRootRef, map[string]string{
-		k8s.LabelAccountID:  rootPub,
-		k8s.LabelSecretType: k8s.SecretTypeAccountRoot,
-		k8s.LabelManaged:    k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelSecretType:  k8s.SecretTypeAccountRoot,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	})
 	acSignRef := domain.NewNamespacedName("account-namespace", "my-account-ac-sign")
 	t.secretClientMock.mockGet(t.ctx, acSignRef, map[string]string{
 		k8s.DefaultSecretKeyName: string(signSeed),
 	})
 	t.secretClientMock.mockLabelError(acSignRef, map[string]string{
-		k8s.LabelAccountID:  rootPub,
-		k8s.LabelSecretType: k8s.SecretTypeAccountSign,
-		k8s.LabelManaged:    k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelSecretType:  k8s.SecretTypeAccountSign,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, fmt.Errorf("something went wrong"))
 
 	// When
@@ -210,12 +210,12 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_DeprecatedLookupB
 func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldReturnNotFound_WhenSecretsAreMissing() {
 	// Given
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: "FAKE_ACCOUNT_ID",
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "my-account",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "my-account",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
@@ -232,12 +232,12 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldReturnNotFound_WhenSecret
 func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenLookupFailsUnexpectedly() {
 	// Given
 	t.secretClientMock.mockGetByLabelsError("account-namespace", map[string]string{
-		k8s.LabelAccountID: "FAKE_ACCOUNT_ID",
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: "FAKE_ACCOUNT_ID",
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, fmt.Errorf("boom"))
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "my-account",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "my-account",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{})
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-root"))
 	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("account-namespace", "my-account-ac-sign"))
@@ -259,13 +259,13 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldFail_WhenSecretRootPubKey
 	_, secretRootSeed, secretRootPub := t.generateAccount() // Generate a different root key to simulate mismatch
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountID: rootPub,
-		k8s.LabelManaged:   k8s.LabelManagedValue,
+		SecretLabelAccountID: rootPub,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
 	}, []mockSecret{})
 
 	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
-		k8s.LabelAccountName: "account-name",
-		k8s.LabelManaged:     k8s.LabelManagedValue,
+		SecretLabelAccountName: "account-name",
+		k8s.LabelManaged:       k8s.LabelManagedValue,
 	}, []mockSecret{
 		{
 			SecretType: k8s.SecretTypeAccountRoot,
@@ -311,8 +311,8 @@ func (t *SecretManagerTestSuite) Test_ApplyRootSecret_ShouldSucceed() {
 	t.NotNil(caughtMeta)
 	t.Equal("account-namespace", caughtMeta.Namespace)
 	t.Contains(caughtMeta.Name, "account-name-ac-root-")
-	t.Equal(rootPub, caughtMeta.Labels[k8s.LabelAccountID])
-	t.Equal("account-name", caughtMeta.Labels[k8s.LabelAccountName])
+	t.Equal(rootPub, caughtMeta.Labels[SecretLabelAccountID])
+	t.Equal("account-name", caughtMeta.Labels[SecretLabelAccountName])
 	t.Equal(k8s.SecretTypeAccountRoot, caughtMeta.Labels[k8s.LabelSecretType])
 	t.Equal(k8s.LabelManagedValue, caughtMeta.Labels[k8s.LabelManaged])
 }
@@ -342,8 +342,8 @@ func (t *SecretManagerTestSuite) Test_ApplySignSecret_ShouldSucceed() {
 	t.NotNil(caughtMeta)
 	t.Equal("account-namespace", caughtMeta.Namespace)
 	t.Contains(caughtMeta.Name, "account-name-ac-sign-")
-	t.Equal(rootPub, caughtMeta.Labels[k8s.LabelAccountID])
-	t.Equal("account-name", caughtMeta.Labels[k8s.LabelAccountName])
+	t.Equal(rootPub, caughtMeta.Labels[SecretLabelAccountID])
+	t.Equal("account-name", caughtMeta.Labels[SecretLabelAccountName])
 	t.Equal(k8s.SecretTypeAccountSign, caughtMeta.Labels[k8s.LabelSecretType])
 	t.Equal(k8s.LabelManagedValue, caughtMeta.Labels[k8s.LabelManaged])
 }
@@ -353,8 +353,8 @@ func (t *SecretManagerTestSuite) Test_DeleteAll_ShouldSucceed() {
 	_, _, rootPub := t.generateAccount()
 
 	t.secretClientMock.mockDeleteByLabels("account-namespace", map[string]string{
-		k8s.LabelAccountID:   rootPub,
-		k8s.LabelAccountName: "account-name",
+		SecretLabelAccountID:   rootPub,
+		SecretLabelAccountName: "account-name",
 	})
 
 	// When

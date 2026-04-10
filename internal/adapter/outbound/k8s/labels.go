@@ -1,7 +1,6 @@
 package k8s
 
 const (
-	LabelAccountSignedBy              = "account.nauth.io/signed-by"
 	LabelUserID                       = "user.nauth.io/id"
 	LabelUserAccountID                = "user.nauth.io/account-id"
 	LabelUserSignedBy                 = "user.nauth.io/signed-by"
