@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Controller must not depend on other adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -85,12 +84,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	accountID := natsAccount.GetAccountID()
-	var managementPolicy string
-	{
-		labels := natsAccount.GetLabels()
-		if labels != nil {
-			managementPolicy = labels[k8s.LabelManagementPolicy]
-		}
+	managementPolicy, err := v1alpha1.GetManagementPolicy(natsAccount.GetLabels())
+	if err != nil {
+		log.Info("Failed to determine management policy from labels", "name", natsAccount.Name, "error", err)
+		return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to determine management policy from labels: %w", err))
 	}
 
 	// ACCOUNT MARKED FOR DELETION
@@ -125,7 +122,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
-			if managementPolicy != k8s.LabelManagementPolicyObserveValue {
+			if managementPolicy != v1alpha1.ManagementPolicyObserve {
 				if err := r.manager.Delete(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
@@ -173,17 +170,19 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT
 	var result *domain.AccountResult
-
-	if managementPolicy == k8s.LabelManagementPolicyObserveValue {
+	switch managementPolicy {
+	case v1alpha1.ManagementPolicyObserve:
 		result, err = r.manager.Import(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
-	} else {
+	case v1alpha1.ManagementPolicyDefault:
 		result, err = r.manager.CreateOrUpdate(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
+	default:
+		return r.reporter.error(ctx, natsAccount, fmt.Errorf("unsupported management policy: %s", managementPolicy))
 	}
 
 	// Apply result to Account resource labels and status

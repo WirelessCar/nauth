@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Controller must not depend on other adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -162,7 +161,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	err := k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
 
-	account.Labels = map[string]string{k8s.LabelManagementPolicy: k8s.LabelManagementPolicyObserveValue}
+	account.Labels = map[string]string{string(v1alpha1.LabelManagementPolicy): string(v1alpha1.ManagementPolicyObserve)}
 	err = k8sClient.Update(t.ctx, account)
 	t.Require().NoError(err)
 
@@ -285,7 +284,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	err := k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
 
-	account.Labels = map[string]string{k8s.LabelManagementPolicy: k8s.LabelManagementPolicyObserveValue}
+	account.Labels = map[string]string{
+		string(v1alpha1.LabelManagementPolicy): string(v1alpha1.ManagementPolicyObserve)}
 	err = k8sClient.Update(t.ctx, account)
 	t.Require().NoError(err)
 

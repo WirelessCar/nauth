@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
@@ -99,7 +98,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 			return nil, fmt.Errorf("failed to get account secrets for account %s: %w", fixedAccountID, err)
 		}
 		if fixedAccountID == cluster.SystemAdminCreds.AccountID {
-			return nil, fmt.Errorf("reconciling system account is not supported, consider '%s: %s'", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue)
+			return nil, fmt.Errorf("reconciling system account is not supported")
 		}
 	} else if found && err != nil {
 		// Create

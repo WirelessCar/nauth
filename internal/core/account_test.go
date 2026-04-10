@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -358,7 +357,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	// Then
 	t.Nil(result)
 	t.ErrorContains(err, "reconciling system account is not supported")
-	t.ErrorContains(err, fmt.Sprintf("%s: %s", k8s.LabelManagementPolicy, k8s.LabelManagementPolicyObserveValue))
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInvalid() {
