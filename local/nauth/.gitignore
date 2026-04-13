@@ -1,0 +1,2 @@
+# Ignore the values-override.yaml file which is intended for local development, picked up by install-nauth.sh when it exists
+values-override.yaml
