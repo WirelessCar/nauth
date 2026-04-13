@@ -113,6 +113,10 @@ spec:
           status:
             description: AccountExportStatus defines the observed state of AccountExport.
             properties:
+              accountID:
+                description: AccountID is the ID of the account that this export is
+                  bound to.
+                type: string
               claim:
                 description: Normalized claim for account to use
                 properties:

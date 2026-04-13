@@ -9,7 +9,9 @@ const (
 	controllerReasonReconciling = "Reconciling"
 	controllerReasonReconciled  = "Reconciled"
 	controllerActionReconciled  = "Reconciled"
+	controllerReasonOK          = "OK"
 	controllerReasonErrored     = "Errored"
+	controllerReasonInvalid     = "Invalid"
 )
 
 const (

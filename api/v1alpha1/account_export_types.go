@@ -74,6 +74,9 @@ type AccountExportRule struct {
 
 // AccountExportStatus defines the observed state of AccountExport.
 type AccountExportStatus struct {
+	// AccountID is the ID of the account that this export is bound to.
+	// +optional
+	AccountID string `json:"accountID,omitempty"`
 	// Normalized claim for account to use
 	// +optional
 	Claim *AccountExportClaim `json:"claim,omitempty"`

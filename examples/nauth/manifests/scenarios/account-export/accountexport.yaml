@@ -19,6 +19,17 @@ spec:
 
 ---
 apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-other-account
+  namespace: account-export-test
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+
+---
+apiVersion: nauth.io/v1alpha1
 kind: AccountExport
 metadata:
   name: my-account-export

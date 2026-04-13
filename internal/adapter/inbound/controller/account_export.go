@@ -76,10 +76,15 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
 	account, err := r.accountReader.Get(ctx, accountRef)
 	if err != nil {
-		statusWrapper.setAccountFoundFalse(err)
+		statusWrapper.setBoundToAccountNotFound(err)
 	} else {
 		accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
-		statusWrapper.setAccountFound(accountID)
+		boundAccountID := state.Status.AccountID
+		if boundAccountID != "" && boundAccountID != accountID {
+			statusWrapper.setBoundToAccountConflict(boundAccountID, accountID)
+		} else {
+			statusWrapper.setBoundToAccountOK(accountID)
+		}
 	}
 
 	claims, err := r.manager.CreateClaim(ctx, state)
