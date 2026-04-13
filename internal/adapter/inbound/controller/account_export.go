@@ -90,10 +90,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	statusWrapper.setAdoptedByAccount()
-	if account != nil {
-		// TODO: [#22] Verify that current Generation is used in Account Status []children
-	} else {
-	}
+	// TODO: [#22] Verify that current Generation is used in Account Status []children
 
 	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
 		log := logf.FromContext(ctx)

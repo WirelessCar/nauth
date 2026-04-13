@@ -98,7 +98,7 @@ func main() {
 		&experimentalAccountExport,
 		"experimental-account-export",
 		false,
-		"Enable experimental AccountExport reconciliation. Temporary flag that will be removed once AccountExport is fully implemented.",
+		"Enable experimental AccountExport reconciliation (temporary flag).",
 	)
 	opts := zap.Options{
 		Development: true,
