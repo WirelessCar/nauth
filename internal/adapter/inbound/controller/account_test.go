@@ -161,7 +161,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	err := k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
 
-	account.Labels = map[string]string{string(v1alpha1.LabelManagementPolicy): string(v1alpha1.ManagementPolicyObserve)}
+	account.Labels = map[string]string{string(v1alpha1.AccountLabelManagementPolicy): v1alpha1.AccountManagementPolicyObserve}
 	err = k8sClient.Update(t.ctx, account)
 	t.Require().NoError(err)
 
@@ -285,7 +285,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.Require().NoError(err)
 
 	account.Labels = map[string]string{
-		string(v1alpha1.LabelManagementPolicy): string(v1alpha1.ManagementPolicyObserve)}
+		string(v1alpha1.AccountLabelManagementPolicy): v1alpha1.AccountManagementPolicyObserve}
 	err = k8sClient.Update(t.ctx, account)
 	t.Require().NoError(err)
 

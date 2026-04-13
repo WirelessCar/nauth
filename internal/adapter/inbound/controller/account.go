@@ -83,12 +83,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
-	accountID := natsAccount.GetAccountID()
-	managementPolicy, err := v1alpha1.GetManagementPolicy(natsAccount.GetLabels())
-	if err != nil {
-		log.Info("Failed to determine management policy from labels", "name", natsAccount.Name, "error", err)
-		return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to determine management policy from labels: %w", err))
-	}
+	accountID := natsAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
@@ -122,7 +118,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
-			if managementPolicy != v1alpha1.ManagementPolicyObserve {
+			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
 				if err := r.manager.Delete(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
@@ -170,19 +166,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT
 	var result *domain.AccountResult
-	switch managementPolicy {
-	case v1alpha1.ManagementPolicyObserve:
+	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		result, err = r.manager.Import(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
-	case v1alpha1.ManagementPolicyDefault:
+	} else {
 		result, err = r.manager.CreateOrUpdate(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
-	default:
-		return r.reporter.error(ctx, natsAccount, fmt.Errorf("unsupported management policy: %s", managementPolicy))
 	}
 
 	// Apply result to Account resource labels and status

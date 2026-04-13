@@ -25,8 +25,11 @@ import (
 type AccountLabel string
 
 const (
-	AccountLabelAccountID AccountLabel = "account.nauth.io/id"
-	AccountLabelSignedBy  AccountLabel = "account.nauth.io/signed-by"
+	AccountLabelAccountID        AccountLabel = "account.nauth.io/id"
+	AccountLabelSignedBy         AccountLabel = "account.nauth.io/signed-by"
+	AccountLabelManagementPolicy AccountLabel = "nauth.io/management-policy"
+
+	AccountManagementPolicyObserve = "observe"
 )
 
 // NatsClusterRef references a NatsCluster resource
@@ -110,10 +113,6 @@ type Account struct {
 
 func (a *Account) GetConditions() *[]metav1.Condition {
 	return &a.Status.Conditions
-}
-
-func (a *Account) GetAccountID() string {
-	return a.GetLabel(AccountLabelAccountID)
 }
 
 func (a *Account) GetLabel(label AccountLabel) string {

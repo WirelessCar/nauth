@@ -44,7 +44,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) 
 		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
 
-	existingUserAccountID := state.GetLabelledAccountID()
+	existingUserAccountID := state.GetLabel(v1alpha1.UserLabelAccountID)
 
 	userKeyPair, err := nkeys.CreateUser()
 	if err != nil {

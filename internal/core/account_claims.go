@@ -173,7 +173,7 @@ func newAccountClaimsBuilder(
 					accountRef,
 					err))
 			} else {
-				account := importAccount.GetAccountID()
+				account := importAccount.GetLabel(v1alpha1.AccountLabelAccountID)
 				claim := &jwt.Import{
 					Name:         importClaim.Name,
 					Subject:      jwt.Subject(importClaim.Subject),

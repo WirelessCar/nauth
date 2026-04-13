@@ -95,10 +95,10 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabelledUserID()
+	userID := user.GetLabel(v1alpha1.UserLabelUserID)
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabelledAccountID())
-	t.Equal(accountSignPub, user.GetLabelledSignedBy())
+	t.Equal(accountID, user.GetLabel(v1alpha1.UserLabelAccountID))
+	t.Equal(accountSignPub, user.GetLabel(v1alpha1.UserLabelSignedBy))
 	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
 }
 
@@ -159,10 +159,10 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabelledUserID()
+	userID := user.GetLabel(v1alpha1.UserLabelUserID)
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabelledAccountID())
-	t.Equal(accountSignPub, user.GetLabelledSignedBy())
+	t.Equal(accountID, user.GetLabel(v1alpha1.UserLabelAccountID))
+	t.Equal(accountSignPub, user.GetLabel(v1alpha1.UserLabelSignedBy))
 	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
 }
 

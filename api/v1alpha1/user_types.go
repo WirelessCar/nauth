@@ -101,18 +101,6 @@ func (u *User) GetLabel(label UserLabel) string {
 	return u.GetLabels()[string(label)]
 }
 
-func (u *User) GetLabelledUserID() string {
-	return u.GetLabel(UserLabelUserID)
-}
-
-func (u *User) GetLabelledAccountID() string {
-	return u.GetLabel(UserLabelAccountID)
-}
-
-func (u *User) GetLabelledSignedBy() string {
-	return u.GetLabel(UserLabelSignedBy)
-}
-
 func (u *User) SetLabel(label UserLabel, value string) {
 	if u.Labels == nil {
 		u.Labels = make(map[string]string)
