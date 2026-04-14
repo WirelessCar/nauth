@@ -50,7 +50,7 @@ func TestNatsClusterController_TestSuite(t *testing.T) {
 func (t *NatsClusterControllerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 	t.operatorVersion = testOperatorVersion
-	t.Require().NoError(os.Setenv(EnvOperatorVersion, t.operatorVersion))
+	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
 	namespace := scopedTestName("natscluster", testName)
@@ -85,7 +85,7 @@ func (t *NatsClusterControllerTestSuite) SetupTest() {
 
 func (t *NatsClusterControllerTestSuite) TearDownTest() {
 	t.natsClusterManagerMock.AssertExpectations(t.T())
-	t.Require().NoError(os.Unsetenv(EnvOperatorVersion))
+	t.Require().NoError(os.Unsetenv(envOperatorVersion))
 }
 
 func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSucceed() {
@@ -105,7 +105,7 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	t.False(cluster.Status.ReconcileTimestamp.IsZero())
 	for _, c := range cluster.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Empty(t.fakeRecorder.Events)
 }
@@ -126,7 +126,7 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail() {
 	t.Require().NoError(k8sClient.Get(t.ctx, t.resourceName, cluster))
 	for _, c := range cluster.Status.Conditions {
 		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(controllerReasonErrored, c.Reason)
+		t.Equal(conditionReasonErrored, c.Reason)
 	}
 	t.Len(t.fakeRecorder.Events, 1)
 	t.Contains(<-t.fakeRecorder.Events, "failed to validate NatsCluster: a test error")

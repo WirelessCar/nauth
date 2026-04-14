@@ -85,9 +85,9 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !user.DeletionTimestamp.IsZero() {
 		// The user is being deleted
 		meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
-			Type:    controllerTypeReady,
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
-			Reason:  controllerReasonReconciling,
+			Reason:  conditionReasonReconciling,
 			Message: "Deleting user",
 		})
 
@@ -97,13 +97,13 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 
 		// The user is being deleted
-		if controllerutil.ContainsFinalizer(user, controllerUserFinalizer) {
+		if controllerutil.ContainsFinalizer(user, finalizerUser) {
 			if err := r.manager.Delete(ctx, user); err != nil {
 				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(user, controllerUserFinalizer)
+			controllerutil.RemoveFinalizer(user, finalizerUser)
 			if err := r.Update(ctx, user); err != nil {
 				log.Info("failed to remove finalizer", "name", user.Name, "error", err)
 				return ctrl.Result{}, err
@@ -113,7 +113,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(EnvOperatorVersion)
+	operatorVersion := os.Getenv(envOperatorVersion)
 
 	// Nothing has changed
 	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
@@ -123,17 +123,17 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// RECONCILE USER - Set status & base properties
 
 	// Add finalizer if not present
-	if !controllerutil.ContainsFinalizer(user, controllerUserFinalizer) {
-		controllerutil.AddFinalizer(user, controllerUserFinalizer)
+	if !controllerutil.ContainsFinalizer(user, finalizerUser) {
+		controllerutil.AddFinalizer(user, finalizerUser)
 		if err := r.Update(ctx, user); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
 	meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
-		Type:    controllerTypeReady,
+		Type:    conditionTypeReady,
 		Status:  metav1.ConditionFalse,
-		Reason:  controllerReasonReconciling,
+		Reason:  conditionReasonReconciling,
 		Message: "Reconciling user",
 	})
 	if err := r.Status().Update(ctx, user); err != nil {

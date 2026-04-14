@@ -8,12 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	accountExportConditionTypeBoundToAccount   = "BoundToAccount"
-	accountExportConditionTypeValidRules       = "ValidRules"
-	accountExportConditionTypeAdoptedByAccount = "AdoptedByAccount"
-)
-
 type accountExportStatus struct {
 	accountExport *v1alpha1.AccountExport
 	failed        error
@@ -22,9 +16,9 @@ type accountExportStatus struct {
 func (s *accountExportStatus) setBoundToAccountOK(accountID string) {
 	s.accountExport.Status.AccountID = accountID
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeBoundToAccount,
+		Type:               conditionTypeBoundToAccount,
 		Status:             metav1.ConditionTrue,
-		Reason:             controllerReasonOK,
+		Reason:             conditionReasonOK,
 		Message:            fmt.Sprintf("Account ID: %s", accountID),
 		ObservedGeneration: s.accountExport.Generation,
 	}
@@ -34,7 +28,7 @@ func (s *accountExportStatus) setBoundToAccountOK(accountID string) {
 
 func (s *accountExportStatus) setBoundToAccountNotFound(err error) {
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeBoundToAccount,
+		Type:               conditionTypeBoundToAccount,
 		Status:             metav1.ConditionFalse,
 		Reason:             string(metav1.StatusReasonNotFound),
 		Message:            err.Error(),
@@ -46,9 +40,9 @@ func (s *accountExportStatus) setBoundToAccountNotFound(err error) {
 
 func (s *accountExportStatus) setBoundToAccountConflict(boundAccountID string, newAccountID string) {
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeBoundToAccount,
+		Type:               conditionTypeBoundToAccount,
 		Status:             metav1.ConditionFalse,
-		Reason:             string(metav1.StatusReasonConflict),
+		Reason:             conditionReasonConflict,
 		Message:            fmt.Sprintf("Account ID conflict: previously bound to %s, now found %s", boundAccountID, newAccountID),
 		ObservedGeneration: s.accountExport.Generation,
 	}
@@ -63,9 +57,9 @@ func (s *accountExportStatus) setStatusValidRules(rules []v1alpha1.AccountExport
 	}
 
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeValidRules,
+		Type:               conditionTypeValidRules,
 		Status:             metav1.ConditionTrue,
-		Reason:             controllerReasonOK,
+		Reason:             conditionReasonOK,
 		ObservedGeneration: s.accountExport.Generation,
 	}
 	meta.SetStatusCondition(s.accountExport.GetConditions(), *c)
@@ -74,9 +68,9 @@ func (s *accountExportStatus) setStatusValidRules(rules []v1alpha1.AccountExport
 
 func (s *accountExportStatus) setStatusValidRulesFalse(err error) {
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeValidRules,
+		Type:               conditionTypeValidRules,
 		Status:             metav1.ConditionFalse,
-		Reason:             controllerReasonInvalid,
+		Reason:             conditionReasonInvalid,
 		Message:            err.Error(),
 		ObservedGeneration: s.accountExport.Generation,
 	}
@@ -86,7 +80,7 @@ func (s *accountExportStatus) setStatusValidRulesFalse(err error) {
 
 func (s *accountExportStatus) setAdoptedByAccount() {
 	c := &metav1.Condition{
-		Type:               accountExportConditionTypeAdoptedByAccount,
+		Type:               conditionTypeAdoptedByAccount,
 		Status:             metav1.ConditionFalse,
 		Reason:             "NotImplemented",
 		Message:            "Not Implemented",
@@ -103,24 +97,24 @@ func (s *accountExportStatus) setFailed(err error) {
 
 func (s *accountExportStatus) evaluateReadyCondition() {
 	readyCondition := metav1.Condition{
-		Type:               controllerTypeReady,
+		Type:               conditionTypeReady,
 		ObservedGeneration: s.accountExport.Generation,
 	}
 
 	if s.failed != nil {
-		readyCondition.Reason = controllerReasonErrored
+		readyCondition.Reason = conditionReasonErrored
 		readyCondition.Message = s.failed.Error()
 	} else {
 		if s.isReady([]string{
-			accountExportConditionTypeBoundToAccount,
-			accountExportConditionTypeValidRules,
-			accountExportConditionTypeAdoptedByAccount,
+			conditionTypeBoundToAccount,
+			conditionTypeValidRules,
+			conditionTypeAdoptedByAccount,
 		}) {
 			readyCondition.Status = metav1.ConditionTrue
-			readyCondition.Reason = "Ready"
+			readyCondition.Reason = conditionReasonReady
 		} else {
 			readyCondition.Status = metav1.ConditionFalse
-			readyCondition.Reason = "NotReady"
+			readyCondition.Reason = conditionReasonNotReady
 		}
 	}
 	meta.SetStatusCondition(s.accountExport.GetConditions(), readyCondition)

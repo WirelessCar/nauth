@@ -37,9 +37,9 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 	log := logf.FromContext(ctx)
 
 	meta.SetStatusCondition(object.GetConditions(), metav1.Condition{
-		Type:    controllerTypeReady,
+		Type:    conditionTypeReady,
 		Status:  metav1.ConditionTrue,
-		Reason:  controllerReasonReconciled,
+		Reason:  conditionReasonReconciled,
 		Message: "Successfully reconciled",
 	})
 
@@ -57,12 +57,12 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 func (s *statusReporter) error(ctx context.Context, regarding Object, err error) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	s.Recorder.Eventf(regarding, nil, v1.EventTypeWarning, controllerReasonErrored, controllerActionReconciled, err.Error())
+	s.Recorder.Eventf(regarding, nil, v1.EventTypeWarning, conditionReasonErrored, actionReconciled, err.Error())
 
 	meta.SetStatusCondition(regarding.GetConditions(), metav1.Condition{
-		Type:    controllerTypeReady,
+		Type:    conditionTypeReady,
 		Status:  metav1.ConditionFalse,
-		Reason:  controllerReasonErrored,
+		Reason:  conditionReasonErrored,
 		Message: err.Error(),
 	})
 

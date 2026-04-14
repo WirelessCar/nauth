@@ -62,7 +62,7 @@ func TestAccountController_TestSuite(t *testing.T) {
 func (t *AccountControllerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 	t.operatorVersion = testOperatorVersion
-	t.Require().NoError(os.Setenv(EnvOperatorVersion, t.operatorVersion))
+	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
 	t.accountName = scopedTestName(accountBaseName, testName)
@@ -94,7 +94,7 @@ func (t *AccountControllerTestSuite) SetupTest() {
 
 func (t *AccountControllerTestSuite) TearDownTest() {
 	t.accountManagerMock.AssertExpectations(t.T())
-	t.Require().NoError(os.Unsetenv(EnvOperatorVersion))
+	t.Require().NoError(os.Unsetenv(envOperatorVersion))
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAccount() {
@@ -117,7 +117,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 
 	for _, c := range account.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Equal(t.operatorVersion, account.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)
@@ -141,7 +141,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 	t.Require().NoError(err)
 	for _, c := range account.Status.Conditions {
 		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(controllerReasonErrored, c.Reason)
+		t.Equal(conditionReasonErrored, c.Reason)
 	}
 	t.Len(t.fakeRecorder.Events, 1)
 	t.Contains(<-t.fakeRecorder.Events, "failed to apply account: a test error")
@@ -205,7 +205,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(account, controllerAccountFinalizer))
+	t.True(controllerutil.ContainsFinalizer(account, finalizerAccount))
 
 	err = k8sClient.Delete(t.ctx, account)
 	t.Require().NoError(err)
@@ -246,7 +246,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(account, controllerAccountFinalizer))
+	t.True(controllerutil.ContainsFinalizer(account, finalizerAccount))
 
 	err = k8sClient.Delete(t.ctx, account)
 	t.Require().NoError(err)
@@ -266,7 +266,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	t.Require().NoError(err)
 	for _, c := range account.Status.Conditions {
 		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(controllerReasonErrored, c.Reason)
+		t.Equal(conditionReasonErrored, c.Reason)
 	}
 	t.Len(t.fakeRecorder.Events, 1)
 	t.Contains(<-t.fakeRecorder.Events, deletionErr.Error())
@@ -313,7 +313,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	t.Require().NoError(err)
 
 	newOperatorVersion := "1.1-SNAPSHOT"
-	t.Require().NoError(os.Setenv(EnvOperatorVersion, newOperatorVersion))
+	t.Require().NoError(os.Setenv(envOperatorVersion, newOperatorVersion))
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
@@ -329,7 +329,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	t.Require().NoError(err)
 	for _, c := range account.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Equal(newOperatorVersion, account.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)

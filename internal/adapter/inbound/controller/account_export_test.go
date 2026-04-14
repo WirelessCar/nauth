@@ -105,10 +105,10 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAdopted
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
-	t.assertCondition(conditions, accountExportConditionTypeBoundToAccount, metav1.ConditionTrue, controllerReasonOK)
-	t.assertCondition(conditions, accountExportConditionTypeValidRules, metav1.ConditionTrue, controllerReasonOK)
-	t.assertCondition(conditions, accountExportConditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
-	t.assertCondition(conditions, controllerTypeReady, metav1.ConditionFalse, "NotReady")
+	t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 }
 
 func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccountIDChangeDetected() {
@@ -166,11 +166,11 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
-	boundToAccountCondition := t.assertCondition(conditions, accountExportConditionTypeBoundToAccount, metav1.ConditionFalse, metav1.StatusReasonConflict)
+	boundToAccountCondition := t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonConflict)
 	t.Equal("Account ID conflict: previously bound to ACCA, now found ACCB", boundToAccountCondition.Message)
-	t.assertCondition(conditions, accountExportConditionTypeValidRules, metav1.ConditionTrue, controllerReasonOK)
-	t.assertCondition(conditions, accountExportConditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
-	t.assertCondition(conditions, controllerTypeReady, metav1.ConditionFalse, "NotReady")
+	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 }
 
 func (t *AccountExportControllerTestSuite) assertCondition(conditions []metav1.Condition, conditionType string,

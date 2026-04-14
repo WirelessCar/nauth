@@ -1,19 +1,33 @@
 package controller
 
-const (
-	controllerTypeReady = "Ready"
+const ( // Conditions
+	// Types
+	conditionTypeReady            = "Ready"
+	conditionTypeBoundToAccount   = "BoundToAccount"
+	conditionTypeValidRules       = "ValidRules"
+	conditionTypeAdoptedByAccount = "AdoptedByAccount"
 
-	controllerAccountFinalizer = "account.nauth.io/finalizer"
-	controllerUserFinalizer    = "user.nauth.io/finalizer"
-
-	controllerReasonReconciling = "Reconciling"
-	controllerReasonReconciled  = "Reconciled"
-	controllerActionReconciled  = "Reconciled"
-	controllerReasonOK          = "OK"
-	controllerReasonErrored     = "Errored"
-	controllerReasonInvalid     = "Invalid"
+	// Reasons
+	conditionReasonReady       = "Ready"
+	conditionReasonNotReady    = "NotReady"
+	conditionReasonReconciling = "Reconciling"
+	conditionReasonReconciled  = "Reconciled"
+	conditionReasonOK          = "OK"
+	conditionReasonErrored     = "Errored"
+	conditionReasonInvalid     = "Invalid"
+	conditionReasonConflict    = "Conflict"
 )
 
-const (
-	EnvOperatorVersion = "OPERATOR_VERSION"
+const ( // Events
+	// Actions
+	actionReconciled = "Reconciled"
+)
+
+const ( // Finalizers
+	finalizerAccount = "account.nauth.io/finalizer"
+	finalizerUser    = "user.nauth.io/finalizer"
+)
+
+const ( // Environment Variables
+	envOperatorVersion = "OPERATOR_VERSION"
 )

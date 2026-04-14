@@ -38,7 +38,7 @@ func TestUserController_TestSuite(t *testing.T) {
 func (t *UserControllerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 	t.operatorVersion = testOperatorVersion
-	t.Require().NoError(os.Setenv(EnvOperatorVersion, t.operatorVersion))
+	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
 	userName := scopedTestName("test-resource", testName)
@@ -68,7 +68,7 @@ func (t *UserControllerTestSuite) SetupTest() {
 
 func (t *UserControllerTestSuite) TearDownTest() {
 	t.userManagerMock.AssertExpectations(t.T())
-	t.Require().NoError(os.Unsetenv(EnvOperatorVersion))
+	t.Require().NoError(os.Unsetenv(envOperatorVersion))
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpdatingUser() {
@@ -87,7 +87,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpd
 
 	for _, c := range user.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Equal(t.operatorVersion, user.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)
@@ -110,7 +110,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFa
 
 	for _, c := range user.Status.Conditions {
 		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(controllerReasonErrored, c.Reason)
+		t.Equal(conditionReasonErrored, c.Reason)
 	}
 
 	t.Len(t.fakeRecorder.Events, 1)
@@ -128,7 +128,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeleti
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(user, controllerUserFinalizer))
+	t.True(controllerutil.ContainsFinalizer(user, finalizerUser))
 
 	err = k8sClient.Delete(t.ctx, user)
 	t.Require().NoError(err)
@@ -149,7 +149,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeleti
 
 	for _, c := range user.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
@@ -170,7 +170,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(user, controllerUserFinalizer))
+	t.True(controllerutil.ContainsFinalizer(user, finalizerUser))
 
 	err = k8sClient.Delete(t.ctx, user)
 	t.Require().NoError(err)
@@ -194,7 +194,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
 	t.Require().NoError(err)
 	for _, c := range user.Status.Conditions {
 		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(controllerReasonErrored, c.Reason)
+		t.Equal(conditionReasonErrored, c.Reason)
 	}
 
 	t.Len(t.fakeRecorder.Events, 1)
@@ -214,7 +214,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersi
 	t.Require().NoError(err)
 
 	newOperatorVersion := "1.1-SNAPSHOT"
-	t.Require().NoError(os.Setenv(EnvOperatorVersion, newOperatorVersion))
+	t.Require().NoError(os.Setenv(envOperatorVersion, newOperatorVersion))
 
 	// Note: assert mock calls during setup and reset for test case
 	t.userManagerMock.AssertExpectations(t.T())
@@ -230,7 +230,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersi
 	t.Require().NoError(err)
 	for _, c := range user.Status.Conditions {
 		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(controllerReasonReconciled, c.Reason)
+		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Equal(newOperatorVersion, user.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)

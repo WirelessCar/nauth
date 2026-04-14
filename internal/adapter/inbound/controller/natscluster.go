@@ -70,15 +70,15 @@ func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return r.reporter.error(ctx, natsCluster, err)
 	}
 
-	operatorVersion := os.Getenv(EnvOperatorVersion)
+	operatorVersion := os.Getenv(envOperatorVersion)
 	if natsCluster.Status.ObservedGeneration == natsCluster.Generation && natsCluster.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
 	meta.SetStatusCondition(&natsCluster.Status.Conditions, metav1.Condition{
-		Type:    controllerTypeReady,
+		Type:    conditionTypeReady,
 		Status:  metav1.ConditionFalse,
-		Reason:  controllerReasonReconciling,
+		Reason:  conditionReasonReconciling,
 		Message: "Reconciling NatsCluster",
 	})
 	if err := r.Status().Update(ctx, natsCluster); err != nil {

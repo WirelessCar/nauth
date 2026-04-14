@@ -90,9 +90,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if !natsAccount.DeletionTimestamp.IsZero() {
 		// The account is being deleted
 		meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-			Type:    controllerTypeReady,
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
-			Reason:  controllerReasonReconciling,
+			Reason:  conditionReasonReconciling,
 			Message: "Deleting account",
 		})
 
@@ -117,7 +117,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			)
 		}
 
-		if controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
+		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
 			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
 				if err := r.manager.Delete(ctx, natsAccount); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
@@ -125,7 +125,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(natsAccount, controllerAccountFinalizer)
+			controllerutil.RemoveFinalizer(natsAccount, finalizerAccount)
 			if err := r.Update(ctx, natsAccount); err != nil {
 				log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
 				return ctrl.Result{}, err
@@ -135,7 +135,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(EnvOperatorVersion)
+	operatorVersion := os.Getenv(envOperatorVersion)
 
 	// Nothing has changed
 	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
@@ -145,8 +145,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// RECONCILE ACCOUNT - Set status & base properties
 
 	// Add finalizer if not present
-	if !controllerutil.ContainsFinalizer(natsAccount, controllerAccountFinalizer) {
-		controllerutil.AddFinalizer(natsAccount, controllerAccountFinalizer)
+	if !controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
+		controllerutil.AddFinalizer(natsAccount, finalizerAccount)
 		if err := r.Update(ctx, natsAccount); err != nil {
 			log.Info("Failed to add finalizer", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
@@ -154,9 +154,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-		Type:    controllerTypeReady,
+		Type:    conditionTypeReady,
 		Status:  metav1.ConditionFalse,
-		Reason:  controllerReasonReconciling,
+		Reason:  conditionReasonReconciling,
 		Message: "Reconciling account",
 	})
 	if err := r.Status().Update(ctx, natsAccount); err != nil {
