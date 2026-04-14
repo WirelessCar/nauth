@@ -20,6 +20,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type AccountLabel string
@@ -83,6 +84,8 @@ type AccountClaims struct {
 type AccountStatus struct {
 	// +optional
 	Claims AccountClaims `json:"claims,omitempty"`
+	// +optional
+	Adoptions *AccountAdoptions `json:"adoptions,omitempty"`
 	// +listType=map
 	// +listMapKey=type
 	// +patchStrategy=merge
@@ -124,6 +127,49 @@ func (a *Account) SetLabel(label AccountLabel, value string) {
 		a.Labels = make(map[string]string)
 	}
 	a.Labels[string(label)] = value
+}
+
+// AccountAdoptions defines the status of child resources that have been adopted or are candidates for adoption by this account.
+type AccountAdoptions struct {
+	// Exports defines adoptions of type `AccountExport` that are bound to the account.
+	Exports []AccountAdoption `json:"exports,omitempty"`
+}
+
+type AccountAdoption struct {
+	// Name the child resource name
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name,omitempty"`
+	// UID of the child resource UID
+	// +required
+	UID types.UID `json:"uid,omitempty"`
+	// ObservedGeneration refers to the observed generation of the child resource.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// ClaimObservedGeneration refers to the observed generation of the child resource claim.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ClaimObservedGeneration int64 `json:"claimObservedGeneration,omitempty"`
+	// Status of the adoption, one of True, False, Unknown.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=True;False;Unknown
+	Status metav1.ConditionStatus `json:"status"`
+	// Reason contains a programmatic identifier indicating the reason for the adoption's last transition.
+	// The value should be a CamelCase string.
+	// This field may not be empty.
+	// +required
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MaxLength=1024
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`
+	Reason string `json:"reason"`
+	// Message is a human-readable message indicating details about the adoption.
+	// +optional
+	// +kubebuilder:validation:MaxLength=32768
+	Message string `json:"message,omitempty"`
 }
 
 type JetStreamLimits struct {

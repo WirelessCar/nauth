@@ -243,6 +243,64 @@ spec:
           status:
             description: AccountStatus defines the observed state of Account.
             properties:
+              adoptions:
+                description: AccountAdoptions defines the status of child resources
+                  that have been adopted or are candidates for adoption by this account.
+                properties:
+                  exports:
+                    description: Exports defines adoptions of type `AccountExport`
+                      that are bound to the account.
+                    items:
+                      properties:
+                        claimObservedGeneration:
+                          description: ClaimObservedGeneration refers to the observed
+                            generation of the child resource claim.
+                          format: int64
+                          minimum: 0
+                          type: integer
+                        message:
+                          description: Message is a human-readable message indicating
+                            details about the adoption.
+                          maxLength: 32768
+                          type: string
+                        name:
+                          description: Name the child resource name
+                          minLength: 1
+                          type: string
+                        observedGeneration:
+                          description: ObservedGeneration refers to the observed generation
+                            of the child resource.
+                          format: int64
+                          minimum: 0
+                          type: integer
+                        reason:
+                          description: |-
+                            Reason contains a programmatic identifier indicating the reason for the adoption's last transition.
+                            The value should be a CamelCase string.
+                            This field may not be empty.
+                          maxLength: 1024
+                          minLength: 1
+                          pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                          type: string
+                        status:
+                          description: Status of the adoption, one of True, False,
+                            Unknown.
+                          enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                          type: string
+                        uid:
+                          description: UID of the child resource UID
+                          type: string
+                      required:
+                      - name
+                      - reason
+                      - status
+                      - uid
+                      type: object
+                    type: array
+                type: object
               claims:
                 properties:
                   accountLimits:
