@@ -80,7 +80,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get resource")
-		return r.reporter.error(ctx, natsAccount, err)
+		return ctrl.Result{}, err
 	}
 
 	accountID := natsAccount.GetLabel(v1alpha1.AccountLabelAccountID)

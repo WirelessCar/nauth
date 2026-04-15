@@ -78,7 +78,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		}
 		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get resource")
-		return r.reporter.error(ctx, user, err)
+		return ctrl.Result{}, err
 	}
 
 	// USER MARKED FOR DELETION

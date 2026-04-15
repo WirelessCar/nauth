@@ -67,7 +67,7 @@ func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 
 		log.Error(err, "Failed to get resource")
-		return r.reporter.error(ctx, natsCluster, err)
+		return ctrl.Result{}, err
 	}
 
 	operatorVersion := os.Getenv(envOperatorVersion)
