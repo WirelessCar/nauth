@@ -159,10 +159,10 @@ type AccountAdoptionStatus struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=True;False;Unknown
 	Status metav1.ConditionStatus `json:"status"`
-	// ClaimObservedGeneration refers to the observed generation of the child resource claim.
+	// DesiredClaimObservedGeneration refers to the observed generation of the child resource desired claim.
 	// +optional
 	// +kubebuilder:validation:Minimum=0
-	ClaimObservedGeneration *int64 `json:"claimObservedGeneration,omitempty"`
+	DesiredClaimObservedGeneration *int64 `json:"desiredClaimObservedGeneration,omitempty"`
 	// Reason contains a programmatic identifier indicating the reason for the adoption's last transition.
 	// The value should be a CamelCase string.
 	// This field may not be empty.

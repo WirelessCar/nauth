@@ -265,9 +265,10 @@ spec:
                         status:
                           description: Status of the adoption
                           properties:
-                            claimObservedGeneration:
-                              description: ClaimObservedGeneration refers to the observed
-                                generation of the child resource claim.
+                            desiredClaimObservedGeneration:
+                              description: DesiredClaimObservedGeneration refers to
+                                the observed generation of the child resource desired
+                                claim.
                               format: int64
                               minimum: 0
                               type: integer
