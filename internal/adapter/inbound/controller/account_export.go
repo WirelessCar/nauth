@@ -49,7 +49,7 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 	}
 }
 
-// +kubebuilder:rbac:groups=nauth.io,resources=accountexports,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nauth.io,resources=accountexports,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=accountexports/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
@@ -75,10 +75,18 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		statusWrapper.setBoundToAccountNotFound(err)
 	} else {
 		accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
-		boundAccountID := state.Status.AccountID
+		boundAccountID := state.GetLabel(v1alpha1.AccountExportLabelAccountID)
 		if boundAccountID != "" && boundAccountID != accountID {
 			statusWrapper.setBoundToAccountConflict(boundAccountID, accountID)
 		} else {
+			if boundAccountID != accountID {
+				patchBase := state.DeepCopy()
+				state.SetLabel(v1alpha1.AccountExportLabelAccountID, accountID)
+				if patchErr := r.Patch(ctx, state, client.MergeFrom(patchBase)); patchErr != nil {
+					log.Error(patchErr, "Failed to patch labels")
+					return ctrl.Result{}, patchErr
+				}
+			}
 			statusWrapper.setBoundToAccountOK(accountID)
 		}
 	}

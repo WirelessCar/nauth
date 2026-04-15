@@ -22,6 +22,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type AccountExportLabel string
+
+const (
+	AccountExportLabelAccountID AccountExportLabel = "accountexport.nauth.io/account-id"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
@@ -38,6 +44,17 @@ type AccountExport struct {
 
 func (a *AccountExport) GetConditions() *[]metav1.Condition {
 	return &a.Status.Conditions
+}
+
+func (a *AccountExport) GetLabel(label AccountExportLabel) string {
+	return a.GetLabels()[string(label)]
+}
+
+func (a *AccountExport) SetLabel(label AccountExportLabel, value string) {
+	if a.Labels == nil {
+		a.Labels = make(map[string]string)
+	}
+	a.Labels[string(label)] = value
 }
 
 // AccountExportSpec defines the desired state of AccountExport.

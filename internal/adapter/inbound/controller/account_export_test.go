@@ -105,6 +105,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAdopted
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
+	t.assertBoundAccountID(accountExport, t.accountID)
 	t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
@@ -148,6 +149,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
+	t.assertBoundAccountID(accountExport, t.accountID)
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonInvalid)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 }
@@ -203,6 +205,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
+	t.assertBoundAccountID(accountExport, t.accountID)
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonInvalid)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 }
@@ -264,6 +267,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	t.Require().NotEmpty(conditions)
 	boundToAccountCondition := t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonConflict)
 	t.Equal("Account ID conflict: previously bound to ACCA, now found ACCB", boundToAccountCondition.Message)
+	t.assertBoundAccountID(accountExport, "ACCA")
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
@@ -283,6 +287,11 @@ func (t *AccountExportControllerTestSuite) assertCondition(conditions []metav1.C
 		fmt.Sprintf("%s|%s|%s", conditionType, expectStatus, expectReason),
 		fmt.Sprintf("%s|%s|%s", condition.Type, condition.Status, condition.Reason))
 	return condition
+}
+
+func (t *AccountExportControllerTestSuite) assertBoundAccountID(export *v1alpha1.AccountExport, expectAccountID string) {
+	t.Equalf(expectAccountID, export.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
+	t.Equalf(expectAccountID, export.Status.AccountID, "Expectedd Status.AccountID")
 }
 
 /* ****************************************************
