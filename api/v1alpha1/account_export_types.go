@@ -79,7 +79,7 @@ type AccountExportStatus struct {
 	AccountID string `json:"accountID,omitempty"`
 	// Normalized claim for account to use
 	// +optional
-	Claim *AccountExportClaim `json:"claim,omitempty"`
+	DesiredClaim *AccountExportClaim `json:"desiredClaim,omitempty"`
 
 	// +listType=map
 	// +listMapKey=type

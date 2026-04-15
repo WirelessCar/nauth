@@ -54,24 +54,20 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
 	state := &v1alpha1.AccountExport{}
-	statusWrapper := &accountExportStatus{accountExport: state}
 	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
-		log := logf.FromContext(ctx)
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 
 		log.Error(err, "Failed to get resource")
-		statusWrapper.setFailed(err)
-
-		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
-			log.Error(updateErr, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
-			return ctrl.Result{}, updateErr
-		}
 		return ctrl.Result{}, err
 	}
+
+	statusWrapper := newAccountExportStatus(state)
 
 	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
 	account, err := r.accountReader.Get(ctx, accountRef)
@@ -94,11 +90,10 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		statusWrapper.setStatusValidRules(claims.Rules)
 	}
 
-	statusWrapper.setAdoptedByAccount()
 	// TODO: [#22] Verify that current Generation is used in Account Status []children
+	statusWrapper.setAdoptedByAccount()
 
 	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
-		log := logf.FromContext(ctx)
 		log.Error(updateErr, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
 		return ctrl.Result{}, updateErr
 	}
