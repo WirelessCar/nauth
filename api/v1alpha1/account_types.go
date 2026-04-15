@@ -148,15 +148,21 @@ type AccountAdoption struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-	// ClaimObservedGeneration refers to the observed generation of the child resource claim.
-	// +optional
-	// +kubebuilder:validation:Minimum=0
-	ClaimObservedGeneration int64 `json:"claimObservedGeneration,omitempty"`
+	// Status of the adoption
+	// +required
+	Status AccountAdoptionStatus `json:"status"`
+}
+
+type AccountAdoptionStatus struct {
 	// Status of the adoption, one of True, False, Unknown.
 	// +required
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=True;False;Unknown
 	Status metav1.ConditionStatus `json:"status"`
+	// ClaimObservedGeneration refers to the observed generation of the child resource claim.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	ClaimObservedGeneration *int64 `json:"claimObservedGeneration,omitempty"`
 	// Reason contains a programmatic identifier indicating the reason for the adoption's last transition.
 	// The value should be a CamelCase string.
 	// This field may not be empty.
