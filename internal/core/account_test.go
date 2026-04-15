@@ -109,14 +109,16 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-		},
-		Spec: v1alpha1.AccountSpec{
-			NatsLimits: &v1alpha1.NatsLimits{
-				Subs: &natsLimitsSubs,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+			},
+			Spec: v1alpha1.AccountSpec{
+				NatsLimits: &v1alpha1.NatsLimits{
+					Subs: &natsLimitsSubs,
+				},
 			},
 		},
 	})
@@ -160,17 +162,19 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-		},
-		Spec: v1alpha1.AccountSpec{
-			NatsClusterRef: &v1alpha1.NatsClusterRef{
-				Name: "account-namespace-cluster",
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
 			},
-			NatsLimits: &v1alpha1.NatsLimits{
-				Subs: &natsLimitsSubs,
+			Spec: v1alpha1.AccountSpec{
+				NatsClusterRef: &v1alpha1.NatsClusterRef{
+					Name: "account-namespace-cluster",
+				},
+				NatsLimits: &v1alpha1.NatsLimits{
+					Subs: &natsLimitsSubs,
+				},
 			},
 		},
 	})
@@ -205,14 +209,16 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-		},
-		Spec: v1alpha1.AccountSpec{
-			NatsLimits: &v1alpha1.NatsLimits{
-				Subs: &natsLimitsSubs,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+			},
+			Spec: v1alpha1.AccountSpec{
+				NatsLimits: &v1alpha1.NatsLimits{
+					Subs: &natsLimitsSubs,
+				},
 			},
 		},
 	})
@@ -231,12 +237,14 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+			},
+			Spec: v1alpha1.AccountSpec{},
 		},
-		Spec: v1alpha1.AccountSpec{},
 	})
 
 	// Then
@@ -252,12 +260,14 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreI
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+			},
+			Spec: v1alpha1.AccountSpec{},
 		},
-		Spec: v1alpha1.AccountSpec{},
 	})
 
 	// Then
@@ -286,15 +296,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
 			},
+			Spec: v1alpha1.AccountSpec{},
 		},
-		Spec: v1alpha1.AccountSpec{},
 	})
 
 	// Then
@@ -313,15 +325,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
 			},
+			Spec: v1alpha1.AccountSpec{},
 		},
-		Spec: v1alpha1.AccountSpec{},
 	})
 
 	// Then
@@ -343,15 +357,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
 			},
+			Spec: v1alpha1.AccountSpec{},
 		},
-		Spec: v1alpha1.AccountSpec{},
 	})
 
 	// Then
@@ -385,33 +401,35 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
-		Spec: v1alpha1.AccountSpec{
-			Imports: v1alpha1.Imports{
-				{
-					Name: "import-once",
-					AccountRef: v1alpha1.AccountRef{
-						Namespace: "import-namespace",
-						Name:      "import-account",
-					},
-					Subject: "foo",
-					Type:    v1alpha1.Service,
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
 				},
-				{
-					Name: "import-twice",
-					AccountRef: v1alpha1.AccountRef{
-						Namespace: "import-namespace",
-						Name:      "import-account",
+			},
+			Spec: v1alpha1.AccountSpec{
+				Imports: v1alpha1.Imports{
+					{
+						Name: "import-once",
+						AccountRef: v1alpha1.AccountRef{
+							Namespace: "import-namespace",
+							Name:      "import-account",
+						},
+						Subject: "foo",
+						Type:    v1alpha1.Service,
 					},
-					Subject: "foo",
-					Type:    v1alpha1.Service,
+					{
+						Name: "import-twice",
+						AccountRef: v1alpha1.AccountRef{
+							Namespace: "import-namespace",
+							Name:      "import-account",
+						},
+						Subject: "foo",
+						Type:    v1alpha1.Service,
+					},
 				},
 			},
 		},

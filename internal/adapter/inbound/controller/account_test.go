@@ -24,6 +24,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
@@ -104,7 +105,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
 	}
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 
 	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -127,7 +128,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 	// Given
 	accountsManagerErr := fmt.Errorf("a test error")
 
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(nil, accountsManagerErr).Once()
+	t.accountManagerMock.mockCreateOrUpdateError(t.ctx, mock.Anything, accountsManagerErr).Once()
 
 	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -155,7 +156,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 		Claims:          &v1alpha1.AccountClaims{},
 	}
 	// Note: Expect manager.Import during setup only
-	t.accountManagerMock.On("Import", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
 
 	account := &v1alpha1.Account{}
 	err := k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
@@ -197,7 +198,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 		Claims:          &v1alpha1.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -216,7 +217,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
-	t.accountManagerMock.On("Delete", mock.Anything).Return(nil).Once()
+	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, nil).Once()
 
 	// When (expect manager.Delete)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -238,7 +239,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 		Claims:          &v1alpha1.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -253,7 +254,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
-	t.accountManagerMock.On("Delete", mock.Anything).Return(deletionErr).Once()
+	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, deletionErr).Once()
 
 	// When (expect manager.Delete)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -289,7 +290,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	err = k8sClient.Update(t.ctx, account)
 	t.Require().NoError(err)
 
-	t.accountManagerMock.On("Import", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
 
 	// When (expect manager.Import)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -306,7 +307,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 		Claims:          &v1alpha1.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	account := &v1alpha1.Account{}
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -317,7 +318,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
-	t.accountManagerMock.On("CreateOrUpdate", mock.Anything).Return(mockResult, nil).Once()
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 
 	// When (expect manager.CreateOrUpdate)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -335,12 +336,15 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	t.Empty(t.fakeRecorder.Events)
 }
 
+/* ****************************************************
+* inbound.AccountManager Mock
+*****************************************************/
 type AccountManagerMock struct {
 	mock.Mock
 }
 
-func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
-	args := o.Called(state)
+func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources domain.AccountResources) (*domain.AccountResult, error) {
+	args := o.Called(ctx, resources)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
@@ -348,10 +352,22 @@ func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, state *v1alpha1
 		return nil, nil
 	}
 	return args.Get(0).(*domain.AccountResult), nil
+}
+
+func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *domain.AccountResult) *mock.Call {
+	call := o.On("CreateOrUpdate", ctx, resources)
+	call.Return(result, nil)
+	return call
+}
+
+func (o *AccountManagerMock) mockCreateOrUpdateError(ctx interface{}, resources interface{}, err error) *mock.Call {
+	call := o.On("CreateOrUpdate", ctx, resources)
+	call.Return(nil, err)
+	return call
 }
 
 func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
-	args := o.Called(state)
+	args := o.Called(ctx, state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
@@ -361,7 +377,21 @@ func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account
 	return args.Get(0).(*domain.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Delete(ctx context.Context, desired *v1alpha1.Account) error {
-	args := o.Called(desired)
+func (o *AccountManagerMock) Delete(ctx context.Context, state *v1alpha1.Account) error {
+	args := o.Called(ctx, state)
 	return args.Error(0)
 }
+
+func (o *AccountManagerMock) mockDelete(ctx interface{}, state interface{}, err error) *mock.Call {
+	call := o.On("Delete", ctx, state)
+	call.Return(err)
+	return call
+}
+
+func (o *AccountManagerMock) mockImport(ctx interface{}, state interface{}, result *domain.AccountResult) *mock.Call {
+	call := o.On("Import", ctx, state)
+	call.Return(result, nil)
+	return call
+}
+
+var _ inbound.AccountManager = (*AccountManagerMock)(nil)

@@ -76,18 +76,19 @@ func (a *AccountManager) validate() error {
 	return nil
 }
 
-func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
-	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.AccountResources) (*domain.AccountResult, error) {
+	account := &resources.Account
+	accountRef := domain.NewNamespacedName(account.GetNamespace(), account.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
 
-	cluster, err := a.resolveClusterTarget(ctx, state)
+	cluster, err := a.resolveClusterTarget(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
-	fixedAccountID := state.GetLabel(v1alpha1.AccountLabelAccountID)
+	fixedAccountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, fixedAccountID)
 	if fixedAccountID != "" {
 		// Update
@@ -148,7 +149,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
-	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(state), state.Spec, accountPublicKey, a.accountReader).
+	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(account), account.Spec, accountPublicKey, a.accountReader).
 		signingKey(accountSigningPublicKey).
 		build()
 	if err != nil {
@@ -176,6 +177,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.Acc
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
+		// TODO: [#11] Set Adoptions
 	}, nil
 }
 

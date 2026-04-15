@@ -172,7 +172,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		result, err = r.manager.CreateOrUpdate(ctx, natsAccount)
+		resources := r.createAccountResources(natsAccount)
+		result, err = r.manager.CreateOrUpdate(ctx, *resources)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
@@ -206,6 +207,13 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return r.reporter.status(ctx, natsAccount)
+}
+
+func (r *AccountReconciler) createAccountResources(state *v1alpha1.Account) *domain.AccountResources {
+	return &domain.AccountResources{
+		Account: *state,
+		// TODO: [#11] Lookup and apply AccountExports
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
