@@ -1,6 +1,6 @@
 module github.com/WirelessCar/nauth
 
-go 1.25.5
+go 1.25.0
 
 godebug default=go1.25
 
