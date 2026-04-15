@@ -73,7 +73,10 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAdopted
 			},
 		},
 	})
-	accountExportResource := &v1alpha1.AccountExport{
+	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, &domain.AccountExportClaim{
+		Rules: t.rules,
+	}, nil)
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountExportName,
 			Namespace: t.accountExportNamespace,
@@ -82,11 +85,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAdopted
 			AccountName: "my-account",
 			Rules:       t.rules,
 		},
-	}
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, &domain.AccountExportClaim{
-		Rules: t.rules,
-	}, nil)
-	t.Require().NoError(k8sClient.Create(t.ctx, accountExportResource))
+	}))
 
 	// When
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
@@ -121,21 +120,19 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 			},
 		},
 	})
-	invalidRules := []v1alpha1.AccountExportRule{
-		{Type: v1alpha1.Stream, Name: "invalid rule", Subject: "."},
-	}
-	accountExportResource := &v1alpha1.AccountExport{
+	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, nil, fmt.Errorf("invalid rules"))
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountExportName,
 			Namespace: t.accountExportNamespace,
 		},
 		Spec: v1alpha1.AccountExportSpec{
 			AccountName: "my-account",
-			Rules:       invalidRules,
+			Rules: []v1alpha1.AccountExportRule{
+				{Type: v1alpha1.Stream, Name: "invalid rule", Subject: "."},
+			},
 		},
-	}
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, nil, fmt.Errorf("invalid rules"))
-	t.Require().NoError(k8sClient.Create(t.ctx, accountExportResource))
+	}))
 
 	// When
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})

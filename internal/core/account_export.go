@@ -27,7 +27,6 @@ func (a *AccountExportManager) CreateClaim(ctx context.Context, state *v1alpha1.
 	}
 
 	results := &jwt.ValidationResults{}
-	// NOTE: validation in jwt.Exports does not detect duplicate subjects, if the type is different.
 	exports.Validate(results)
 
 	warnings := results.Warnings()
@@ -53,6 +52,7 @@ func (a *AccountExportManager) CreateClaim(ctx context.Context, state *v1alpha1.
 }
 
 func mapToJwtExport(r v1alpha1.AccountExportRule) *jwt.Export {
+	// TODO: [#11] Move v1alpha/jwt conversions to domain
 	export := &jwt.Export{
 		Name:         r.Name,
 		Subject:      jwt.Subject(r.Subject),

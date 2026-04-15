@@ -12,13 +12,13 @@ import (
 
 func Test_mapToJwtExport(t *testing.T) {
 	responseThreshold := time.Duration(10)
-	tokenPos := uint(3)
+	tokenPos := uint(2)
 	advertise := true
 	allowTrace := true
 
 	have := v1alpha1.AccountExportRule{
 		Name:              "Name",
-		Subject:           "Subject",
+		Subject:           "Subject.*",
 		Type:              "service",
 		ResponseType:      "Singleton",
 		ResponseThreshold: &responseThreshold,
@@ -32,7 +32,7 @@ func Test_mapToJwtExport(t *testing.T) {
 	}
 	want := &jwt.Export{
 		Name:              "Name",
-		Subject:           "Subject",
+		Subject:           "Subject.*",
 		Type:              jwt.Service,
 		TokenReq:          false,
 		Revocations:       nil,
