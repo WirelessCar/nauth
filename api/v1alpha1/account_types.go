@@ -145,7 +145,7 @@ type AccountAdoption struct {
 	// +required
 	UID types.UID `json:"uid,omitempty"`
 	// ObservedGeneration refers to the observed generation of the child resource.
-	// +optional
+	// +required
 	// +kubebuilder:validation:Minimum=0
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Status of the adoption

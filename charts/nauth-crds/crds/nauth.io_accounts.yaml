@@ -303,6 +303,7 @@ spec:
                           type: string
                       required:
                       - name
+                      - observedGeneration
                       - status
                       - uid
                       type: object
