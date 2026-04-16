@@ -18,10 +18,13 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -92,6 +95,15 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
+}
+
+func generateNamespace() domain.Namespace {
+	value := fmt.Sprintf("%s-%d", testNamespace, time.Now().UnixNano())
+	result := domain.Namespace(value)
+	if err := result.Validate(); err != nil {
+		panic("generated invalid namespace: " + err.Error())
+	}
+	return result
 }
 
 // getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
