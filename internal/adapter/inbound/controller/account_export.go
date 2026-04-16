@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -25,6 +27,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -79,12 +82,11 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if boundAccountID != "" && boundAccountID != accountID {
 			statusWrapper.setBoundToAccountConflict(boundAccountID, accountID)
 		} else {
-			if boundAccountID != accountID {
-				patchBase := state.DeepCopy()
+			if boundAccountID == "" {
 				state.SetLabel(v1alpha1.AccountExportLabelAccountID, accountID)
-				if patchErr := r.Patch(ctx, state, client.MergeFrom(patchBase)); patchErr != nil {
-					log.Error(patchErr, "Failed to patch labels")
-					return ctrl.Result{}, patchErr
+				err = r.patchLabels(ctx, state)
+				if err != nil {
+					return ctrl.Result{}, fmt.Errorf("failed to bind resource to Account ID: %w", err)
 				}
 			}
 			statusWrapper.setBoundToAccountOK(accountID)
@@ -117,4 +119,19 @@ func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
+}
+
+func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {
+	patchData, err := json.Marshal(map[string]map[string]map[string]string{
+		"metadata": {
+			"labels": resource.GetLabels(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to generate patch for label: %w", err)
+	}
+	if err = r.Patch(ctx, resource, client.RawPatch(types.MergePatchType, patchData)); err != nil {
+		return fmt.Errorf("failed to patch label: %w", err)
+	}
+	return nil
 }
