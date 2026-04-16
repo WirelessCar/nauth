@@ -25,12 +25,15 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
+	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -44,8 +47,9 @@ type AccountControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	accountManagerMock *AccountManagerMock
-	fakeRecorder       *events.FakeRecorder
+	accountManagerMock      *AccountManagerMock
+	accountExportReaderMock *accountExportReaderMock
+	fakeRecorder            *events.FakeRecorder
 
 	accountNamespacedRef ktypes.NamespacedName
 	accountName          string
@@ -75,11 +79,13 @@ func (t *AccountControllerTestSuite) SetupTest() {
 	}
 
 	t.accountManagerMock = &AccountManagerMock{}
+	t.accountExportReaderMock = &accountExportReaderMock{}
 	t.fakeRecorder = events.NewFakeRecorder(5)
 	t.unitUnderTest = NewAccountReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
 		t.accountManagerMock,
+		t.accountExportReaderMock,
 		t.fakeRecorder,
 	)
 
@@ -94,8 +100,13 @@ func (t *AccountControllerTestSuite) SetupTest() {
 }
 
 func (t *AccountControllerTestSuite) TearDownTest() {
-	t.accountManagerMock.AssertExpectations(t.T())
+	t.assertAllMockExpectations()
 	t.Require().NoError(os.Unsetenv(envOperatorVersion))
+}
+
+func (t *AccountControllerTestSuite) assertAllMockExpectations() {
+	t.accountManagerMock.AssertExpectations(t.T())
+	t.accountExportReaderMock.AssertExpectations(t.T())
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAccount() {
@@ -177,7 +188,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	t.False(account.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
-	t.accountManagerMock.AssertExpectations(t.T())
+	t.assertAllMockExpectations()
 
 	// When (expect no manager calls, especially not manager.Delete)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -216,7 +227,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	t.False(account.DeletionTimestamp.IsZero())
 
 	// Note: assert mock calls during setup and reset for test case
-	t.accountManagerMock.AssertExpectations(t.T())
+	t.assertAllMockExpectations()
 	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, nil).Once()
 
 	// When (expect manager.Delete)
@@ -253,7 +264,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	t.Require().NoError(err)
 
 	// Note: assert mock calls during setup and reset for test case
-	t.accountManagerMock.AssertExpectations(t.T())
+	t.assertAllMockExpectations()
 	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, deletionErr).Once()
 
 	// When (expect manager.Delete)
@@ -317,8 +328,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	t.Require().NoError(os.Setenv(envOperatorVersion, newOperatorVersion))
 
 	// Note: assert mock calls during setup and reset for test case
-	t.accountManagerMock.AssertExpectations(t.T())
+	t.assertAllMockExpectations()
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.accountExportReaderMock.mockFindByAccountID(t.ctx, mock.Anything, mock.Anything, &v1alpha1.AccountExportList{}).Once()
 
 	// When (expect manager.CreateOrUpdate)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -334,6 +346,71 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	}
 	t.Equal(newOperatorVersion, account.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExportsExist() {
+	// Given
+	accountKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountKey.PublicKey()
+	mockResult := &domain.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		Claims:          &v1alpha1.AccountClaims{},
+	}
+	// Note: Expect manager.CreateOrUpdate during setup only
+	var accountResources0 domain.AccountResources
+	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources domain.AccountResources) {
+		accountResources0 = resources
+	}, mockResult).Once()
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: t.accountNamespace,
+			Name:      t.accountName,
+		},
+	}
+
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+	t.Require().NoError(err)
+	t.Require().NotNil(accountResources0)
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(account), account))
+	t.Require().Equal(accountID, account.GetLabel(v1alpha1.AccountLabelAccountID))
+
+	// Note: assert mock calls during setup and reset for test case
+	t.assertAllMockExpectations()
+	var accountResources1 domain.AccountResources
+	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources domain.AccountResources) {
+		accountResources1 = resources
+	}, mockResult).Once()
+	t.accountExportReaderMock.mockFindByAccountID(t.ctx, mock.Anything, mock.Anything, &v1alpha1.AccountExportList{
+		Items: []v1alpha1.AccountExport{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: t.accountNamespace,
+					Name:      "export-1",
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: t.accountNamespace,
+					Name:      "export-2",
+				},
+			},
+		},
+	}).Once()
+
+	// When (expect manager.CreateOrUpdate)
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.NoError(err)
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	for _, c := range account.Status.Conditions {
+		t.Equal(metav1.ConditionTrue, c.Status)
+		t.Equal(conditionReasonReconciled, c.Reason)
+	}
+	t.Empty(t.fakeRecorder.Events)
+	t.Require().NotNil(accountResources1)
+	t.Equal(2, len(accountResources1.Exports))
 }
 
 /* ****************************************************
@@ -356,6 +433,15 @@ func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources domai
 
 func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *domain.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
+	call.Return(result, nil)
+	return call
+}
+
+func (o *AccountManagerMock) mockCreateOrUpdateSpy(ctx interface{}, resourcesCallback func(resources domain.AccountResources), result *domain.AccountResult) *mock.Call {
+	call := o.On("CreateOrUpdate", ctx, mock.Anything)
+	call.Run(func(args mock.Arguments) {
+		resourcesCallback(args.Get(1).(domain.AccountResources))
+	})
 	call.Return(result, nil)
 	return call
 }
@@ -395,3 +481,29 @@ func (o *AccountManagerMock) mockImport(ctx interface{}, state interface{}, resu
 }
 
 var _ inbound.AccountManager = (*AccountManagerMock)(nil)
+
+/* ****************************************************
+* outbound.AccountExportReader Mock
+*****************************************************/
+type accountExportReaderMock struct {
+	mock.Mock
+}
+
+func (m *accountExportReaderMock) FindByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountExportList, error) {
+	args := m.Called(ctx, namespace, accountID)
+	if args.Error(1) != nil {
+		return nil, args.Error(1)
+	}
+	if args.Get(0) == nil {
+		return nil, nil
+	}
+	return args.Get(0).(*v1alpha1.AccountExportList), nil
+}
+
+func (m *accountExportReaderMock) mockFindByAccountID(ctx interface{}, namespace interface{}, accountID interface{}, result *v1alpha1.AccountExportList) *mock.Call {
+	call := m.On("FindByAccountID", ctx, namespace, accountID)
+	call.Return(result, nil)
+	return call
+}
+
+var _ outbound.AccountExportReader = (*accountExportReaderMock)(nil)

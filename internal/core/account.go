@@ -12,6 +12,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type AccountManager struct {
@@ -166,6 +167,9 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer sysConn.Disconnect()
+
+	// TODO: [#11] Don't upload AccountJWT if unchanged (hash)
+	logf.FromContext(ctx).Info("Uploading Account JWT to NATS", "accountID", accountPublicKey)
 
 	err = sysConn.UploadAccountJWT(signedJwt)
 	if err != nil {

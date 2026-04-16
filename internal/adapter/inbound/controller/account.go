@@ -23,6 +23,7 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,17 +42,24 @@ import (
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	manager  inbound.AccountManager
-	reporter *statusReporter
+	Scheme              *runtime.Scheme
+	manager             inbound.AccountManager
+	accountExportReader outbound.AccountExportReader
+	reporter            *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(
+	k8sClient client.Client,
+	scheme *runtime.Scheme,
+	manager inbound.AccountManager,
+	accountExportReader outbound.AccountExportReader,
+	recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
-		Client:   k8sClient,
-		Scheme:   scheme,
-		manager:  manager,
-		reporter: newStatusReporter(k8sClient, recorder),
+		Client:              k8sClient,
+		Scheme:              scheme,
+		manager:             manager,
+		accountExportReader: accountExportReader,
+		reporter:            newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -135,13 +143,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	operatorVersion := os.Getenv(envOperatorVersion)
-
-	// Nothing has changed
-	if natsAccount.Status.ObservedGeneration == natsAccount.Generation && natsAccount.Status.OperatorVersion == operatorVersion {
-		return ctrl.Result{}, nil
-	}
-
 	// RECONCILE ACCOUNT - Set status & base properties
 
 	// Add finalizer if not present
@@ -172,7 +173,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		resources := r.createAccountResources(natsAccount)
+		resources, err := r.collectAccountResources(ctx, natsAccount, accountID)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to collect resources: %w", err)
+		}
 		result, err = r.manager.CreateOrUpdate(ctx, *resources)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
@@ -192,7 +196,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := natsAccount.Status.DeepCopy()
-	status.OperatorVersion = operatorVersion
+	status.OperatorVersion = os.Getenv(envOperatorVersion)
 
 	if err := r.Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account", "name", natsAccount.Name, "error", err)
@@ -209,11 +213,17 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.reporter.status(ctx, natsAccount)
 }
 
-func (r *AccountReconciler) createAccountResources(state *v1alpha1.Account) *domain.AccountResources {
-	return &domain.AccountResources{
-		Account: *state,
-		// TODO: [#11] Lookup and apply AccountExports
+func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (*domain.AccountResources, error) {
+	result := domain.AccountResources{Account: *account}
+	if accountID != "" {
+		namespace := domain.Namespace(account.Namespace)
+		exports, err := r.accountExportReader.FindByAccountID(ctx, namespace, accountID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to lookup account exports for account: %w", err)
+		}
+		result.Exports = exports.Items
 	}
+	return &result, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

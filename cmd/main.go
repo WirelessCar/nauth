@@ -304,10 +304,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	accountExportClient := k8s.NewAccountExportClient(mgr.GetClient())
+
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
+		accountExportClient,
 		mgr.GetEventRecorder("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
