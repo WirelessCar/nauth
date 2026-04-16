@@ -18,13 +18,16 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -67,44 +70,30 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	statusWrapper := newAccountExportStatus(state)
+	account := &v1alpha1.Account{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account); err != nil {
+		log.Error(err, "Failed to get account", "accountName", state.Spec.AccountName)
+	}
 
-	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
-	account, err := r.accountReader.Get(ctx, accountRef)
-	if err != nil {
-		statusWrapper.setBoundToAccountNotFound(err)
-	} else {
-		accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
-		boundAccountID := state.GetLabel(v1alpha1.AccountExportLabelAccountID)
-		if boundAccountID != "" && boundAccountID != accountID {
-			statusWrapper.setBoundToAccountConflict(boundAccountID, accountID)
-		} else {
-			if boundAccountID != accountID {
-				patchBase := state.DeepCopy()
-				state.SetLabel(v1alpha1.AccountExportLabelAccountID, accountID)
-				if patchErr := r.Patch(ctx, state, client.MergeFrom(patchBase)); patchErr != nil {
-					log.Error(patchErr, "Failed to patch labels")
-					return ctrl.Result{}, patchErr
-				}
-			}
-			statusWrapper.setBoundToAccountOK(accountID)
+	resolution := r.manager.Resolve(ctx, state, account)
+	patchLabels, updateStatus := mapResolutionToStatus(resolution, state)
+
+	if patchLabels {
+		err := r.patchLabels(ctx, state)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to patch labels: %w", err)
+		}
+		return ctrl.Result{RequeueAfter: time.Second * 2}, nil
+	}
+
+	if updateStatus {
+		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
+			log.Error(updateErr, "Failed to update status")
+			return ctrl.Result{}, updateErr
 		}
 	}
 
-	claims, err := r.manager.CreateClaim(ctx, state)
-	if err != nil {
-		statusWrapper.setStatusValidRulesFalse(err)
-	} else {
-		statusWrapper.setStatusValidRules(claims.Rules)
-	}
-
-	// TODO: [#22] Verify that current Generation is used in Account Status []children
-	statusWrapper.setAdoptedByAccount()
-
-	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
-		log.Error(updateErr, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
-		return ctrl.Result{}, updateErr
-	}
+	log.Info("Reconciliation complete")
 	return ctrl.Result{}, nil
 }
 
@@ -117,4 +106,19 @@ func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
+}
+
+func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {
+	patchData, err := json.Marshal(map[string]map[string]map[string]string{
+		"metadata": {
+			"labels": resource.GetLabels(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to generate patch for label: %w", err)
+	}
+	if err = r.Patch(ctx, resource, client.RawPatch(types.MergePatchType, patchData)); err != nil {
+		return fmt.Errorf("failed to patch label: %w", err)
+	}
+	return nil
 }

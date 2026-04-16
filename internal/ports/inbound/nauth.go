@@ -14,7 +14,7 @@ type AccountManager interface {
 }
 
 type AccountExportManager interface {
-	CreateClaim(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error)
+	Resolve(ctx context.Context, state *v1alpha1.AccountExport, account *v1alpha1.Account) *domain.AccountExportResolution
 }
 
 type UserManager interface {

@@ -1,0 +1,19 @@
+{
+  "status": {
+    "adoptions": {
+      "exports": [
+        {
+          "name": "my-account-export",
+          "uid": "5d1383b9-8029-48aa-8461-5220f2e43e93",
+          "observedGeneration": 1,
+          "status": {
+            "status": "True",
+            "desiredClaimObservedGeneration": 16,
+            "reason": "Ok",
+            "message": "Ok"
+          }
+        }
+      ]
+    }
+  }
+}

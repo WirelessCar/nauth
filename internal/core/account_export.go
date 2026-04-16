@@ -10,6 +10,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/jwt/v2"
+	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -20,7 +21,55 @@ func NewAccountExportManager() *AccountExportManager {
 	return &AccountExportManager{}
 }
 
-func (a *AccountExportManager) CreateClaim(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error) {
+func (a *AccountExportManager) Resolve(ctx context.Context, state *v1alpha1.AccountExport, account *v1alpha1.Account) *domain.AccountExportResolution {
+	result := &domain.AccountExportResolution{
+		ObservedGeneration: state.Generation,
+	}
+
+	result.DesiredClaim, result.ValidationError = createClaim(ctx, state)
+
+	if account == nil {
+		result.BindingState = domain.AccountBindingStateMissing
+		result.AdoptionState = domain.AccountAdoptionStateMissing
+		return result
+	}
+
+	result.AccountID = account.GetLabel(v1alpha1.AccountLabelAccountID)
+	result.BoundAccountID = state.GetLabel(v1alpha1.AccountExportLabelAccountID)
+
+	if result.BoundAccountID == "" {
+		result.BindingState = domain.AccountBindingStateMissing
+	} else if result.BoundAccountID != result.AccountID {
+		result.BindingState = domain.AccountBindingStateConflict
+	} else {
+		result.BindingState = domain.AccountBindingStateBound
+	}
+
+	adoption, err := findAdoption(ctx, state, account)
+	if err != nil {
+		result.AdoptionState = domain.AccountAdoptionStateMissing
+		result.AdoptionError = err
+	} else {
+		result.Adoption = adoption
+
+		adoptionGen := adoption.Status.DesiredClaimObservedGeneration
+		sameGeneration := adoptionGen != nil && *adoptionGen == state.Generation
+		if adoption.Status.Status == "True" && sameGeneration {
+			result.AdoptionState = domain.AccountAdoptionStateAdopted
+		} else {
+			result.AdoptionState = domain.AccountAdoptionStateNotAdopted
+			if !sameGeneration {
+				result.AdoptionError = fmt.Errorf("generation %d has not been adopted yet", state.Generation)
+			} else {
+				result.AdoptionError = fmt.Errorf("%s: %s", adoption.Status.Reason, adoption.Status.Message)
+			}
+		}
+	}
+
+	return result
+}
+
+func createClaim(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error) {
 	exports := &jwt.Exports{}
 	for _, r := range state.Spec.Rules {
 		exports.Add(mapToJwtExport(r))
@@ -91,6 +140,27 @@ func mapExportType(t v1alpha1.ExportType) jwt.ExportType {
 	}
 
 	return jwt.Unknown
+}
+
+func findAdoption(ctx context.Context, state *v1alpha1.AccountExport, account *v1alpha1.Account) (*v1alpha1.AccountAdoption, error) {
+	if found, adoption := findAdoptionByUID(account, state.UID); found {
+		return &adoption, nil
+	}
+
+	return nil, fmt.Errorf("account export is not yet processed by account")
+}
+
+func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) (bool, v1alpha1.AccountAdoption) {
+	if account.Status.Adoptions == nil {
+		return false, v1alpha1.AccountAdoption{}
+	}
+
+	for _, adoption := range account.Status.Adoptions.Exports {
+		if adoption.UID == uid {
+			return true, adoption
+		}
+	}
+	return false, v1alpha1.AccountAdoption{}
 }
 
 var _ inbound.AccountExportManager = (*AccountExportManager)(nil)

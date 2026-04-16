@@ -64,54 +64,6 @@ func (t *AccountExportControllerTestSuite) SetupTest() {
 	)
 }
 
-func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAdoptedByAccountNotImplemented() {
-	// Given
-	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "my-account"), &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): t.accountID,
-			},
-		},
-	})
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, &domain.AccountExportClaim{
-		Rules: t.rules,
-	}, nil)
-	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      t.accountExportName,
-			Namespace: t.accountExportNamespace,
-		},
-		Spec: v1alpha1.AccountExportSpec{
-			AccountName: "my-account",
-			Rules:       t.rules,
-		},
-	}))
-
-	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
-
-	// Then
-	t.Require().NoError(err)
-
-	accountExport := &v1alpha1.AccountExport{}
-	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
-	t.Require().NoError(err)
-	t.Require().NotNil(accountExport.Status.DesiredClaim)
-	t.Require().Equal(&v1alpha1.AccountExportClaim{
-		Rules:              t.rules,
-		ObservedGeneration: int64(1),
-	}, accountExport.Status.DesiredClaim)
-
-	conditions := accountExport.Status.Conditions
-	t.Require().NotEmpty(conditions)
-
-	t.assertBoundAccountID(accountExport, t.accountID)
-	t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
-	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
-}
-
 func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportRuleValidationFails() {
 	// Given
 	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "my-account"), &v1alpha1.Account{
@@ -269,7 +221,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	t.Equal("Account ID conflict: previously bound to ACCA, now found ACCB", boundToAccountCondition.Message)
 	t.assertBoundAccountID(accountExport, "ACCA")
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "Errored")
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 }
 
