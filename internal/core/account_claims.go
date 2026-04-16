@@ -166,6 +166,7 @@ func newAccountClaimsBuilder(
 
 		for _, importClaim := range spec.Imports {
 			accountRef := domain.NewNamespacedName(importClaim.AccountRef.Namespace, importClaim.AccountRef.Name)
+			// TODO: [#228] Extract Import Account ID lookup to controller layer
 			importAccount, err := accountReader.Get(ctx, accountRef)
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to get account for import %q (account: %q): %w",

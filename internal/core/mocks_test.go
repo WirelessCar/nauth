@@ -361,6 +361,7 @@ var _ outbound.NatsAccountConnection = (*NatsAccConnectionMock)(nil)
 * outbound.AccountReader Resolver
 *****************************************************/
 
+// TODO: [#228] Remove AccountReaderMock
 type AccountReaderMock struct {
 	mock.Mock
 }

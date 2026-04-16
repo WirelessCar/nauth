@@ -12,6 +12,8 @@ import (
 /* ****************************************************
 * outbound.AccountReader Mock
 *****************************************************/
+
+// TODO: [#228] Remove accountReaderMock
 type accountReaderMock struct {
 	mock.Mock
 }
