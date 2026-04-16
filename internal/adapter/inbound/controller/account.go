@@ -23,7 +23,6 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
-	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,24 +41,17 @@ import (
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme              *runtime.Scheme
-	manager             inbound.AccountManager
-	accountExportReader outbound.AccountExportReader
-	reporter            *statusReporter
+	Scheme   *runtime.Scheme
+	manager  inbound.AccountManager
+	reporter *statusReporter
 }
 
-func NewAccountReconciler(
-	k8sClient client.Client,
-	scheme *runtime.Scheme,
-	manager inbound.AccountManager,
-	accountExportReader outbound.AccountExportReader,
-	recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
-		Client:              k8sClient,
-		Scheme:              scheme,
-		manager:             manager,
-		accountExportReader: accountExportReader,
-		reporter:            newStatusReporter(k8sClient, recorder),
+		Client:   k8sClient,
+		Scheme:   scheme,
+		manager:  manager,
+		reporter: newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -217,13 +209,27 @@ func (r *AccountReconciler) collectAccountResources(ctx context.Context, account
 	result := domain.AccountResources{Account: *account}
 	if accountID != "" {
 		namespace := domain.Namespace(account.Namespace)
-		exports, err := r.accountExportReader.FindByAccountID(ctx, namespace, accountID)
+		exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to lookup account exports for account: %w", err)
+			return nil, err
 		}
 		result.Exports = exports.Items
 	}
 	return &result, nil
+}
+
+func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountExportList, error) {
+	if accountID == "" {
+		return nil, fmt.Errorf("account ID required")
+	}
+	exports := &v1alpha1.AccountExportList{}
+	err := r.List(ctx, exports, client.InNamespace(namespace), client.MatchingLabels{
+		string(v1alpha1.AccountExportLabelAccountID): accountID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list account exports: %w", err)
+	}
+	return exports, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -30,10 +30,6 @@ type AccountReader interface {
 	Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error)
 }
 
-type AccountExportReader interface {
-	FindByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (exports *v1alpha1.AccountExportList, err error)
-}
-
 type NatsClusterReader interface {
 	Get(ctx context.Context, clusterRef domain.NamespacedName) (*v1alpha1.NatsCluster, error)
 }
