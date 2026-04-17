@@ -71,6 +71,10 @@ func (t *AccountManagerTestSuite) SetupTest() {
 }
 
 func (t *AccountManagerTestSuite) TearDownTest() {
+	t.assertAndResetAllMock()
+}
+
+func (t *AccountManagerTestSuite) assertAndResetAllMock() {
 	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountReaderMock.AssertExpectations(t.T())
@@ -78,6 +82,14 @@ func (t *AccountManagerTestSuite) TearDownTest() {
 	t.natsSysConnMock.AssertExpectations(t.T())
 	t.natsAccClientMock.AssertExpectations(t.T())
 	t.natsAccConnMock.AssertExpectations(t.T())
+
+	t.clusterTargetResolverMock.Mock = mock.Mock{}
+	t.secretManagerMock.Mock = mock.Mock{}
+	t.accountReaderMock.Mock = mock.Mock{}
+	t.natsSysClientMock.Mock = mock.Mock{}
+	t.natsSysConnMock.Mock = mock.Mock{}
+	t.natsAccClientMock.Mock = mock.Mock{}
+	t.natsAccConnMock.Mock = mock.Mock{}
 }
 
 func TestAccountManager_TestSuite(t *testing.T) {
@@ -316,6 +328,147 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
 }
 
+func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnchanged() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+	accountSignKey, _ := nkeys.CreateAccount()
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
+	t.natsSysConnMock.mockDisconnect()
+
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
+			},
+			Spec: v1alpha1.AccountSpec{},
+		},
+	})
+	t.Require().NoError(err)
+	t.Require().NotNil(initialResult)
+	t.Require().NotEmpty(initialResult.ClaimsHash)
+	t.assertAndResetAllMock()
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
+			},
+			Spec: v1alpha1.AccountSpec{},
+			Status: v1alpha1.AccountStatus{
+				ClaimsHash: initialResult.ClaimsHash,
+			},
+		},
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOperatorSigningKeyHashChanged() {
+	// Given
+	var caughtAccountJWT string
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountRootKey, _ := nkeys.CreateAccount()
+	accountID, _ := accountRootKey.PublicKey()
+	accountSignKey, _ := nkeys.CreateAccount()
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
+	t.natsSysConnMock.mockDisconnect()
+
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
+			},
+			Spec: v1alpha1.AccountSpec{},
+		},
+	})
+	t.Require().NoError(err)
+	t.Require().NotNil(initialResult)
+	t.Require().NotEmpty(initialResult.ClaimsHash)
+	t.assertAndResetAllMock()
+
+	newOpSignKey, err := nkeys.CreateOperator()
+	t.Require().NoError(err)
+	newOpSignKeyPublic, err := newOpSignKey.PublicKey()
+	t.Require().NoError(err)
+	t.clusterTarget.OperatorSigningKey = newOpSignKey
+
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: accountRootKey,
+		Sign: accountSignKey,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+		Account: v1alpha1.Account{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "account-namespace",
+				Name:      "account-name",
+				Labels: map[string]string{
+					string(v1alpha1.AccountLabelAccountID): accountID,
+				},
+			},
+			Spec: v1alpha1.AccountSpec{},
+			Status: v1alpha1.AccountStatus{
+				ClaimsHash: initialResult.ClaimsHash,
+			},
+		},
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.NotEqual(initialResult.ClaimsHash, result.ClaimsHash)
+	t.Equal(newOpSignKeyPublic, result.AccountSignedBy)
+	t.NotEmpty(caughtAccountJWT)
+
+	parsedClaims, err := jwt.DecodeAccountClaims(caughtAccountJWT)
+	t.NoError(err)
+	t.Equal(result.AccountID, parsedClaims.Subject)
+	t.Equal(newOpSignKeyPublic, parsedClaims.Issuer)
+}
+
 func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMissing() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
@@ -486,6 +639,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(accountID, result.AccountID)
+	t.Equal(accountSignKeyPublic, result.AccountSignedBy)
 	t.Equal(existingNatsLimitsSubs, *result.Claims.NatsLimits.Subs)
 }
 
@@ -756,6 +910,7 @@ func (t *AccountManagerTestSuite) verifyAccountResult(result *domain.AccountResu
 	t.NotEmpty(result.AccountID)
 	t.Equal(result.AccountID, rootKeyPublic)
 	t.Equal(t.opSignKeyPublic, result.AccountSignedBy)
+	t.NotEmpty(result.ClaimsHash)
 
 	t.NotEmpty(caughtAccountJWT)
 	accountClaims, err := jwt.DecodeAccountClaims(caughtAccountJWT)

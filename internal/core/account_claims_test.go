@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -147,6 +148,52 @@ func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *te
 			Payload: &ptrNoLimit,
 		},
 	}, result)
+}
+
+func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHash(t *testing.T) {
+	// Given
+	opSignKey, _ := nkeys.CreateOperator()
+	accKey, _ := nkeys.CreateAccount()
+	accID, _ := accKey.PublicKey()
+	accSignKey, _ := nkeys.CreateAccount()
+	accSignPubKey, _ := accSignKey.PublicKey()
+	toJWT := func(claims *jwt.AccountClaims, opSignKey nkeys.KeyPair) string {
+		signedJWT, err := claims.Encode(opSignKey)
+		require.NoError(t, err)
+		return signedJWT
+	}
+
+	claims0 := jwt.NewAccountClaims(accID)
+	claims0.Name = "Test Account"
+	claims0.SigningKeys.Add(accSignPubKey)
+	jwt0 := toJWT(claims0, opSignKey)
+
+	time.Sleep(1010 * time.Millisecond) // Ensure that time-based fields would differ if not fixed
+
+	claims1 := jwt.NewAccountClaims(accID)
+	claims1.Name = "Test Account"
+	claims1.SigningKeys.Add(accSignPubKey)
+	jwt1 := toJWT(claims1, opSignKey)
+
+	unitUnderTest := func(jwt string) string {
+		hash, err := hashSignedAccountJWTClaims(jwt)
+		require.NoError(t, err)
+		return hash
+	}
+
+	// When
+	claims0Hash := unitUnderTest(jwt0)
+
+	// Then
+	require.Equal(t, claims0Hash, unitUnderTest(jwt0), "expected hash to be deterministic for same JWT")
+	require.Equal(t, claims0Hash, unitUnderTest(jwt1), "expected hash to be deterministic for same claims and signing key")
+
+	opSignKeyOther, _ := nkeys.CreateOperator()
+	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(claims0, opSignKeyOther)), "expected hash to change when signing key changes")
+
+	claimsOther := *claims0
+	claimsOther.Description = "Claims V2"
+	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(&claimsOther, opSignKey)), "expected hash to change when claims content changes")
 }
 
 func fakeAccountId(accountRef domain.NamespacedName) string {

@@ -13,6 +13,7 @@ type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
 	Claims          *v1alpha1.AccountClaims
+	ClaimsHash      string
 	Adoptions       *v1alpha1.AccountAdoptions
 }
 

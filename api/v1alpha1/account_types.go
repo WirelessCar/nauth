@@ -84,6 +84,9 @@ type AccountClaims struct {
 type AccountStatus struct {
 	// +optional
 	Claims AccountClaims `json:"claims,omitempty"`
+	// ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated.
+	// +optional
+	ClaimsHash string `json:"claimsHash,omitempty"`
 	// +optional
 	Adoptions *AccountAdoptions `json:"adoptions,omitempty"`
 	// +listType=map

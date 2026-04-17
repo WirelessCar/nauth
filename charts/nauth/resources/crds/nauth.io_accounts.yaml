@@ -497,6 +497,11 @@ spec:
                       type: object
                     type: array
                 type: object
+              claimsHash:
+                description: ClaimsHash is a hash of the Account JWT claims, used
+                  to determine if the claims have changed and a new JWT needs to be
+                  generated.
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current

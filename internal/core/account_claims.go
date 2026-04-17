@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -10,6 +12,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
+	"k8s.io/apimachinery/pkg/util/json"
 )
 
 type accountClaimsBuilder struct {
@@ -205,6 +208,24 @@ func (b *accountClaimsBuilder) build() (*jwt.AccountClaims, error) {
 	}
 
 	return b.claim, nil
+}
+
+func hashSignedAccountJWTClaims(accountJWT string) (string, error) {
+	claims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode account JWT claims for hashing: %w", err)
+	}
+	// Exclude unstable JWT metadata so equivalent account content hashes the same across reconciles.
+	claims.IssuedAt = 0
+	claims.ID = ""
+
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims {

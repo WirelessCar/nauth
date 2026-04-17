@@ -183,6 +183,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if result.Claims != nil {
 		natsAccount.Status.Claims = *result.Claims
 	}
+	natsAccount.Status.ClaimsHash = result.ClaimsHash
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 

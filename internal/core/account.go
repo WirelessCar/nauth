@@ -162,18 +162,29 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		return nil, fmt.Errorf("failed to sign account jwt: %w", err)
 	}
 
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	claimsHash, err := hashSignedAccountJWTClaims(signedJwt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
-	defer sysConn.Disconnect()
 
-	// TODO: [#11] Don't upload AccountJWT if unchanged (hash)
-	logf.FromContext(ctx).Info("Uploading Account JWT to NATS", "accountID", accountPublicKey)
+	log := logf.FromContext(ctx)
+	prevClaimsHash := account.Status.ClaimsHash
+	if prevClaimsHash == "" || prevClaimsHash != claimsHash {
+		sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		}
+		defer sysConn.Disconnect()
 
-	err = sysConn.UploadAccountJWT(signedJwt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
+		err = sysConn.UploadAccountJWT(signedJwt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload account jwt: %w", err)
+		}
+		log.Info("Uploaded Account JWT to NATS",
+			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
+	} else {
+		log.Info("Skipped Account JWT upload to NATS because claims are unchanged",
+			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
@@ -181,6 +192,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
+		ClaimsHash:      claimsHash,
 		// TODO: [#11] Set Adoptions
 	}, nil
 }
@@ -208,11 +220,6 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	cluster, err := a.resolveClusterTarget(ctx, state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
-	}
-
-	operatorSigningPublicKey, err := cluster.OperatorSigningKey.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get operator signing public key during import: %w", err)
 	}
 
 	accountID := state.GetLabel(v1alpha1.AccountLabelAccountID)
@@ -255,10 +262,15 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
+	claimsHash, err := hashSignedAccountJWTClaims(accountJWT)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash account claims during import: %w", err)
+	}
 	return &domain.AccountResult{
 		AccountID:       accountID,
-		AccountSignedBy: operatorSigningPublicKey,
+		AccountSignedBy: natsClaims.Issuer,
 		Claims:          &nauthClaims,
+		ClaimsHash:      claimsHash,
 	}, nil
 }
 

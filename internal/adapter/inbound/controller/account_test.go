@@ -107,6 +107,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &v1alpha1.AccountClaims{},
+		ClaimsHash:      "CLAIMS_HASH",
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 
@@ -123,6 +124,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 		t.Equal(metav1.ConditionTrue, c.Status)
 		t.Equal(conditionReasonReconciled, c.Reason)
 	}
+	t.Equal("CLAIMS_HASH", account.Status.ClaimsHash)
 	t.Equal(t.operatorVersion, account.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)
 }
