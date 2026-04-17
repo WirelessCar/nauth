@@ -1,0 +1,47 @@
+AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
+AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
+Adoptions:
+  exports:
+  - name: extracted export
+    observedGeneration: 1
+    status:
+      desiredClaimObservedGeneration: 1
+      reason: Adopted
+      status: "True"
+    uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+Claims:
+  accountLimits:
+    conn: -1
+    exports: -1
+    imports: -1
+    leaf: -1
+    wildcards: true
+  displayName: account-namespace/account-name
+  exports:
+  - name: my service
+    subject: bar.*
+    type: service
+  - name: my extra inline stream
+    subject: baz.*
+    type: stream
+  - name: my extra extracted stream
+    subject: boz.*
+    type: stream
+  - name: my stream
+    subject: foo.*
+    type: stream
+  jetStreamLimits:
+    consumer: -1
+    diskMaxStreamBytes: -1
+    diskStorage: -1
+    maxAckPending: -1
+    memMaxStreamBytes: -1
+    memStorage: -1
+    streams: -1
+  natsLimits:
+    data: -1
+    payload: -1
+    subs: -1
+  signingKeys:
+  - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
+ClaimsHash: d82b726ef4199619dac946bec5ceb981e9fdb371673fb344505b10332514617f

@@ -5,8 +5,8 @@ import (
 )
 
 type AccountResources struct {
-	Account v1alpha1.Account
-	Exports []v1alpha1.AccountExport
+	Account v1alpha1.Account         `json:"account,omitempty"`
+	Exports []v1alpha1.AccountExport `json:"exports,omitempty"`
 }
 
 type AccountResult struct {

@@ -3,26 +3,28 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 )
 
 type AccountManagerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	opSignKey       nkeys.KeyPair
-	opSignKeyPublic string
-	sauCreds        domain.NatsUserCreds
-	natsURL         string
-	clusterTarget   clusterTarget
+	keys          testKeys
+	sauCreds      domain.NatsUserCreds
+	natsURL       string
+	clusterTarget clusterTarget
 
 	accountReaderMock         *AccountReaderMock
 	natsSysClientMock         *NatsSysClientMock
@@ -38,8 +40,7 @@ type AccountManagerTestSuite struct {
 func (t *AccountManagerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
-	t.opSignKey, _ = nkeys.CreateOperator()
-	t.opSignKeyPublic, _ = t.opSignKey.PublicKey()
+	t.keys = testKeys1()
 	t.sauCreds = domain.NatsUserCreds{
 		Creds:     []byte("FAKE_CREDENTIALS"),
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
@@ -47,7 +48,7 @@ func (t *AccountManagerTestSuite) SetupTest() {
 	t.natsURL = "nats://nats:4222"
 	t.clusterTarget = clusterTarget{
 		NatsURL:            t.natsURL,
-		OperatorSigningKey: t.opSignKey,
+		OperatorSigningKey: t.keys.OpSign.KeyPair,
 		SystemAdminCreds:   t.sauCreds,
 	}
 
@@ -75,6 +76,11 @@ func (t *AccountManagerTestSuite) TearDownTest() {
 }
 
 func (t *AccountManagerTestSuite) assertAndResetAllMock() {
+	t.assertAllMocks()
+	t.resetAllMocks()
+}
+
+func (t *AccountManagerTestSuite) assertAllMocks() {
 	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountReaderMock.AssertExpectations(t.T())
@@ -82,7 +88,9 @@ func (t *AccountManagerTestSuite) assertAndResetAllMock() {
 	t.natsSysConnMock.AssertExpectations(t.T())
 	t.natsAccClientMock.AssertExpectations(t.T())
 	t.natsAccConnMock.AssertExpectations(t.T())
+}
 
+func (t *AccountManagerTestSuite) resetAllMocks() {
 	t.clusterTargetResolverMock.Mock = mock.Mock{}
 	t.secretManagerMock.Mock = mock.Mock{}
 	t.accountReaderMock.Mock = mock.Mock{}
@@ -207,14 +215,13 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 		caughtAccountJWT string
 	)
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
-	accountRootKey, _ := nkeys.CreateAccount()
-	accountSignKey, _ := nkeys.CreateAccount()
+	keys := testKeys1()
 	var natsLimitsSubs int64 = 100
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, "", &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: keys.AcRoot.KeyPair,
+		Sign: keys.AcSign.KeyPair,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
@@ -239,9 +246,59 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	t.NoError(err)
 	t.NotNil(result)
 
-	jwtClaims := t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
+	jwtClaims := t.verifyAccountResult(result, caughtAccountJWT, keys.AcRoot.KeyPair, keys.AcSign.KeyPair)
 
 	t.Equal(natsLimitsSubs, jwtClaims.Limits.Subs)
+}
+
+func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() {
+	testCases := discoverTestCases("approvals/account_test.TestAccountManager_TestSuite.Test_CreateOrUpdate_ShouldSucceed_Adoptions.{TestCase}.input.yaml")
+	t.Require().NotEmpty(testCases, "no test cases discovered")
+
+	for _, testCase := range testCases {
+		t.Run(testCase.TestName, func() {
+			// Given
+			t.resetAllMocks()
+			inputData, err := os.ReadFile(testCase.InputFile)
+			t.Require().NoError(err)
+			var input domain.AccountResources
+			t.Require().NoError(yaml.UnmarshalStrict(inputData, &input))
+			t.Require().NotEmpty(input.Account.Name, "account.name must be present in input file")
+			t.Require().NotEmpty(input.Account.Namespace, "account.namespace must be present in input file")
+			t.Require().Nil(input.Account.Spec.NatsClusterRef, "account.natsClusterRef must be absent in input file")
+
+			accountRef := domain.NewNamespacedName(input.Account.Namespace, input.Account.Name)
+			keys := testKeys1()
+
+			t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
+			t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, "", &Secrets{
+				Root: keys.AcRoot.KeyPair,
+				Sign: keys.AcSign.KeyPair,
+			})
+			t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+			var caughtAccountJWT string
+			t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+			t.natsSysConnMock.mockDisconnect()
+
+			// When
+			result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, input)
+
+			// Then
+			t.assertAndResetAllMock()
+			t.Require().NoError(err)
+			t.Require().NotNil(result)
+			t.Require().NotEmpty(caughtAccountJWT)
+
+			t.NotNil(result.Claims)
+			t.NotEmpty(result.ClaimsHash)
+			t.verifyAccountResult(result, caughtAccountJWT, t.keys.AcRoot.KeyPair, t.keys.AcSign.KeyPair)
+
+			resultYaml, err := yaml.Marshal(result)
+			t.Require().NoError(err)
+			approvals.VerifyString(t.T(), string(resultYaml), approvalOptionsForTestSuite(&t.Suite).
+				ForFile().WithExtension(".yaml"))
+		})
+	}
 }
 
 func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
@@ -294,14 +351,12 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 		caughtAccountJWT string
 	)
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
-	accountRootKey, _ := nkeys.CreateAccount()
-	accountID, _ := accountRootKey.PublicKey()
-	accountSignKey, _ := nkeys.CreateAccount()
+	accountID := t.keys.AcRoot.PublicKey
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: t.keys.AcRoot.KeyPair,
+		Sign: t.keys.AcSign.KeyPair,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
@@ -325,20 +380,18 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.NoError(err)
 	t.NotNil(result)
 
-	t.verifyAccountResult(result, caughtAccountJWT, accountRootKey, accountSignKey)
+	t.verifyAccountResult(result, caughtAccountJWT, t.keys.AcRoot.KeyPair, t.keys.AcSign.KeyPair)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnchanged() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
-	accountRootKey, _ := nkeys.CreateAccount()
-	accountID, _ := accountRootKey.PublicKey()
-	accountSignKey, _ := nkeys.CreateAccount()
+	accountID := t.keys.AcRoot.PublicKey
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: t.keys.AcRoot.KeyPair,
+		Sign: t.keys.AcSign.KeyPair,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
@@ -363,8 +416,8 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: t.keys.AcRoot.KeyPair,
+		Sign: t.keys.AcSign.KeyPair,
 	})
 
 	// When
@@ -394,14 +447,12 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	// Given
 	var caughtAccountJWT string
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
-	accountRootKey, _ := nkeys.CreateAccount()
-	accountID, _ := accountRootKey.PublicKey()
-	accountSignKey, _ := nkeys.CreateAccount()
+	accountID := t.keys.AcRoot.PublicKey
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: t.keys.AcRoot.KeyPair,
+		Sign: t.keys.AcSign.KeyPair,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
@@ -432,8 +483,8 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: accountRootKey,
-		Sign: accountSignKey,
+		Root: t.keys.AcRoot.KeyPair,
+		Sign: t.keys.AcSign.KeyPair,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
@@ -609,7 +660,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 		},
 	}
 	existingClaims, err := newAccountClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountReaderMock).
-		signingKey(accountSignKeyPublic).
+		addSigningKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")
 	existingJWT, err := existingClaims.Encode(accountSignKey)
@@ -901,6 +952,8 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 *****************************************************/
 
 func (t *AccountManagerTestSuite) verifyAccountResult(result *domain.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
+	t.Require().NotEmpty(caughtAccountJWT, "caught Account JWT must not be empty")
+
 	rootKeyPublic, err := expectRootKey.PublicKey()
 	t.NoError(err, "failed to get public key from expect root key pair")
 	signKeyPublic, err := expectSignKey.PublicKey()
@@ -909,14 +962,13 @@ func (t *AccountManagerTestSuite) verifyAccountResult(result *domain.AccountResu
 	t.NotNil(result)
 	t.NotEmpty(result.AccountID)
 	t.Equal(result.AccountID, rootKeyPublic)
-	t.Equal(t.opSignKeyPublic, result.AccountSignedBy)
+	t.Equal(t.keys.OpSign.PublicKey, result.AccountSignedBy)
 	t.NotEmpty(result.ClaimsHash)
 
-	t.NotEmpty(caughtAccountJWT)
 	accountClaims, err := jwt.DecodeAccountClaims(caughtAccountJWT)
 	t.NoError(err, "failed to decode caught account JWT")
 
-	t.Equal(t.opSignKeyPublic, accountClaims.Issuer)
+	t.Equal(t.keys.OpSign.PublicKey, accountClaims.Issuer)
 	t.Equal(result.AccountID, accountClaims.Subject)
 
 	t.Equal([]string{signKeyPublic}, accountClaims.SigningKeys.Keys(), "account claims should contain the expected signing key")

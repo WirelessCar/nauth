@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -127,36 +128,20 @@ func newAccountClaimsBuilder(
 		exports := make(jwt.Exports, 0, len(spec.Exports))
 
 		for _, export := range spec.Exports {
-			var targetType jwt.ExportType
-			switch export.Type {
-			case v1alpha1.Stream:
-				targetType = jwt.Stream
-			case v1alpha1.Service:
-				targetType = jwt.Service
-			default:
-				targetType = jwt.Stream
-			}
-
-			var latency *jwt.ServiceLatency
-			if export.Latency != nil {
-				latency = &jwt.ServiceLatency{
-					Sampling: jwt.SamplingRate(export.Latency.Sampling),
-					Results:  jwt.Subject(export.Latency.Results),
-				}
-			}
-
 			exportClaim := &jwt.Export{
 				Name:                 export.Name,
 				Subject:              jwt.Subject(export.Subject),
-				Type:                 targetType,
+				Type:                 toJWTExportType(export.Type),
 				TokenReq:             export.TokenReq,
 				Revocations:          jwt.RevocationList(export.Revocations),
 				ResponseType:         jwt.ResponseType(export.ResponseType),
 				ResponseThreshold:    export.ResponseThreshold,
-				Latency:              latency,
 				AccountTokenPosition: export.AccountTokenPosition,
 				Advertise:            export.Advertise,
 				AllowTrace:           export.AllowTrace,
+			}
+			if export.Latency != nil {
+				exportClaim.Latency = toJWTServiceLatency(*export.Latency)
 			}
 			exports = append(exports, exportClaim)
 		}
@@ -197,7 +182,43 @@ func newAccountClaimsBuilder(
 	}
 }
 
-func (b *accountClaimsBuilder) signingKey(signingKey string) *accountClaimsBuilder {
+func (b *accountClaimsBuilder) addExportRuleGroup(rules []v1alpha1.AccountExportRule) error {
+	tmpClaim := *b.claim
+	for _, rule := range rules {
+		export := jwt.Export{
+			Name:         rule.Name,
+			Subject:      jwt.Subject(rule.Subject),
+			Type:         toJWTExportType(rule.Type),
+			ResponseType: jwt.ResponseType(rule.ResponseType),
+		}
+		if rule.ResponseThreshold != nil {
+			export.ResponseThreshold = *rule.ResponseThreshold
+		}
+		if rule.Latency != nil {
+			export.Latency = toJWTServiceLatency(*rule.Latency)
+		}
+		if rule.AccountTokenPosition != nil {
+			export.AccountTokenPosition = *rule.AccountTokenPosition
+		}
+		if rule.Advertise != nil {
+			export.Advertise = *rule.Advertise
+		}
+		if rule.AllowTrace != nil {
+			export.AllowTrace = *rule.AllowTrace
+		}
+		tmpClaim.Exports = appendExportIfMissing(tmpClaim.Exports, export)
+	}
+	validationResults := &jwt.ValidationResults{}
+	tmpClaim.Exports.Validate(validationResults)
+	validationErrors := validationResults.Errors()
+	if len(validationErrors) != 0 {
+		return fmt.Errorf("rules adoption failed: %w", errors.Join(validationErrors...))
+	}
+	b.claim.Exports = tmpClaim.Exports
+	return nil
+}
+
+func (b *accountClaimsBuilder) addSigningKey(signingKey string) *accountClaimsBuilder {
 	b.claim.SigningKeys.Add(signingKey)
 	return b
 }
@@ -376,4 +397,35 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 	}
 
 	return out
+}
+
+// Helpers
+
+func appendExportIfMissing(exports jwt.Exports, export jwt.Export) jwt.Exports {
+	for _, existing := range exports {
+		if existing != nil && reflect.DeepEqual(export, *existing) {
+			return exports
+		}
+	}
+	return append(exports, &export)
+}
+
+func toJWTExportType(source v1alpha1.ExportType) jwt.ExportType {
+	var result jwt.ExportType
+	switch source {
+	case v1alpha1.Stream:
+		result = jwt.Stream
+	case v1alpha1.Service:
+		result = jwt.Service
+	default:
+		result = jwt.Stream
+	}
+	return result
+}
+
+func toJWTServiceLatency(source v1alpha1.ServiceLatency) *jwt.ServiceLatency {
+	return &jwt.ServiceLatency{
+		Sampling: jwt.SamplingRate(source.Sampling),
+		Results:  jwt.Subject(source.Results),
+	}
 }

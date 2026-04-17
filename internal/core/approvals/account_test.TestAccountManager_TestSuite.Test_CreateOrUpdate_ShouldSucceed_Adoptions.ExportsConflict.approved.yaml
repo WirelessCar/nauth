@@ -1,0 +1,53 @@
+AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
+AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
+Adoptions:
+  exports:
+  - name: export group A
+    observedGeneration: 1
+    status:
+      desiredClaimObservedGeneration: 1
+      reason: Adopted
+      status: "True"
+    uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+  - name: export group B
+    observedGeneration: 1
+    status:
+      desiredClaimObservedGeneration: 1
+      message: 'rules adoption failed: stream export subject "foo.*" already exports
+        "foo.*"'
+      reason: Invalid
+      status: "False"
+    uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
+Claims:
+  accountLimits:
+    conn: -1
+    exports: -1
+    imports: -1
+    leaf: -1
+    wildcards: true
+  displayName: account-namespace/account-name
+  exports:
+  - name: my service
+    subject: bar.*
+    type: service
+  - name: my stream
+    subject: foo.*
+    type: stream
+  - name: inline export
+    subject: inline.foor.*
+    type: stream
+  jetStreamLimits:
+    consumer: -1
+    diskMaxStreamBytes: -1
+    diskStorage: -1
+    maxAckPending: -1
+    memMaxStreamBytes: -1
+    memStorage: -1
+    streams: -1
+  natsLimits:
+    data: -1
+    payload: -1
+    subs: -1
+  signingKeys:
+  - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
+ClaimsHash: 706d92c42b4b9882bcd693ca4e63de3dee7095f9c340d3bfceb2c8a512529438

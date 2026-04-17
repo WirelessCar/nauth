@@ -1,0 +1,25 @@
+account:
+  apiVersion: nauth.io/v1alpha1
+  kind: Account
+  metadata:
+    name: account-name
+    namespace: account-namespace
+  spec:
+    exports:
+      - name: inline export
+        subject: inline.foor.*
+        type: stream
+exports:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Export
+    metadata:
+      name: sourced export
+      namespace: account-namespace
+      uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
+      generation: 1
+    status:
+      desiredClaim:
+        observedGeneration: 1
+        rules:
+          - subject: sourced.bar.report
+            type: service

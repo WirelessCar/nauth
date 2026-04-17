@@ -12,6 +12,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -150,9 +151,12 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
-	natsClaims, err := newAccountClaimsBuilder(ctx, getDisplayName(account), account.Spec, accountPublicKey, a.accountReader).
-		signingKey(accountSigningPublicKey).
-		build()
+	claimsBuilder := newAccountClaimsBuilder(ctx, getDisplayName(account), account.Spec, accountPublicKey, a.accountReader)
+	claimsBuilder.addSigningKey(accountSigningPublicKey)
+	adoptions := &v1alpha1.AccountAdoptions{
+		Exports: adoptExports(claimsBuilder, resources.Exports),
+	}
+	natsClaims, err := claimsBuilder.build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build NATS account claims: %w", err)
 	}
@@ -193,8 +197,43 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
 		ClaimsHash:      claimsHash,
-		// TODO: [#11] Set Adoptions
+		Adoptions:       adoptions,
 	}, nil
+}
+
+func adoptExports(builder *accountClaimsBuilder, exports []v1alpha1.AccountExport) []v1alpha1.AccountAdoption {
+	adoptions := make([]v1alpha1.AccountAdoption, len(exports))
+	for i, export := range exports {
+		var adoptionStatus v1alpha1.AccountAdoptionStatus
+		desiredClaim := export.Status.DesiredClaim
+		if desiredClaim == nil {
+			adoptionStatus = v1alpha1.AccountAdoptionStatus{
+				Status:  metav1.ConditionFalse,
+				Reason:  string(metav1.StatusReasonInvalid),
+				Message: "missing desired claim in export status",
+			}
+		} else if err := builder.addExportRuleGroup(desiredClaim.Rules); err != nil {
+			adoptionStatus = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionFalse,
+				Reason:                         string(metav1.StatusReasonInvalid),
+				DesiredClaimObservedGeneration: &desiredClaim.ObservedGeneration,
+				Message:                        err.Error(),
+			}
+		} else {
+			adoptionStatus = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionTrue,
+				Reason:                         "Adopted",
+				DesiredClaimObservedGeneration: &desiredClaim.ObservedGeneration,
+			}
+		}
+		adoptions[i] = v1alpha1.AccountAdoption{
+			Name:               export.Name,
+			UID:                export.UID,
+			ObservedGeneration: export.Generation,
+			Status:             adoptionStatus,
+		}
+	}
+	return adoptions
 }
 
 func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair) (string, error) {
@@ -204,11 +243,6 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 		return "", fmt.Errorf("account claims validation failed: %v", errs)
 	}
 	return claims.Encode(operatorSigningKey)
-}
-
-func (a *AccountManager) ValidateExports(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error) {
-	// TODO: [#22] Implement ValidateExports
-	return nil, fmt.Errorf("not implemented, [#22] ValidateExports")
 }
 
 func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {

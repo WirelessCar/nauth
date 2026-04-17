@@ -52,8 +52,8 @@ func Test_AccountClaims(t *testing.T) {
 
 			// Build NATS JWT AccountClaims from AccountSpec
 			builder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
-			builder.signingKey(testClaimsSigningKey01)
-			builder.signingKey(testClaimsSigningKey02)
+			builder.addSigningKey(testClaimsSigningKey01)
+			builder.addSigningKey(testClaimsSigningKey02)
 
 			natsClaims, err := builder.build()
 			require.NoError(t, err)
@@ -95,8 +95,8 @@ func Test_AccountClaims(t *testing.T) {
 				Imports:         nauthClaims.Imports,
 			}
 			rebuilder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountReaderMock)
-			rebuilder.signingKey(testClaimsSigningKey01)
-			rebuilder.signingKey(testClaimsSigningKey02)
+			rebuilder.addSigningKey(testClaimsSigningKey01)
+			rebuilder.addSigningKey(testClaimsSigningKey02)
 
 			natsClaimsRebuilt, err := rebuilder.build()
 			require.NoError(t, err)

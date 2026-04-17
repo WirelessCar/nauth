@@ -1,0 +1,42 @@
+AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
+AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
+Adoptions: {}
+Claims:
+  accountLimits:
+    conn: 100
+    exports: 100
+    imports: 100
+    leaf: -1
+    wildcards: true
+  displayName: account-namespace/account-name
+  exports:
+  - name: JS orders consumer create
+    responseType: Stream
+    subject: $JS.API.CONSUMER.CREATE.orders
+    type: service
+  - name: JS orders consumer create wildcard
+    responseType: Stream
+    subject: $JS.API.CONSUMER.CREATE.orders.>
+    type: service
+  - name: JS orders FC
+    subject: $JS.FC.orders.>
+    type: service
+  - name: JS orders stream
+    subject: orders.S.>
+    type: stream
+  jetStreamLimits:
+    consumer: 50
+    diskMaxStreamBytes: 209715200
+    diskStorage: 209715200
+    maxAckPending: -1
+    maxBytesRequired: true
+    memMaxStreamBytes: 209715200
+    memStorage: 209715200
+    streams: 50
+  natsLimits:
+    data: 1024000
+    payload: 50000
+    subs: 100
+  signingKeys:
+  - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
+ClaimsHash: cecf4119e847f0cc70a68793d92478e0abadc0ca7ba52b98e8adbe78d59025d9

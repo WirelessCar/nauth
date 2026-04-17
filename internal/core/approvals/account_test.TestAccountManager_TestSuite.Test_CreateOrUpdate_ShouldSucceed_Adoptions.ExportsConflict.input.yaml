@@ -1,0 +1,49 @@
+account:
+  apiVersion: nauth.io/v1alpha1
+  kind: Account
+  metadata:
+    name: account-name
+    namespace: account-namespace
+  spec:
+    exports:
+      - name: inline export
+        subject: inline.foor.*
+        type: stream
+exports:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Export
+    metadata:
+      name: export group A
+      namespace: account-namespace
+      uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+      generation: 1
+    status:
+      desiredClaim:
+        observedGeneration: 1
+        rules:
+          - name: my stream
+            subject: foo.*
+            type: stream
+          - name: my service
+            subject: bar.*
+            type: service
+  - apiVersion: nauth.io/v1alpha1
+    kind: Export
+    metadata:
+      name: export group B
+      namespace: account-namespace
+      uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
+      generation: 1
+    status:
+      desiredClaim:
+        observedGeneration: 1
+        rules:
+          - name: valid subject A
+            subject: subject.a
+            type: service
+          - name: expect conflict subject
+            subject: foo.*
+            type: stream
+          - name: valid subject B
+            subject: subject.b
+            type: service

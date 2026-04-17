@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
 	approvals "github.com/approvals/go-approval-tests"
+	approvalscore "github.com/approvals/go-approval-tests/core"
+	"github.com/stretchr/testify/suite"
 )
 
 func TestMain(m *testing.M) {
@@ -49,3 +52,44 @@ func discoverTestCases(pattern string) []TestCaseInputFile {
 	}
 	return testCases
 }
+
+func approvalOptionsForTestSuite(ts *suite.Suite) approvals.VerifyOptions {
+	t := ts.T()
+	t.Helper()
+
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		t.Fatal("failed to resolve approval caller file")
+	}
+
+	return approvals.Options().ForFile().WithNamer(func(f approvalscore.Failable) approvalscore.ApprovalNamer {
+		return &fixedSourceApprovalNamer{
+			name:       strings.ReplaceAll(f.Name(), "/", "."),
+			sourceFile: file,
+		}
+	})
+}
+
+type fixedSourceApprovalNamer struct {
+	name       string
+	sourceFile string
+}
+
+func (n *fixedSourceApprovalNamer) GetName() string {
+	return n.name
+}
+
+func (n *fixedSourceApprovalNamer) GetReceivedFile(extWithDot string) string {
+	return n.fileName("received", extWithDot)
+}
+
+func (n *fixedSourceApprovalNamer) GetApprovalFile(extWithDot string) string {
+	return n.fileName("approved", extWithDot)
+}
+
+func (n *fixedSourceApprovalNamer) fileName(kind string, extWithDot string) string {
+	testFileName := strings.TrimSuffix(filepath.Base(n.sourceFile), filepath.Ext(n.sourceFile))
+	return filepath.Join(filepath.Dir(n.sourceFile), "approvals", testFileName+"."+n.name+"."+kind+extWithDot)
+}
+
+var _ approvalscore.ApprovalNamer = (*fixedSourceApprovalNamer)(nil)

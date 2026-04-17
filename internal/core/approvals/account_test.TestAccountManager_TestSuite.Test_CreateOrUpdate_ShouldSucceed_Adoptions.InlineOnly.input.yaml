@@ -1,0 +1,41 @@
+account:
+  apiVersion: nauth.io/v1alpha1
+  kind: Account
+  metadata:
+    name: account-name
+    namespace: account-namespace
+  spec:
+    accountLimits:
+      conn: 100
+      exports: 100
+      imports: 100
+      leaf: -1
+      wildcards: true
+    exports:
+      - name: JS orders stream
+        subject: orders.S.>
+        type: stream
+      - name: JS orders FC
+        subject: $JS.FC.orders.>
+        type: service
+      - name: JS orders consumer create
+        responseType: Stream
+        subject: $JS.API.CONSUMER.CREATE.orders
+        type: service
+      - name: JS orders consumer create wildcard
+        responseType: Stream
+        subject: $JS.API.CONSUMER.CREATE.orders.>
+        type: service
+    jetStreamLimits:
+      consumer: 50
+      diskMaxStreamBytes: 209715200
+      diskStorage: 209715200
+      maxAckPending: -1
+      maxBytesRequired: true
+      memMaxStreamBytes: 209715200
+      memStorage: 209715200
+      streams: 50
+    natsLimits:
+      data: 1024000
+      payload: 50000
+      subs: 100
