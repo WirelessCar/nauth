@@ -45,7 +45,7 @@ func (a *AccountExportManager) Resolve(ctx context.Context, state *v1alpha1.Acco
 		result.BindingState = domain.AccountBindingStateBound
 	}
 
-	adoption, err := findAdoption(ctx, state, account)
+	adoption, err := findAdoption(state, account)
 	if err != nil {
 		result.AdoptionState = domain.AccountAdoptionStateMissing
 		result.AdoptionError = err
@@ -142,7 +142,7 @@ func mapExportType(t v1alpha1.ExportType) jwt.ExportType {
 	return jwt.Unknown
 }
 
-func findAdoption(ctx context.Context, state *v1alpha1.AccountExport, account *v1alpha1.Account) (*v1alpha1.AccountAdoption, error) {
+func findAdoption(state *v1alpha1.AccountExport, account *v1alpha1.Account) (*v1alpha1.AccountAdoption, error) {
 	if found, adoption := findAdoptionByUID(account, state.UID); found {
 		return &adoption, nil
 	}
