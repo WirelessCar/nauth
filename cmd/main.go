@@ -284,7 +284,6 @@ func main() {
 			mgr.GetClient(),
 			mgr.GetScheme(),
 			accountExportManager,
-			accountClient,
 		)
 		if err = accountExportReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountExport")

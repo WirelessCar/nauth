@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/WirelessCar/nauth/internal/ports/inbound"
-	"github.com/stretchr/testify/mock"
+	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
@@ -19,14 +18,14 @@ type AccountExportControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	accountExportManagerMock *accountExportManagerMock
-	accountReaderMock        *accountReaderMock
-
 	accountExportName      string
 	accountExportNamespace string
 	accountExportRef       ktypes.NamespacedName
 	rules                  []v1alpha1.AccountExportRule
-	accountID              string
+	accountNameA           string
+	accountNameB           string
+	accountIDA             string
+	accountIDB             string
 
 	unitUnderTest *AccountExportReconciler
 }
@@ -49,38 +48,53 @@ func (t *AccountExportControllerTestSuite) SetupTest() {
 		{Type: v1alpha1.Stream, Name: "foo", Subject: "foo.>"},
 		{Type: v1alpha1.Service, Name: "bar", Subject: "bar.>"},
 	}
-	t.accountID = "ACCA"
+	t.accountNameA = "account-a"
+	t.accountIDA = "ACCA"
+	t.accountNameB = "account-b"
+	t.accountIDB = "ACCB"
 
 	t.Require().NoError(ensureNamespace(t.ctx, t.accountExportNamespace))
 
-	t.accountExportManagerMock = &accountExportManagerMock{}
-	t.accountReaderMock = &accountReaderMock{}
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.accountNameA,
+			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountLabelAccountID): t.accountIDA,
+			},
+		},
+		Spec: v1alpha1.AccountSpec{},
+	}))
+
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.accountNameB,
+			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountLabelAccountID): t.accountIDB,
+			},
+		},
+		Spec: v1alpha1.AccountSpec{},
+	}))
 
 	t.unitUnderTest = NewAccountExportReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
-		t.accountExportManagerMock,
-		t.accountReaderMock,
+		core.NewAccountExportManager(),
 	)
 }
 
 func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportRuleValidationFails() {
-	// Given
-	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "my-account"), &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): t.accountID,
-			},
-		},
-	})
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, nil, fmt.Errorf("invalid rules"))
 	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountExportName,
 			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountExportLabelAccountID): t.accountIDA,
+			},
 		},
 		Spec: v1alpha1.AccountExportSpec{
-			AccountName: "my-account",
+			AccountName: t.accountNameA,
 			Rules: []v1alpha1.AccountExportRule{
 				{Type: v1alpha1.Stream, Name: "invalid rule", Subject: "."},
 			},
@@ -101,33 +115,27 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
-	t.assertBoundAccountID(accountExport, t.accountID)
+	t.assertBoundAccountID(accountExport, t.accountIDA)
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonInvalid)
-	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
 func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportRuleValidationFailsKeepingLastValid() {
 	// Given
-	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "my-account"), &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): t.accountID,
-			},
-		},
-	})
 	accountExportResource := &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountExportName,
 			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountExportLabelAccountID): t.accountIDA,
+			},
 		},
 		Spec: v1alpha1.AccountExportSpec{
-			AccountName: "my-account",
+			AccountName: t.accountNameA,
 			Rules:       t.rules,
 		},
 	}
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, &domain.AccountExportClaim{
-		Rules: t.rules,
-	}, nil)
+
 	t.Require().NoError(k8sClient.Create(t.ctx, accountExportResource))
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
 	t.Require().NoError(err)
@@ -140,7 +148,6 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 	}
 	accountExportResource.Spec.Rules = invalidRules
 	t.Require().NoError(k8sClient.Update(t.ctx, accountExportResource))
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, nil, fmt.Errorf("invalid rules"))
 
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
 
@@ -157,42 +164,23 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenExportR
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
-	t.assertBoundAccountID(accountExport, t.accountID)
+	t.assertBoundAccountID(accountExport, t.accountIDA)
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonInvalid)
-	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
 func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccountIDChangeDetected() {
 	// Given
-	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "account-a"), &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "account-a",
-			Namespace: t.accountExportNamespace,
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): "ACCA",
-			},
-		},
-	}).Once()
-	t.accountReaderMock.mockGet(t.ctx, domain.NewNamespacedName(t.accountExportNamespace, "account-b"), &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "account-b",
-			Namespace: t.accountExportNamespace,
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): "ACCB",
-			},
-		},
-	}).Once()
-	t.accountExportManagerMock.mockCreateClaim(t.ctx, nil, &domain.AccountExportClaim{
-		Rules: t.rules,
-	}, nil).Twice()
-
 	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountExportName,
 			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountExportLabelAccountID): t.accountIDA,
+			},
 		},
 		Spec: v1alpha1.AccountExportSpec{
-			AccountName: "account-a",
+			AccountName: t.accountNameA,
 			Rules:       t.rules,
 		},
 	}))
@@ -202,7 +190,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	accountExport := &v1alpha1.AccountExport{}
 	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
 	t.Require().NoError(err)
-	accountExport.Spec.AccountName = "account-b"
+	accountExport.Spec.AccountName = t.accountNameB
 	t.Require().NoError(k8sClient.Update(t.ctx, accountExport))
 
 	// When
@@ -219,10 +207,148 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	t.Require().NotEmpty(conditions)
 	boundToAccountCondition := t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonConflict)
 	t.Equal("Account ID conflict: previously bound to ACCA, now found ACCB", boundToAccountCondition.Message)
-	t.assertBoundAccountID(accountExport, "ACCA")
+	t.Equalf(t.accountIDB, accountExport.Status.AccountID, "Expected Status.AccountID")
+	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
+
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "Errored")
-	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
+}
+
+func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldBindAccount() {
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.accountExportName,
+			Namespace: t.accountExportNamespace,
+		},
+		Spec: v1alpha1.AccountExportSpec{
+			AccountName: t.accountNameA,
+			Rules: []v1alpha1.AccountExportRule{
+				{Type: v1alpha1.Stream, Name: "dummy rule", Subject: "mysubject"},
+			},
+		},
+	}))
+
+	// When
+	res, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
+
+	// Then
+	t.Require().NoError(err)
+	t.NotEmpty(res)
+	t.Equal(time.Second*2, res.RequeueAfter, "Should be requeued")
+
+	accountExport := &v1alpha1.AccountExport{}
+	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
+	t.Require().NoError(err)
+	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
+}
+
+func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldBeAdoptedByAccount() {
+	accountExport := &v1alpha1.AccountExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.accountExportName,
+			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountExportLabelAccountID): t.accountIDA,
+			},
+		},
+		Spec: v1alpha1.AccountExportSpec{
+			AccountName: t.accountNameA,
+			Rules: []v1alpha1.AccountExportRule{
+				{Type: v1alpha1.Stream, Name: "dummy rule", Subject: "mysubject"},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, accountExport))
+
+	accountA := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(ctx, ktypes.NamespacedName{Namespace: t.accountExportNamespace, Name: t.accountNameA}, accountA))
+	accountA.Status.Adoptions = &v1alpha1.AccountAdoptions{
+		Exports: []v1alpha1.AccountAdoption{
+			{
+				Name:               "export",
+				ObservedGeneration: int64(1),
+				UID:                accountExport.UID,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:                         metav1.ConditionTrue,
+					DesiredClaimObservedGeneration: &accountExport.Generation,
+					Reason:                         conditionReasonOK,
+					Message:                        "",
+				},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(ctx, accountA))
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
+
+	// Then
+	t.Require().NoError(err)
+
+	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
+	t.Require().NoError(err)
+	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
+
+	conditions := accountExport.Status.Conditions
+	t.Require().NotEmpty(conditions)
+
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionTrue, conditionReasonOK)
+}
+
+func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldNotBeAdoptedByAccount_WhenFailures() {
+	accountExport := &v1alpha1.AccountExport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.accountExportName,
+			Namespace: t.accountExportNamespace,
+			Labels: map[string]string{
+				string(v1alpha1.AccountExportLabelAccountID): t.accountIDA,
+			},
+		},
+		Spec: v1alpha1.AccountExportSpec{
+			AccountName: t.accountNameA,
+			Rules: []v1alpha1.AccountExportRule{
+				{Type: v1alpha1.Stream, Name: "dummy rule", Subject: "."},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, accountExport))
+
+	accountA := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(ctx, ktypes.NamespacedName{Namespace: t.accountExportNamespace, Name: t.accountNameA}, accountA))
+	accountA.Status.Adoptions = &v1alpha1.AccountAdoptions{
+		Exports: []v1alpha1.AccountAdoption{
+			{
+				Name:               "export",
+				ObservedGeneration: int64(1),
+				UID:                accountExport.UID,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:                         metav1.ConditionFalse,
+					DesiredClaimObservedGeneration: &accountExport.Generation,
+					Reason:                         conditionReasonInvalid,
+					Message:                        "Invalid export",
+				},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(ctx, accountA))
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountExportRef})
+
+	// Then
+	t.Require().NoError(err)
+
+	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
+	t.Require().NoError(err)
+	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
+
+	conditions := accountExport.Status.Conditions
+	t.Require().NotEmpty(conditions)
+
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonReconciling)
+	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
 func (t *AccountExportControllerTestSuite) assertCondition(conditions []metav1.Condition, conditionType string,
@@ -243,29 +369,5 @@ func (t *AccountExportControllerTestSuite) assertCondition(conditions []metav1.C
 
 func (t *AccountExportControllerTestSuite) assertBoundAccountID(export *v1alpha1.AccountExport, expectAccountID string) {
 	t.Equalf(expectAccountID, export.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
-	t.Equalf(expectAccountID, export.Status.AccountID, "Expectedd Status.AccountID")
+	t.Equalf(expectAccountID, export.Status.AccountID, "Expected Status.AccountID")
 }
-
-/* ****************************************************
-* inbound.AccountExportManager Mock
-*****************************************************/
-type accountExportManagerMock struct {
-	mock.Mock
-}
-
-func (m *accountExportManagerMock) CreateClaim(ctx context.Context, state *v1alpha1.AccountExport) (*domain.AccountExportClaim, error) {
-	args := m.Called(ctx, state)
-	return args.Get(0).(*domain.AccountExportClaim), args.Error(1)
-}
-
-func (m *accountExportManagerMock) mockCreateClaim(ctx context.Context, state *v1alpha1.AccountExport, result *domain.AccountExportClaim, resultErr error) *mock.Call {
-	var stateExpect interface{} = state
-	if state == nil {
-		stateExpect = mock.Anything
-	}
-	call := m.On("CreateClaim", ctx, stateExpect)
-	call.Return(result, resultErr).Once()
-	return call
-}
-
-var _ inbound.AccountExportManager = &accountExportManagerMock{}

@@ -24,7 +24,6 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
-	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,17 +37,15 @@ import (
 // AccountExportReconciler reconciles an AccountExport object.
 type AccountExportReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	manager       inbound.AccountExportManager
-	accountReader outbound.AccountReader
+	Scheme  *runtime.Scheme
+	manager inbound.AccountExportManager
 }
 
-func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountExportManager, accountReader outbound.AccountReader) *AccountExportReconciler {
+func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountExportManager) *AccountExportReconciler {
 	return &AccountExportReconciler{
-		Client:        k8sClient,
-		Scheme:        scheme,
-		manager:       manager,
-		accountReader: accountReader,
+		Client:  k8sClient,
+		Scheme:  scheme,
+		manager: manager,
 	}
 }
 
