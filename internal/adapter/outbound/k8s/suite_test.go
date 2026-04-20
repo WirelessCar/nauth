@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	// +kubebuilder:scaffold:imports
 )
 
 const testNamespace = "k8s-adapter-test"

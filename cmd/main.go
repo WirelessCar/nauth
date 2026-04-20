@@ -48,7 +48,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/nats"
 	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/domain"
-	// +kubebuilder:scaffold:imports
 )
 
 var (
@@ -60,7 +59,6 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(v1alpha1.AddToScheme(scheme))
-	// +kubebuilder:scaffold:scheme
 }
 
 // nolint:gocyclo
@@ -352,8 +350,6 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NatsCluster")
 		os.Exit(1)
 	}
-	// +kubebuilder:scaffold:builder
-
 	if metricsCertWatcher != nil {
 		setupLog.Info("Adding metrics certificate watcher to manager")
 		if err := mgr.Add(metricsCertWatcher); err != nil {
