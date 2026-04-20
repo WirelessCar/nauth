@@ -1,0 +1,50 @@
+resources:
+    - apiVersion: nauth.io/v1alpha1
+      kind: Account
+      metadata:
+        finalizers:
+            - account.nauth.io/finalizer
+        labels:
+            account.nauth.io/id: <ACCOUNT_ID>
+            account.nauth.io/signed-by: <OPERATOR_SIGNING_KEY>
+        name: orders
+        namespace: demo-account-it
+      spec:
+        natsLimits:
+            data: -1
+            payload: -1
+            subs: 10
+      status:
+        claims:
+            accountLimits:
+                conn: -1
+                exports: -1
+                imports: -1
+                leaf: -1
+                wildcards: true
+            displayName: demo-account-it/orders
+            jetStreamLimits:
+                consumer: -1
+                diskMaxStreamBytes: -1
+                diskStorage: -1
+                maxAckPending: -1
+                maxBytesRequired: false
+                memMaxStreamBytes: -1
+                memStorage: -1
+                streams: -1
+            natsLimits:
+                data: -1
+                payload: -1
+                subs: 10
+            signingKeys:
+                - key: <ACCOUNT_SIGNING_KEY>
+        claimsHash: <CLAIMS_HASH>
+        conditions:
+            - lastTransitionTime: <TIMESTAMP>
+              message: Successfully reconciled
+              reason: Reconciled
+              status: "True"
+              type: Ready
+        observedGeneration: 1
+        operatorVersion: integration-test
+        reconcileTimestamp: <TIMESTAMP>

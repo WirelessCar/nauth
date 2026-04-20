@@ -1,0 +1,25 @@
+config:
+  operatorNamespace: nauth-system-it
+  operatorVersion: integration-test
+  operatorCluster:
+    namespace: nats-it
+    name: local-nats
+    optional: false
+resources:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: demo-account-it
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    metadata:
+      namespace: demo-account-it
+      name: orders
+    spec:
+      natsLimits:
+        subs: 10
+collect:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    namespace: demo-account-it
+    name: orders
