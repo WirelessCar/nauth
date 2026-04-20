@@ -23,10 +23,4 @@ func (a *accountReaderMock) Get(ctx context.Context, accountRef domain.Namespace
 	return args.Get(0).(*v1alpha1.Account), args.Error(1)
 }
 
-func (a *accountReaderMock) mockGet(ctx context.Context, accountRef domain.NamespacedName, result *v1alpha1.Account) *mock.Call {
-	call := a.On("Get", ctx, accountRef)
-	call.Return(result, nil)
-	return call
-}
-
 var _ outbound.AccountReader = &accountReaderMock{}

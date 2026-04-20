@@ -46,7 +46,7 @@ func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1
 			msg := fmt.Sprintf("Binding to Account ID: %s", resolution.AccountID)
 			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonReconciling, msg)
 		} else {
-			msg := fmt.Sprintf("Account not found or could not be read")
+			msg := "Account not found or could not be read"
 			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonErrored, msg)
 		}
 
@@ -62,7 +62,7 @@ func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1
 	switch resolution.AdoptionState {
 	case domain.AccountAdoptionStateMissing:
 		if resolution.AccountID == "" {
-			msg := fmt.Sprintf("Account not found or could not be read")
+			msg := "Account not found or could not be read"
 			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, msg)
 		} else {
 			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, resolution.AdoptionError.Error())

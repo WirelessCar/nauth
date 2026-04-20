@@ -203,6 +203,10 @@ func Test_findAdoptionByUID(t *testing.T) {
 func TestAccountExportManager_Resolve(t *testing.T) {
 	createExport := func() *v1alpha1.AccountExport {
 		export := &v1alpha1.AccountExport{
+			ObjectMeta: metav1.ObjectMeta{
+				UID:        "UID1",
+				Generation: 1,
+			},
 			Spec: v1alpha1.AccountExportSpec{
 				AccountName: "MyAccount",
 				Rules: []v1alpha1.AccountExportRule{
@@ -214,7 +218,6 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 				},
 			},
 		}
-		export.ObjectMeta.Generation = 1
 		return export
 	}
 	createAccount := func() *v1alpha1.Account {
@@ -324,7 +327,6 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 
 	t.Run("adoption found should set adoptionState adopted", func(t *testing.T) {
 		accountExport := createExport()
-		accountExport.UID = "UID1"
 		accountExport.Generation = 2
 
 		account := createAccount()
@@ -332,7 +334,7 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 		account.Status.Adoptions.Exports = []v1alpha1.AccountAdoption{
 			{
 				Name: "Rule1",
-				UID:  "UID1",
+				UID:  accountExport.UID,
 				Status: v1alpha1.AccountAdoptionStatus{
 					Status:                         metav1.ConditionTrue,
 					DesiredClaimObservedGeneration: &desiredGen,
@@ -348,7 +350,6 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 
 	t.Run("adoption wrong generation should set adoptionState notAdopted", func(t *testing.T) {
 		accountExport := createExport()
-		accountExport.UID = "UID1"
 		accountExport.Generation = 2
 
 		account := createAccount()
@@ -356,7 +357,7 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 		account.Status.Adoptions.Exports = []v1alpha1.AccountAdoption{
 			{
 				Name: "Rule1",
-				UID:  "UID1",
+				UID:  accountExport.UID,
 				Status: v1alpha1.AccountAdoptionStatus{
 					Status:                         metav1.ConditionTrue,
 					DesiredClaimObservedGeneration: &desiredGen,
@@ -373,7 +374,6 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 
 	t.Run("adoption error should set adoptionState notAdopted", func(t *testing.T) {
 		accountExport := createExport()
-		accountExport.UID = "UID1"
 		accountExport.Generation = 2
 
 		account := createAccount()
@@ -381,7 +381,7 @@ func TestAccountExportManager_Resolve(t *testing.T) {
 		account.Status.Adoptions.Exports = []v1alpha1.AccountAdoption{
 			{
 				Name: "Rule1",
-				UID:  "UID1",
+				UID:  accountExport.UID,
 				Status: v1alpha1.AccountAdoptionStatus{
 					Status:                         metav1.ConditionFalse,
 					DesiredClaimObservedGeneration: &desiredGen,
