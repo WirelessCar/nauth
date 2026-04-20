@@ -2,6 +2,7 @@ package account_test
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	envtestkit "github.com/WirelessCar/nauth/test/integration/testkit/envtest"
 	"github.com/WirelessCar/nauth/test/integration/testkit/natstest"
 	"github.com/WirelessCar/nauth/test/integration/testkit/scenariotest"
+	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
@@ -227,6 +229,7 @@ func (r *accountRunner) renderSnapshot(t *testing.T) string {
 	t.Helper()
 
 	collected := make([]map[string]interface{}, 0, len(r.scenario.Collect))
+	natsCollected := make([]map[string]interface{}, 0)
 	for _, ref := range r.scenario.Collect {
 		object := &unstructured.Unstructured{}
 		object.SetGroupVersionKind(schema.FromAPIVersionAndKind(ref.APIVersion, ref.Kind))
@@ -235,6 +238,14 @@ func (r *accountRunner) renderSnapshot(t *testing.T) string {
 			Name:      ref.Name,
 		}, object)
 		require.NoError(t, err)
+
+		if ref.APIVersion == "nauth.io/v1alpha1" && ref.Kind == "Account" {
+			accountID, _, _ := unstructured.NestedString(object.Object, "metadata", "labels", string(v1alpha1.AccountLabelAccountID))
+			if accountID != "" {
+				natsCollected = append(natsCollected, r.lookupNATSAccountClaims(t, ref, accountID))
+			}
+		}
+
 		normalizeObject(object.Object)
 		collected = append(collected, object.Object)
 	}
@@ -244,10 +255,41 @@ func (r *accountRunner) renderSnapshot(t *testing.T) string {
 		right := collected[j]["kind"].(string) + "/" + collected[j]["metadata"].(map[string]interface{})["namespace"].(string) + "/" + collected[j]["metadata"].(map[string]interface{})["name"].(string)
 		return left < right
 	})
+	sort.Slice(natsCollected, func(i, j int) bool {
+		left := natsCollected[i]["name"].(string)
+		right := natsCollected[j]["name"].(string)
+		return left < right
+	})
 
-	data, err := yaml.Marshal(map[string]interface{}{"resources": collected})
+	data, err := yaml.Marshal(map[string]interface{}{
+		"resources": collected,
+		"nats": map[string]interface{}{
+			"accounts": natsCollected,
+		},
+	})
 	require.NoError(t, err)
 	return string(data)
+}
+
+func (r *accountRunner) lookupNATSAccountClaims(t *testing.T, ref scenariotest.ObjectRef, accountID string) map[string]interface{} {
+	t.Helper()
+
+	accountJWT := r.server.LookupAccountJWT(t, accountID)
+	claims, err := jwt.DecodeAccountClaims(accountJWT)
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(claims)
+	require.NoError(t, err)
+
+	var normalizedClaims map[string]interface{}
+	require.NoError(t, json.Unmarshal(raw, &normalizedClaims))
+	normalizeNATSClaims(normalizedClaims)
+
+	return map[string]interface{}{
+		"name":      ref.Namespace + "/" + ref.Name,
+		"accountID": "<ACCOUNT_ID>",
+		"claims":    normalizedClaims,
+	}
 }
 
 func normalizeObject(object map[string]interface{}) {
@@ -301,6 +343,28 @@ func normalizeObject(object map[string]interface{}) {
 				if _, exists := signingKey["key"]; exists {
 					signingKey["key"] = "<ACCOUNT_SIGNING_KEY>"
 				}
+			}
+		}
+	}
+}
+
+func normalizeNATSClaims(claims map[string]interface{}) {
+	if _, exists := claims["sub"]; exists {
+		claims["sub"] = "<ACCOUNT_ID>"
+	}
+	if _, exists := claims["iss"]; exists {
+		claims["iss"] = "<OPERATOR_SIGNING_KEY>"
+	}
+	if _, exists := claims["jti"]; exists {
+		claims["jti"] = "<JWT_ID>"
+	}
+	if _, exists := claims["iat"]; exists {
+		claims["iat"] = 0
+	}
+	if nats, ok := claims["nats"].(map[string]interface{}); ok {
+		if signingKeys, ok := nats["signing_keys"].([]interface{}); ok {
+			for i := range signingKeys {
+				signingKeys[i] = "<ACCOUNT_SIGNING_KEY>"
 			}
 		}
 	}

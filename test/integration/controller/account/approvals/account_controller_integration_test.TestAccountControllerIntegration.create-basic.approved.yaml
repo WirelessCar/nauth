@@ -1,3 +1,38 @@
+nats:
+    accounts:
+        - accountID: <ACCOUNT_ID>
+          claims:
+            iat: 0
+            iss: <OPERATOR_SIGNING_KEY>
+            jti: <JWT_ID>
+            name: demo-account-it/orders
+            nats:
+                authorization: {}
+                default_permissions:
+                    pub: {}
+                    sub: {}
+                limits:
+                    conn: -1
+                    consumer: -1
+                    data: -1
+                    disk_max_stream_bytes: -1
+                    disk_storage: -1
+                    exports: -1
+                    imports: -1
+                    leaf: -1
+                    max_ack_pending: -1
+                    mem_max_stream_bytes: -1
+                    mem_storage: -1
+                    payload: -1
+                    streams: -1
+                    subs: 10
+                    wildcards: true
+                signing_keys:
+                    - <ACCOUNT_SIGNING_KEY>
+                type: account
+                version: 2
+            sub: <ACCOUNT_ID>
+          name: demo-account-it/orders
 resources:
     - apiVersion: nauth.io/v1alpha1
       kind: Account
