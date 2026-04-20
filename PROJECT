@@ -14,15 +14,6 @@ resources:
   controller: true
   domain: nauth.io
   group: nauth.io
-  kind: Operator
-  path: github.com/WirelessCar/nauth/api/v1alpha1
-  version: v1alpha1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: nauth.io
-  group: nauth.io
   kind: Account
   path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
@@ -33,6 +24,24 @@ resources:
   domain: nauth.io
   group: nauth.io
   kind: User
+  path: github.com/WirelessCar/nauth/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nauth.io
+  group: nauth.io
+  kind: NatsCluster
+  path: github.com/WirelessCar/nauth/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nauth.io
+  group: nauth.io
+  kind: AccountExport
   path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
 version: "3"
