@@ -44,7 +44,10 @@ Here are a few things you can do that will increase the likelihood of your pull 
 Work in Progress pull requests are also welcome to get feedback early on, or if there is something blocked you.
 
 ## Developer setup
-Nauth is bootstrapped and using the usual `kubebuilder` makefiles. These will however be removed over time and transitioned into using [mise-en-place](mise.jdx.dev)
+Nauth was originally scaffolded with `kubebuilder` and still uses controller-gen markers and related conventions.
+The repository layout and deployment workflow have since diverged from the default Kubebuilder structure.
+`mise` is the canonical developer tool for installing the toolchain and running common project tasks.
+The `Makefile` remains available as a compatibility layer for common contributor workflows.
 
 You can use `mise` to setup the environment to the needed setup as well as run the required local environment. It
 handles both tool installation and a convenient way to handle environments and tasks.
@@ -74,7 +77,7 @@ By default, both an `example-account` and an `example-user` is created.
 
 Open 3 different terminals to do port forwarding into your cluster and then do subscribe and publish.
 ```bash
-mise nats:pf
+mise nats:port-forward
 mise nats:sub -- example-user foo.>
 mise nats:pub -- example-user foo.test 'hello there'
 ```
@@ -86,9 +89,9 @@ Whenever updating Helm values, follow format of [`helm-docs`](https://github.com
 
 Then run:
 ```bash
-helm-docs
+mise run nauth:generate-docs
 ```
-(with `mise` this should be available immediately, otherwise follow the instructions on [`helm-docs`](https://github.com/norwoodj/helm-docs))
+(this runs `helm-docs` together with CRD reference generation)
 
 ## Releasing
 Releases are tag-driven.
