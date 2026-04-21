@@ -66,6 +66,7 @@ func main() {
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var experimentalAccountExport bool // TODO: [#11] Remove experimental flag for AccountExport CRD
+	var experimentalAccountImport bool // TODO: [#11] Remove experimental flag for AccountImport CRD
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
@@ -92,6 +93,12 @@ func main() {
 		"experimental-account-export",
 		false,
 		"Enable experimental AccountExport reconciliation (temporary flag).",
+	)
+	flag.BoolVar(
+		&experimentalAccountImport,
+		"experimental-account-import",
+		false,
+		"Enable experimental AccountImport reconciliation (temporary flag).",
 	)
 	opts := zap.Options{
 		Development: true,
@@ -290,6 +297,18 @@ func main() {
 			os.Exit(1)
 		}
 		setupLog.Info("experimental controller enabled", "controller", "AccountExport")
+	}
+
+	if experimentalAccountImport {
+		accountImportReconciler := controller.NewAccountImportReconciler(
+			mgr.GetClient(),
+			mgr.GetScheme(),
+		)
+		if err = accountImportReconciler.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "AccountImport")
+			os.Exit(1)
+		}
+		setupLog.Info("experimental controller enabled", "controller", "AccountImport")
 	}
 
 	userManager := core.NewUserManager(accountManager, secretClient)
