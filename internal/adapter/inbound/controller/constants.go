@@ -2,10 +2,11 @@ package controller
 
 const ( // Conditions
 	// Types
-	conditionTypeReady            = "Ready"
-	conditionTypeBoundToAccount   = "BoundToAccount"
-	conditionTypeValidRules       = "ValidRules"
-	conditionTypeAdoptedByAccount = "AdoptedByAccount"
+	conditionTypeReady                = "Ready"
+	conditionTypeBoundToAccount       = "BoundToAccount"
+	conditionTypeBoundToExportAccount = "BoundToExportAccount"
+	conditionTypeValidRules           = "ValidRules"
+	conditionTypeAdoptedByAccount     = "AdoptedByAccount"
 
 	// Reasons
 	conditionReasonReady       = "Ready"
