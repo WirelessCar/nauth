@@ -95,6 +95,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Todo: #11 Add watch on Account
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.AccountExport{}).
 		Named("accountexport").

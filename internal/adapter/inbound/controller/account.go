@@ -236,6 +236,7 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Todo: #11 Add watch on AccountExport
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Account{}).
 		Named("account").
