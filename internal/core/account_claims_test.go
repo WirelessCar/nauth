@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
 )
@@ -41,21 +39,23 @@ func Test_AccountClaims(t *testing.T) {
 			spec, err := loadAccountSpec(testCase.InputFile)
 			require.NoError(t, err)
 
-			ctx := context.Background()
-			accountReaderMock := NewAccountReaderMock()
-			getAccountCall := accountReaderMock.mockGetCallback(mock.Anything, mock.Anything, func(accountRef domain.NamespacedName) (*v1alpha1.Account, error) {
-				accountID := fakeAccountId(accountRef)
-				account := &v1alpha1.Account{}
-				account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
-				return account, nil
-			})
+			unitUnderTest := func(spec *v1alpha1.AccountSpec, resolveAccountID resolveAccountIDFn) (*jwt.AccountClaims, error) {
+				builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey).
+					accountLimits(spec.AccountLimits).
+					jetStreamLimits(spec.JetStreamLimits).
+					natsLimits(spec.NatsLimits).
+					exports(spec.Exports).
+					imports(spec.Imports, resolveAccountID)
+				builder.signingKey(testClaimsSigningKey01)
+				builder.signingKey(testClaimsSigningKey02)
+				return builder.build()
+			}
 
 			// Build NATS JWT AccountClaims from AccountSpec
-			builder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *spec, testClaimsAccountPubKey, accountReaderMock)
-			builder.addSigningKey(testClaimsSigningKey01)
-			builder.addSigningKey(testClaimsSigningKey02)
-
-			natsClaims, err := builder.build()
+			natsClaims, err := unitUnderTest(spec, func(accountRef domain.NamespacedName) (accountID string, err error) {
+				accountID = fakeAccountId(accountRef)
+				return
+			})
 			require.NoError(t, err)
 			require.NotNil(t, natsClaims)
 			// Ensure that the NATS JWT can be encoded
@@ -79,13 +79,6 @@ func Test_AccountClaims(t *testing.T) {
 
 			// Finally; rebuild the claims from the output to verify round-trip integrity
 
-			// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
-			getAccountCall.RunFn = func(args mock.Arguments) {
-				account := &v1alpha1.Account{}
-				account.SetLabel(v1alpha1.AccountLabelAccountID, testClaimsFakeAccountID)
-				getAccountCall.Return(account, nil)
-			}
-
 			// Verify that the resulting NAuth AccountClaim generates the same NATS JWT when encoded
 			rebuiltNatsClaims := &v1alpha1.AccountSpec{
 				AccountLimits:   nauthClaims.AccountLimits,
@@ -94,11 +87,11 @@ func Test_AccountClaims(t *testing.T) {
 				Exports:         nauthClaims.Exports,
 				Imports:         nauthClaims.Imports,
 			}
-			rebuilder := newAccountClaimsBuilder(ctx, testClaimsDisplayName, *rebuiltNatsClaims, testClaimsAccountPubKey, accountReaderMock)
-			rebuilder.addSigningKey(testClaimsSigningKey01)
-			rebuilder.addSigningKey(testClaimsSigningKey02)
-
-			natsClaimsRebuilt, err := rebuilder.build()
+			natsClaimsRebuilt, err := unitUnderTest(rebuiltNatsClaims, func(accountRef domain.NamespacedName) (accountID string, err error) {
+				// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
+				accountID = testClaimsFakeAccountID
+				return
+			})
 			require.NoError(t, err)
 			require.NotNil(t, natsClaimsRebuilt)
 			// Sign the JWT to ensure matching issuer details

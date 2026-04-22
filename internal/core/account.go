@@ -150,9 +150,13 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
-
-	claimsBuilder := newAccountClaimsBuilder(ctx, getDisplayName(account), account.Spec, accountPublicKey, a.accountReader)
-	claimsBuilder.addSigningKey(accountSigningPublicKey)
+	claimsBuilder := newAccountClaimsBuilder(getDisplayName(account), accountPublicKey).
+		accountLimits(account.Spec.AccountLimits).
+		jetStreamLimits(account.Spec.JetStreamLimits).
+		natsLimits(account.Spec.NatsLimits).
+		exports(account.Spec.Exports).
+		imports(account.Spec.Imports, cachedAccountIDReader(ctx, a.accountReader))
+	claimsBuilder.signingKey(accountSigningPublicKey)
 	adoptions := &v1alpha1.AccountAdoptions{
 		Exports: adoptExports(claimsBuilder, resources.Exports),
 	}
@@ -486,6 +490,22 @@ func getDisplayName(account *v1alpha1.Account) string {
 		return account.Spec.DisplayName
 	}
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
+}
+
+func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountReader) resolveAccountIDFn {
+	cache := make(map[domain.NamespacedName]string)
+	return func(accountRef domain.NamespacedName) (string, error) {
+		accountID := ""
+		var cached bool
+		if accountID, cached = cache[accountRef]; !cached {
+			account, err := accountReader.Get(ctx, accountRef)
+			if err != nil {
+				return "", fmt.Errorf("failed to resolve account ID: %w", err)
+			}
+			cache[accountRef] = account.GetLabel(v1alpha1.AccountLabelAccountID)
+		}
+		return accountID, nil
+	}
 }
 
 var _ inbound.AccountManager = (*AccountManager)(nil)

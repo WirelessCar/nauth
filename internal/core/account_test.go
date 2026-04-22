@@ -654,13 +654,9 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	accountSignKeyPublic, _ := accountSignKey.PublicKey()
 
 	existingNatsLimitsSubs := int64(100)
-	existingSpec := v1alpha1.AccountSpec{
-		NatsLimits: &v1alpha1.NatsLimits{
-			Subs: &existingNatsLimitsSubs,
-		},
-	}
-	existingClaims, err := newAccountClaimsBuilder(t.ctx, "Existing Account", existingSpec, accountID, t.accountReaderMock).
-		addSigningKey(accountSignKeyPublic).
+	existingClaims, err := newAccountClaimsBuilder("Existing Account", accountID).
+		natsLimits(&v1alpha1.NatsLimits{Subs: &existingNatsLimitsSubs}).
+		signingKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")
 	existingJWT, err := existingClaims.Encode(accountSignKey)

@@ -379,14 +379,6 @@ func (a *AccountReaderMock) mockGet(ctx context.Context, accountRef domain.Names
 	a.On("Get", ctx, accountRef).Return(result, nil)
 }
 
-func (a *AccountReaderMock) mockGetCallback(ctx interface{}, accountRef interface{}, generator func(accountRef domain.NamespacedName) (*v1alpha1.Account, error)) *mock.Call {
-	call := a.On("Get", ctx, accountRef)
-	call.RunFn = func(args mock.Arguments) {
-		call.Return(generator(args.Get(1).(domain.NamespacedName)))
-	}
-	return call
-}
-
 var _ outbound.AccountReader = &AccountReaderMock{}
 
 /* ****************************************************
