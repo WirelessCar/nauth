@@ -126,6 +126,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			)
 		}
 
+		// Todo: [#11] We should block deletion if AccountExports are bound to it
+
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
 			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
 				if err := r.manager.Delete(ctx, natsAccount); err != nil {
