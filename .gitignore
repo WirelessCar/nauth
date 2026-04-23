@@ -53,3 +53,6 @@ test/logs/
 
 # Git worktrees in repo root
 .worktrees/
+
+# ignore empty file codex generates
+.codex
