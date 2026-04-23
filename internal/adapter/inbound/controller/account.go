@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
@@ -27,16 +28,22 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const accountLabelAccountIDIndexKey = "account.labels.account-id"
 
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
@@ -236,13 +243,119 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Todo: #11 Add watch on AccountExport
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.Account{},
+		accountLabelAccountIDIndexKey,
+		accountByAccountIDLabelIndexFunc,
+	); err != nil {
+		return fmt.Errorf("failed to index Account by account ID: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Account{}).
+		For(&v1alpha1.Account{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Watches(
+			&v1alpha1.AccountExport{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
+			builder.WithPredicates(accountExportWatchPredicateForAccounts()),
+		).
 		Named("account").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
+}
+
+func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj client.Object) []reconcile.Request {
+	export, ok := obj.(*v1alpha1.AccountExport)
+	if !ok {
+		return nil
+	}
+
+	accountID := export.GetLabel(v1alpha1.AccountExportLabelAccountID)
+	if accountID == "" {
+		return nil
+	}
+
+	accounts := &v1alpha1.AccountList{}
+	if err := r.List(ctx, accounts,
+		client.InNamespace(export.Namespace),
+		client.MatchingFields{accountLabelAccountIDIndexKey: accountID},
+	); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountExport watch", "accountID", accountID, "namespace", export.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(accounts.Items))
+	for _, account := range accounts.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&account),
+		})
+	}
+
+	return requests
+}
+
+func accountByAccountIDLabelIndexFunc(rawObj client.Object) []string {
+	account := rawObj.(*v1alpha1.Account)
+	accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
+	if accountID == "" {
+		return nil
+	}
+	return []string{accountID}
+}
+
+func accountExportWatchPredicateForAccounts() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			export, ok := e.Object.(*v1alpha1.AccountExport)
+			return ok && export.GetLabel(v1alpha1.AccountExportLabelAccountID) != ""
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			export, ok := e.Object.(*v1alpha1.AccountExport)
+			return ok && export.GetLabel(v1alpha1.AccountExportLabelAccountID) != ""
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldExport, oldOK := e.ObjectOld.(*v1alpha1.AccountExport)
+			newExport, newOK := e.ObjectNew.(*v1alpha1.AccountExport)
+			return oldOK && newOK && accountExportUpdateAffectsAccounts(oldExport, newExport)
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+func accountExportUpdateAffectsAccounts(oldExport *v1alpha1.AccountExport, newExport *v1alpha1.AccountExport) bool {
+	if oldExport == nil || newExport == nil {
+		return false
+	}
+
+	oldAccountID := oldExport.GetLabel(v1alpha1.AccountExportLabelAccountID)
+	newAccountID := newExport.GetLabel(v1alpha1.AccountExportLabelAccountID)
+	if oldAccountID != newAccountID {
+		return true
+	}
+
+	return !reflect.DeepEqual(accountExportDesiredClaimSnapshot(oldExport), accountExportDesiredClaimSnapshot(newExport))
+}
+
+func accountExportDesiredClaimSnapshot(export *v1alpha1.AccountExport) *accountExportDesiredClaimState {
+	if export == nil || export.Status.DesiredClaim == nil {
+		return nil
+	}
+
+	claim := export.Status.DesiredClaim
+	rules := make([]v1alpha1.AccountExportRule, len(claim.Rules))
+	copy(rules, claim.Rules)
+
+	return &accountExportDesiredClaimState{
+		ObservedGeneration: claim.ObservedGeneration,
+		Rules:              rules,
+	}
+}
+
+type accountExportDesiredClaimState struct {
+	ObservedGeneration int64
+	Rules              []v1alpha1.AccountExportRule
 }
