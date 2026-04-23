@@ -49,9 +49,9 @@ func (t *AccountExportControllerTestSuite) SetupTest() {
 		{Type: v1alpha1.Service, Name: "bar", Subject: "bar.>"},
 	}
 	t.accountNameA = "account-a"
-	t.accountIDA = "ACCA"
+	t.accountIDA = accountIDAccA
 	t.accountNameB = "account-b"
-	t.accountIDB = "ACCB"
+	t.accountIDB = accountIDAccB
 
 	t.Require().NoError(ensureNamespace(t.ctx, t.accountExportNamespace))
 

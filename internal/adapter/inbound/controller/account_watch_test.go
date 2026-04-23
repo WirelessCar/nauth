@@ -21,11 +21,11 @@ func TestAccountReconciler_ShouldReconcileForAccountExportUpdate(t *testing.T) {
 				Name:      "export-a",
 				Namespace: "ns-a",
 				Labels: map[string]string{
-					string(v1alpha1.AccountExportLabelAccountID): "ACCA",
+					string(v1alpha1.AccountExportLabelAccountID): accountIDAccA,
 				},
 			},
 			Status: v1alpha1.AccountExportStatus{
-				AccountID: "ACCA",
+				AccountID: accountIDAccA,
 				DesiredClaim: &v1alpha1.AccountExportClaim{
 					ObservedGeneration: 1,
 					Rules: []v1alpha1.AccountExportRule{
@@ -49,7 +49,7 @@ func TestAccountReconciler_ShouldReconcileForAccountExportUpdate(t *testing.T) {
 		{
 			name: "bound_account_id_label_changed",
 			mutate: func(export *v1alpha1.AccountExport) {
-				export.Labels[string(v1alpha1.AccountExportLabelAccountID)] = "ACCB"
+				export.Labels[string(v1alpha1.AccountExportLabelAccountID)] = accountIDAccB
 			},
 			expectRequeue: true,
 		},
@@ -87,7 +87,7 @@ func TestAccountReconciler_ShouldReconcileForAccountExportUpdate(t *testing.T) {
 		{
 			name: "status_account_id_only_changed",
 			mutate: func(export *v1alpha1.AccountExport) {
-				export.Status.AccountID = "ACCB"
+				export.Status.AccountID = accountIDAccB
 			},
 			expectRequeue: false,
 		},
@@ -127,7 +127,7 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 			Name:      "account-a",
 			Namespace: "ns-a",
 			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): "ACCA",
+				string(v1alpha1.AccountLabelAccountID): accountIDAccA,
 			},
 		},
 	}
@@ -136,7 +136,7 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 			Name:      "account-b",
 			Namespace: "ns-a",
 			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): "ACCB",
+				string(v1alpha1.AccountLabelAccountID): accountIDAccB,
 			},
 		},
 	}
@@ -145,7 +145,7 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 			Name:      "account-c",
 			Namespace: "ns-b",
 			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): "ACCA",
+				string(v1alpha1.AccountLabelAccountID): accountIDAccA,
 			},
 		},
 	}
@@ -154,7 +154,7 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 			Name:      "export-a",
 			Namespace: "ns-a",
 			Labels: map[string]string{
-				string(v1alpha1.AccountExportLabelAccountID): "ACCA",
+				string(v1alpha1.AccountExportLabelAccountID): accountIDAccA,
 			},
 		},
 	}
