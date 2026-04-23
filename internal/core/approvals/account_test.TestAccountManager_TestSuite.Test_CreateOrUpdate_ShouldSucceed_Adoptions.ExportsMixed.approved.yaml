@@ -10,12 +10,6 @@ Adoptions:
       status: "True"
     uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
 Claims:
-  accountLimits:
-    conn: -1
-    exports: -1
-    imports: -1
-    leaf: -1
-    wildcards: true
   displayName: account-namespace/account-name
   exports:
   - name: inline export
@@ -23,18 +17,6 @@ Claims:
     type: stream
   - subject: sourced.bar.report
     type: service
-  jetStreamLimits:
-    consumer: -1
-    diskMaxStreamBytes: -1
-    diskStorage: -1
-    maxAckPending: -1
-    memMaxStreamBytes: -1
-    memStorage: -1
-    streams: -1
-  natsLimits:
-    data: -1
-    payload: -1
-    subs: -1
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: 1cdf04050830e5ac042af88fe4fd810aa6adbacd1624f1b8d0ca76121bcc6a11
+ClaimsHash: ab98710c707742ee4481aaeef2815eba3fb8a570afaa1a66c5e9a27bb02a817f

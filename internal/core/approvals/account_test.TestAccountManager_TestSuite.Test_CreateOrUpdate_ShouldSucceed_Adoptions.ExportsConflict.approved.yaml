@@ -19,12 +19,6 @@ Adoptions:
       status: "False"
     uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
 Claims:
-  accountLimits:
-    conn: -1
-    exports: -1
-    imports: -1
-    leaf: -1
-    wildcards: true
   displayName: account-namespace/account-name
   exports:
   - name: my service
@@ -36,18 +30,6 @@ Claims:
   - name: inline export
     subject: inline.foor.*
     type: stream
-  jetStreamLimits:
-    consumer: -1
-    diskMaxStreamBytes: -1
-    diskStorage: -1
-    maxAckPending: -1
-    memMaxStreamBytes: -1
-    memStorage: -1
-    streams: -1
-  natsLimits:
-    data: -1
-    payload: -1
-    subs: -1
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: 706d92c42b4b9882bcd693ca4e63de3dee7095f9c340d3bfceb2c8a512529438
+ClaimsHash: 9581ae6d40c2e211a627c48b98c117d634914401a54643a4fb5fb380769ebe4d

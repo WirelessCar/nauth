@@ -205,7 +205,7 @@ type JetStreamLimits struct {
 	DiskMaxStreamBytes *int64 `json:"diskMaxStreamBytes,omitempty"` // Max bytes a disk backed stream can have. (0 means disabled/unlimited)
 	// +optional
 	// +kubebuilder:default=false
-	MaxBytesRequired bool `json:"maxBytesRequired,omitempty"` // Max bytes required by all Streams
+	MaxBytesRequired *bool `json:"maxBytesRequired,omitempty"` // Max bytes required by all Streams
 }
 
 type AccountLimits struct {

@@ -95,7 +95,9 @@ func (b *accountClaimsBuilder) jetStreamLimits(limits *v1alpha1.JetStreamLimits)
 		if limits.DiskMaxStreamBytes != nil {
 			b.claim.Limits.DiskMaxStreamBytes = *limits.DiskMaxStreamBytes
 		}
-		b.claim.Limits.MaxBytesRequired = limits.MaxBytesRequired
+		if limits.MaxBytesRequired != nil {
+			b.claim.Limits.MaxBytesRequired = *limits.MaxBytesRequired
+		}
 	}
 	return b
 }
@@ -211,60 +213,62 @@ func hashSignedAccountJWTClaims(accountJWT string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+func toPtrDefNil[V int64 | bool](value V, defaultValue V) *V {
+	if value != defaultValue {
+		return &value
+	}
+	return nil
+}
+
 func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims {
 	if claims == nil {
 		return v1alpha1.AccountClaims{}
 	}
 
+	claimsDefaults := jwt.NewAccountClaims("N/A")
 	out := v1alpha1.AccountClaims{}
 	out.DisplayName = claims.Name
 
 	// AccountLimits
 	{
-		imports := claims.Limits.Imports
-		exports := claims.Limits.Exports
-		wildcards := claims.Limits.WildcardExports
-		conn := claims.Limits.Conn
-		leaf := claims.Limits.LeafNodeConn
-		out.AccountLimits = &v1alpha1.AccountLimits{
-			Imports:         &imports,
-			Exports:         &exports,
-			WildcardExports: &wildcards,
-			Conn:            &conn,
-			LeafNodeConn:    &leaf,
+		source := claims.Limits.AccountLimits
+		if !source.IsUnlimited() {
+			defaults := claimsDefaults.Limits.AccountLimits
+			out.AccountLimits = &v1alpha1.AccountLimits{}
+			out.AccountLimits.Imports = toPtrDefNil(source.Imports, defaults.Imports)
+			out.AccountLimits.Exports = toPtrDefNil(source.Exports, defaults.Exports)
+			out.AccountLimits.WildcardExports = toPtrDefNil(source.WildcardExports, defaults.WildcardExports)
+			out.AccountLimits.Conn = toPtrDefNil(source.Conn, defaults.Conn)
+			out.AccountLimits.LeafNodeConn = toPtrDefNil(source.LeafNodeConn, defaults.LeafNodeConn)
 		}
 	}
 
 	// NatsLimits
 	{
-		subs := claims.Limits.Subs
-		data := claims.Limits.Data
-		payload := claims.Limits.Payload
-		out.NatsLimits = &v1alpha1.NatsLimits{
-			Subs:    &subs,
-			Data:    &data,
-			Payload: &payload,
+		source := claims.Limits.NatsLimits
+		if !source.IsUnlimited() {
+			defaults := claimsDefaults.Limits.NatsLimits
+			out.NatsLimits = &v1alpha1.NatsLimits{}
+			out.NatsLimits.Data = toPtrDefNil(source.Data, defaults.Data)
+			out.NatsLimits.Subs = toPtrDefNil(source.Subs, defaults.Subs)
+			out.NatsLimits.Payload = toPtrDefNil(source.Payload, defaults.Payload)
 		}
 	}
 
 	// JetStreamLimits
 	{
-		mem := claims.Limits.MemoryStorage
-		disk := claims.Limits.DiskStorage
-		streams := claims.Limits.Streams
-		consumer := claims.Limits.Consumer
-		maxAck := claims.Limits.MaxAckPending
-		memMax := claims.Limits.MemoryMaxStreamBytes
-		diskMax := claims.Limits.DiskMaxStreamBytes
-		out.JetStreamLimits = &v1alpha1.JetStreamLimits{
-			MemoryStorage:        &mem,
-			DiskStorage:          &disk,
-			Streams:              &streams,
-			Consumer:             &consumer,
-			MaxAckPending:        &maxAck,
-			MemoryMaxStreamBytes: &memMax,
-			DiskMaxStreamBytes:   &diskMax,
-			MaxBytesRequired:     claims.Limits.MaxBytesRequired,
+		source := claims.Limits.JetStreamLimits
+		if !isUnlimitedJetStreamLimits(source) {
+			defaults := claimsDefaults.Limits.JetStreamLimits
+			out.JetStreamLimits = &v1alpha1.JetStreamLimits{}
+			out.JetStreamLimits.MemoryStorage = toPtrDefNil(source.MemoryStorage, defaults.MemoryStorage)
+			out.JetStreamLimits.DiskStorage = toPtrDefNil(source.DiskStorage, defaults.DiskStorage)
+			out.JetStreamLimits.Streams = toPtrDefNil(source.Streams, defaults.Streams)
+			out.JetStreamLimits.Consumer = toPtrDefNil(source.Consumer, defaults.Consumer)
+			out.JetStreamLimits.MaxAckPending = toPtrDefNil(source.MaxAckPending, defaults.MaxAckPending)
+			out.JetStreamLimits.MemoryMaxStreamBytes = toPtrDefNil(source.MemoryMaxStreamBytes, defaults.MemoryMaxStreamBytes)
+			out.JetStreamLimits.DiskMaxStreamBytes = toPtrDefNil(source.DiskMaxStreamBytes, defaults.DiskMaxStreamBytes)
+			out.JetStreamLimits.MaxBytesRequired = toPtrDefNil(source.MaxBytesRequired, defaults.MaxBytesRequired)
 		}
 	}
 
@@ -362,6 +366,24 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 }
 
 // Helpers
+
+// isUnlimitedJetStreamLimits is a temporary custom check due to https://github.com/nats-io/jwt/issues/249
+func isUnlimitedJetStreamLimits(limits jwt.JetStreamLimits) bool {
+	return limits == newUnlimitedJetStreamLimits() || limits.IsUnlimited()
+}
+
+func newUnlimitedJetStreamLimits() jwt.JetStreamLimits {
+	return jwt.JetStreamLimits{
+		MemoryStorage:        0,
+		DiskStorage:          0,
+		Streams:              0,
+		Consumer:             0,
+		MaxAckPending:        0,
+		MemoryMaxStreamBytes: 0,
+		DiskMaxStreamBytes:   0,
+		MaxBytesRequired:     false,
+	}
+}
 
 func appendExportIfMissing(exports jwt.Exports, export jwt.Export) jwt.Exports {
 	for _, existing := range exports {

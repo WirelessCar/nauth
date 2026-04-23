@@ -1,9 +1,3 @@
-accountLimits:
-  conn: -1
-  exports: -1
-  imports: -1
-  leaf: -1
-  wildcards: true
 displayName: test-namespace/test-account
 jetStreamLimits:
   consumer: 100
@@ -14,10 +8,6 @@ jetStreamLimits:
   memMaxStreamBytes: 104857600
   memStorage: 536870912
   streams: 50
-natsLimits:
-  data: -1
-  payload: -1
-  subs: -1
 signingKeys:
 - key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
 - key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

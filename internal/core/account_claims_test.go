@@ -114,33 +114,7 @@ func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *te
 	result := convertNatsAccountClaims(claims)
 
 	// Then
-	var ptrNoLimit int64 = -1
-	var ptrDisabled int64 = 0
-	var ptrTrue = true
-	require.Equal(t, v1alpha1.AccountClaims{
-		AccountLimits: &v1alpha1.AccountLimits{
-			Imports:         &ptrNoLimit,
-			Exports:         &ptrNoLimit,
-			WildcardExports: &ptrTrue,
-			Conn:            &ptrNoLimit,
-			LeafNodeConn:    &ptrNoLimit,
-		},
-		JetStreamLimits: &v1alpha1.JetStreamLimits{
-			MemoryStorage:        &ptrDisabled,
-			DiskStorage:          &ptrDisabled,
-			Streams:              &ptrDisabled,
-			Consumer:             &ptrDisabled,
-			MaxAckPending:        &ptrDisabled,
-			MemoryMaxStreamBytes: &ptrDisabled,
-			DiskMaxStreamBytes:   &ptrDisabled,
-			MaxBytesRequired:     false,
-		},
-		NatsLimits: &v1alpha1.NatsLimits{
-			Subs:    &ptrNoLimit,
-			Data:    &ptrNoLimit,
-			Payload: &ptrNoLimit,
-		},
-	}, result)
+	require.Equal(t, v1alpha1.AccountClaims{}, result)
 }
 
 func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHash(t *testing.T) {
@@ -187,6 +161,25 @@ func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHa
 	claimsOther := *claims0
 	claimsOther.Description = "Claims V2"
 	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(&claimsOther, opSignKey)), "expected hash to change when claims content changes")
+}
+
+// Test_NatsJWTUnlimitedCheckShouldNotBeBroken verifies that JWT lib is still broken. If this test fails, we should be able to clean up custom IsUnlimited() functions.
+// Bug: https://github.com/nats-io/jwt/issues/249 (bound to nats-io/jwt v2.8.1) JetStreamLimits.IsUnlimited() not consistent with (unlimited) NewAccountClaims
+func Test_NatsJWTUnlimitedCheckShouldNotBeBroken(t *testing.T) {
+	claims := jwt.NewAccountClaims("test")
+
+	require.Truef(t, claims.Limits.AccountLimits.IsUnlimited(), "expected AccountLimits to be unlimited by default")
+	require.Truef(t, claims.Limits.NatsLimits.IsUnlimited(), "expected NatsLimits to be unlimited by default")
+
+	// Verify temporary fix:
+	// isUnlimitedJetStreamLimits and newUnlimitedJetStreamLimits should be deleted when the bug is fixed.
+	require.Truef(t, isUnlimitedJetStreamLimits(claims.Limits.JetStreamLimits), "expected JetStreamLimits to be unlimited by default using custom check")
+	require.Equalf(t, claims.Limits.JetStreamLimits, newUnlimitedJetStreamLimits(), "expected default NewAccountClaim JetStreamLimits to match newUnlimitedJetStreamLimits()")
+
+	// Verify issue:
+	require.Falsef(t, claims.Limits.JetStreamLimits.IsUnlimited(), "expected JWT lib to still be broken for JetStreamLimits.IsUnlimited()")
+	require.Falsef(t, claims.Limits.IsUnlimited(), "expected JWT lib to still be broken for OperatorLimits.IsUnlimited()")
+
 }
 
 func fakeAccountId(accountRef domain.NamespacedName) string {

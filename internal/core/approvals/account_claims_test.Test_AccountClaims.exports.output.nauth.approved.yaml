@@ -1,9 +1,3 @@
-accountLimits:
-  conn: -1
-  exports: -1
-  imports: -1
-  leaf: -1
-  wildcards: true
 displayName: test-namespace/test-account
 exports:
 - name: my-stream
@@ -36,18 +30,6 @@ exports:
   responseType: Stream
   subject: service.request.stream
   type: service
-jetStreamLimits:
-  consumer: 0
-  diskMaxStreamBytes: 0
-  diskStorage: 0
-  maxAckPending: 0
-  memMaxStreamBytes: 0
-  memStorage: 0
-  streams: 0
-natsLimits:
-  data: -1
-  payload: -1
-  subs: -1
 signingKeys:
 - key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
 - key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

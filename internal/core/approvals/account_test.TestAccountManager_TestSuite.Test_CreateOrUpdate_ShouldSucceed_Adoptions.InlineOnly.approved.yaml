@@ -6,8 +6,6 @@ Claims:
     conn: 100
     exports: 100
     imports: 100
-    leaf: -1
-    wildcards: true
   displayName: account-namespace/account-name
   exports:
   - name: JS orders consumer create
