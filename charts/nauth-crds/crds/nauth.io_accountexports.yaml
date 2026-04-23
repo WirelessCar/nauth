@@ -18,8 +18,14 @@ spec:
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
-    - jsonPath: .status.conditions[?(@.type=="Ready")].reason
-      name: Message
+    - jsonPath: .status.conditions[?(@.type=="ValidRules")].reason
+      name: Rules
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="BoundToAccount")].reason
+      name: Bound
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="AdoptedByAccount")].reason
+      name: Adopted
       type: string
     name: v1alpha1
     schema:

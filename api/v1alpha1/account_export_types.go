@@ -31,7 +31,9 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
-// +kubebuilder:printcolumn:name="Message",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
+// +kubebuilder:printcolumn:name="Rules",type=string,JSONPath=`.status.conditions[?(@.type=="ValidRules")].reason`
+// +kubebuilder:printcolumn:name="Bound",type=string,JSONPath=`.status.conditions[?(@.type=="BoundToAccount")].reason`
+// +kubebuilder:printcolumn:name="Adopted",type=string,JSONPath=`.status.conditions[?(@.type=="AdoptedByAccount")].reason`
 
 // AccountExport is a component resource for exports in the accounts API.
 type AccountExport struct {
