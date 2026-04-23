@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -31,11 +32,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+const exportAccountNameIndexKey string = "export.spec.accountName"
 
 // AccountExportReconciler reconciles an AccountExport object.
 type AccountExportReconciler struct {
@@ -83,10 +90,13 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to patch labels: %w", err)
 		}
-		return ctrl.Result{RequeueAfter: time.Second * 2}, nil
+		// Todo: #11 Can we patch without returning, and update status in same reconcile loop?
+		return ctrl.Result{RequeueAfter: time.Millisecond * 250}, nil
 	}
 
 	if updateStatus {
+		// Todo: #11 Can we safely implement the updateStatus flag, currently always true
+		// Todo: #11 This would make watches simpler (not needing to be so specific)
 		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
 			log.Error(updateErr, "Failed to update status")
 			return ctrl.Result{}, updateErr
@@ -98,15 +108,118 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 }
 
 func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Todo: #11 Add watch on Account
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.AccountExport{},
+		exportAccountNameIndexKey,
+		exportBySpecAccountNameIndexFunc,
+	); err != nil {
+		return fmt.Errorf("failed to index AccountExport by account name: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.AccountExport{}).
+		For(&v1alpha1.AccountExport{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named("accountexport").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
+		Watches(
+			&v1alpha1.Account{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountToAccountExports),
+			builder.WithPredicates(accountExportAccountWatchPredicate()),
+		).
 		Complete(r)
+}
+
+func exportBySpecAccountNameIndexFunc(rawObj client.Object) []string {
+	export := rawObj.(*v1alpha1.AccountExport)
+	if export.Spec.AccountName == "" {
+		return nil
+	}
+	return []string{export.Spec.AccountName}
+}
+
+func (r *AccountExportReconciler) mapAccountToAccountExports(ctx context.Context, obj client.Object) []reconcile.Request {
+	account, ok := obj.(*v1alpha1.Account)
+	if !ok {
+		return nil
+	}
+
+	exports := &v1alpha1.AccountExportList{}
+	if err := r.List(ctx, exports,
+		client.InNamespace(account.Namespace),
+		client.MatchingFields{exportAccountNameIndexKey: account.Name},
+	); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list AccountExports for Account watch", "account", account.Name, "namespace", account.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(exports.Items))
+	for _, export := range exports.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: export.Namespace,
+				Name:      export.Name,
+			},
+		})
+	}
+
+	return requests
+}
+
+func accountExportAccountWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool { return true },
+		DeleteFunc: func(event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAccount, oldOK := e.ObjectOld.(*v1alpha1.Account)
+			newAccount, newOK := e.ObjectNew.(*v1alpha1.Account)
+			return oldOK && newOK && accountUpdateAffectsAccountExports(oldAccount, newAccount)
+		},
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
+}
+
+func accountUpdateAffectsAccountExports(oldAccount *v1alpha1.Account, newAccount *v1alpha1.Account) bool {
+	if oldAccount == nil || newAccount == nil {
+		return false
+	}
+
+	oldAccountID := oldAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	newAccountID := newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	// this is only possible if account is deleted and recreated with new name
+	if oldAccountID != newAccountID {
+		return true
+	}
+
+	return !reflect.DeepEqual(accountExportAdoptionSnapshot(oldAccount), accountExportAdoptionSnapshot(newAccount))
+}
+
+// Builds a comparable snapshot of export adoption state so Account changes relevant to AccountExports can be detected efficiently.
+func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]accountExportAdoptionState {
+	if account == nil || account.Status.Adoptions == nil {
+		return nil
+	}
+
+	adoptions := make(map[string]accountExportAdoptionState, len(account.Status.Adoptions.Exports))
+	for _, adoption := range account.Status.Adoptions.Exports {
+		adoptions[string(adoption.UID)] = accountExportAdoptionState{
+			ObservedGeneration:             adoption.ObservedGeneration,
+			Status:                         adoption.Status.Status,
+			Reason:                         adoption.Status.Reason,
+			Message:                        adoption.Status.Message,
+			DesiredClaimObservedGeneration: adoption.Status.DesiredClaimObservedGeneration,
+		}
+	}
+	return adoptions
+}
+
+type accountExportAdoptionState struct {
+	ObservedGeneration             int64
+	Status                         metav1.ConditionStatus
+	Reason                         string
+	Message                        string
+	DesiredClaimObservedGeneration *int64
 }
 
 func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {
@@ -207,12 +320,12 @@ func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1
 }
 
 func isAccountExportReady(state *v1alpha1.AccountExport) bool {
-	conditionsReady := conditionsReady(state.Status.Conditions, []string{
+	allConditionsReady := conditionsReady(state.Status.Conditions, []string{
 		conditionTypeBoundToAccount,
 		conditionTypeValidRules,
 		conditionTypeAdoptedByAccount,
 	})
 	claimsReady := state.Status.DesiredClaim != nil && state.Status.DesiredClaim.ObservedGeneration == state.Generation
 
-	return conditionsReady && claimsReady
+	return allConditionsReady && claimsReady
 }

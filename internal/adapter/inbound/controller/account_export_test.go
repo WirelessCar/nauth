@@ -235,7 +235,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldBindAccount() {
 	// Then
 	t.Require().NoError(err)
 	t.NotEmpty(res)
-	t.Equal(time.Second*2, res.RequeueAfter, "Should be requeued")
+	t.Equal(time.Millisecond*250, res.RequeueAfter, "Should be requeued")
 
 	accountExport := &v1alpha1.AccountExport{}
 	err = k8sClient.Get(t.ctx, t.accountExportRef, accountExport)
