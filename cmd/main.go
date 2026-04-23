@@ -274,18 +274,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	features := &controller.ExperimentalFeatures{
+		AccountExportEnabled: experimentalAccountExport,
+	}
+
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
 		mgr.GetEventRecorder("account-controller"),
+		features,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")
 		os.Exit(1)
 	}
 
-	if experimentalAccountExport {
+	if features.AccountExportEnabled {
 		accountExportManager := core.NewAccountExportManager()
 		accountExportReconciler := controller.NewAccountExportReconciler(
 			mgr.GetClient(),
