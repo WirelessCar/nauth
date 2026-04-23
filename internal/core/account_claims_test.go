@@ -59,9 +59,9 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, natsClaims)
 			// Ensure that the NATS JWT can be encoded
-			natsJwt, err := signAccountJWT(natsClaims, opSigningKey)
+			natsJWT, err := signAccountJWT(natsClaims, opSigningKey)
 			require.NoError(t, err)
-			require.NotEmpty(t, natsJwt)
+			require.NotEmpty(t, natsJWT)
 
 			normalizedNatsClaims := normalizeClaimsForApproval(natsClaims)
 
@@ -207,26 +207,20 @@ func loadAccountSpec(filePath string) (*v1alpha1.AccountSpec, error) {
 	return &spec, nil
 }
 
-func normalizeClaimsForApproval(claims *jwt.AccountClaims) map[string]interface{} {
+func normalizeClaimsForApproval(claims *jwt.AccountClaims) *jwt.AccountClaims {
 	data, _ := json.Marshal(claims)
-	var result map[string]interface{}
+	result := jwt.NewAccountClaims(claims.Subject)
 	err := json.Unmarshal(data, &result)
 	if err != nil {
 		panic(fmt.Sprintf("failed to unmarshal claims JSON: %s", err.Error()))
 	}
-
-	result["iat"] = int64(1700000000)
-	result["jti"] = "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS"
-
+	result.IssuedAt = int64(1700000000)
+	result.ID = "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS"
 	return result
 }
 
-func overrideImportAccountIDs(claims map[string]interface{}, overrideAccount string) {
-	nats := claims["nats"].(map[string]interface{})
-	if nats["imports"] != nil {
-		for _, importClaim := range nats["imports"].([]interface{}) {
-			importMap := importClaim.(map[string]interface{})
-			importMap["account"] = overrideAccount
-		}
+func overrideImportAccountIDs(claims *jwt.AccountClaims, overrideAccount string) {
+	for _, importClaim := range claims.Imports {
+		importClaim.Account = overrideAccount
 	}
 }

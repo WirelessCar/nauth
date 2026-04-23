@@ -6,13 +6,13 @@ accountLimits:
   wildcards: true
 displayName: test-namespace/test-account
 jetStreamLimits:
-  consumer: -1
-  diskMaxStreamBytes: -1
-  diskStorage: -1
-  maxAckPending: -1
-  memMaxStreamBytes: -1
-  memStorage: -1
-  streams: -1
+  consumer: 0
+  diskMaxStreamBytes: 0
+  diskStorage: 0
+  maxAckPending: 0
+  memMaxStreamBytes: 0
+  memStorage: 0
+  streams: 0
 natsLimits:
   data: -1
   payload: -1

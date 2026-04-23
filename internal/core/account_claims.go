@@ -28,31 +28,7 @@ func newAccountClaimsBuilder(
 ) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName
-	claim.Limits = jwt.OperatorLimits{}
 	errs := make([]error, 0)
-
-	// Set default limits
-	claim.Limits.AccountLimits = jwt.AccountLimits{
-		Imports:         jwt.NoLimit,
-		Exports:         jwt.NoLimit,
-		WildcardExports: true,
-		Conn:            jwt.NoLimit,
-		LeafNodeConn:    jwt.NoLimit,
-	}
-	claim.Limits.NatsLimits = jwt.NatsLimits{
-		Subs:    jwt.NoLimit,
-		Data:    jwt.NoLimit,
-		Payload: jwt.NoLimit,
-	}
-	claim.Limits.JetStreamLimits = jwt.JetStreamLimits{
-		MemoryStorage:        jwt.NoLimit,
-		DiskStorage:          jwt.NoLimit,
-		Streams:              jwt.NoLimit,
-		Consumer:             jwt.NoLimit,
-		MaxAckPending:        jwt.NoLimit,
-		MemoryMaxStreamBytes: jwt.NoLimit,
-		DiskMaxStreamBytes:   jwt.NoLimit,
-	}
 
 	return &accountClaimsBuilder{
 		claim: claim,
@@ -83,7 +59,6 @@ func (b *accountClaimsBuilder) accountLimits(limits *v1alpha1.AccountLimits) *ac
 
 func (b *accountClaimsBuilder) natsLimits(limits *v1alpha1.NatsLimits) *accountClaimsBuilder {
 	if limits != nil {
-
 		if limits.Subs != nil {
 			b.claim.Limits.Subs = *limits.Subs
 		}

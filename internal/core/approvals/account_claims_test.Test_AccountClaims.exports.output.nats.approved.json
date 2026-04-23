@@ -1,14 +1,10 @@
 {
+  "jti": "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS",
   "iat": 1700000000,
   "iss": "OD32J3IJ3TNSPNAG2MHKB7F77ETVXGUBYMGXQ2ONNJCKPM5RXO7XWTFD",
-  "jti": "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS",
   "name": "test-namespace/test-account",
+  "sub": "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE",
   "nats": {
-    "authorization": {},
-    "default_permissions": {
-      "pub": {},
-      "sub": {}
-    },
     "exports": [
       {
         "name": "my-stream",
@@ -16,66 +12,63 @@
         "type": "stream"
       },
       {
-        "account_token_position": 2,
-        "advertise": true,
-        "allow_trace": true,
         "name": "my-complex",
-        "response_threshold": 5000,
-        "response_type": "Stream",
+        "subject": "metrics.*",
+        "type": "service",
+        "token_req": true,
         "revocations": {
           "A000000000000000000000000000000000000000000000REVOKED01": 1234567890,
           "A000000000000000000000000000000000000000000000REVOKED02": 9876543210
         },
+        "response_type": "Stream",
+        "response_threshold": 5000,
         "service_latency": {
-          "results": "metrics.latency.results",
-          "sampling": 25
+          "sampling": 25,
+          "results": "metrics.latency.results"
         },
-        "subject": "metrics.*",
-        "token_req": true,
-        "type": "service"
+        "account_token_position": 2,
+        "advertise": true,
+        "allow_trace": true
       },
       {
         "name": "my-service-chunked",
-        "response_type": "Chunked",
         "subject": "service.request.chunked",
-        "type": "service"
+        "type": "service",
+        "response_type": "Chunked"
       },
       {
         "name": "my-service-singleton",
-        "response_type": "Singleton",
         "subject": "service.request.singleton",
-        "type": "service"
+        "type": "service",
+        "response_type": "Singleton"
       },
       {
         "name": "my-service-stream",
-        "response_type": "Stream",
         "subject": "service.request.stream",
-        "type": "service"
+        "type": "service",
+        "response_type": "Stream"
       }
     ],
     "limits": {
-      "conn": -1,
-      "consumer": -1,
-      "data": -1,
-      "disk_max_stream_bytes": -1,
-      "disk_storage": -1,
-      "exports": -1,
-      "imports": -1,
-      "leaf": -1,
-      "max_ack_pending": -1,
-      "mem_max_stream_bytes": -1,
-      "mem_storage": -1,
-      "payload": -1,
-      "streams": -1,
       "subs": -1,
-      "wildcards": true
+      "data": -1,
+      "payload": -1,
+      "imports": -1,
+      "exports": -1,
+      "wildcards": true,
+      "conn": -1,
+      "leaf": -1
     },
     "signing_keys": [
       "ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4",
       "ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG"
     ],
+    "default_permissions": {
+      "pub": {},
+      "sub": {}
+    },
+    "authorization": {},
     "type": "account",
     "version": 2
-  },
-  "sub": "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
+  }
 }
