@@ -37,8 +37,6 @@ spec:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --metrics-secure=false
-            # TODO: [#11] Remove experimental flag for AccountExport CRD
-            - --experimental-account-export={{ .Values.experimental.accountExport.enabled }}
             # TODO: [#11] Remove experimental flag for AccountImport CRD
             - --experimental-account-import={{ .Values.experimental.accountImport.enabled }}
             {{- if .Values.namespaced }}

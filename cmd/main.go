@@ -65,7 +65,6 @@ func main() {
 	var namespace string
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
-	var experimentalAccountExport bool // TODO: [#11] Remove experimental flag for AccountExport CRD
 	var experimentalAccountImport bool // TODO: [#11] Remove experimental flag for AccountImport CRD
 	var enableLeaderElection bool
 	var probeAddr string
@@ -88,12 +87,6 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics server")
-	flag.BoolVar(
-		&experimentalAccountExport,
-		"experimental-account-export",
-		false,
-		"Enable experimental AccountExport reconciliation (temporary flag).",
-	)
 	flag.BoolVar(
 		&experimentalAccountImport,
 		"experimental-account-import",
@@ -274,34 +267,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	features := &controller.ExperimentalFeatures{
-		AccountExportEnabled: experimentalAccountExport,
-	}
-
 	accountReconciler := controller.NewAccountReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
 		mgr.GetEventRecorder("account-controller"),
-		features,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")
 		os.Exit(1)
 	}
 
-	if features.AccountExportEnabled {
-		accountExportManager := core.NewAccountExportManager()
-		accountExportReconciler := controller.NewAccountExportReconciler(
-			mgr.GetClient(),
-			mgr.GetScheme(),
-			accountExportManager,
-		)
-		if err = accountExportReconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "AccountExport")
-			os.Exit(1)
-		}
-		setupLog.Info("experimental controller enabled", "controller", "AccountExport")
+	accountExportManager := core.NewAccountExportManager()
+	accountExportReconciler := controller.NewAccountExportReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		accountExportManager,
+	)
+	if err = accountExportReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AccountExport")
+		os.Exit(1)
 	}
 
 	if experimentalAccountImport {

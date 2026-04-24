@@ -56,8 +56,7 @@ type AccountControllerTestSuite struct {
 	operatorNamespace    string
 	operatorVersion      string
 
-	unitUnderTest            *AccountReconciler
-	withExperimentalFeatures func(features *ExperimentalFeatures)
+	unitUnderTest *AccountReconciler
 }
 
 func TestAccountController_TestSuite(t *testing.T) {
@@ -85,11 +84,7 @@ func (t *AccountControllerTestSuite) SetupTest() {
 		k8sClient.Scheme(),
 		t.accountManagerMock,
 		t.fakeRecorder,
-		&ExperimentalFeatures{},
 	)
-	t.withExperimentalFeatures = func(features *ExperimentalFeatures) {
-		t.unitUnderTest.features = features
-	}
 
 	t.Require().NoError(ensureNamespace(t.ctx, t.operatorNamespace))
 	t.Require().NoError(ensureNamespace(t.ctx, t.accountNamespace))
@@ -347,10 +342,6 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExportsExist() {
-	t.withExperimentalFeatures(&ExperimentalFeatures{
-		AccountExportEnabled: true,
-	})
-
 	// Given
 	accountKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountKey.PublicKey()

@@ -107,10 +107,6 @@ monitoring:
     enabled: false
 
 experimental:
-  # TODO: [#11] Remove experimental flag for AccountExport CRD
-  accountExport:
-    # -- Enables experimental AccountExport reconciliation. Temporary opt-in until the resource is fully implemented.
-    enabled: false
   # TODO: [#11] Remove experimental flag for AccountImport CRD
   accountImport:
     # -- Enables experimental AccountImport reconciliation. Temporary opt-in until the resource is fully implemented.

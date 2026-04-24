@@ -47,16 +47,14 @@ type AccountReconciler struct {
 	Scheme   *runtime.Scheme
 	manager  inbound.AccountManager
 	reporter *statusReporter
-	features *ExperimentalFeatures
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder, features *ExperimentalFeatures) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
 		manager:  manager,
 		reporter: newStatusReporter(k8sClient, recorder),
-		features: features,
 	}
 }
 
@@ -226,15 +224,13 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (*domain.AccountResources, error) {
 	result := domain.AccountResources{Account: *account}
 
-	if r.features.AccountExportEnabled {
-		if accountID != "" {
-			namespace := domain.Namespace(account.Namespace)
-			exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
-			if err != nil {
-				return nil, err
-			}
-			result.Exports = exports.Items
+	if accountID != "" {
+		namespace := domain.Namespace(account.Namespace)
+		exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
+		if err != nil {
+			return nil, err
 		}
+		result.Exports = exports.Items
 	}
 
 	return &result, nil
@@ -256,22 +252,16 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Account{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).Named("account").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
-		})
-
-	if r.features.AccountExportEnabled {
-		controllerBuilder = controllerBuilder.Watches(
+		}).
+		Watches(
 			&v1alpha1.AccountExport{},
 			handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
 			builder.WithPredicates(accountExportWatchPredicateForAccounts()),
-		)
-	}
-
-	return controllerBuilder.
-		Complete(r)
+		).Complete(r)
 }
 
 func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj client.Object) []reconcile.Request {

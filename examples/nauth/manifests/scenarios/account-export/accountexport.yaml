@@ -1,5 +1,4 @@
 # AccountExport example manifest
-# NOTE: this is experimental, work in progress, protected by feature flag
 
 apiVersion: v1
 kind: Namespace
