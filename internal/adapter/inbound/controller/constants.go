@@ -1,5 +1,7 @@
 package controller
 
+import "time"
+
 const ( // Conditions
 	// Types
 	conditionTypeReady                = "Ready"
@@ -9,6 +11,8 @@ const ( // Conditions
 	conditionTypeAdoptedByAccount     = "AdoptedByAccount"
 
 	// Reasons
+	conditionReasonReady       = "Ready"
+	conditionReasonNotReady    = "NotReady"
 	conditionReasonReconciling = "Reconciling"
 	conditionReasonReconciled  = "Reconciled"
 	conditionReasonOK          = "OK"
@@ -33,4 +37,9 @@ const ( // Finalizers
 
 const ( // Environment Variables
 	envOperatorVersion = "OPERATOR_VERSION"
+)
+
+const ( // "requeue after" durations
+	// Allow some time to avoid reading stale data
+	requeueImmediately = time.Millisecond * 250
 )

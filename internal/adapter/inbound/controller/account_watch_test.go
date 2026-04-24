@@ -161,7 +161,6 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(testScheme).
-		WithIndex(&v1alpha1.Account{}, accountLabelAccountIDIndexKey, accountByAccountIDLabelIndexFunc).
 		WithObjects(accountA, accountB, accountOtherNamespace, export).
 		Build()
 

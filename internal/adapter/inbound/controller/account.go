@@ -43,8 +43,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const accountLabelAccountIDIndexKey = "account.labels.account-id"
-
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
@@ -126,7 +124,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			)
 		}
 
-		// Todo: [#11] This will block the deletion and requires manual intervention to continue (removing finalizer)
+		// TODO: [#11] This will block the deletion and requires manual intervention to continue (removing finalizer)
 		// TODO: [#11] Investigate and understand if blocking preemptively with webhooks is a better option (not allowing change)?
 		adoptions := natsAccount.Status.Adoptions
 		if adoptions != nil && len(adoptions.Exports) > 0 {
@@ -260,15 +258,6 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(
-		context.Background(),
-		&v1alpha1.Account{},
-		accountLabelAccountIDIndexKey,
-		accountByAccountIDLabelIndexFunc,
-	); err != nil {
-		return fmt.Errorf("failed to index Account by account ID: %w", err)
-	}
-
 	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Account{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).Named("account").
 		WithOptions(controller.Options{
@@ -301,7 +290,7 @@ func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj 
 	accounts := &v1alpha1.AccountList{}
 	if err := r.List(ctx, accounts,
 		client.InNamespace(export.Namespace),
-		client.MatchingFields{accountLabelAccountIDIndexKey: accountID},
+		client.MatchingLabels{string(v1alpha1.AccountLabelAccountID): accountID},
 	); err != nil {
 		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountExport watch", "accountID", accountID, "namespace", export.Namespace)
 		return nil
@@ -315,15 +304,6 @@ func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj 
 	}
 
 	return requests
-}
-
-func accountByAccountIDLabelIndexFunc(rawObj client.Object) []string {
-	account := rawObj.(*v1alpha1.Account)
-	accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
-	if accountID == "" {
-		return nil
-	}
-	return []string{accountID}
 }
 
 func accountExportWatchPredicateForAccounts() predicate.Funcs {

@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -66,7 +65,7 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	// Todo: #11 Consider adding events
+	// TODO: #11 Consider adding events
 
 	state := &v1alpha1.AccountExport{}
 	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
@@ -83,6 +82,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account); err != nil {
 		if !apierrors.IsNotFound(err) {
 			log.Error(err, "Failed to read account", "accountName", state.Spec.AccountName)
+			// TODO: #11 return quick in case account fetch failed.
 		}
 	}
 
@@ -94,19 +94,20 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to patch labels: %w", err)
 		}
-		// Todo: #11 Can we patch without returning, and update status in same reconcile loop?
-		return ctrl.Result{RequeueAfter: time.Millisecond * 250}, nil
+		// TODO: #11 Can we patch without returning, and update status in same reconcile loop?
+		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
 	if updateStatus {
-		// Todo: #11 Can we safely implement the updateStatus flag, currently always true
-		// Todo: #11 This would make watches simpler (not needing to be so specific)
+		// TODO: #11 Can we safely implement the updateStatus flag, currently always true
+		// TODO: #11 This would make watches simpler (not needing to be so specific)
 		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
 			log.Error(updateErr, "Failed to update status")
 			return ctrl.Result{}, updateErr
 		}
 	}
 
+	// TODO: #11 Remove logging when i/e feature is complete
 	if meta.IsStatusConditionTrue(state.Status.Conditions, conditionTypeReady) {
 		log.Info("AccountExport reconciliation Ready")
 	}
@@ -193,7 +194,6 @@ func accountUpdateAffectsAccountExports(oldAccount *v1alpha1.Account, newAccount
 
 	oldAccountID := oldAccount.GetLabel(v1alpha1.AccountLabelAccountID)
 	newAccountID := newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
-	// this is only possible if account is deleted and recreated with new name
 	if oldAccountID != newAccountID {
 		return true
 	}

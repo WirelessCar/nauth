@@ -58,7 +58,6 @@ func TestAccountExportReconciler_ShouldReconcileForAccountUpdate(t *testing.T) {
 		expectRequeue bool
 	}{
 		{
-			// this is only possible if account is deleted and recreated with new name
 			name: "account_id_label_changed",
 			mutate: func(account *v1alpha1.Account) {
 				account.Labels[string(v1alpha1.AccountLabelAccountID)] = accountIDAccB
