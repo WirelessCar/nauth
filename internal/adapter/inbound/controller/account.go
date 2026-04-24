@@ -126,7 +126,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			)
 		}
 
-		// Todo: [#11] We should block deletion if AccountExports are bound to it
+		// Todo: [#11] This will block the deletion and requires manual intervention to continue (removing finalizer)
+		// TODO: [#11] Investigate and understand if blocking preemptively with webhooks is a better option (not allowing change)?
+		adoptions := natsAccount.Status.Adoptions
+		if adoptions != nil && len(adoptions.Exports) > 0 {
+			return r.reporter.error(
+				ctx,
+				natsAccount,
+				fmt.Errorf("cannot delete an account with adopted exports, found %d adoptions", len(adoptions.Exports)),
+			)
+		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
 			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
