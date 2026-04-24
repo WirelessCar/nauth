@@ -67,7 +67,6 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := logf.FromContext(ctx)
 
 	// Todo: #11 Consider adding events
-	// Todo: #11 Go through all reasons and consolidate
 
 	state := &v1alpha1.AccountExport{}
 	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
@@ -275,10 +274,10 @@ func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1
 			state.SetLabel(v1alpha1.AccountExportLabelAccountID, resolution.AccountID)
 			patchLabels = true
 			msg := fmt.Sprintf("Binding to Account ID: %s", resolution.AccountID)
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonReconciling, msg)
+			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonBinding, msg)
 		} else {
 			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonErrored, msg)
+			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonNotFound, msg)
 		}
 
 	case domain.AccountBindingStateConflict:
@@ -297,26 +296,26 @@ func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1
 	case domain.AccountAdoptionStateMissing:
 		if resolution.AccountID == "" {
 			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, msg)
+			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonNotFound, msg)
 		} else {
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, resolution.AdoptionError.Error())
+			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, resolution.AdoptionError.Error())
 		}
 
 	case domain.AccountAdoptionStateNotAdopted:
-		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonReconciling, resolution.AdoptionError.Error())
+		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, resolution.AdoptionError.Error())
 
 	case domain.AccountAdoptionStateAdopted:
 		updateConditionTrue(conditionTypeAdoptedByAccount)
 
 	default:
-		updateConditionFalse(conditionTypeBoundToAccount, conditionReasonErrored, "Unknown adopted state")
+		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, "Unknown adopted state")
 	}
 
 	// ready condition
 	if isAccountExportReady(state) {
 		updateConditionTrue(conditionTypeReady)
 	} else {
-		updateConditionFalse(conditionTypeReady, conditionReasonReconciling, "Reconciling")
+		updateConditionFalse(conditionTypeReady, conditionReasonReconciling, "All conditions not met")
 	}
 
 	return patchLabels, updateStatus

@@ -211,7 +211,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
 
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "Errored")
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonFailed)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
@@ -347,7 +347,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldNotBeAdoptedByAc
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonReconciling)
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonAdopting)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 

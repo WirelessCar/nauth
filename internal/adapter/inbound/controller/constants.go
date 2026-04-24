@@ -9,14 +9,16 @@ const ( // Conditions
 	conditionTypeAdoptedByAccount     = "AdoptedByAccount"
 
 	// Reasons
-	conditionReasonReady       = "Ready"
-	conditionReasonNotReady    = "NotReady"
 	conditionReasonReconciling = "Reconciling"
 	conditionReasonReconciled  = "Reconciled"
 	conditionReasonOK          = "OK"
 	conditionReasonErrored     = "Errored"
 	conditionReasonInvalid     = "Invalid"
 	conditionReasonConflict    = "Conflict"
+	conditionReasonBinding     = "Binding"
+	conditionReasonNotFound    = "NotFound"
+	conditionReasonAdopting    = "Adopting"
+	conditionReasonFailed      = "Failed"
 )
 
 const ( // Events
