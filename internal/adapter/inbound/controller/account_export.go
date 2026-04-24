@@ -81,7 +81,9 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	account := &v1alpha1.Account{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account); err != nil {
-		log.Error(err, "Failed to get account", "accountName", state.Spec.AccountName)
+		if !apierrors.IsNotFound(err) {
+			log.Error(err, "Failed to read account", "accountName", state.Spec.AccountName)
+		}
 	}
 
 	resolution := r.manager.Resolve(ctx, state, account)
@@ -105,7 +107,9 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	log.Info("Reconciliation complete")
+	if meta.IsStatusConditionTrue(state.Status.Conditions, conditionTypeReady) {
+		log.Info("AccountExport reconciliation Ready")
+	}
 	return ctrl.Result{}, nil
 }
 

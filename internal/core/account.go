@@ -190,9 +190,6 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		}
 		log.Info("Uploaded Account JWT to NATS",
 			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
-	} else {
-		log.Info("Skipped Account JWT upload to NATS because claims are unchanged",
-			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
