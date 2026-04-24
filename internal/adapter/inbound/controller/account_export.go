@@ -20,21 +20,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -132,7 +128,7 @@ func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}).
 		Watches(
 			&v1alpha1.Account{},
-			handler.EnqueueRequestsFromMapFunc(r.mapAccountToAccountExports),
+			handler.EnqueueRequestsFromMapFunc(r.exportRequestsForAccount),
 			builder.WithPredicates(accountExportAccountWatchPredicate()),
 		).
 		Complete(r)
@@ -146,7 +142,7 @@ func exportBySpecAccountNameIndexFunc(rawObj client.Object) []string {
 	return []string{export.Spec.AccountName}
 }
 
-func (r *AccountExportReconciler) mapAccountToAccountExports(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *AccountExportReconciler) exportRequestsForAccount(ctx context.Context, obj client.Object) []reconcile.Request {
 	account, ok := obj.(*v1alpha1.Account)
 	if !ok {
 		return nil
@@ -174,60 +170,6 @@ func (r *AccountExportReconciler) mapAccountToAccountExports(ctx context.Context
 	return requests
 }
 
-func accountExportAccountWatchPredicate() predicate.Funcs {
-	return predicate.Funcs{
-		CreateFunc: func(event.CreateEvent) bool { return true },
-		DeleteFunc: func(event.DeleteEvent) bool { return true },
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldAccount, oldOK := e.ObjectOld.(*v1alpha1.Account)
-			newAccount, newOK := e.ObjectNew.(*v1alpha1.Account)
-			return oldOK && newOK && accountUpdateAffectsAccountExports(oldAccount, newAccount)
-		},
-		GenericFunc: func(event.GenericEvent) bool { return false },
-	}
-}
-
-func accountUpdateAffectsAccountExports(oldAccount *v1alpha1.Account, newAccount *v1alpha1.Account) bool {
-	if oldAccount == nil || newAccount == nil {
-		return false
-	}
-
-	oldAccountID := oldAccount.GetLabel(v1alpha1.AccountLabelAccountID)
-	newAccountID := newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
-	if oldAccountID != newAccountID {
-		return true
-	}
-
-	return !reflect.DeepEqual(accountExportAdoptionSnapshot(oldAccount), accountExportAdoptionSnapshot(newAccount))
-}
-
-// Builds a comparable snapshot of export adoption state so Account changes relevant to AccountExports can be detected efficiently.
-func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]accountExportAdoptionState {
-	if account == nil || account.Status.Adoptions == nil {
-		return nil
-	}
-
-	adoptions := make(map[string]accountExportAdoptionState, len(account.Status.Adoptions.Exports))
-	for _, adoption := range account.Status.Adoptions.Exports {
-		adoptions[string(adoption.UID)] = accountExportAdoptionState{
-			ObservedGeneration:             adoption.ObservedGeneration,
-			Status:                         adoption.Status.Status,
-			Reason:                         adoption.Status.Reason,
-			Message:                        adoption.Status.Message,
-			DesiredClaimObservedGeneration: adoption.Status.DesiredClaimObservedGeneration,
-		}
-	}
-	return adoptions
-}
-
-type accountExportAdoptionState struct {
-	ObservedGeneration             int64
-	Status                         metav1.ConditionStatus
-	Reason                         string
-	Message                        string
-	DesiredClaimObservedGeneration *int64
-}
-
 func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {
 	patchData, err := json.Marshal(map[string]map[string]map[string]string{
 		"metadata": {
@@ -241,97 +183,4 @@ func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1a
 		return fmt.Errorf("failed to patch label: %w", err)
 	}
 	return nil
-}
-
-func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1alpha1.AccountExport) (patchLabels bool, updateStatus bool) {
-	patchLabels = false
-	updateStatus = true
-	status := &state.Status
-
-	updateConditionFalse := func(condType string, reason string, msg string) {
-		meta.SetStatusCondition(&status.Conditions, newCondition(condType, metav1.ConditionFalse, reason, msg))
-	}
-	updateConditionTrue := func(condType string) {
-		meta.SetStatusCondition(&status.Conditions, newCondition(condType, metav1.ConditionTrue, conditionReasonOK, ""))
-	}
-
-	// rule validations
-	if resolution.ValidationError != nil {
-		updateConditionFalse(conditionTypeValidRules, conditionReasonInvalid, resolution.ValidationError.Error())
-	} else {
-		updateConditionTrue(conditionTypeValidRules)
-		status.DesiredClaim = &v1alpha1.AccountExportClaim{
-			Rules:              resolution.DesiredClaim.Rules,
-			ObservedGeneration: resolution.ObservedGeneration,
-		}
-	}
-
-	// account lookup
-	if resolution.AccountID != "" {
-		status.AccountID = resolution.AccountID
-	}
-
-	// account binding
-	switch resolution.BindingState {
-	case domain.AccountBindingStateMissing:
-		if resolution.AccountID != "" {
-			state.SetLabel(v1alpha1.AccountExportLabelAccountID, resolution.AccountID)
-			patchLabels = true
-			msg := fmt.Sprintf("Binding to Account ID: %s", resolution.AccountID)
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonBinding, msg)
-		} else {
-			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonNotFound, msg)
-		}
-
-	case domain.AccountBindingStateConflict:
-		msg := fmt.Sprintf("Account ID conflict: previously bound to %s, now found %s", resolution.BoundAccountID, resolution.AccountID)
-		updateConditionFalse(conditionTypeBoundToAccount, conditionReasonConflict, msg)
-
-	case domain.AccountBindingStateBound:
-		updateConditionTrue(conditionTypeBoundToAccount)
-
-	default:
-		updateConditionFalse(conditionTypeBoundToAccount, conditionReasonErrored, "Unknown binding state")
-	}
-
-	// account adoption condition
-	switch resolution.AdoptionState {
-	case domain.AccountAdoptionStateMissing:
-		if resolution.AccountID == "" {
-			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonNotFound, msg)
-		} else {
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, resolution.AdoptionError.Error())
-		}
-
-	case domain.AccountAdoptionStateNotAdopted:
-		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, resolution.AdoptionError.Error())
-
-	case domain.AccountAdoptionStateAdopted:
-		updateConditionTrue(conditionTypeAdoptedByAccount)
-
-	default:
-		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, "Unknown adopted state")
-	}
-
-	// ready condition
-	if isAccountExportReady(state) {
-		updateConditionTrue(conditionTypeReady)
-	} else {
-		updateConditionFalse(conditionTypeReady, conditionReasonReconciling, "All conditions not met")
-	}
-
-	return patchLabels, updateStatus
-}
-
-func isAccountExportReady(state *v1alpha1.AccountExport) bool {
-	allConditionsReady := conditionsReady(state.Status.Conditions, []string{
-		conditionTypeBoundToAccount,
-		conditionTypeValidRules,
-		conditionTypeAdoptedByAccount,
-	})
-	claimsReady := state.Status.DesiredClaim != nil && state.Status.DesiredClaim.ObservedGeneration == state.Generation
-
-	return allConditionsReady && claimsReady
 }

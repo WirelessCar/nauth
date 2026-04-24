@@ -167,7 +167,7 @@ func TestAccountExportReconciler_MapAccountToExports(t *testing.T) {
 
 	reconciler := &AccountExportReconciler{Client: fakeClient}
 
-	requests := reconciler.mapAccountToAccountExports(context.Background(), account)
+	requests := reconciler.exportRequestsForAccount(context.Background(), account)
 	require.Len(t, requests, 1)
 	assert.Equal(t, reconcile.Request{
 		NamespacedName: types.NamespacedName{
