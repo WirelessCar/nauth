@@ -1,4 +1,5 @@
 displayName: test-namespace/test-account
+jetStreamEnabled: false
 natsLimits:
   data: 1048576
   payload: 1024

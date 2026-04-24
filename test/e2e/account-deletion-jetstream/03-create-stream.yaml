@@ -21,4 +21,13 @@ commands:
           "nats --server='nats://nats.nats.svc.cluster.local:4222' --creds /tmp/stream-writer.creds req '\$JS.API.STREAM.CREATE.ORDERS' '{\"name\":\"ORDERS\",\"subjects\":[\"orders.>\"]}' && rm -f /tmp/stream-writer.creds"
       )"
 
-      printf '%s' "$response" | grep -q '"type":"io.nats.jetstream.api.v1.stream_create_response"'
+      printf '%s' "$response" | grep -q '"type":"io.nats.jetstream.api.v1.stream_create_response"' || {
+        echo "unexpected response from stream creation request:"
+        printf '%s\n' "$response"
+        exit 1
+      }
+      if printf '%s' "$response" | grep -q '"error"'; then
+        echo "stream creation returned an error:"
+        printf '%s\n' "$response"
+        exit 1
+      fi

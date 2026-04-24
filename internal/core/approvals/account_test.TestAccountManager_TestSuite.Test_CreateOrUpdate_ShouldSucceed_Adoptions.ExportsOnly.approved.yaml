@@ -30,6 +30,7 @@ Claims:
   - name: foo find service
     subject: svc.foo.find
     type: service
+  jetStreamEnabled: false
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
 ClaimsHash: c6061e1c21a5ede5263fe4a2aab5dd2dc9d8be3badd28695c598eef230517e7a

@@ -24,6 +24,7 @@ Claims:
   - name: my stream
     subject: foo.*
     type: stream
+  jetStreamEnabled: false
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
 ClaimsHash: 6f76af53e892e75c81ca557ec45a3414ae76b8bcac24a716da88d7b853d55cc6

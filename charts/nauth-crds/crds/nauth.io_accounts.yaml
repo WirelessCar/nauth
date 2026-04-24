@@ -176,6 +176,11 @@ spec:
                   - accountRef
                   type: object
                 type: array
+              jetStreamEnabled:
+                description: |-
+                  JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.
+                  If absent, JetStream will be implicitly enabled/disabled based on the supplied JetStreamLimits.
+                type: boolean
               jetStreamLimits:
                 properties:
                   consumer:
@@ -440,6 +445,8 @@ spec:
                       - accountRef
                       type: object
                     type: array
+                  jetStreamEnabled:
+                    type: boolean
                   jetStreamLimits:
                     properties:
                       consumer:

@@ -3,6 +3,13 @@ kind: Account
 metadata:
   name: example-account
 status:
+  claims:
+    jetStreamEnabled: true
+    jetStreamLimits:
+      memStorage: -1
+      diskStorage: -1
+      streams: -1
+      consumer: -1
   conditions:
     - type: Ready
       status: "True"

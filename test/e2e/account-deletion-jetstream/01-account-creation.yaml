@@ -3,8 +3,7 @@ kind: Account
 metadata:
   name: example-account
 spec:
+  jetStreamEnabled: true
   natsClusterRef:
     namespace: nats
     name: local-nats
-  accountLimits:
-    conn: 100

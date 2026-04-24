@@ -17,6 +17,7 @@ Claims:
     type: stream
   - subject: sourced.bar.report
     type: service
+  jetStreamEnabled: false
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
 ClaimsHash: ab98710c707742ee4481aaeef2815eba3fb8a570afaa1a66c5e9a27bb02a817f

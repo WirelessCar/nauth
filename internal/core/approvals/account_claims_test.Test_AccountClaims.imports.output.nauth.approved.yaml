@@ -24,6 +24,7 @@ imports:
   name: my-stream-import
   subject: foo.stream.>
   type: stream
+jetStreamEnabled: false
 signingKeys:
 - key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
 - key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

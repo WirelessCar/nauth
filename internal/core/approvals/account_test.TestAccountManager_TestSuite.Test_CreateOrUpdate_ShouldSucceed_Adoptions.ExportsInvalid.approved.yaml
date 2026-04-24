@@ -29,6 +29,7 @@ Claims:
   - name: inline export
     subject: inline.foor.*
     type: stream
+  jetStreamEnabled: false
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
 ClaimsHash: 4ef9f104308177bb9bcac084406b24ee4a4a21786b8b70e4070c76604764f5ed

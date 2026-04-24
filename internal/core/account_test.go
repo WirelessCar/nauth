@@ -654,7 +654,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	accountSignKeyPublic, _ := accountSignKey.PublicKey()
 
 	existingNatsLimitsSubs := int64(100)
-	existingClaims, err := newAccountClaimsBuilder("Existing Account", accountID).
+	existingClaims, err := newAccountClaimsBuilder("Existing Account", accountID, nil).
 		natsLimits(&v1alpha1.NatsLimits{Subs: &existingNatsLimitsSubs}).
 		signingKey(accountSignKeyPublic).
 		build()

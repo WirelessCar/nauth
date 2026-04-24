@@ -5,6 +5,7 @@ account:
     name: account-name
     namespace: account-namespace
   spec:
+    jetStreamEnabled: true
     accountLimits:
       conn: 100
       exports: 100
@@ -28,13 +29,7 @@ account:
         type: service
     jetStreamLimits:
       consumer: 50
-      diskMaxStreamBytes: 209715200
-      diskStorage: 209715200
-      maxAckPending: -1
-      maxBytesRequired: true
-      memMaxStreamBytes: 209715200
-      memStorage: 209715200
-      streams: 50
+      streams: 10
     natsLimits:
       data: 1024000
       payload: 50000

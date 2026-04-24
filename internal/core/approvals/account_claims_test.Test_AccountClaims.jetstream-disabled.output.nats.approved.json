@@ -1,0 +1,30 @@
+{
+  "jti": "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS",
+  "iat": 1700000000,
+  "iss": "OD32J3IJ3TNSPNAG2MHKB7F77ETVXGUBYMGXQ2ONNJCKPM5RXO7XWTFD",
+  "name": "test-namespace/test-account",
+  "sub": "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE",
+  "nats": {
+    "limits": {
+      "subs": -1,
+      "data": -1,
+      "payload": -1,
+      "imports": -1,
+      "exports": -1,
+      "wildcards": true,
+      "conn": -1,
+      "leaf": -1
+    },
+    "signing_keys": [
+      "ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4",
+      "ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG"
+    ],
+    "default_permissions": {
+      "pub": {},
+      "sub": {}
+    },
+    "authorization": {},
+    "type": "account",
+    "version": 2
+  }
+}

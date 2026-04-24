@@ -22,19 +22,17 @@ Claims:
   - name: JS orders stream
     subject: orders.S.>
     type: stream
+  jetStreamEnabled: true
   jetStreamLimits:
     consumer: 50
-    diskMaxStreamBytes: 209715200
-    diskStorage: 209715200
+    diskStorage: -1
     maxAckPending: -1
-    maxBytesRequired: true
-    memMaxStreamBytes: 209715200
-    memStorage: 209715200
-    streams: 50
+    memStorage: -1
+    streams: 10
   natsLimits:
     data: 1024000
     payload: 50000
     subs: 100
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: cecf4119e847f0cc70a68793d92478e0abadc0ca7ba52b98e8adbe78d59025d9
+ClaimsHash: 1e2c15cfcb8fd0f50faa7bb3cd06fe5616238bedcb7234fd7f66555c9713cb00
