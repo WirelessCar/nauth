@@ -1,0 +1,18 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: my-account
+    ref: my_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export
+    ref: my_account_export
+assertAll:
+  - celExpr: my_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")
+  - celExpr: has(my_account.status.adoptions) && has(my_account.status.adoptions.exports) && my_account.status.adoptions.exports.size() == 1
+  - celExpr: my_account.status.adoptions.exports[0].uid == my_account_export.metadata.uid
+  - celExpr: my_account.status.adoptions.exports[0].status.desiredClaimObservedGeneration == my_account_export.status.desiredClaim.observedGeneration
+  - celExpr: my_account.status.adoptions.exports[0].status.reason == "Adopted" && my_account.status.adoptions.exports[0].status.status == "True"

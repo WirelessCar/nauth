@@ -1,0 +1,15 @@
+# kuttl-fast.yaml does not create (nor delete) the local kind cluster, so you can run kuttl tests faster
+# during their development. To use it you need to have nauth deployed manually in local kind cluster.
+# This is done with `mise nauth:install`
+#
+# After that you can run all kuttl tests with `kuttl test -f kuttl-fast.yaml`
+#
+# OR a specific one with:
+# `kubectl kuttl test --config kuttl-fast.yaml --test account-export`
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+startKIND: false
+artifactsDir: test/logs
+testDirs:
+  - test/e2e
+timeout: 20

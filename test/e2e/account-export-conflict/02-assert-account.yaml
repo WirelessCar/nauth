@@ -1,0 +1,27 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: my-account
+    ref: my_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-a
+    ref: export_a
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-b
+    ref: export_b
+assertAll:
+  - celExpr: my_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")
+  - celExpr: has(my_account.status.adoptions) && has(my_account.status.adoptions.exports) && my_account.status.adoptions.exports.size() == 2
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_a.metadata.uid)
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_b.metadata.uid)
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_a.metadata.uid && a.status.desiredClaimObservedGeneration == export_a.status.desiredClaim.observedGeneration)
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_b.metadata.uid && a.status.desiredClaimObservedGeneration == export_b.status.desiredClaim.observedGeneration)
+  - celExpr: my_account.status.adoptions.exports.filter(a, a.status.status == "True" && a.status.reason == "OK").size() == 1
+  - celExpr: my_account.status.adoptions.exports.filter(a, a.status.status == "False" && a.status.reason == "Conflict").size() == 1
+  - celExpr: has(my_account.status.claims.exports) && my_account.status.claims.exports.size() == 1
+

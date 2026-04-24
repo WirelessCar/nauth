@@ -1,0 +1,10 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-account
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+

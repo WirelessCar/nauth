@@ -1,0 +1,19 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export
+    ref: my_account_export
+assertAll:
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "False")
+  - celExpr: '!my_account_export.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True")'
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "Reconciling")
+  - celExpr: has(my_account_export.status.desiredClaim) && my_account_export.status.desiredClaim.observedGeneration == my_account_export.metadata.generation
+  - celExpr: my_account_export.status.desiredClaim.rules.size() == 1
+  - celExpr: my_account_export.status.desiredClaim.rules[0].name == "recovery-rule"
+  - celExpr: my_account_export.status.desiredClaim.rules[0].subject == "export-missing-account.>"
+  - celExpr: my_account_export.status.desiredClaim.rules[0].type == "stream"
+

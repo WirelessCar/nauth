@@ -1,0 +1,10 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountExport
+metadata:
+  name: my-account-export
+spec:
+  accountName: my-account
+  rules:
+    - name: test-rule
+      subject: export-account.>
+      type: stream

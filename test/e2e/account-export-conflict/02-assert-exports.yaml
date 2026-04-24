@@ -1,0 +1,28 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: my-account
+    ref: my_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-a
+    ref: export_a
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-b
+    ref: export_b
+assertAll:
+  - celExpr: export_a.metadata.labels["accountexport.nauth.io/account-id"] == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: export_b.metadata.labels["accountexport.nauth.io/account-id"] == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: export_a.status.accountID == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: export_b.status.accountID == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: export_a.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
+  - celExpr: export_b.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
+  - celExpr: export_a.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: export_b.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: '(export_a.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True" && c.reason == "OK") && export_b.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "False" && c.reason == "Failed")) || (export_b.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True" && c.reason == "OK") && export_a.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "False" && c.reason == "Failed"))'
+  - celExpr: '(export_a.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "OK") && export_b.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "Reconciling")) || (export_b.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "OK") && export_a.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "Reconciling"))'
+

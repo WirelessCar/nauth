@@ -1,0 +1,35 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: my-account
+    ref: my_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export
+    ref: my_account_export
+assertAll:
+  - celExpr: my_account_export.metadata.labels["accountexport.nauth.io/account-id"] == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: my_account_export.status.accountID == my_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_export.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True" && c.reason == "OK")
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountExport
+metadata:
+  name: my-account-export
+#  labels:
+#    accountexport.nauth.io/account-id: ACCOUNTID   # Verified above
+status:
+  #  accountId: ACCOUNTID    # verified above
+  desiredClaim:
+    observedGeneration: 1
+    rules:
+      - name: test-rule
+        subject: export-account.>
+        type: stream
