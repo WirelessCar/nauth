@@ -6,6 +6,7 @@ artifactsDir: test/logs
 testDirs:
   - test/e2e/
 timeout: 20
+parallel: 1
 commands:
   - command: kubectl create namespace nats
   - command: helm repo add nats https://nats-io.github.io/k8s/helm/charts/
