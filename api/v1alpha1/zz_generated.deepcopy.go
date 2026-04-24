@@ -152,6 +152,11 @@ func (in *AccountClaims) DeepCopyInto(out *AccountClaims) {
 			}
 		}
 	}
+	if in.JetStreamEnabled != nil {
+		in, out := &in.JetStreamEnabled, &out.JetStreamEnabled
+		*out = new(bool)
+		**out = **in
+	}
 	if in.JetStreamLimits != nil {
 		in, out := &in.JetStreamLimits, &out.JetStreamLimits
 		*out = new(JetStreamLimits)
@@ -611,6 +616,11 @@ func (in *AccountSpec) DeepCopyInto(out *AccountSpec) {
 	if in.NatsClusterRef != nil {
 		in, out := &in.NatsClusterRef, &out.NatsClusterRef
 		*out = new(NatsClusterRef)
+		**out = **in
+	}
+	if in.JetStreamEnabled != nil {
+		in, out := &in.JetStreamEnabled, &out.JetStreamEnabled
+		*out = new(bool)
 		**out = **in
 	}
 	if in.AccountLimits != nil {

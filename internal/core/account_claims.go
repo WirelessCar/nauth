@@ -17,22 +17,31 @@ import (
 type resolveAccountIDFn func(accountRef domain.NamespacedName) (accountID string, err error)
 
 type accountClaimsBuilder struct {
-	claim *jwt.AccountClaims
-	errs  []error
+	jetStreamRequested *bool
+	claim              *jwt.AccountClaims
+	errs               []error
 }
 
 func newAccountClaimsBuilder(
 	displayName string,
 	accountPublicKey string,
-
+	jetStreamEnabled *bool,
 ) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
 	claim.Name = displayName
-	errs := make([]error, 0)
+	if jetStreamEnabled == nil || *jetStreamEnabled {
+		// TODO: [#245] Switch to opt-in (enabled != nil && enabled) once we are ready to release a breaking change
+		// Initialize claims with unlimited JetStream (to comply with current NAuth behaviour, later this will be due to explicit request)
+		claim.Limits.DiskStorage = jwt.NoLimit
+		claim.Limits.MemoryStorage = jwt.NoLimit
+		claim.Limits.Streams = jwt.NoLimit
+		claim.Limits.Consumer = jwt.NoLimit
+		claim.Limits.MaxAckPending = jwt.NoLimit
+	}
 
 	return &accountClaimsBuilder{
-		claim: claim,
-		errs:  errs,
+		jetStreamRequested: jetStreamEnabled,
+		claim:              claim,
 	}
 }
 
@@ -188,11 +197,27 @@ func (b *accountClaimsBuilder) signingKey(signingKey string) *accountClaimsBuild
 }
 
 func (b *accountClaimsBuilder) build() (*jwt.AccountClaims, error) {
+	if err := validateJetStreamLimits(b.jetStreamRequested, b.claim.Limits); err != nil {
+		b.errs = append(b.errs, err)
+	}
 	if err := errors.Join(b.errs...); err != nil {
 		return nil, err
 	}
 
 	return b.claim, nil
+}
+
+func validateJetStreamLimits(jetStreamExpected *bool, limits jwt.OperatorLimits) error {
+	// Note: Those error messages must be validated in tests as this is a very implicit legacy behavior in NATS JWT lib
+	if jetStreamExpected != nil {
+		if *jetStreamExpected && !limits.IsJSEnabled() {
+			return fmt.Errorf("ambiguous JetStream config; requested to be enabled, but no allowed MemoryStorage or DiskStorage supplied")
+		}
+		if !*jetStreamExpected && limits.IsJSEnabled() {
+			return fmt.Errorf("ambiguous JetStream config; requested to be disabled, but supplied MemoryStorage and/or DiskStorage would implicitly enables it")
+		}
+	}
+	return nil
 }
 
 func hashSignedAccountJWTClaims(accountJWT string) (string, error) {
@@ -229,6 +254,9 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 	out := v1alpha1.AccountClaims{}
 	out.DisplayName = claims.Name
 
+	jetStreamEnabled := claims.Limits.IsJSEnabled()
+	out.JetStreamEnabled = &jetStreamEnabled
+
 	// AccountLimits
 	{
 		source := claims.Limits.AccountLimits
@@ -258,8 +286,8 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 	// JetStreamLimits
 	{
 		source := claims.Limits.JetStreamLimits
-		if !isUnlimitedJetStreamLimits(source) {
-			defaults := claimsDefaults.Limits.JetStreamLimits
+		defaults := claimsDefaults.Limits.JetStreamLimits
+		if source != defaults {
 			out.JetStreamLimits = &v1alpha1.JetStreamLimits{}
 			out.JetStreamLimits.MemoryStorage = toPtrDefNil(source.MemoryStorage, defaults.MemoryStorage)
 			out.JetStreamLimits.DiskStorage = toPtrDefNil(source.DiskStorage, defaults.DiskStorage)
@@ -366,24 +394,6 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 }
 
 // Helpers
-
-// isUnlimitedJetStreamLimits is a temporary custom check due to https://github.com/nats-io/jwt/issues/249
-func isUnlimitedJetStreamLimits(limits jwt.JetStreamLimits) bool {
-	return limits == newUnlimitedJetStreamLimits() || limits.IsUnlimited()
-}
-
-func newUnlimitedJetStreamLimits() jwt.JetStreamLimits {
-	return jwt.JetStreamLimits{
-		MemoryStorage:        0,
-		DiskStorage:          0,
-		Streams:              0,
-		Consumer:             0,
-		MaxAckPending:        0,
-		MemoryMaxStreamBytes: 0,
-		DiskMaxStreamBytes:   0,
-		MaxBytesRequired:     false,
-	}
-}
 
 func appendExportIfMissing(exports jwt.Exports, export jwt.Export) jwt.Exports {
 	for _, existing := range exports {

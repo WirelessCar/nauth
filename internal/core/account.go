@@ -150,7 +150,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
-	claimsBuilder := newAccountClaimsBuilder(getDisplayName(account), accountPublicKey).
+	claimsBuilder := newAccountClaimsBuilder(getDisplayName(account), accountPublicKey, account.Spec.JetStreamEnabled).
 		accountLimits(account.Spec.AccountLimits).
 		jetStreamLimits(account.Spec.JetStreamLimits).
 		natsLimits(account.Spec.NatsLimits).

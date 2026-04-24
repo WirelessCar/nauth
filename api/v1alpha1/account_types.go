@@ -51,6 +51,10 @@ type AccountSpec struct {
 	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
+	// JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.
+	// If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits.
+	// +optional
+	JetStreamEnabled *bool `json:"jetStreamEnabled,omitempty"`
 	// +optional
 	AccountLimits *AccountLimits `json:"accountLimits,omitempty"`
 	// +optional
@@ -74,6 +78,8 @@ type AccountClaims struct {
 	Exports Exports `json:"exports,omitempty"`
 	// +optional
 	Imports Imports `json:"imports,omitempty"`
+	// +optional
+	JetStreamEnabled *bool `json:"jetStreamEnabled,omitempty"`
 	// +optional
 	JetStreamLimits *JetStreamLimits `json:"jetStreamLimits,omitempty"`
 	// +optional

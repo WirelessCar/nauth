@@ -40,7 +40,7 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			unitUnderTest := func(spec *v1alpha1.AccountSpec, resolveAccountID resolveAccountIDFn) (*jwt.AccountClaims, error) {
-				builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey).
+				builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey, spec.JetStreamEnabled).
 					accountLimits(spec.AccountLimits).
 					jetStreamLimits(spec.JetStreamLimits).
 					natsLimits(spec.NatsLimits).
@@ -81,11 +81,12 @@ func Test_AccountClaims(t *testing.T) {
 
 			// Verify that the resulting NAuth AccountClaim generates the same NATS JWT when encoded
 			rebuiltNatsClaims := &v1alpha1.AccountSpec{
-				AccountLimits:   nauthClaims.AccountLimits,
-				JetStreamLimits: nauthClaims.JetStreamLimits,
-				NatsLimits:      nauthClaims.NatsLimits,
-				Exports:         nauthClaims.Exports,
-				Imports:         nauthClaims.Imports,
+				JetStreamEnabled: nauthClaims.JetStreamEnabled,
+				AccountLimits:    nauthClaims.AccountLimits,
+				JetStreamLimits:  nauthClaims.JetStreamLimits,
+				NatsLimits:       nauthClaims.NatsLimits,
+				Exports:          nauthClaims.Exports,
+				Imports:          nauthClaims.Imports,
 			}
 			natsClaimsRebuilt, err := unitUnderTest(rebuiltNatsClaims, func(accountRef domain.NamespacedName) (accountID string, err error) {
 				// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
@@ -114,7 +115,10 @@ func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *te
 	result := convertNatsAccountClaims(claims)
 
 	// Then
-	require.Equal(t, v1alpha1.AccountClaims{}, result)
+	boolFalse := false
+	require.Equal(t, v1alpha1.AccountClaims{
+		JetStreamEnabled: &boolFalse,
+	}, result)
 }
 
 func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHash(t *testing.T) {
@@ -163,23 +167,115 @@ func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHa
 	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(&claimsOther, opSignKey)), "expected hash to change when claims content changes")
 }
 
-// Test_NatsJWTUnlimitedCheckShouldNotBeBroken verifies that JWT lib is still broken. If this test fails, we should be able to clean up custom IsUnlimited() functions.
-// Bug: https://github.com/nats-io/jwt/issues/249 (bound to nats-io/jwt v2.8.1) JetStreamLimits.IsUnlimited() not consistent with (unlimited) NewAccountClaims
-func Test_NatsJWTUnlimitedCheckShouldNotBeBroken(t *testing.T) {
-	claims := jwt.NewAccountClaims("test")
+func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict(t *testing.T) {
+	// Given
+	var zero int64 = 0
+	boolTrue := true
 
-	require.Truef(t, claims.Limits.AccountLimits.IsUnlimited(), "expected AccountLimits to be unlimited by default")
-	require.Truef(t, claims.Limits.NatsLimits.IsUnlimited(), "expected NatsLimits to be unlimited by default")
+	builder := newAccountClaimsBuilder("my-claims", "ACCID", &boolTrue).
+		jetStreamLimits(&v1alpha1.JetStreamLimits{DiskStorage: &zero, MemoryStorage: &zero})
 
-	// Verify temporary fix:
-	// isUnlimitedJetStreamLimits and newUnlimitedJetStreamLimits should be deleted when the bug is fixed.
-	require.Truef(t, isUnlimitedJetStreamLimits(claims.Limits.JetStreamLimits), "expected JetStreamLimits to be unlimited by default using custom check")
-	require.Equalf(t, claims.Limits.JetStreamLimits, newUnlimitedJetStreamLimits(), "expected default NewAccountClaim JetStreamLimits to match newUnlimitedJetStreamLimits()")
+	// When
+	claims, err := builder.build()
 
-	// Verify issue:
-	require.Falsef(t, claims.Limits.JetStreamLimits.IsUnlimited(), "expected JWT lib to still be broken for JetStreamLimits.IsUnlimited()")
-	require.Falsef(t, claims.Limits.IsUnlimited(), "expected JWT lib to still be broken for OperatorLimits.IsUnlimited()")
+	// Then
+	require.ErrorContains(t, err, "ambiguous JetStream config; requested to be enabled, but no allowed MemoryStorage or DiskStorage supplied")
+	require.Nil(t, claims)
 
+}
+
+func Test_validateJetStreamLimits(t *testing.T) {
+	operatorLimitsDefault := jwt.NewAccountClaims("test").Limits
+	boolTrue := true
+	boolFalse := false
+
+	testCases := []struct {
+		description             string
+		jetStreamExpected       *bool
+		limits                  jwt.OperatorLimits
+		expectLimitsToEnablesJS bool
+		expectErr               string
+	}{
+		{
+			description:             "no expectation should succeed when default OperatorLimits",
+			jetStreamExpected:       nil,
+			limits:                  operatorLimitsDefault,
+			expectLimitsToEnablesJS: false,
+		},
+		{
+			description:       "no expectation should succeed when limits will enable JetStream",
+			jetStreamExpected: nil,
+			limits: jwt.OperatorLimits{
+				JetStreamLimits: jwt.JetStreamLimits{
+					DiskStorage:   1024,
+					MemoryStorage: 1024,
+				},
+			},
+			expectLimitsToEnablesJS: true,
+		},
+		{
+			description:       "no expectation should succeed when limits will disable JetStream",
+			jetStreamExpected: nil,
+			limits: jwt.OperatorLimits{
+				JetStreamLimits: jwt.JetStreamLimits{
+					DiskStorage:   0,
+					MemoryStorage: 0,
+				},
+			},
+			expectLimitsToEnablesJS: false,
+		},
+		{
+			description:       "validation should fail when JetStream expected but JetStreamLimits implicitly disables it",
+			jetStreamExpected: &boolTrue,
+			limits: jwt.OperatorLimits{
+				JetStreamLimits: jwt.JetStreamLimits{
+					DiskStorage:   0,
+					MemoryStorage: 0,
+				},
+			},
+			expectLimitsToEnablesJS: false,
+			expectErr:               "ambiguous JetStream config; requested to be enabled, but no allowed MemoryStorage or DiskStorage supplied",
+		},
+		{
+			description:       "validation should fail when JetStream not expected but JetStreamLimits implicitly enables it with explicit DiskStorage",
+			jetStreamExpected: &boolFalse,
+			limits: jwt.OperatorLimits{
+				JetStreamLimits: jwt.JetStreamLimits{
+					DiskStorage: 1024,
+				},
+			},
+			expectLimitsToEnablesJS: true,
+			expectErr:               "ambiguous JetStream config; requested to be disabled, but supplied MemoryStorage and/or DiskStorage would implicitly enables it",
+		},
+		{
+			description:       "validation should fail when JetStream not expected but JetStreamLimits implicitly enables it with unlimited MemoryStorage",
+			jetStreamExpected: &boolFalse,
+			limits: jwt.OperatorLimits{
+				JetStreamLimits: jwt.JetStreamLimits{
+					MemoryStorage: -1,
+				},
+			},
+			expectLimitsToEnablesJS: true,
+			expectErr:               "ambiguous JetStream config; requested to be disabled, but supplied MemoryStorage and/or DiskStorage would implicitly enables it",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			// Given
+			require.Equalf(t, testCase.expectLimitsToEnablesJS, testCase.limits.IsJSEnabled(), "precondition: limits should match expected JetStream enabled state")
+
+			// When
+			err := validateJetStreamLimits(testCase.jetStreamExpected, testCase.limits)
+
+			// Then
+			if testCase.expectErr != "" {
+				require.ErrorContains(t, err, testCase.expectErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func fakeAccountId(accountRef domain.NamespacedName) string {

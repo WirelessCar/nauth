@@ -30,6 +30,13 @@ Claims:
   - name: foo find service
     subject: svc.foo.find
     type: service
+  jetStreamEnabled: true
+  jetStreamLimits:
+    consumer: -1
+    diskStorage: -1
+    maxAckPending: -1
+    memStorage: -1
+    streams: -1
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: c6061e1c21a5ede5263fe4a2aab5dd2dc9d8be3badd28695c598eef230517e7a
+ClaimsHash: 8939463579f90ea7b566498225c213b196235e6b288d808fbd86159add9795f1

@@ -17,6 +17,13 @@ Claims:
     type: stream
   - subject: sourced.bar.report
     type: service
+  jetStreamEnabled: true
+  jetStreamLimits:
+    consumer: -1
+    diskStorage: -1
+    maxAckPending: -1
+    memStorage: -1
+    streams: -1
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: ab98710c707742ee4481aaeef2815eba3fb8a570afaa1a66c5e9a27bb02a817f
+ClaimsHash: 9b219fbcfb7a204f3573c51317bfe2636a4a2e7ca977891a9d2a5c28418442c6

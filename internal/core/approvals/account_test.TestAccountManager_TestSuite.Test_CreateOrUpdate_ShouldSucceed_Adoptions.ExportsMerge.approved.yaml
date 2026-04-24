@@ -24,6 +24,13 @@ Claims:
   - name: my stream
     subject: foo.*
     type: stream
+  jetStreamEnabled: true
+  jetStreamLimits:
+    consumer: -1
+    diskStorage: -1
+    maxAckPending: -1
+    memStorage: -1
+    streams: -1
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: 6f76af53e892e75c81ca557ec45a3414ae76b8bcac24a716da88d7b853d55cc6
+ClaimsHash: 34b324f230b1342605f23eb4a5779842745688ea1b0a757366151f16dfd1afaf

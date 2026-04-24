@@ -1,15 +1,5 @@
 displayName: test-namespace/test-account
-jetStreamEnabled: true
-jetStreamLimits:
-  consumer: -1
-  diskStorage: -1
-  maxAckPending: -1
-  memStorage: -1
-  streams: -1
-natsLimits:
-  data: 1048576
-  payload: 1024
-  subs: 1000
+jetStreamEnabled: false
 signingKeys:
 - key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
 - key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

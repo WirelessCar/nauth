@@ -4,6 +4,13 @@ accountLimits:
   imports: 20
   leaf: 50
 displayName: test-namespace/test-account
+jetStreamEnabled: true
+jetStreamLimits:
+  consumer: -1
+  diskStorage: -1
+  maxAckPending: -1
+  memStorage: -1
+  streams: -1
 signingKeys:
 - key: ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4
 - key: ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG

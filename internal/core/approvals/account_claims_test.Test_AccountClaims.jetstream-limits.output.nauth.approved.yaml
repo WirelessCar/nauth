@@ -1,4 +1,5 @@
 displayName: test-namespace/test-account
+jetStreamEnabled: true
 jetStreamLimits:
   consumer: 100
   diskMaxStreamBytes: 1073741824

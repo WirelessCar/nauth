@@ -1,0 +1,5 @@
+jetStreamEnabled: true
+jetStreamLimits:
+  diskStorage: 5368709120
+  streams: 5
+  consumer: 50

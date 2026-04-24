@@ -1,0 +1,4 @@
+jetStreamEnabled: false
+jetStreamLimits:
+  streams: 5
+  consumer: 50
