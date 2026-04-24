@@ -16,9 +16,39 @@ commands:
       kubectl exec -i -n nats "$pod" -- sh -c "cat > /tmp/stream-writer.creds" < "$creds_file"
       kubectl exec -n nats "$pod" -- sh -c "grep -q 'BEGIN USER NKEY SEED' /tmp/stream-writer.creds"
 
-      response="$(
-        kubectl exec -n nats "$pod" -- sh -lc \
-          "nats --server='nats://nats.nats.svc.cluster.local:4222' --creds /tmp/stream-writer.creds req '\$JS.API.STREAM.CREATE.ORDERS' '{\"name\":\"ORDERS\",\"subjects\":[\"orders.>\"]}' && rm -f /tmp/stream-writer.creds"
-      )"
+      attempts=0
+      while true; do
+        attempts=$((attempts + 1))
 
-      printf '%s' "$response" | grep -q '"type":"io.nats.jetstream.api.v1.stream_create_response"'
+        set +e
+        response="$(
+          kubectl exec -n nats "$pod" -- sh -lc \
+            "nats --server='nats://nats.nats.svc.cluster.local:4222' --creds /tmp/stream-writer.creds req '\$JS.API.STREAM.CREATE.ORDERS' '{\"name\":\"ORDERS\",\"subjects\":[\"orders.>\"]}'"
+        )"
+        status=$?
+        set -e
+
+        if [ "$status" -eq 0 ] && printf '%s' "$response" | grep -q '"type":"io.nats.jetstream.api.v1.stream_create_response"'; then
+          if printf '%s' "$response" | grep -q '"error"'; then
+            echo "stream creation returned an error:"
+            printf '%s\n' "$response"
+            exit 1
+          fi
+          break
+        fi
+
+        if [ "$attempts" -ge 5 ]; then
+          echo "stream creation request never succeeded after $attempts attempts"
+          echo "last exit code: $status"
+          echo "last response:"
+          printf '%s\n' "$response"
+          exit 1
+        fi
+
+        echo "stream creation attempt $attempts failed; retrying"
+        echo "exit code: $status"
+        printf '%s\n' "$response"
+        sleep 1
+      done
+
+      kubectl exec -n nats "$pod" -- rm -f /tmp/stream-writer.creds
