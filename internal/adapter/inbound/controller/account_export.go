@@ -23,7 +23,7 @@ import (
 	"reflect"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -78,40 +78,157 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	account := &v1alpha1.Account{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account); err != nil {
-		if !apierrors.IsNotFound(err) {
-			log.Error(err, "Failed to read account", "accountName", state.Spec.AccountName)
-			// TODO: #11 return quick in case account fetch failed.
+	updateConditionFalse := func(condType string, reason string, msg string) {
+		meta.SetStatusCondition(state.GetConditions(), newCondition(condType, metav1.ConditionFalse, reason, msg))
+	}
+	updateConditionTrue := func(condType string) {
+		meta.SetStatusCondition(state.GetConditions(), newCondition(condType, metav1.ConditionTrue, conditionReasonOK, ""))
+	}
+
+	var rules nauth.ExportRules
+	for _, rule := range state.Spec.Rules {
+		rules = append(rules, mapToExportRule(rule))
+	}
+
+	err := r.manager.ValidateRules(ctx, rules)
+	if err != nil {
+		updateConditionFalse(conditionTypeValidRules, conditionReasonInvalid, err.Error())
+	} else {
+		updateConditionTrue(conditionTypeValidRules)
+		(&state.Status).DesiredClaim = &v1alpha1.AccountExportClaim{
+			Rules:              state.Spec.Rules,
+			ObservedGeneration: state.Generation,
 		}
 	}
 
-	resolution := r.manager.Resolve(ctx, state, account)
-	patchLabels, updateStatus := mapResolutionToStatus(resolution, state)
+	patchLabels := false
+
+	account := &v1alpha1.Account{}
+	accountErr := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account)
+	if accountErr != nil {
+		if !apierrors.IsNotFound(err) {
+			log.Error(err, "Failed to read account", "accountName", state.Spec.AccountName)
+			msg := fmt.Sprintf("failed to read account: %v", err)
+			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonFailed, msg)
+		} else {
+			// account not found
+			msg := "Account not found"
+			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonNotFound, msg)
+		}
+	} else {
+		// account binding
+		accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
+		state.Status.AccountID = accountID
+		existingLabel := state.GetLabel(v1alpha1.AccountExportLabelAccountID)
+
+		if existingLabel == "" && accountID != "" {
+			// bind
+			state.SetLabel(v1alpha1.AccountExportLabelAccountID, accountID)
+			patchLabels = true
+		} else if existingLabel != "" && existingLabel != accountID {
+			// conflict
+			msg := fmt.Sprintf("account export is already bound to account: %s", existingLabel)
+			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonConflict, msg)
+		} else {
+			// bound
+			updateConditionTrue(conditionTypeBoundToAccount)
+		}
+
+		adoption := findAdoptionByUID(account, state.UID)
+		if adoption == nil {
+			// adoption not found
+			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, "waiting for account to adopt export")
+		} else {
+			adoptionGen := adoption.Status.DesiredClaimObservedGeneration
+			sameGeneration := adoptionGen != nil && *adoptionGen == state.Generation
+			if adoption.Status.Status == metav1.ConditionTrue && sameGeneration {
+				updateConditionTrue(conditionTypeAdoptedByAccount)
+			} else {
+				if !sameGeneration {
+					msg := fmt.Sprintf("waiting for account to adopt generation %d", state.Generation)
+					updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, msg)
+				} else {
+					msg := fmt.Sprintf("%s: %s", adoption.Status.Reason, adoption.Status.Message)
+					updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, msg)
+				}
+			}
+		}
+	}
+
+	// ready condition
+	if isAccountExportReady(state) {
+		updateConditionTrue(conditionTypeReady)
+	} else {
+		updateConditionFalse(conditionTypeReady, conditionReasonReconciling, "All conditions not met")
+	}
 
 	if patchLabels {
-		err := r.patchLabels(ctx, state)
+		err = r.patchLabels(ctx, state)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to patch labels: %w", err)
 		}
-		// TODO: #11 Can we patch without returning, and update status in same reconcile loop?
 		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
-	if updateStatus {
-		// TODO: #11 Can we safely implement the updateStatus flag, currently always true
-		// TODO: #11 This would make watches simpler (not needing to be so specific)
-		if updateErr := r.Status().Update(ctx, state); updateErr != nil {
-			log.Error(updateErr, "Failed to update status")
-			return ctrl.Result{}, updateErr
+	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
+		log.Error(updateErr, "Failed to update status: %w", updateErr)
+		return ctrl.Result{}, updateErr
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) *v1alpha1.AccountAdoption {
+	if account.Status.Adoptions == nil {
+		return nil
+	}
+
+	for _, adoption := range account.Status.Adoptions.Exports {
+		if adoption.UID == uid {
+			return &adoption
 		}
 	}
 
-	// TODO: #11 Remove logging when i/e feature is complete
-	if meta.IsStatusConditionTrue(state.Status.Conditions, conditionTypeReady) {
-		log.Info("AccountExport reconciliation Ready")
+	return nil
+}
+
+func mapToExportRule(rule v1alpha1.AccountExportRule) nauth.ExportRule {
+	result := nauth.ExportRule{
+		Name:              rule.Name,
+		Subject:           nauth.Subject(rule.Subject),
+		Type:              mapExportType(rule.Type),
+		ResponseType:      nauth.ResponseType(rule.ResponseType),
+		ResponseThreshold: rule.ResponseThreshold,
 	}
-	return ctrl.Result{}, nil
+
+	if rule.Latency != nil {
+		result.Latency = &nauth.ServiceLatency{
+			Sampling: nauth.SamplingRate(rule.Latency.Sampling),
+			Results:  nauth.Subject(rule.Latency.Results),
+		}
+	}
+	if rule.AccountTokenPosition != nil {
+		result.AccountTokenPosition = *rule.AccountTokenPosition
+	}
+	if rule.Advertise != nil {
+		result.Advertise = *rule.Advertise
+	}
+	if rule.AllowTrace != nil {
+		result.AllowTrace = *rule.AllowTrace
+	}
+
+	return result
+}
+
+func mapExportType(t v1alpha1.ExportType) nauth.ExportType {
+	switch t {
+	case v1alpha1.Service:
+		return nauth.ExportTypeService
+	case v1alpha1.Stream:
+		return nauth.ExportTypeStream
+	}
+
+	return nauth.ExportTypeUnknown
 }
 
 func (r *AccountExportReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -241,88 +358,6 @@ func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1a
 		return fmt.Errorf("failed to patch label: %w", err)
 	}
 	return nil
-}
-
-func mapResolutionToStatus(resolution *domain.AccountExportResolution, state *v1alpha1.AccountExport) (patchLabels bool, updateStatus bool) {
-	patchLabels = false
-	updateStatus = true
-	status := &state.Status
-
-	updateConditionFalse := func(condType string, reason string, msg string) {
-		meta.SetStatusCondition(&status.Conditions, newCondition(condType, metav1.ConditionFalse, reason, msg))
-	}
-	updateConditionTrue := func(condType string) {
-		meta.SetStatusCondition(&status.Conditions, newCondition(condType, metav1.ConditionTrue, conditionReasonOK, ""))
-	}
-
-	// rule validations
-	if resolution.ValidationError != nil {
-		updateConditionFalse(conditionTypeValidRules, conditionReasonInvalid, resolution.ValidationError.Error())
-	} else {
-		updateConditionTrue(conditionTypeValidRules)
-		status.DesiredClaim = &v1alpha1.AccountExportClaim{
-			Rules:              resolution.DesiredClaim.Rules,
-			ObservedGeneration: resolution.ObservedGeneration,
-		}
-	}
-
-	// account lookup
-	if resolution.AccountID != "" {
-		status.AccountID = resolution.AccountID
-	}
-
-	// account binding
-	switch resolution.BindingState {
-	case domain.AccountBindingStateMissing:
-		if resolution.AccountID != "" {
-			state.SetLabel(v1alpha1.AccountExportLabelAccountID, resolution.AccountID)
-			patchLabels = true
-			msg := fmt.Sprintf("Binding to Account ID: %s", resolution.AccountID)
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonBinding, msg)
-		} else {
-			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeBoundToAccount, conditionReasonNotFound, msg)
-		}
-
-	case domain.AccountBindingStateConflict:
-		msg := fmt.Sprintf("Account ID conflict: previously bound to %s, now found %s", resolution.BoundAccountID, resolution.AccountID)
-		updateConditionFalse(conditionTypeBoundToAccount, conditionReasonConflict, msg)
-
-	case domain.AccountBindingStateBound:
-		updateConditionTrue(conditionTypeBoundToAccount)
-
-	default:
-		updateConditionFalse(conditionTypeBoundToAccount, conditionReasonErrored, "Unknown binding state")
-	}
-
-	// account adoption condition
-	switch resolution.AdoptionState {
-	case domain.AccountAdoptionStateMissing:
-		if resolution.AccountID == "" {
-			msg := "Account not found or could not be read"
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonNotFound, msg)
-		} else {
-			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, resolution.AdoptionError.Error())
-		}
-
-	case domain.AccountAdoptionStateNotAdopted:
-		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, resolution.AdoptionError.Error())
-
-	case domain.AccountAdoptionStateAdopted:
-		updateConditionTrue(conditionTypeAdoptedByAccount)
-
-	default:
-		updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonErrored, "Unknown adopted state")
-	}
-
-	// ready condition
-	if isAccountExportReady(state) {
-		updateConditionTrue(conditionTypeReady)
-	} else {
-		updateConditionFalse(conditionTypeReady, conditionReasonReconciling, "All conditions not met")
-	}
-
-	return patchLabels, updateStatus
 }
 
 func isAccountExportReady(state *v1alpha1.AccountExport) bool {
