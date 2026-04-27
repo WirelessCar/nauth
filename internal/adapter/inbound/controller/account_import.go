@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -86,9 +87,11 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	meta.SetStatusCondition(state.GetConditions(), exportAccountCondition)
 
-	if err := r.upsertLabels(ctx, state, importAccountID, exportAccountID); err != nil {
+	if labelsUpdated, err := r.upsertLabels(ctx, state, importAccountID, exportAccountID); err != nil {
 		log.Error(err, "Failed to upsert labels")
 		return ctrl.Result{}, err
+	} else if labelsUpdated {
+		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 
 	// TODO: [#11] Validate rules
@@ -176,7 +179,7 @@ func (r *AccountImportReconciler) getConditionedAccount(ctx context.Context, acc
 	}
 }
 
-func (r *AccountImportReconciler) upsertLabels(ctx context.Context, resource *v1alpha1.AccountImport, importAccountID string, exportAccountID string) error {
+func (r *AccountImportReconciler) upsertLabels(ctx context.Context, resource *v1alpha1.AccountImport, importAccountID string, exportAccountID string) (updated bool, err error) {
 	patch := false
 	if importAccountID != "" && importAccountID != resource.GetLabel(v1alpha1.AccountImportLabelAccountID) {
 		resource.SetLabel(v1alpha1.AccountImportLabelAccountID, importAccountID)
@@ -194,13 +197,14 @@ func (r *AccountImportReconciler) upsertLabels(ctx context.Context, resource *v1
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("failed to generate patch for labels: %w", err)
+			return false, fmt.Errorf("failed to generate patch for labels: %w", err)
 		}
 		if err = r.Patch(ctx, resource, client.RawPatch(types.MergePatchType, patchData)); err != nil {
-			return fmt.Errorf("failed to patch labels: %w", err)
+			return false, fmt.Errorf("failed to patch labels: %w", err)
 		}
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func (r *AccountImportReconciler) setConditions(state *v1alpha1.AccountImport, subConditions ...metav1.Condition) {

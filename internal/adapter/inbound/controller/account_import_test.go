@@ -79,22 +79,25 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	}))
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
 
 	// Then
 	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful reconciliation")
 
-	result := &v1alpha1.AccountImport{}
-	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, result))
-	t.assertCondition(result, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(result, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(result, conditionTypeValidRules, metav1.ConditionFalse, "NotImplemented")
+	resource := &v1alpha1.AccountImport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
+	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionFalse, "NotImplemented")
 	// TODO: [#11] Verify rules validation condition
-	t.assertCondition(result, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
+	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
 	// TODO: [#11] Verify account adoption condition
-	t.assertCondition(result, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
-	t.Equal(importAccountID, result.GetLabel(v1alpha1.AccountImportLabelAccountID))
-	t.Equal(exportAccountID, result.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.Equal(importAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
+	t.Equal(exportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful status update")
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExportAccountInImplicitSameNamespace() {
@@ -124,17 +127,19 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 	}))
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
 
 	// Then
 	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful reconciliation")
 
-	result := &v1alpha1.AccountImport{}
-	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, result))
-	t.assertCondition(result, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(result, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.Equal(importAccountID, result.GetLabel(v1alpha1.AccountImportLabelAccountID))
-	t.Equal(exportAccountID, result.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	resource := &v1alpha1.AccountImport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
+	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.Equal(importAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
+	t.Equal(exportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImportAccountIsNotReady() {
@@ -163,21 +168,26 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImpo
 	}))
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+	result, err := t.runReconcileLoopForNewResource("", exportAccountID)
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful reconciliation")
 
 	// Then
 	t.Require().NoError(err)
 
-	result := &v1alpha1.AccountImport{}
-	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, result))
+	resource := &v1alpha1.AccountImport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
 
-	condition := t.assertCondition(result, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonInvalid)
+	condition := t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonInvalid)
 	t.Contains(condition.Message, "not bound to an Account ID yet")
-	t.Equal("", result.GetLabel(v1alpha1.AccountImportLabelAccountID))
+	t.Equal("", resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
 
-	t.assertCondition(result, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(result, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
-	t.Equal(exportAccountID, result.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.Equal(exportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExportAccountIsNotReady() {
@@ -206,21 +216,23 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 	}))
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+	result, err := t.runReconcileLoopForNewResource(accountID, "")
 
 	// Then
 	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful reconciliation")
 
-	result := &v1alpha1.AccountImport{}
-	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, result))
+	resource := &v1alpha1.AccountImport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
 
-	condition := t.assertCondition(result, conditionTypeBoundToExportAccount, metav1.ConditionFalse, conditionReasonInvalid)
+	condition := t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionFalse, conditionReasonInvalid)
 	t.Contains(condition.Message, "not bound to an Account ID yet")
-	t.Equal("", result.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	t.Equal("", resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
 
-	t.assertCondition(result, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(result, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
-	t.Equal(accountID, result.GetLabel(v1alpha1.AccountImportLabelAccountID))
+	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.Equal(accountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenResourceNotFound() {
@@ -290,6 +302,22 @@ func (t *AccountImportControllerTestSuite) Test_getConditionedAccount_ShouldRetu
 }
 
 // Helpers
+
+func (t *AccountImportControllerTestSuite) runReconcileLoopForNewResource(expectAccountID string, expectExportAccountID string) (ctrl.Result, error) {
+	// 1) expect labels to be upserted
+	resource := &v1alpha1.AccountImport{}
+	result, err := t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().NotEmpty(result.RequeueAfter, "reconcile requeue expected after labels upsert")
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
+	t.Require().Equalf(expectAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID), "Account ID label mismatch")
+	t.Require().Equalf(expectExportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID), "Export Account ID label mismatch")
+	t.Require().Nil(resource.Status.Conditions, "no Status Conditions expected after first reconcile run")
+
+	// 2) expect conditions to be updated
+	return t.unitUnderTest.Reconcile(t.ctx, ctrl.Request{NamespacedName: t.importNamespacedName})
+}
 
 func (t *AccountImportControllerTestSuite) assertCondition(result *v1alpha1.AccountImport, conditionType string,
 	expectStatus metav1.ConditionStatus, expectReason string) metav1.Condition {
