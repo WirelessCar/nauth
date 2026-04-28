@@ -21,12 +21,10 @@ type accountClaimsBuilder struct {
 }
 
 func newAccountClaimsBuilder(
-	displayName string,
 	accountPublicKey string,
 	jetStreamEnabled *bool,
 ) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
-	claim.Name = displayName
 	if jetStreamEnabled == nil || *jetStreamEnabled {
 		// TODO: [#245] Switch to opt-in (enabled != nil && enabled) once we are ready to release a breaking change
 		// Initialize claims with unlimited JetStream (to comply with current NAuth behaviour, later this will be due to explicit request)
@@ -41,6 +39,11 @@ func newAccountClaimsBuilder(
 		jetStreamRequested: jetStreamEnabled,
 		claim:              claim,
 	}
+}
+
+func (b *accountClaimsBuilder) displayName(name string) *accountClaimsBuilder {
+	b.claim.Name = name
+	return b
 }
 
 func (b *accountClaimsBuilder) accountLimits(limits *v1alpha1.AccountLimits) *accountClaimsBuilder {
@@ -131,16 +134,19 @@ func (b *accountClaimsBuilder) exports(exports v1alpha1.Exports) *accountClaimsB
 	return b
 }
 
-func (b *accountClaimsBuilder) imports(imports nauth.Imports) *accountClaimsBuilder {
-	for _, imp := range imports {
-		jwtImport := toJWTImport(*imp)
-		result, mergeErr := mergeJWTImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
-		if mergeErr != nil {
-			b.errs = append(b.errs, fmt.Errorf("failed to add import %q: %w", imp.Name, mergeErr))
+func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
+	if len(group.Imports) == 0 {
+		return fmt.Errorf("import group %q has no imports", group.Name)
+	}
+	for _, i := range group.Imports {
+		jwtImport := toJWTImport(*i)
+		result, err := mergeJWTImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
+		if err != nil {
+			return fmt.Errorf("failed to add import %q from group %q: %w", i.Name, group.Name, err)
 		}
 		b.claim.Imports = result
 	}
-	return b
+	return nil
 }
 
 func (b *accountClaimsBuilder) addExportRuleGroup(rules []v1alpha1.AccountExportRule) error {

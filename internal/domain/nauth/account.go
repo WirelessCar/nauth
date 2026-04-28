@@ -13,6 +13,11 @@ const (
 	ExportTypeService ExportType = "service"
 )
 
+type ImportGroup struct {
+	Name    string  `json:"name,omitempty"`
+	Imports Imports `json:"imports,omitempty"`
+}
+
 type Imports []*Import
 
 type Import struct {

@@ -17,6 +17,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+const GroupNameInline = "inline"
+
 type AccountManager struct {
 	natsSysClient         outbound.NatsSysClient
 	natsAccClient         outbound.NatsAccountClient
@@ -153,17 +155,12 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	}
 
 	accountIDReader := cachedAccountIDReader(ctx, a.accountReader)
-	inlineImports, err := toInlineImports(accountIDReader, account.Spec.Imports)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert account inline imports domain model: %w", err)
+	claimsBuilder := newAccountClaimsBuilder(accountPublicKey, account.Spec.JetStreamEnabled).
+		displayName(getDisplayName(account)).
+		signingKey(accountSigningPublicKey)
+	if err = applySpec(accountIDReader, claimsBuilder, account.Spec); err != nil {
+		return nil, fmt.Errorf("failed to prepare account claims: %w", err)
 	}
-	claimsBuilder := newAccountClaimsBuilder(getDisplayName(account), accountPublicKey, account.Spec.JetStreamEnabled).
-		accountLimits(account.Spec.AccountLimits).
-		jetStreamLimits(account.Spec.JetStreamLimits).
-		natsLimits(account.Spec.NatsLimits).
-		exports(account.Spec.Exports).
-		imports(inlineImports)
-	claimsBuilder.signingKey(accountSigningPublicKey)
 	adoptions := &v1alpha1.AccountAdoptions{
 		Exports: adoptExports(claimsBuilder, resources.Exports),
 	}
@@ -207,6 +204,25 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 		ClaimsHash:      claimsHash,
 		Adoptions:       adoptions,
 	}, nil
+}
+
+func applySpec(accountIDReader resolveAccountIDFn, builder *accountClaimsBuilder, spec v1alpha1.AccountSpec) error {
+	builder.
+		accountLimits(spec.AccountLimits).
+		jetStreamLimits(spec.JetStreamLimits).
+		natsLimits(spec.NatsLimits).
+		exports(spec.Exports)
+	if len(spec.Imports) > 0 {
+		inlineImportGroup, inlineImportsErr := toInlineImportGroup(accountIDReader, spec.Imports)
+		if inlineImportsErr != nil {
+			return fmt.Errorf("failed to convert inline imports to domain model: %w", inlineImportsErr)
+		}
+		err := builder.addImportGroup(*inlineImportGroup)
+		if err != nil {
+			return fmt.Errorf("failed to add inline imports: %w", err)
+		}
+	}
+	return nil
 }
 
 func adoptExports(builder *accountClaimsBuilder, exports []v1alpha1.AccountExport) []v1alpha1.AccountAdoption {
@@ -522,19 +538,23 @@ func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountRe
 	}
 }
 
-func toInlineImports(reader resolveAccountIDFn, imports v1alpha1.Imports) (nauth.Imports, error) {
-	var result nauth.Imports
-	for _, source := range imports {
+func toInlineImportGroup(reader resolveAccountIDFn, sources v1alpha1.Imports) (*nauth.ImportGroup, error) {
+	if len(sources) == 0 {
+		return nil, fmt.Errorf("no inline imports defined")
+	}
+
+	var imports nauth.Imports
+	for _, source := range sources {
 		accountRef := domain.NewNamespacedName(source.AccountRef.Namespace, source.AccountRef.Name)
 		var err error
 		accountID, err := reader(accountRef)
 		if err != nil {
-			return result, fmt.Errorf("failed to resolve account ID for import %s: %w", accountRef, err)
+			return nil, fmt.Errorf("failed to resolve account ID for inline import %s: %w", accountRef, err)
 		}
 		if accountID == "" {
-			return result, fmt.Errorf("account ID is missing for import %s", accountRef)
+			return nil, fmt.Errorf("account ID is missing for inline import %s", accountRef)
 		}
-		result = append(result, &nauth.Import{
+		imports = append(imports, &nauth.Import{
 			AccountID:    nauth.AccountID(accountID),
 			Name:         source.Name,
 			Subject:      nauth.Subject(source.Subject),
@@ -544,7 +564,10 @@ func toInlineImports(reader resolveAccountIDFn, imports v1alpha1.Imports) (nauth
 			AllowTrace:   source.AllowTrace,
 		})
 	}
-	return result, nil
+	return &nauth.ImportGroup{
+		Name:    GroupNameInline,
+		Imports: imports,
+	}, nil
 }
 
 func toNAuthExportTypeFromAPI(exportType v1alpha1.ExportType) nauth.ExportType {

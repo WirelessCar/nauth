@@ -47,12 +47,19 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			unitUnderTest := func(spec *TestAccountClaimsSpec) (*jwt.AccountClaims, error) {
-				builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey, spec.JetStreamEnabled).
+				builder := newAccountClaimsBuilder(testClaimsAccountPubKey, spec.JetStreamEnabled).
+					displayName(testClaimsDisplayName).
 					accountLimits(spec.AccountLimits).
 					jetStreamLimits(spec.JetStreamLimits).
 					natsLimits(spec.NatsLimits).
-					exports(spec.Exports).
-					imports(spec.Imports)
+					exports(spec.Exports)
+				if len(spec.Imports) > 0 {
+					inlineImportGroup := nauth.ImportGroup{
+						Name:    GroupNameInline,
+						Imports: spec.Imports,
+					}
+					require.NoError(t, builder.addImportGroup(inlineImportGroup))
+				}
 				builder.signingKey(testClaimsSigningKey01)
 				builder.signingKey(testClaimsSigningKey02)
 				return builder.build()
@@ -107,7 +114,7 @@ func Test_AccountClaims(t *testing.T) {
 
 func Test_AccountClaims_addExportRuleGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
 	// Given
-	builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey, nil).
+	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil).
 		exports(v1alpha1.Exports{
 			{
 				Subject: "foo.>",
@@ -204,7 +211,7 @@ func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict
 	var zero int64 = 0
 	boolTrue := true
 
-	builder := newAccountClaimsBuilder("my-claims", "ACCID", &boolTrue).
+	builder := newAccountClaimsBuilder("ACCID", &boolTrue).
 		jetStreamLimits(&v1alpha1.JetStreamLimits{DiskStorage: &zero, MemoryStorage: &zero})
 
 	// When

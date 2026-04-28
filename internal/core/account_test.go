@@ -641,8 +641,8 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "failed to build NATS account claims")
-	t.ErrorContains(err, "failed to add import \"import-twice\":")
+	t.ErrorContains(err, "failed to add inline imports")
+	t.ErrorContains(err, "failed to add import \"import-twice\"")
 }
 
 func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
@@ -654,7 +654,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	accountSignKeyPublic, _ := accountSignKey.PublicKey()
 
 	existingNatsLimitsSubs := int64(100)
-	existingClaims, err := newAccountClaimsBuilder("Existing Account", accountID, nil).
+	existingClaims, err := newAccountClaimsBuilder(accountID, nil).
 		natsLimits(&v1alpha1.NatsLimits{Subs: &existingNatsLimitsSubs}).
 		signingKey(accountSignKeyPublic).
 		build()
