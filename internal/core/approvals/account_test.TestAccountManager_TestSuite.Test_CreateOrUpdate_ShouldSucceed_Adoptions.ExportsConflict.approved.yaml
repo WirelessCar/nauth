@@ -13,8 +13,8 @@ Adoptions:
     observedGeneration: 1
     status:
       desiredClaimObservedGeneration: 1
-      message: 'rules adoption failed: stream export subject "foo.*" already exports
-        "foo.*"'
+      message: 'failed to append export rule group: stream export subject "foo.*"
+        already exports "foo.*"'
       reason: Invalid
       status: "False"
     uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707

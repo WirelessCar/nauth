@@ -13,7 +13,8 @@ Adoptions:
     observedGeneration: 1
     status:
       desiredClaimObservedGeneration: 1
-      message: 'rules adoption failed: subject "invalid subject" cannot have spaces'
+      message: 'failed to append export rule group: subject "invalid subject" cannot
+        have spaces'
       reason: Invalid
       status: "False"
     uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707

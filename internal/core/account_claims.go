@@ -143,51 +143,56 @@ func (b *accountClaimsBuilder) imports(imports v1alpha1.Imports, resolveAccountI
 				accountRef,
 				err))
 		} else {
-			b.claim.Imports.Add(&jwt.Import{
+			jwtImport := &jwt.Import{
 				Name:         imp.Name,
 				Subject:      jwt.Subject(imp.Subject),
 				Type:         jwt.ExportType(imp.Type.ToInt()),
 				Account:      exportAccountID,
 				LocalSubject: jwt.RenamingSubject(imp.LocalSubject),
-			})
+				Share:        imp.Share,
+				AllowTrace:   imp.AllowTrace,
+			}
+			result, mergeErr := mergeImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
+			if mergeErr != nil {
+				b.errs = append(b.errs, fmt.Errorf("failed to add import %q: %w", imp.Name, mergeErr))
+			}
+			b.claim.Imports = result
 		}
 	}
 	return b
 }
 
 func (b *accountClaimsBuilder) addExportRuleGroup(rules []v1alpha1.AccountExportRule) error {
-	tmpClaim := *b.claim
-	for _, rule := range rules {
-		export := jwt.Export{
+	jwtExports := make(jwt.Exports, len(rules))
+	for i, rule := range rules {
+		jwtExport := jwt.Export{
 			Name:         rule.Name,
 			Subject:      jwt.Subject(rule.Subject),
 			Type:         toJWTExportType(rule.Type),
 			ResponseType: jwt.ResponseType(rule.ResponseType),
 		}
 		if rule.ResponseThreshold != nil {
-			export.ResponseThreshold = *rule.ResponseThreshold
+			jwtExport.ResponseThreshold = *rule.ResponseThreshold
 		}
 		if rule.Latency != nil {
-			export.Latency = toJWTServiceLatency(*rule.Latency)
+			jwtExport.Latency = toJWTServiceLatency(*rule.Latency)
 		}
 		if rule.AccountTokenPosition != nil {
-			export.AccountTokenPosition = *rule.AccountTokenPosition
+			jwtExport.AccountTokenPosition = *rule.AccountTokenPosition
 		}
 		if rule.Advertise != nil {
-			export.Advertise = *rule.Advertise
+			jwtExport.Advertise = *rule.Advertise
 		}
 		if rule.AllowTrace != nil {
-			export.AllowTrace = *rule.AllowTrace
+			jwtExport.AllowTrace = *rule.AllowTrace
 		}
-		tmpClaim.Exports = appendExportIfMissing(tmpClaim.Exports, export)
+		jwtExports[i] = &jwtExport
 	}
-	validationResults := &jwt.ValidationResults{}
-	tmpClaim.Exports.Validate(validationResults)
-	validationErrors := validationResults.Errors()
-	if len(validationErrors) != 0 {
-		return fmt.Errorf("rules adoption failed: %w", errors.Join(validationErrors...))
+	result, err := mergeExports(b.claim.Exports, jwtExports)
+	if err != nil {
+		return fmt.Errorf("failed to append export rule group: %w", err)
 	}
-	b.claim.Exports = tmpClaim.Exports
+	b.claim.Exports = result
 	return nil
 }
 
@@ -395,13 +400,80 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 
 // Helpers
 
-func appendExportIfMissing(exports jwt.Exports, export jwt.Export) jwt.Exports {
-	for _, existing := range exports {
-		if existing != nil && reflect.DeepEqual(export, *existing) {
-			return exports
+func mergeExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error) {
+	tmpExports := existing
+	appendIfMissing := func(haystack jwt.Exports, needle jwt.Export) jwt.Exports {
+		for _, e := range haystack {
+			if e != nil && reflect.DeepEqual(*e, needle) {
+				return haystack
+			}
+		}
+		return append(haystack, &needle)
+	}
+	for _, e := range extras {
+		tmpExports = appendIfMissing(tmpExports, *e)
+	}
+	valResults := &jwt.ValidationResults{}
+	tmpExports.Validate(valResults)
+	validationErrors := valResults.Errors()
+	if len(validationErrors) != 0 {
+		return existing, errors.Join(validationErrors...)
+	}
+	return tmpExports, nil
+}
+
+func validateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
+	_, err := mergeImportRules(importAccountID, nil, rules)
+	return err
+}
+
+func mergeImportRules(importAccountID string, existing jwt.Imports, rules []v1alpha1.AccountImportRuleDerived) (jwt.Imports, error) {
+	jwtImports := make(jwt.Imports, len(rules))
+	for i, rule := range rules {
+		jwtImport := jwt.Import{
+			Account:      rule.Account,
+			Name:         rule.Name,
+			Subject:      jwt.Subject(rule.Subject),
+			Type:         toJWTExportType(rule.Type),
+			LocalSubject: jwt.RenamingSubject(rule.LocalSubject),
+		}
+		if rule.Share != nil {
+			jwtImport.Share = *rule.Share
+		}
+		if rule.AllowTrace != nil {
+			jwtImport.AllowTrace = *rule.AllowTrace
+		}
+		jwtImports[i] = &jwtImport
+	}
+	result, err := mergeImports(importAccountID, existing, jwtImports)
+	if err != nil {
+		return existing, err
+	}
+	return result, nil
+}
+
+func mergeImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
+	tmpResult := existing
+	appendIfMissing := func(haystack jwt.Imports, needle jwt.Import) jwt.Imports {
+		for _, e := range haystack {
+			if e != nil && reflect.DeepEqual(*e, needle) {
+				return haystack
+			}
+		}
+		return append(haystack, &needle)
+	}
+	for _, e := range extras {
+		if e != nil {
+			tmpResult = appendIfMissing(tmpResult, *e)
 		}
 	}
-	return append(exports, &export)
+	valResults := &jwt.ValidationResults{}
+	tmpResult.Validate(importAccountID, valResults)
+	validationErrors := valResults.Errors()
+	if len(validationErrors) != 0 {
+		return existing, errors.Join(validationErrors...)
+	}
+	return tmpResult, nil
 }
 
 func toJWTExportType(source v1alpha1.ExportType) jwt.ExportType {

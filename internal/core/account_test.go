@@ -602,7 +602,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 				string(v1alpha1.AccountLabelAccountID): importAccountID,
 			},
 		},
-	})
+	}).Once()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
@@ -641,8 +641,8 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "failed to sign account jwt")
-	t.ErrorContains(err, "account claims validation failed")
+	t.ErrorContains(err, "failed to build NATS account claims")
+	t.ErrorContains(err, "failed to add import \"import-twice\":")
 }
 
 func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {

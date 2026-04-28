@@ -7,13 +7,6 @@
   "nats": {
     "imports": [
       {
-        "name": "my-complex",
-        "subject": "complex.\u003e",
-        "account": "A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE",
-        "local_subject": "imported.complex.\u003e",
-        "type": "stream"
-      },
-      {
         "name": "my-service-import",
         "subject": "foo.service.\u003e",
         "account": "A000000000000000000000000000000SERVICEACCOUNTMYNAMESPACE",
@@ -26,6 +19,22 @@
         "account": "A0000000000000000000000000000000STREAMACCOUNTMYNAMESPACE",
         "local_subject": "imported.foo.stream.\u003e",
         "type": "stream"
+      },
+      {
+        "name": "my-max-service",
+        "subject": "max.service.\u003e",
+        "account": "A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE",
+        "local_subject": "imported.max.service.\u003e",
+        "type": "service",
+        "share": true
+      },
+      {
+        "name": "my-max-stream",
+        "subject": "max.stream.\u003e",
+        "account": "A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE",
+        "local_subject": "imported.max.stream.\u003e",
+        "type": "stream",
+        "allow_trace": true
       }
     ],
     "limits": {

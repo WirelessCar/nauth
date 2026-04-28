@@ -13,12 +13,19 @@ imports:
     subject: foo.service.>
     localSubject: imported.foo.service.>
     type: service
-  - name: my-complex
+  - name: my-max-stream
     accountRef:
       namespace: my-namespace
       name: complex-account
-    subject: complex.>
-    localSubject: imported.complex.>
+    subject: max.stream.>
+    localSubject: imported.max.stream.>
     type: stream
-    share: true
     allowTrace: true
+  - name: my-max-service
+    accountRef:
+      namespace: my-namespace
+      name: complex-account
+    subject: max.service.>
+    localSubject: imported.max.service.>
+    type: service
+    share: true

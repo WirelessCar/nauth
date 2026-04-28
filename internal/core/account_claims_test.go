@@ -88,9 +88,11 @@ func Test_AccountClaims(t *testing.T) {
 				Exports:          nauthClaims.Exports,
 				Imports:          nauthClaims.Imports,
 			}
+			accountIDX := 0
 			natsClaimsRebuilt, err := unitUnderTest(rebuiltNatsClaims, func(accountRef domain.NamespacedName) (accountID string, err error) {
 				// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
-				accountID = testClaimsFakeAccountID
+				accountIDX++
+				accountID = fakeAccountIdIdx(accountIDX)
 				return
 			})
 			require.NoError(t, err)
@@ -101,10 +103,45 @@ func Test_AccountClaims(t *testing.T) {
 
 			normalizedNatsClaimsRebuilt := normalizeClaimsForApproval(natsClaimsRebuilt)
 			// The rebuilt claims will have fake account ID for imports, normalize for equality check
+			overrideImportAccountIDs(normalizedNatsClaimsRebuilt, testClaimsFakeAccountID)
 			overrideImportAccountIDs(normalizedNatsClaims, testClaimsFakeAccountID)
 			assert.Equal(t, normalizedNatsClaims, normalizedNatsClaimsRebuilt)
 		})
 	}
+}
+
+func Test_AccountClaims_addExportRuleGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
+	// Given
+	builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey, nil).
+		exports(v1alpha1.Exports{
+			{
+				Subject: "foo.>",
+				Type:    v1alpha1.Stream,
+			},
+		})
+
+	// When
+	err := builder.addExportRuleGroup([]v1alpha1.AccountExportRule{
+		{
+			Subject: "bar.>",
+			Type:    v1alpha1.Stream,
+		},
+		{
+			Subject: "foo.*",
+			Type:    v1alpha1.Stream,
+		},
+	})
+
+	// Then
+	require.ErrorContains(t, err, "failed to append export rule group:")
+	require.ErrorContains(t, err, "stream export subject \"foo.*\" already exports \"foo.>\"")
+	expected := jwt.Exports{
+		{
+			Subject: "foo.>",
+			Type:    jwt.Stream,
+		},
+	}
+	require.Equal(t, expected, builder.claim.Exports)
 }
 
 func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T) {
@@ -181,7 +218,6 @@ func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict
 	// Then
 	require.ErrorContains(t, err, "ambiguous JetStream config; requested to be enabled, but no allowed MemoryStorage or DiskStorage supplied")
 	require.Nil(t, claims)
-
 }
 
 func Test_validateJetStreamLimits(t *testing.T) {
@@ -280,6 +316,10 @@ func Test_validateJetStreamLimits(t *testing.T) {
 
 func fakeAccountId(accountRef domain.NamespacedName) string {
 	return fmt.Sprintf("A%055s", strings.ToUpper(strings.ReplaceAll(accountRef.Name+accountRef.Namespace, "-", "")))
+}
+
+func fakeAccountIdIdx(idx int) string {
+	return fmt.Sprintf("A%055d", idx)
 }
 
 func loadAccountSpec(filePath string) (*v1alpha1.AccountSpec, error) {
