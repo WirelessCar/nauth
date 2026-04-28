@@ -308,6 +308,7 @@ func main() {
 		accountImportReconciler := controller.NewAccountImportReconciler(
 			mgr.GetClient(),
 			mgr.GetScheme(),
+			accountManager,
 		)
 		if err = accountImportReconciler.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "AccountImport")

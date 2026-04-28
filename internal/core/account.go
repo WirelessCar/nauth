@@ -472,6 +472,10 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	}, nil
 }
 
+func (a *AccountManager) ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
+	return validateImportRules(importAccountID, rules)
+}
+
 func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
@@ -499,11 +503,16 @@ func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountRe
 			if err != nil {
 				return "", fmt.Errorf("failed to resolve account ID: %w", err)
 			}
-			cache[accountRef] = account.GetLabel(v1alpha1.AccountLabelAccountID)
+			accountID = account.GetLabel(v1alpha1.AccountLabelAccountID)
+			cache[accountRef] = accountID
+		}
+		if accountID == "" {
+			return "", fmt.Errorf("account ID label %s is missing for account %q", v1alpha1.AccountLabelAccountID, accountRef)
 		}
 		return accountID, nil
 	}
 }
 
 var _ inbound.AccountManager = (*AccountManager)(nil)
+var _ inbound.AccountImportManager = (*AccountManager)(nil)
 var _ UserJWTSigner = (*AccountManager)(nil)

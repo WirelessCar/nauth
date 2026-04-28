@@ -7,7 +7,9 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/nkeys"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
@@ -24,6 +26,8 @@ type AccountImportControllerTestSuite struct {
 	importAccountName    string
 	exportAccountName    string
 	foreignNamespace     string
+
+	accountImportManagerMock *accountImportManagerMock
 
 	unitUnderTest *AccountImportReconciler
 }
@@ -43,12 +47,19 @@ func (t *AccountImportControllerTestSuite) SetupTest() {
 	t.exportAccountName = scopedTestName("export-account", testName)
 	t.foreignNamespace = scopedTestName("export-namespace", testName)
 
+	t.accountImportManagerMock = &accountImportManagerMock{}
+
 	t.Require().NoError(ensureNamespace(t.ctx, t.namespace))
 
 	t.unitUnderTest = NewAccountImportReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
+		t.accountImportManagerMock,
 	)
+}
+
+func (t *AccountImportControllerTestSuite) TearDownTest() {
+	t.accountImportManagerMock.AssertExpectations(t.T())
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
@@ -58,7 +69,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	exportAccountID := t.anyAccountID()
 	t.ensureAccount(t.foreignNamespace, t.exportAccountName, exportAccountID)
 
-	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountImport{
+	resourceInput := v1alpha1.AccountImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.importName,
 			Namespace: t.namespace,
@@ -76,7 +87,10 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 				},
 			},
 		},
-	}))
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
+	derivedRules := deriveImportRules(resourceInput.Spec.Rules, exportAccountID)
+	t.accountImportManagerMock.mockValidateImportRules(importAccountID, derivedRules).Once()
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
@@ -90,11 +104,16 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
 	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionFalse, "NotImplemented")
-	// TODO: [#11] Verify rules validation condition
+	t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
 	// TODO: [#11] Verify account adoption condition
 	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+
+	expectClaim := &v1alpha1.AccountImportClaim{
+		ObservedGeneration: 1,
+		Rules:              derivedRules,
+	}
+	t.Equalf(expectClaim, resource.Status.DesiredClaim, "expected claim")
 	t.Equal(importAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
 	t.Equal(exportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
 	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful status update")
@@ -107,7 +126,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 	exportAccountID := t.anyAccountID()
 	t.ensureAccount(t.namespace, t.exportAccountName, exportAccountID)
 
-	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountImport{
+	resourceInput := v1alpha1.AccountImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.importName,
 			Namespace: t.namespace,
@@ -124,7 +143,9 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 				},
 			},
 		},
-	}))
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
+	t.accountImportManagerMock.mockValidateImportRules(importAccountID, deriveImportRules(resourceInput.Spec.Rules, exportAccountID)).Once()
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
@@ -148,7 +169,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImpo
 	exportAccountID := t.anyAccountID()
 	t.ensureAccount(t.namespace, t.exportAccountName, exportAccountID)
 
-	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountImport{
+	resourceInput := v1alpha1.AccountImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.importName,
 			Namespace: t.namespace,
@@ -165,7 +186,8 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImpo
 				},
 			},
 		},
-	}))
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
 
 	// When
 	result, err := t.runReconcileLoopForNewResource("", exportAccountID)
@@ -196,7 +218,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 	t.ensureAccount(t.namespace, t.importAccountName, accountID)
 	t.ensureAccount(t.namespace, t.exportAccountName, "")
 
-	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.AccountImport{
+	resourceInput := v1alpha1.AccountImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.importName,
 			Namespace: t.namespace,
@@ -213,7 +235,8 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 				},
 			},
 		},
-	}))
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(accountID, "")
@@ -233,6 +256,59 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 	t.Equal(accountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
+}
+
+func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenRulesValidationFail() {
+	// Given
+	importAccountID := t.anyAccountID()
+	t.ensureAccount(t.namespace, t.importAccountName, importAccountID)
+	exportAccountID := t.anyAccountID()
+	t.ensureAccount(t.foreignNamespace, t.exportAccountName, exportAccountID)
+
+	resourceInput := v1alpha1.AccountImport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.importName,
+			Namespace: t.namespace,
+		},
+		Spec: v1alpha1.AccountImportSpec{
+			AccountName: t.importAccountName,
+			ExportAccountRef: v1alpha1.AccountRef{
+				Name:      t.exportAccountName,
+				Namespace: t.foreignNamespace,
+			},
+			Rules: []v1alpha1.AccountImportRule{
+				{
+					Subject: "foo.*",
+					Type:    v1alpha1.Stream,
+				},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
+	t.accountImportManagerMock.mockValidateImportRulesError(importAccountID, deriveImportRules(resourceInput.Spec.Rules, exportAccountID), fmt.Errorf("invalid test rules")).Once()
+
+	// When
+	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful reconciliation")
+
+	resource := &v1alpha1.AccountImport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.importNamespacedName, resource))
+	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
+	rulesCondition := t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonNOK)
+	t.Contains(rulesCondition.Message, "invalid test rules")
+	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
+	// TODO: [#11] Verify account adoption condition
+	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+
+	t.Nil(resource.Status.DesiredClaim, "expected no claim")
+	t.Equal(importAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
+	t.Equal(exportAccountID, resource.GetLabel(v1alpha1.AccountImportLabelExportAccountID))
+	t.Require().Empty(result.RequeueAfter, "no reconcile requeue expected after successful status update")
 }
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenResourceNotFound() {
@@ -354,3 +430,22 @@ func (t *AccountImportControllerTestSuite) anyAccountID() (accountID string) {
 	accountID, _ = accountKey.PublicKey()
 	return
 }
+
+type accountImportManagerMock struct {
+	mock.Mock
+}
+
+func (m *accountImportManagerMock) ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
+	args := m.Called(importAccountID, rules)
+	return args.Error(0)
+}
+
+func (m *accountImportManagerMock) mockValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) *mock.Call {
+	return m.On("ValidateImportRules", importAccountID, rules).Return(nil)
+}
+
+func (m *accountImportManagerMock) mockValidateImportRulesError(importAccountID string, rules []v1alpha1.AccountImportRuleDerived, err error) *mock.Call {
+	return m.On("ValidateImportRules", importAccountID, rules).Return(err)
+}
+
+var _ inbound.AccountImportManager = (*accountImportManagerMock)(nil)

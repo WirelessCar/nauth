@@ -17,6 +17,10 @@ type AccountExportManager interface {
 	Resolve(ctx context.Context, state *v1alpha1.AccountExport, account *v1alpha1.Account) *domain.AccountExportResolution
 }
 
+type AccountImportManager interface {
+	ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error
+}
+
 type UserManager interface {
 	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
 	Delete(ctx context.Context, desired *v1alpha1.User) error

@@ -16,6 +16,7 @@ const ( // Conditions
 	conditionReasonReconciling = "Reconciling"
 	conditionReasonReconciled  = "Reconciled"
 	conditionReasonOK          = "OK"
+	conditionReasonNOK         = "NOK"
 	conditionReasonErrored     = "Errored"
 	conditionReasonInvalid     = "Invalid"
 	conditionReasonConflict    = "Conflict"

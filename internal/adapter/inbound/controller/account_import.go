@@ -23,6 +23,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,13 +40,15 @@ import (
 // AccountImportReconciler reconciles an AccountImport object.
 type AccountImportReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	manager inbound.AccountImportManager
 }
 
-func NewAccountImportReconciler(k8sClient client.Client, scheme *runtime.Scheme) *AccountImportReconciler {
+func NewAccountImportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountImportManager) *AccountImportReconciler {
 	return &AccountImportReconciler{
-		Client: k8sClient,
-		Scheme: scheme,
+		Client:  k8sClient,
+		Scheme:  scheme,
+		manager: manager,
 	}
 }
 
@@ -94,12 +97,26 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
 	}
 
-	// TODO: [#11] Validate rules
-	validRulesCondition := metav1.Condition{
-		Type:    conditionTypeValidRules,
-		Status:  metav1.ConditionFalse,
-		Reason:  "NotImplemented",
-		Message: "Rules validation not implemented",
+	validRules, validRulesErr := r.validateRules(importAccountID, exportAccountID, state.Spec.Rules)
+	var validRulesCondition metav1.Condition
+	if validRulesErr != nil {
+		validRulesCondition = metav1.Condition{
+			Type:    conditionTypeValidRules,
+			Status:  metav1.ConditionFalse,
+			Reason:  conditionReasonNOK,
+			Message: validRulesErr.Error(),
+		}
+	} else {
+		validRulesCondition = metav1.Condition{
+			Type:    conditionTypeValidRules,
+			Status:  metav1.ConditionTrue,
+			Reason:  conditionReasonOK,
+			Message: "Rules validation successful",
+		}
+		state.Status.DesiredClaim = &v1alpha1.AccountImportClaim{
+			ObservedGeneration: state.Generation,
+			Rules:              validRules,
+		}
 	}
 
 	// TODO: [#11] Check account adoption
@@ -117,6 +134,24 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+func (r *AccountImportReconciler) validateRules(importAccountID string, exportAccountID string, rules []v1alpha1.AccountImportRule) ([]v1alpha1.AccountImportRuleDerived, error) {
+	var err error
+	var derivedRules []v1alpha1.AccountImportRuleDerived
+	if importAccountID == "" {
+		err = fmt.Errorf("import account ID is required")
+	} else if exportAccountID == "" {
+		err = fmt.Errorf("export account ID is required")
+	} else if len(rules) == 0 {
+		err = fmt.Errorf("at least one rule is required")
+	} else {
+		derivedRules = deriveImportRules(rules, exportAccountID)
+		if err = r.manager.ValidateImportRules(importAccountID, derivedRules); err != nil {
+			err = fmt.Errorf("rules validation failed: %w", err)
+		}
+	}
+	return derivedRules, err
 }
 
 func (r *AccountImportReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -223,4 +258,15 @@ func (r *AccountImportReconciler) setConditions(state *v1alpha1.AccountImport, s
 		}
 	}
 	meta.SetStatusCondition(state.GetConditions(), ready)
+}
+
+func deriveImportRules(rules []v1alpha1.AccountImportRule, exportAccountID string) []v1alpha1.AccountImportRuleDerived {
+	result := make([]v1alpha1.AccountImportRuleDerived, len(rules))
+	for i, r := range rules {
+		result[i] = v1alpha1.AccountImportRuleDerived{
+			Account:           exportAccountID,
+			AccountImportRule: r,
+		}
+	}
+	return result
 }
