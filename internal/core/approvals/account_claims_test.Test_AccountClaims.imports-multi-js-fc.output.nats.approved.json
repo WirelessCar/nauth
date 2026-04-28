@@ -9,13 +9,13 @@
       {
         "name": "account-a-fc",
         "subject": "$JS.FC.\u003e",
-        "account": "A000000000000000000000000000000000000ACCOUNTAMYNAMESPACE",
+        "account": "ACCA",
         "type": "service"
       },
       {
         "name": "account-b-fc",
         "subject": "$JS.FC.\u003e",
-        "account": "A000000000000000000000000000000000000ACCOUNTBMYNAMESPACE",
+        "account": "ACCB",
         "type": "service"
       }
     ],

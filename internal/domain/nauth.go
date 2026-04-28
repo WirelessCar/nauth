@@ -2,6 +2,7 @@ package domain
 
 import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 )
 
 type AccountResources struct {
@@ -12,7 +13,7 @@ type AccountResources struct {
 type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
-	Claims          *v1alpha1.AccountClaims
+	Claims          *nauth.AccountClaims
 	ClaimsHash      string
 	Adoptions       *v1alpha1.AccountAdoptions
 }

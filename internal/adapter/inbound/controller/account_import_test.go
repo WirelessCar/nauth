@@ -7,6 +7,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
@@ -89,8 +90,14 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 		},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
-	derivedRules := deriveImportRules(resourceInput.Spec.Rules, exportAccountID)
-	t.accountImportManagerMock.mockValidateImportRules(importAccountID, derivedRules).Once()
+	expectNAuthImports := nauth.Imports{
+		&nauth.Import{
+			AccountID: nauth.AccountID(exportAccountID),
+			Subject:   nauth.Subject("foo.*"),
+			Type:      nauth.ExportTypeStream,
+		},
+	}
+	t.accountImportManagerMock.mockValidateImports(nauth.AccountID(importAccountID), expectNAuthImports).Once()
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
@@ -109,9 +116,20 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	// TODO: [#11] Verify account adoption condition
 	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 
+	boolFalse := false
 	expectClaim := &v1alpha1.AccountImportClaim{
 		ObservedGeneration: 1,
-		Rules:              derivedRules,
+		Rules: []v1alpha1.AccountImportRuleDerived{
+			{
+				Account: exportAccountID,
+				AccountImportRule: v1alpha1.AccountImportRule{
+					Subject:    "foo.*",
+					Type:       v1alpha1.Stream,
+					Share:      &boolFalse,
+					AllowTrace: &boolFalse,
+				},
+			},
+		},
 	}
 	t.Equalf(expectClaim, resource.Status.DesiredClaim, "expected claim")
 	t.Equal(importAccountID, resource.GetLabel(v1alpha1.AccountImportLabelAccountID))
@@ -145,7 +163,14 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 		},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
-	t.accountImportManagerMock.mockValidateImportRules(importAccountID, deriveImportRules(resourceInput.Spec.Rules, exportAccountID)).Once()
+	expectImports := nauth.Imports{
+		{
+			AccountID: nauth.AccountID(exportAccountID),
+			Subject:   nauth.Subject("foo.*"),
+			Type:      nauth.ExportTypeStream,
+		},
+	}
+	t.accountImportManagerMock.mockValidateImports(nauth.AccountID(importAccountID), expectImports).Once()
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
@@ -285,7 +310,14 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenRule
 		},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
-	t.accountImportManagerMock.mockValidateImportRulesError(importAccountID, deriveImportRules(resourceInput.Spec.Rules, exportAccountID), fmt.Errorf("invalid test rules")).Once()
+	expectImports := nauth.Imports{
+		&nauth.Import{
+			AccountID: nauth.AccountID(exportAccountID),
+			Subject:   nauth.Subject("foo.*"),
+			Type:      nauth.ExportTypeStream,
+		},
+	}
+	t.accountImportManagerMock.mockValidateImportsError(nauth.AccountID(importAccountID), expectImports, fmt.Errorf("invalid test rules")).Once()
 
 	// When
 	result, err := t.runReconcileLoopForNewResource(importAccountID, exportAccountID)
@@ -435,17 +467,17 @@ type accountImportManagerMock struct {
 	mock.Mock
 }
 
-func (m *accountImportManagerMock) ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
-	args := m.Called(importAccountID, rules)
+func (m *accountImportManagerMock) ValidateImports(importAccountID nauth.AccountID, imports nauth.Imports) error {
+	args := m.Called(importAccountID, imports)
 	return args.Error(0)
 }
 
-func (m *accountImportManagerMock) mockValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) *mock.Call {
-	return m.On("ValidateImportRules", importAccountID, rules).Return(nil)
+func (m *accountImportManagerMock) mockValidateImports(importAccountID nauth.AccountID, imports nauth.Imports) *mock.Call {
+	return m.On("ValidateImports", importAccountID, imports).Return(nil)
 }
 
-func (m *accountImportManagerMock) mockValidateImportRulesError(importAccountID string, rules []v1alpha1.AccountImportRuleDerived, err error) *mock.Call {
-	return m.On("ValidateImportRules", importAccountID, rules).Return(err)
+func (m *accountImportManagerMock) mockValidateImportsError(importAccountID nauth.AccountID, imports nauth.Imports, err error) *mock.Call {
+	return m.On("ValidateImports", importAccountID, imports).Return(err)
 }
 
 var _ inbound.AccountImportManager = (*accountImportManagerMock)(nil)

@@ -23,6 +23,7 @@ import (
 	"reflect"
 
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -199,7 +200,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// UPDATE ACCOUNT STATUS
 	if result.Claims != nil {
-		natsAccount.Status.Claims = *result.Claims
+		natsAccount.Status.Claims = *toAPIAccountClaims(result.Claims)
 	}
 	natsAccount.Status.Adoptions = result.Adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
@@ -223,6 +224,50 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return r.reporter.status(ctx, natsAccount)
+}
+
+func toAPIAccountClaims(claims *nauth.AccountClaims) *v1alpha1.AccountClaims {
+	if claims == nil {
+		return nil
+	}
+
+	return &v1alpha1.AccountClaims{
+		AccountLimits:    claims.AccountLimits,
+		DisplayName:      claims.DisplayName,
+		SigningKeys:      claims.SigningKeys,
+		Exports:          claims.Exports,
+		Imports:          toAPIImports(claims.Imports),
+		JetStreamEnabled: claims.JetStreamEnabled,
+		JetStreamLimits:  claims.JetStreamLimits,
+		NatsLimits:       claims.NatsLimits,
+	}
+}
+
+func toAPIImports(imports nauth.Imports) v1alpha1.Imports {
+	result := make(v1alpha1.Imports, len(imports))
+	for i, imp := range imports {
+		result[i] = &v1alpha1.Import{
+			Account:      string(imp.AccountID),
+			Name:         imp.Name,
+			Subject:      v1alpha1.Subject(imp.Subject),
+			LocalSubject: v1alpha1.RenamingSubject(imp.LocalSubject),
+			Type:         toAPIExportType(imp.Type),
+			Share:        imp.Share,
+			AllowTrace:   imp.AllowTrace,
+		}
+	}
+	return result
+}
+
+func toAPIExportType(exportType nauth.ExportType) v1alpha1.ExportType {
+	switch exportType {
+	case nauth.ExportTypeStream:
+		return v1alpha1.Stream
+	case nauth.ExportTypeService:
+		return v1alpha1.Service
+	default:
+		return v1alpha1.Stream
+	}
 }
 
 func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (*domain.AccountResources, error) {

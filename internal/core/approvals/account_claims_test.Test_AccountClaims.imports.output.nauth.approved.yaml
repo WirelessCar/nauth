@@ -1,34 +1,22 @@
 displayName: test-namespace/test-account
 imports:
-- account: A000000000000000000000000000000SERVICEACCOUNTMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCB
   localSubject: imported.foo.service.>
   name: my-service-import
   subject: foo.service.>
   type: service
-- account: A0000000000000000000000000000000STREAMACCOUNTMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCA
   localSubject: imported.foo.stream.>
   name: my-stream-import
   subject: foo.stream.>
   type: stream
-- account: A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCD
   localSubject: imported.max.service.>
   name: my-max-service
   share: true
   subject: max.service.>
   type: service
-- account: A000000000000000000000000000000COMPLEXACCOUNTMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCC
   allowTrace: true
   localSubject: imported.max.stream.>
   name: my-max-stream

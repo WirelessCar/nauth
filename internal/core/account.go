@@ -8,6 +8,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
@@ -150,12 +151,18 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
+
+	accountIDReader := cachedAccountIDReader(ctx, a.accountReader)
+	inlineImports, err := toInlineImports(accountIDReader, account.Spec.Imports)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert account inline imports domain model: %w", err)
+	}
 	claimsBuilder := newAccountClaimsBuilder(getDisplayName(account), accountPublicKey, account.Spec.JetStreamEnabled).
 		accountLimits(account.Spec.AccountLimits).
 		jetStreamLimits(account.Spec.JetStreamLimits).
 		natsLimits(account.Spec.NatsLimits).
 		exports(account.Spec.Exports).
-		imports(account.Spec.Imports, cachedAccountIDReader(ctx, a.accountReader))
+		imports(inlineImports)
 	claimsBuilder.signingKey(accountSigningPublicKey)
 	adoptions := &v1alpha1.AccountAdoptions{
 		Exports: adoptExports(claimsBuilder, resources.Exports),
@@ -472,8 +479,8 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	}, nil
 }
 
-func (a *AccountManager) ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
-	return validateImportRules(importAccountID, rules)
+func (a *AccountManager) ValidateImports(importAccountID nauth.AccountID, imports nauth.Imports) error {
+	return validateImports(string(importAccountID), imports)
 }
 
 func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
@@ -493,6 +500,8 @@ func getDisplayName(account *v1alpha1.Account) string {
 	return fmt.Sprintf("%s/%s", account.GetNamespace(), account.GetName())
 }
 
+type resolveAccountIDFn func(accountRef domain.NamespacedName) (accountID string, err error)
+
 func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountReader) resolveAccountIDFn {
 	cache := make(map[domain.NamespacedName]string)
 	return func(accountRef domain.NamespacedName) (string, error) {
@@ -510,6 +519,42 @@ func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountRe
 			return "", fmt.Errorf("account ID label %s is missing for account %q", v1alpha1.AccountLabelAccountID, accountRef)
 		}
 		return accountID, nil
+	}
+}
+
+func toInlineImports(reader resolveAccountIDFn, imports v1alpha1.Imports) (nauth.Imports, error) {
+	var result nauth.Imports
+	for _, source := range imports {
+		accountRef := domain.NewNamespacedName(source.AccountRef.Namespace, source.AccountRef.Name)
+		var err error
+		accountID, err := reader(accountRef)
+		if err != nil {
+			return result, fmt.Errorf("failed to resolve account ID for import %s: %w", accountRef, err)
+		}
+		if accountID == "" {
+			return result, fmt.Errorf("account ID is missing for import %s", accountRef)
+		}
+		result = append(result, &nauth.Import{
+			AccountID:    nauth.AccountID(accountID),
+			Name:         source.Name,
+			Subject:      nauth.Subject(source.Subject),
+			LocalSubject: nauth.Subject(source.LocalSubject),
+			Type:         toNAuthExportTypeFromAPI(source.Type),
+			Share:        source.Share,
+			AllowTrace:   source.AllowTrace,
+		})
+	}
+	return result, nil
+}
+
+func toNAuthExportTypeFromAPI(exportType v1alpha1.ExportType) nauth.ExportType {
+	switch exportType {
+	case v1alpha1.Stream:
+		return nauth.ExportTypeStream
+	case v1alpha1.Service:
+		return nauth.ExportTypeService
+	default:
+		return nauth.ExportTypeUnknown
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
@@ -111,7 +112,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 		ClaimsHash:      "CLAIMS_HASH",
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
@@ -163,7 +164,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.Import during setup only
 	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
@@ -205,7 +206,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
@@ -246,7 +247,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
@@ -288,7 +289,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 
 	account := &v1alpha1.Account{}
@@ -314,7 +315,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	mockResult := &domain.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
@@ -357,7 +358,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 	mockResult := &domain.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &v1alpha1.AccountClaims{},
+		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
 	var accountResources0 domain.AccountResources

@@ -9,12 +9,10 @@ import (
 	"sort"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
 	"k8s.io/apimachinery/pkg/util/json"
 )
-
-type resolveAccountIDFn func(accountRef domain.NamespacedName) (accountID string, err error)
 
 type accountClaimsBuilder struct {
 	jetStreamRequested *bool
@@ -116,7 +114,7 @@ func (b *accountClaimsBuilder) exports(exports v1alpha1.Exports) *accountClaimsB
 		exportClaim := &jwt.Export{
 			Name:                 export.Name,
 			Subject:              jwt.Subject(export.Subject),
-			Type:                 toJWTExportType(export.Type),
+			Type:                 toJWTExportTypeFromAPI(export.Type),
 			TokenReq:             export.TokenReq,
 			Revocations:          jwt.RevocationList(export.Revocations),
 			ResponseType:         jwt.ResponseType(export.ResponseType),
@@ -133,31 +131,14 @@ func (b *accountClaimsBuilder) exports(exports v1alpha1.Exports) *accountClaimsB
 	return b
 }
 
-func (b *accountClaimsBuilder) imports(imports v1alpha1.Imports, resolveAccountIDFn resolveAccountIDFn) *accountClaimsBuilder {
+func (b *accountClaimsBuilder) imports(imports nauth.Imports) *accountClaimsBuilder {
 	for _, imp := range imports {
-		accountRef := domain.NewNamespacedName(imp.AccountRef.Namespace, imp.AccountRef.Name)
-		exportAccountID, err := resolveAccountIDFn(accountRef)
-		if err != nil {
-			b.errs = append(b.errs, fmt.Errorf("failed to resolve account ID for import %q (account: %q): %w",
-				imp.Name,
-				accountRef,
-				err))
-		} else {
-			jwtImport := &jwt.Import{
-				Name:         imp.Name,
-				Subject:      jwt.Subject(imp.Subject),
-				Type:         jwt.ExportType(imp.Type.ToInt()),
-				Account:      exportAccountID,
-				LocalSubject: jwt.RenamingSubject(imp.LocalSubject),
-				Share:        imp.Share,
-				AllowTrace:   imp.AllowTrace,
-			}
-			result, mergeErr := mergeImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
-			if mergeErr != nil {
-				b.errs = append(b.errs, fmt.Errorf("failed to add import %q: %w", imp.Name, mergeErr))
-			}
-			b.claim.Imports = result
+		jwtImport := toJWTImport(*imp)
+		result, mergeErr := mergeJWTImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
+		if mergeErr != nil {
+			b.errs = append(b.errs, fmt.Errorf("failed to add import %q: %w", imp.Name, mergeErr))
 		}
+		b.claim.Imports = result
 	}
 	return b
 }
@@ -168,7 +149,7 @@ func (b *accountClaimsBuilder) addExportRuleGroup(rules []v1alpha1.AccountExport
 		jwtExport := jwt.Export{
 			Name:         rule.Name,
 			Subject:      jwt.Subject(rule.Subject),
-			Type:         toJWTExportType(rule.Type),
+			Type:         toJWTExportTypeFromAPI(rule.Type),
 			ResponseType: jwt.ResponseType(rule.ResponseType),
 		}
 		if rule.ResponseThreshold != nil {
@@ -250,13 +231,13 @@ func toPtrDefNil[V int64 | bool](value V, defaultValue V) *V {
 	return nil
 }
 
-func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims {
+func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 	if claims == nil {
-		return v1alpha1.AccountClaims{}
+		return nauth.AccountClaims{}
 	}
 
 	claimsDefaults := jwt.NewAccountClaims("N/A")
-	out := v1alpha1.AccountClaims{}
+	out := nauth.AccountClaims{}
 	out.DisplayName = claims.Name
 
 	jetStreamEnabled := claims.Limits.IsJSEnabled()
@@ -367,30 +348,12 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) v1alpha1.AccountClaims 
 
 	// Imports
 	if len(claims.Imports) > 0 {
-		imports := make(v1alpha1.Imports, 0, len(claims.Imports))
+		imports := make(nauth.Imports, 0, len(claims.Imports))
 		for _, i := range claims.Imports {
 			if i == nil {
 				continue
 			}
-			var it v1alpha1.ExportType
-			switch i.Type {
-			case jwt.Stream:
-				it = v1alpha1.Stream
-			case jwt.Service:
-				it = v1alpha1.Service
-			default:
-				it = v1alpha1.Stream
-			}
-			imp := &v1alpha1.Import{
-				Name:         i.Name,
-				Subject:      v1alpha1.Subject(i.Subject),
-				Account:      i.Account,
-				LocalSubject: v1alpha1.RenamingSubject(i.LocalSubject),
-				Type:         it,
-				Share:        i.Share,
-				AllowTrace:   i.AllowTrace,
-			}
-			imports = append(imports, imp)
+			imports = append(imports, toNAuthImport(*i))
 		}
 		out.Imports = imports
 	}
@@ -422,37 +385,48 @@ func mergeExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error)
 	return tmpExports, nil
 }
 
-func validateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error {
-	_, err := mergeImportRules(importAccountID, nil, rules)
+func validateImports(importAccountID string, imports nauth.Imports) error {
+	_, err := mergeImports(importAccountID, nil, imports)
 	return err
 }
 
-func mergeImportRules(importAccountID string, existing jwt.Imports, rules []v1alpha1.AccountImportRuleDerived) (jwt.Imports, error) {
-	jwtImports := make(jwt.Imports, len(rules))
-	for i, rule := range rules {
-		jwtImport := jwt.Import{
-			Account:      rule.Account,
-			Name:         rule.Name,
-			Subject:      jwt.Subject(rule.Subject),
-			Type:         toJWTExportType(rule.Type),
-			LocalSubject: jwt.RenamingSubject(rule.LocalSubject),
-		}
-		if rule.Share != nil {
-			jwtImport.Share = *rule.Share
-		}
-		if rule.AllowTrace != nil {
-			jwtImport.AllowTrace = *rule.AllowTrace
-		}
-		jwtImports[i] = &jwtImport
+func mergeImports(importAccountID string, existing jwt.Imports, imports nauth.Imports) (jwt.Imports, error) {
+	jwtImports := make(jwt.Imports, len(imports))
+	for i, imp := range imports {
+		jwtImports[i] = toJWTImport(*imp)
 	}
-	result, err := mergeImports(importAccountID, existing, jwtImports)
+	result, err := mergeJWTImports(importAccountID, existing, jwtImports)
 	if err != nil {
 		return existing, err
 	}
 	return result, nil
 }
 
-func mergeImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
+func toJWTImport(source nauth.Import) *jwt.Import {
+	return &jwt.Import{
+		Account:      string(source.AccountID),
+		Name:         source.Name,
+		Subject:      jwt.Subject(source.Subject),
+		Type:         toJWTExportType(source.Type),
+		LocalSubject: jwt.RenamingSubject(source.LocalSubject),
+		Share:        source.Share,
+		AllowTrace:   source.AllowTrace,
+	}
+}
+
+func toNAuthImport(source jwt.Import) *nauth.Import {
+	return &nauth.Import{
+		AccountID:    nauth.AccountID(source.Account),
+		Name:         source.Name,
+		Subject:      nauth.Subject(source.Subject),
+		Type:         toNAuthExportType(source.Type),
+		LocalSubject: nauth.Subject(source.LocalSubject),
+		Share:        source.Share,
+		AllowTrace:   source.AllowTrace,
+	}
+}
+
+func mergeJWTImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
 	tmpResult := existing
 	appendIfMissing := func(haystack jwt.Imports, needle jwt.Import) jwt.Imports {
 		for _, e := range haystack {
@@ -476,7 +450,7 @@ func mergeImports(importAccountID string, existing jwt.Imports, extras jwt.Impor
 	return tmpResult, nil
 }
 
-func toJWTExportType(source v1alpha1.ExportType) jwt.ExportType {
+func toJWTExportTypeFromAPI(source v1alpha1.ExportType) jwt.ExportType {
 	var result jwt.ExportType
 	switch source {
 	case v1alpha1.Stream:
@@ -487,6 +461,28 @@ func toJWTExportType(source v1alpha1.ExportType) jwt.ExportType {
 		result = jwt.Stream
 	}
 	return result
+}
+
+func toJWTExportType(source nauth.ExportType) jwt.ExportType {
+	switch source {
+	case nauth.ExportTypeService:
+		return jwt.Service
+	case nauth.ExportTypeStream:
+		return jwt.Stream
+	default:
+		return jwt.Stream
+	}
+}
+
+func toNAuthExportType(source jwt.ExportType) nauth.ExportType {
+	switch source {
+	case jwt.Service:
+		return nauth.ExportTypeService
+	case jwt.Stream:
+		return nauth.ExportTypeStream
+	default:
+		return nauth.ExportTypeUnknown
+	}
 }
 
 func toJWTServiceLatency(source v1alpha1.ServiceLatency) *jwt.ServiceLatency {

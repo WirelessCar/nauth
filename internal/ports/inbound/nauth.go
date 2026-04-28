@@ -5,6 +5,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 )
 
 type AccountManager interface {
@@ -18,7 +19,7 @@ type AccountExportManager interface {
 }
 
 type AccountImportManager interface {
-	ValidateImportRules(importAccountID string, rules []v1alpha1.AccountImportRuleDerived) error
+	ValidateImports(importAccountID nauth.AccountID, imports nauth.Imports) error
 }
 
 type UserManager interface {

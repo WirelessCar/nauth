@@ -1,16 +1,10 @@
 displayName: test-namespace/test-account
 imports:
-- account: A000000000000000000000000000000000000ACCOUNTAMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCA
   name: account-a-fc
   subject: $JS.FC.>
   type: service
-- account: A000000000000000000000000000000000000ACCOUNTBMYNAMESPACE
-  accountRef:
-    name: ""
-    namespace: ""
+- accountId: ACCB
   name: account-b-fc
   subject: $JS.FC.>
   type: service

@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -20,12 +19,20 @@ import (
 
 const (
 	testClaimsDisplayName   = "test-namespace/test-account"
-	testClaimsFakeAccountID = "A000000000000000000000000000000000000000000000000000FAKE"
 	testClaimsOperatorSeed  = "SOAF43LTJSU54DLV5VPWKF2ROVF2V6FZZG662Z2CCHDAFKCK5JGLQRP7SA"
 	testClaimsAccountPubKey = "AAJCK7774DXTQZAFJLSQIVU76UHGXFZNJVWMT4F7PNRBCYM75LS75UYE"
 	testClaimsSigningKey01  = "ACI73NE4LXWVHSYSFXY73WTZVKIKE54PQUMRDYA4EUFYFGEGHKTPCOI4"
 	testClaimsSigningKey02  = "ADCECGT44IBBMSNGOEZTVK2QUQSVTJW6FABW7JBFFTITDBHMP6TXM4XG"
 )
+
+type TestAccountClaimsSpec struct {
+	AccountLimits    *v1alpha1.AccountLimits   `json:"accountLimits,omitempty"`   // TODO: Migrate to nauth.AccountLimits
+	JetStreamLimits  *v1alpha1.JetStreamLimits `json:"jetStreamLimits,omitempty"` // TODO: Migrate to nauth.JetStreamLimits
+	JetStreamEnabled *bool                     `json:"jetStreamEnabled,omitempty"`
+	NatsLimits       *v1alpha1.NatsLimits      `json:"natsLimits,omitempty"` // TODO: Migrate to nauth.NatsLimits
+	Exports          v1alpha1.Exports          `json:"exports,omitempty"`    // TODO: Migrate to nauth.Exports
+	Imports          nauth.Imports             `json:"imports,omitempty"`
+}
 
 func Test_AccountClaims(t *testing.T) {
 
@@ -36,26 +43,23 @@ func Test_AccountClaims(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.TestName, func(t *testing.T) {
-			spec, err := loadAccountSpec(testCase.InputFile)
+			spec, err := loadTestAccountClaimsSpec(testCase.InputFile)
 			require.NoError(t, err)
 
-			unitUnderTest := func(spec *v1alpha1.AccountSpec, resolveAccountID resolveAccountIDFn) (*jwt.AccountClaims, error) {
+			unitUnderTest := func(spec *TestAccountClaimsSpec) (*jwt.AccountClaims, error) {
 				builder := newAccountClaimsBuilder(testClaimsDisplayName, testClaimsAccountPubKey, spec.JetStreamEnabled).
 					accountLimits(spec.AccountLimits).
 					jetStreamLimits(spec.JetStreamLimits).
 					natsLimits(spec.NatsLimits).
 					exports(spec.Exports).
-					imports(spec.Imports, resolveAccountID)
+					imports(spec.Imports)
 				builder.signingKey(testClaimsSigningKey01)
 				builder.signingKey(testClaimsSigningKey02)
 				return builder.build()
 			}
 
 			// Build NATS JWT AccountClaims from AccountSpec
-			natsClaims, err := unitUnderTest(spec, func(accountRef domain.NamespacedName) (accountID string, err error) {
-				accountID = fakeAccountId(accountRef)
-				return
-			})
+			natsClaims, err := unitUnderTest(spec)
 			require.NoError(t, err)
 			require.NotNil(t, natsClaims)
 			// Ensure that the NATS JWT can be encoded
@@ -80,7 +84,7 @@ func Test_AccountClaims(t *testing.T) {
 			// Finally; rebuild the claims from the output to verify round-trip integrity
 
 			// Verify that the resulting NAuth AccountClaim generates the same NATS JWT when encoded
-			rebuiltNatsClaims := &v1alpha1.AccountSpec{
+			rebuiltNatsClaims := &TestAccountClaimsSpec{
 				JetStreamEnabled: nauthClaims.JetStreamEnabled,
 				AccountLimits:    nauthClaims.AccountLimits,
 				JetStreamLimits:  nauthClaims.JetStreamLimits,
@@ -88,13 +92,7 @@ func Test_AccountClaims(t *testing.T) {
 				Exports:          nauthClaims.Exports,
 				Imports:          nauthClaims.Imports,
 			}
-			accountIDX := 0
-			natsClaimsRebuilt, err := unitUnderTest(rebuiltNatsClaims, func(accountRef domain.NamespacedName) (accountID string, err error) {
-				// For the rebuild, override the mock to always return the fake account ID (account ref is lost)
-				accountIDX++
-				accountID = fakeAccountIdIdx(accountIDX)
-				return
-			})
+			natsClaimsRebuilt, err := unitUnderTest(rebuiltNatsClaims)
 			require.NoError(t, err)
 			require.NotNil(t, natsClaimsRebuilt)
 			// Sign the JWT to ensure matching issuer details
@@ -102,9 +100,6 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			normalizedNatsClaimsRebuilt := normalizeClaimsForApproval(natsClaimsRebuilt)
-			// The rebuilt claims will have fake account ID for imports, normalize for equality check
-			overrideImportAccountIDs(normalizedNatsClaimsRebuilt, testClaimsFakeAccountID)
-			overrideImportAccountIDs(normalizedNatsClaims, testClaimsFakeAccountID)
 			assert.Equal(t, normalizedNatsClaims, normalizedNatsClaimsRebuilt)
 		})
 	}
@@ -146,14 +141,14 @@ func Test_AccountClaims_addExportRuleGroup_ShouldNotAlterExistingRulesOnConflict
 
 func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *testing.T) {
 	// Given
-	claims := jwt.NewAccountClaims(testClaimsFakeAccountID)
+	claims := jwt.NewAccountClaims("ACCID")
 
 	// When
 	result := convertNatsAccountClaims(claims)
 
 	// Then
 	boolFalse := false
-	require.Equal(t, v1alpha1.AccountClaims{
+	require.Equal(t, nauth.AccountClaims{
 		JetStreamEnabled: &boolFalse,
 	}, result)
 }
@@ -314,21 +309,13 @@ func Test_validateJetStreamLimits(t *testing.T) {
 	}
 }
 
-func fakeAccountId(accountRef domain.NamespacedName) string {
-	return fmt.Sprintf("A%055s", strings.ToUpper(strings.ReplaceAll(accountRef.Name+accountRef.Namespace, "-", "")))
-}
-
-func fakeAccountIdIdx(idx int) string {
-	return fmt.Sprintf("A%055d", idx)
-}
-
-func loadAccountSpec(filePath string) (*v1alpha1.AccountSpec, error) {
+func loadTestAccountClaimsSpec(filePath string) (*TestAccountClaimsSpec, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	var spec v1alpha1.AccountSpec
+	var spec TestAccountClaimsSpec
 	if err := yaml.UnmarshalStrict(data, &spec); err != nil {
 		return nil, err
 	}
@@ -346,10 +333,4 @@ func normalizeClaimsForApproval(claims *jwt.AccountClaims) *jwt.AccountClaims {
 	result.IssuedAt = int64(1700000000)
 	result.ID = "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS"
 	return result
-}
-
-func overrideImportAccountIDs(claims *jwt.AccountClaims, overrideAccount string) {
-	for _, importClaim := range claims.Imports {
-		importClaim.Account = overrideAccount
-	}
 }
