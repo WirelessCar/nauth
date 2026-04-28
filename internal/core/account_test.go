@@ -8,6 +8,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -655,7 +656,7 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 
 	existingNatsLimitsSubs := int64(100)
 	existingClaims, err := newAccountClaimsBuilder(accountID, nil).
-		natsLimits(&v1alpha1.NatsLimits{Subs: &existingNatsLimitsSubs}).
+		natsLimits(&nauth.NatsLimits{Subs: &existingNatsLimitsSubs}).
 		signingKey(accountSignKeyPublic).
 		build()
 	t.NoError(err, "failed to build existing account claims")

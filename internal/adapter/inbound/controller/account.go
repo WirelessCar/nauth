@@ -232,14 +232,57 @@ func toAPIAccountClaims(claims *nauth.AccountClaims) *v1alpha1.AccountClaims {
 	}
 
 	return &v1alpha1.AccountClaims{
-		AccountLimits:    claims.AccountLimits,
+		AccountLimits:    toAPIAccountLimits(claims.AccountLimits),
 		DisplayName:      claims.DisplayName,
 		SigningKeys:      claims.SigningKeys,
 		Exports:          claims.Exports,
 		Imports:          toAPIImports(claims.Imports),
 		JetStreamEnabled: claims.JetStreamEnabled,
-		JetStreamLimits:  claims.JetStreamLimits,
-		NatsLimits:       claims.NatsLimits,
+		JetStreamLimits:  toAPIAJetStreamLimits(claims.JetStreamLimits),
+		NatsLimits:       toAPINatsLimits(claims.NatsLimits),
+	}
+}
+
+func toAPIAccountLimits(source *nauth.AccountLimits) *v1alpha1.AccountLimits {
+	if source == nil {
+		return nil
+	}
+
+	return &v1alpha1.AccountLimits{
+		Imports:         source.Imports,
+		Exports:         source.Exports,
+		WildcardExports: source.WildcardExports,
+		Conn:            source.Conn,
+		LeafNodeConn:    source.LeafNodeConn,
+	}
+}
+
+func toAPIAJetStreamLimits(source *nauth.JetStreamLimits) *v1alpha1.JetStreamLimits {
+	if source == nil {
+		return nil
+	}
+
+	return &v1alpha1.JetStreamLimits{
+		MemoryStorage:        source.MemoryStorage,
+		DiskStorage:          source.DiskStorage,
+		Streams:              source.Streams,
+		Consumer:             source.Consumer,
+		MaxAckPending:        source.MaxAckPending,
+		MemoryMaxStreamBytes: source.MemoryMaxStreamBytes,
+		DiskMaxStreamBytes:   source.DiskMaxStreamBytes,
+		MaxBytesRequired:     source.MaxBytesRequired,
+	}
+}
+
+func toAPINatsLimits(source *nauth.NatsLimits) *v1alpha1.NatsLimits {
+	if source == nil {
+		return nil
+	}
+
+	return &v1alpha1.NatsLimits{
+		Subs:    source.Subs,
+		Data:    source.Data,
+		Payload: source.Payload,
 	}
 }
 

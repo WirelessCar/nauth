@@ -46,7 +46,7 @@ func (b *accountClaimsBuilder) displayName(name string) *accountClaimsBuilder {
 	return b
 }
 
-func (b *accountClaimsBuilder) accountLimits(limits *v1alpha1.AccountLimits) *accountClaimsBuilder {
+func (b *accountClaimsBuilder) accountLimits(limits *nauth.AccountLimits) *accountClaimsBuilder {
 	if limits != nil {
 		if limits.Imports != nil {
 			b.claim.Limits.Imports = *limits.Imports
@@ -67,7 +67,7 @@ func (b *accountClaimsBuilder) accountLimits(limits *v1alpha1.AccountLimits) *ac
 	return b
 }
 
-func (b *accountClaimsBuilder) natsLimits(limits *v1alpha1.NatsLimits) *accountClaimsBuilder {
+func (b *accountClaimsBuilder) natsLimits(limits *nauth.NatsLimits) *accountClaimsBuilder {
 	if limits != nil {
 		if limits.Subs != nil {
 			b.claim.Limits.Subs = *limits.Subs
@@ -82,7 +82,7 @@ func (b *accountClaimsBuilder) natsLimits(limits *v1alpha1.NatsLimits) *accountC
 	return b
 }
 
-func (b *accountClaimsBuilder) jetStreamLimits(limits *v1alpha1.JetStreamLimits) *accountClaimsBuilder {
+func (b *accountClaimsBuilder) jetStreamLimits(limits *nauth.JetStreamLimits) *accountClaimsBuilder {
 	if limits != nil {
 		if limits.MemoryStorage != nil {
 			b.claim.Limits.MemoryStorage = *limits.MemoryStorage
@@ -254,7 +254,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		source := claims.Limits.AccountLimits
 		if !source.IsUnlimited() {
 			defaults := claimsDefaults.Limits.AccountLimits
-			out.AccountLimits = &v1alpha1.AccountLimits{}
+			out.AccountLimits = &nauth.AccountLimits{}
 			out.AccountLimits.Imports = toPtrDefNil(source.Imports, defaults.Imports)
 			out.AccountLimits.Exports = toPtrDefNil(source.Exports, defaults.Exports)
 			out.AccountLimits.WildcardExports = toPtrDefNil(source.WildcardExports, defaults.WildcardExports)
@@ -268,7 +268,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		source := claims.Limits.NatsLimits
 		if !source.IsUnlimited() {
 			defaults := claimsDefaults.Limits.NatsLimits
-			out.NatsLimits = &v1alpha1.NatsLimits{}
+			out.NatsLimits = &nauth.NatsLimits{}
 			out.NatsLimits.Data = toPtrDefNil(source.Data, defaults.Data)
 			out.NatsLimits.Subs = toPtrDefNil(source.Subs, defaults.Subs)
 			out.NatsLimits.Payload = toPtrDefNil(source.Payload, defaults.Payload)
@@ -280,7 +280,7 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		source := claims.Limits.JetStreamLimits
 		defaults := claimsDefaults.Limits.JetStreamLimits
 		if source != defaults {
-			out.JetStreamLimits = &v1alpha1.JetStreamLimits{}
+			out.JetStreamLimits = &nauth.JetStreamLimits{}
 			out.JetStreamLimits.MemoryStorage = toPtrDefNil(source.MemoryStorage, defaults.MemoryStorage)
 			out.JetStreamLimits.DiskStorage = toPtrDefNil(source.DiskStorage, defaults.DiskStorage)
 			out.JetStreamLimits.Streams = toPtrDefNil(source.Streams, defaults.Streams)

@@ -208,9 +208,9 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 
 func applySpec(accountIDReader resolveAccountIDFn, builder *accountClaimsBuilder, spec v1alpha1.AccountSpec) error {
 	builder.
-		accountLimits(spec.AccountLimits).
-		jetStreamLimits(spec.JetStreamLimits).
-		natsLimits(spec.NatsLimits).
+		accountLimits(toNAuthAccountLimits(spec.AccountLimits)).
+		jetStreamLimits(toNAuthJetStreamLimits(spec.JetStreamLimits)).
+		natsLimits(toNAuthNatsLimits(spec.NatsLimits)).
 		exports(spec.Exports)
 	if len(spec.Imports) > 0 {
 		inlineImportGroup, inlineImportsErr := toInlineImportGroup(accountIDReader, spec.Imports)
@@ -535,6 +535,46 @@ func cachedAccountIDReader(ctx context.Context, accountReader outbound.AccountRe
 			return "", fmt.Errorf("account ID label %s is missing for account %q", v1alpha1.AccountLabelAccountID, accountRef)
 		}
 		return accountID, nil
+	}
+}
+
+func toNAuthAccountLimits(source *v1alpha1.AccountLimits) *nauth.AccountLimits {
+	if source == nil {
+		return nil
+	}
+	return &nauth.AccountLimits{
+		Imports:         source.Imports,
+		Exports:         source.Exports,
+		WildcardExports: source.WildcardExports,
+		Conn:            source.Conn,
+		LeafNodeConn:    source.LeafNodeConn,
+	}
+}
+
+func toNAuthJetStreamLimits(source *v1alpha1.JetStreamLimits) *nauth.JetStreamLimits {
+	if source == nil {
+		return nil
+	}
+	return &nauth.JetStreamLimits{
+		MemoryStorage:        source.MemoryStorage,
+		DiskStorage:          source.DiskStorage,
+		Streams:              source.Streams,
+		Consumer:             source.Consumer,
+		MaxAckPending:        source.MaxAckPending,
+		MemoryMaxStreamBytes: source.MemoryMaxStreamBytes,
+		DiskMaxStreamBytes:   source.DiskMaxStreamBytes,
+		MaxBytesRequired:     source.MaxBytesRequired,
+	}
+}
+
+func toNAuthNatsLimits(source *v1alpha1.NatsLimits) *nauth.NatsLimits {
+	if source == nil {
+		return nil
+	}
+	return &nauth.NatsLimits{
+		Subs:    source.Subs,
+		Data:    source.Data,
+		Payload: source.Payload,
 	}
 }
 

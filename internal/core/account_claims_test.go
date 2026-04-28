@@ -26,12 +26,12 @@ const (
 )
 
 type TestAccountClaimsSpec struct {
-	AccountLimits    *v1alpha1.AccountLimits   `json:"accountLimits,omitempty"`   // TODO: Migrate to nauth.AccountLimits
-	JetStreamLimits  *v1alpha1.JetStreamLimits `json:"jetStreamLimits,omitempty"` // TODO: Migrate to nauth.JetStreamLimits
-	JetStreamEnabled *bool                     `json:"jetStreamEnabled,omitempty"`
-	NatsLimits       *v1alpha1.NatsLimits      `json:"natsLimits,omitempty"` // TODO: Migrate to nauth.NatsLimits
-	Exports          v1alpha1.Exports          `json:"exports,omitempty"`    // TODO: Migrate to nauth.Exports
-	Imports          nauth.Imports             `json:"imports,omitempty"`
+	AccountLimits    *nauth.AccountLimits   `json:"accountLimits,omitempty"`
+	JetStreamLimits  *nauth.JetStreamLimits `json:"jetStreamLimits,omitempty"`
+	JetStreamEnabled *bool                  `json:"jetStreamEnabled,omitempty"`
+	NatsLimits       *nauth.NatsLimits      `json:"natsLimits,omitempty"`
+	Exports          v1alpha1.Exports       `json:"exports,omitempty"` // TODO: Migrate to nauth.Exports
+	Imports          nauth.Imports          `json:"imports,omitempty"`
 }
 
 func Test_AccountClaims(t *testing.T) {
@@ -212,7 +212,7 @@ func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict
 	boolTrue := true
 
 	builder := newAccountClaimsBuilder("ACCID", &boolTrue).
-		jetStreamLimits(&v1alpha1.JetStreamLimits{DiskStorage: &zero, MemoryStorage: &zero})
+		jetStreamLimits(&nauth.JetStreamLimits{DiskStorage: &zero, MemoryStorage: &zero})
 
 	// When
 	claims, err := builder.build()
