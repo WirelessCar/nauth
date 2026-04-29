@@ -8,6 +8,8 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/core"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
@@ -206,12 +208,12 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldFail_WhenAccount
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 	boundToAccountCondition := t.assertCondition(conditions, conditionTypeBoundToAccount, metav1.ConditionFalse, conditionReasonConflict)
-	t.Equal("Account ID conflict: previously bound to ACCA, now found ACCB", boundToAccountCondition.Message)
+	t.Equal("account export is already bound to account: ACCA", boundToAccountCondition.Message)
 	t.Equalf(t.accountIDB, accountExport.Status.AccountID, "Expected Status.AccountID")
 	t.Equalf(t.accountIDA, accountExport.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
 
 	t.assertCondition(conditions, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonFailed)
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonAdopting)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
@@ -347,7 +349,7 @@ func (t *AccountExportControllerTestSuite) Test_Reconcile_ShouldNotBeAdoptedByAc
 	conditions := accountExport.Status.Conditions
 	t.Require().NotEmpty(conditions)
 
-	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonAdopting)
+	t.assertCondition(conditions, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonFailed)
 	t.assertCondition(conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonReconciling)
 }
 
@@ -370,4 +372,180 @@ func (t *AccountExportControllerTestSuite) assertCondition(conditions []metav1.C
 func (t *AccountExportControllerTestSuite) assertBoundAccountID(export *v1alpha1.AccountExport, expectAccountID string) {
 	t.Equalf(expectAccountID, export.GetLabel(v1alpha1.AccountExportLabelAccountID), "Expected label %q", v1alpha1.AccountExportLabelAccountID)
 	t.Equalf(expectAccountID, export.Status.AccountID, "Expected Status.AccountID")
+}
+
+func Test_findAdoptionByUID(t *testing.T) {
+	adoptions := []v1alpha1.AccountAdoption{
+		{UID: "export-1", Name: "first"},
+		{UID: "export-2", Name: "second"},
+	}
+
+	tests := []struct {
+		name    string
+		account *v1alpha1.Account
+		uid     ktypes.UID
+		want    *v1alpha1.AccountAdoption
+	}{
+		{
+			name:    "nil_adoptions",
+			account: &v1alpha1.Account{},
+			uid:     "export-1",
+			want:    nil,
+		},
+		{
+			name: "matching_uid",
+			account: &v1alpha1.Account{
+				Status: v1alpha1.AccountStatus{
+					Adoptions: &v1alpha1.AccountAdoptions{Exports: adoptions},
+				},
+			},
+			uid:  "export-2",
+			want: &adoptions[1],
+		},
+		{
+			name: "missing_uid",
+			account: &v1alpha1.Account{
+				Status: v1alpha1.AccountStatus{
+					Adoptions: &v1alpha1.AccountAdoptions{Exports: adoptions},
+				},
+			},
+			uid:  "export-3",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findAdoptionByUID(tt.account, tt.uid)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_mapToExportRule(t *testing.T) {
+	responseThreshold := 25 * time.Millisecond
+	accountTokenPosition := uint(3)
+	advertise := true
+	allowTrace := true
+
+	t.Run("maps_all_fields", func(t *testing.T) {
+		rule := v1alpha1.AccountExportRule{
+			Name:              "my-export",
+			Subject:           "subject.>",
+			Type:              v1alpha1.Service,
+			ResponseType:      v1alpha1.ResponseType("Singleton"),
+			ResponseThreshold: &responseThreshold,
+			Latency: &v1alpha1.ServiceLatency{
+				Sampling: 50,
+				Results:  "latency.results",
+			},
+			AccountTokenPosition: &accountTokenPosition,
+			Advertise:            &advertise,
+			AllowTrace:           &allowTrace,
+		}
+
+		want := nauth.ExportRule{
+			Name:              "my-export",
+			Subject:           nauth.Subject("subject.>"),
+			Type:              nauth.ExportTypeService,
+			ResponseType:      nauth.ResponseType("Singleton"),
+			ResponseThreshold: &responseThreshold,
+			Latency: &nauth.ServiceLatency{
+				Sampling: 50,
+				Results:  nauth.Subject("latency.results"),
+			},
+			AccountTokenPosition: 3,
+			Advertise:            true,
+			AllowTrace:           true,
+		}
+
+		assert.Equal(t, want, mapToExportRule(rule))
+	})
+
+	t.Run("keeps_zero_values_when_optional_fields_missing", func(t *testing.T) {
+		rule := v1alpha1.AccountExportRule{
+			Subject: "subject",
+			Type:    v1alpha1.Stream,
+		}
+
+		want := nauth.ExportRule{
+			Subject: nauth.Subject("subject"),
+			Type:    nauth.ExportTypeStream,
+		}
+
+		assert.Equal(t, want, mapToExportRule(rule))
+	})
+}
+
+func Test_isAccountExportReady(t *testing.T) {
+	trueCondition := func(conditionType string) metav1.Condition {
+		return newCondition(conditionType, metav1.ConditionTrue, conditionReasonOK, "")
+	}
+
+	createExport := func(generation int64, desiredClaim *v1alpha1.AccountExportClaim, conditions ...metav1.Condition) *v1alpha1.AccountExport {
+		return &v1alpha1.AccountExport{
+			ObjectMeta: metav1.ObjectMeta{Generation: generation},
+			Status: v1alpha1.AccountExportStatus{
+				DesiredClaim: desiredClaim,
+				Conditions:   conditions,
+			},
+		}
+	}
+
+	tests := []struct {
+		name   string
+		export *v1alpha1.AccountExport
+		want   bool
+	}{
+		{
+			name: "all_conditions_true_and_claim_matches_generation",
+			export: createExport(
+				2,
+				&v1alpha1.AccountExportClaim{ObservedGeneration: 2},
+				trueCondition(conditionTypeBoundToAccount),
+				trueCondition(conditionTypeValidRules),
+				trueCondition(conditionTypeAdoptedByAccount),
+			),
+			want: true,
+		},
+		{
+			name: "missing_desired_claim",
+			export: createExport(
+				2,
+				nil,
+				trueCondition(conditionTypeBoundToAccount),
+				trueCondition(conditionTypeValidRules),
+				trueCondition(conditionTypeAdoptedByAccount),
+			),
+			want: false,
+		},
+		{
+			name: "stale_claim_generation",
+			export: createExport(
+				2,
+				&v1alpha1.AccountExportClaim{ObservedGeneration: 1},
+				trueCondition(conditionTypeBoundToAccount),
+				trueCondition(conditionTypeValidRules),
+				trueCondition(conditionTypeAdoptedByAccount),
+			),
+			want: false,
+		},
+		{
+			name: "missing_ready_condition_dependency",
+			export: createExport(
+				2,
+				&v1alpha1.AccountExportClaim{ObservedGeneration: 2},
+				trueCondition(conditionTypeBoundToAccount),
+				newCondition(conditionTypeValidRules, metav1.ConditionFalse, conditionReasonInvalid, "invalid rules"),
+				trueCondition(conditionTypeAdoptedByAccount),
+			),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isAccountExportReady(tt.export))
+		})
+	}
 }
