@@ -157,10 +157,8 @@ func (r AdoptionResults) Get(ref Ref) *AdoptionResult {
 // AdoptionFailure must be TitleCased to comply with k8s metav1.StatusReason
 type AdoptionFailure string
 
-const ( // FIXME: Remove unused
-	AdoptionFailureNoDesiredClaim AdoptionFailure = "NoDesiredClaim"
-	AdoptionFailureConflict       AdoptionFailure = "Conflict"
-	AdoptionFailureInvalid        AdoptionFailure = "Invalid"
+const (
+	AdoptionFailureConflict AdoptionFailure = "Conflict"
 )
 
 type AdoptionResult struct {
