@@ -230,7 +230,7 @@ func hashSignedAccountJWTClaims(accountJWT string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func toPtrDefNil[V int64 | bool](value V, defaultValue V) *V {
+func toPointerDefaultNil[V int64 | bool](value V, defaultValue V) *V {
 	if value != defaultValue {
 		return &value
 	}
@@ -255,11 +255,11 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		if !source.IsUnlimited() {
 			defaults := claimsDefaults.Limits.AccountLimits
 			out.AccountLimits = &nauth.AccountLimits{}
-			out.AccountLimits.Imports = toPtrDefNil(source.Imports, defaults.Imports)
-			out.AccountLimits.Exports = toPtrDefNil(source.Exports, defaults.Exports)
-			out.AccountLimits.WildcardExports = toPtrDefNil(source.WildcardExports, defaults.WildcardExports)
-			out.AccountLimits.Conn = toPtrDefNil(source.Conn, defaults.Conn)
-			out.AccountLimits.LeafNodeConn = toPtrDefNil(source.LeafNodeConn, defaults.LeafNodeConn)
+			out.AccountLimits.Imports = toPointerDefaultNil(source.Imports, defaults.Imports)
+			out.AccountLimits.Exports = toPointerDefaultNil(source.Exports, defaults.Exports)
+			out.AccountLimits.WildcardExports = toPointerDefaultNil(source.WildcardExports, defaults.WildcardExports)
+			out.AccountLimits.Conn = toPointerDefaultNil(source.Conn, defaults.Conn)
+			out.AccountLimits.LeafNodeConn = toPointerDefaultNil(source.LeafNodeConn, defaults.LeafNodeConn)
 		}
 	}
 
@@ -269,9 +269,9 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		if !source.IsUnlimited() {
 			defaults := claimsDefaults.Limits.NatsLimits
 			out.NatsLimits = &nauth.NatsLimits{}
-			out.NatsLimits.Data = toPtrDefNil(source.Data, defaults.Data)
-			out.NatsLimits.Subs = toPtrDefNil(source.Subs, defaults.Subs)
-			out.NatsLimits.Payload = toPtrDefNil(source.Payload, defaults.Payload)
+			out.NatsLimits.Data = toPointerDefaultNil(source.Data, defaults.Data)
+			out.NatsLimits.Subs = toPointerDefaultNil(source.Subs, defaults.Subs)
+			out.NatsLimits.Payload = toPointerDefaultNil(source.Payload, defaults.Payload)
 		}
 	}
 
@@ -281,14 +281,14 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 		defaults := claimsDefaults.Limits.JetStreamLimits
 		if source != defaults {
 			out.JetStreamLimits = &nauth.JetStreamLimits{}
-			out.JetStreamLimits.MemoryStorage = toPtrDefNil(source.MemoryStorage, defaults.MemoryStorage)
-			out.JetStreamLimits.DiskStorage = toPtrDefNil(source.DiskStorage, defaults.DiskStorage)
-			out.JetStreamLimits.Streams = toPtrDefNil(source.Streams, defaults.Streams)
-			out.JetStreamLimits.Consumer = toPtrDefNil(source.Consumer, defaults.Consumer)
-			out.JetStreamLimits.MaxAckPending = toPtrDefNil(source.MaxAckPending, defaults.MaxAckPending)
-			out.JetStreamLimits.MemoryMaxStreamBytes = toPtrDefNil(source.MemoryMaxStreamBytes, defaults.MemoryMaxStreamBytes)
-			out.JetStreamLimits.DiskMaxStreamBytes = toPtrDefNil(source.DiskMaxStreamBytes, defaults.DiskMaxStreamBytes)
-			out.JetStreamLimits.MaxBytesRequired = toPtrDefNil(source.MaxBytesRequired, defaults.MaxBytesRequired)
+			out.JetStreamLimits.MemoryStorage = toPointerDefaultNil(source.MemoryStorage, defaults.MemoryStorage)
+			out.JetStreamLimits.DiskStorage = toPointerDefaultNil(source.DiskStorage, defaults.DiskStorage)
+			out.JetStreamLimits.Streams = toPointerDefaultNil(source.Streams, defaults.Streams)
+			out.JetStreamLimits.Consumer = toPointerDefaultNil(source.Consumer, defaults.Consumer)
+			out.JetStreamLimits.MaxAckPending = toPointerDefaultNil(source.MaxAckPending, defaults.MaxAckPending)
+			out.JetStreamLimits.MemoryMaxStreamBytes = toPointerDefaultNil(source.MemoryMaxStreamBytes, defaults.MemoryMaxStreamBytes)
+			out.JetStreamLimits.DiskMaxStreamBytes = toPointerDefaultNil(source.DiskMaxStreamBytes, defaults.DiskMaxStreamBytes)
+			out.JetStreamLimits.MaxBytesRequired = toPointerDefaultNil(source.MaxBytesRequired, defaults.MaxBytesRequired)
 		}
 	}
 
