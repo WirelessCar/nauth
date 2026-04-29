@@ -95,7 +95,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		updateConditionFalse(conditionTypeValidRules, conditionReasonInvalid, err.Error())
 	} else {
 		updateConditionTrue(conditionTypeValidRules)
-		(&state.Status).DesiredClaim = &v1alpha1.AccountExportClaim{
+		state.Status.DesiredClaim = &v1alpha1.AccountExportClaim{
 			Rules:              state.Spec.Rules,
 			ObservedGeneration: state.Generation,
 		}
@@ -143,15 +143,14 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			sameGeneration := adoptionGen != nil && *adoptionGen == state.Generation
 			if adoption.Status.Status == metav1.ConditionTrue && sameGeneration {
 				updateConditionTrue(conditionTypeAdoptedByAccount)
+			} else if !sameGeneration {
+				msg := fmt.Sprintf("waiting for account to adopt generation %d", state.Generation)
+				updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, msg)
 			} else {
-				if !sameGeneration {
-					msg := fmt.Sprintf("waiting for account to adopt generation %d", state.Generation)
-					updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, msg)
-				} else {
-					msg := fmt.Sprintf("%s: %s", adoption.Status.Reason, adoption.Status.Message)
-					updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, msg)
-				}
+				msg := fmt.Sprintf("%s: %s", adoption.Status.Reason, adoption.Status.Message)
+				updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonFailed, msg)
 			}
+
 		}
 	}
 
@@ -194,11 +193,13 @@ func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) *v1alpha1.Accou
 
 func mapToExportRule(rule v1alpha1.AccountExportRule) nauth.ExportRule {
 	result := nauth.ExportRule{
-		Name:              rule.Name,
-		Subject:           nauth.Subject(rule.Subject),
-		Type:              mapExportType(rule.Type),
-		ResponseType:      nauth.ResponseType(rule.ResponseType),
-		ResponseThreshold: rule.ResponseThreshold,
+		Name:         rule.Name,
+		Subject:      nauth.Subject(rule.Subject),
+		Type:         mapExportType(rule.Type),
+		ResponseType: nauth.ResponseType(rule.ResponseType),
+	}
+	if rule.ResponseThreshold != nil {
+		result.ResponseThreshold = *rule.ResponseThreshold
 	}
 
 	if rule.Latency != nil {

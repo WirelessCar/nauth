@@ -18,7 +18,7 @@ func Test_mapToJwtExport(t *testing.T) {
 		Subject:           "Subject.*",
 		Type:              nauth.ExportTypeService,
 		ResponseType:      "Singleton",
-		ResponseThreshold: &responseThreshold,
+		ResponseThreshold: responseThreshold,
 		Latency: &nauth.ServiceLatency{
 			Sampling: 20,
 			Results:  "Results",
@@ -79,7 +79,7 @@ func TestAccountExportManager_ValidateRules(t *testing.T) {
 					Subject:           "my.subject",
 					Type:              nauth.ExportTypeService,
 					ResponseType:      "Singleton",
-					ResponseThreshold: &responseThreshold,
+					ResponseThreshold: responseThreshold,
 					Latency: &nauth.ServiceLatency{
 						Sampling: 100,
 						Results:  "results.subject",

@@ -14,7 +14,7 @@ type ExportRule struct {
 	// +optional
 	ResponseType ResponseType
 	// +optional
-	ResponseThreshold *time.Duration
+	ResponseThreshold time.Duration
 	// +optional
 	Latency *ServiceLatency
 	// +optional

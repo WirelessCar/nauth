@@ -449,7 +449,7 @@ func Test_mapToExportRule(t *testing.T) {
 			Subject:           nauth.Subject("subject.>"),
 			Type:              nauth.ExportTypeService,
 			ResponseType:      nauth.ResponseType("Singleton"),
-			ResponseThreshold: &responseThreshold,
+			ResponseThreshold: responseThreshold,
 			Latency: &nauth.ServiceLatency{
 				Sampling: 50,
 				Results:  nauth.Subject("latency.results"),

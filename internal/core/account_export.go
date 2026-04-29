@@ -37,9 +37,7 @@ func mapToJwtExport(r nauth.ExportRule) *jwt.Export {
 		AccountTokenPosition: r.AccountTokenPosition,
 		Advertise:            r.Advertise,
 		AllowTrace:           r.AllowTrace,
-	}
-	if r.ResponseThreshold != nil {
-		export.ResponseThreshold = *r.ResponseThreshold
+		ResponseThreshold:    r.ResponseThreshold,
 	}
 	if r.Latency != nil {
 		export.Latency = &jwt.ServiceLatency{
