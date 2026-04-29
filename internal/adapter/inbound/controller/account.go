@@ -177,7 +177,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT
-	var result *domain.AccountResult
+	var result *nauth.AccountResult
 	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		var err error
@@ -229,8 +229,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.reporter.status(ctx, natsAccount)
 }
 
-func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (domain.AccountResources, accountAdoptionRefs, error) {
-	resources := domain.AccountResources{Account: *account}
+func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (nauth.AccountResources, accountAdoptionRefs, error) {
+	resources := nauth.AccountResources{Account: *account}
 	refs := accountAdoptionRefs{}
 
 	if accountID == "" {

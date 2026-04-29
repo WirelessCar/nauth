@@ -109,7 +109,7 @@ func (t *AccountControllerTestSuite) TearDownTest() {
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAccount() {
 	// Given
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -161,7 +161,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccount() {
 	// Given
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -203,7 +203,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedForDeletion() {
 	// Given
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -244,7 +244,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
 	// Given
 	deletionErr := fmt.Errorf("Unable to delete account")
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -286,7 +286,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount() {
 	// Given
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -312,7 +312,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
 	// Given
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
@@ -355,14 +355,14 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 	// Given
 	accountKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountKey.PublicKey()
-	mockResult := &domain.AccountResult{
+	mockResult := &nauth.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	var spyAccountResourcesInit domain.AccountResources
-	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources domain.AccountResources) {
+	var spyAccountResourcesInit nauth.AccountResources
+	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources nauth.AccountResources) {
 		spyAccountResourcesInit = resources
 	}, mockResult).Once()
 	account := &v1alpha1.Account{
@@ -385,7 +385,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 	export3 := t.createExport(domain.Namespace(t.accountNamespace), "export-3", accountID, nil) // Not expected into manager
 	t.createExport(domain.Namespace(t.accountNamespace), "export-4", "ANOTHERACCOUNT", t.anyExportClaim(40))
 	export5 := t.createExport(domain.Namespace(t.accountNamespace), "export-5", accountID, t.anyExportClaim(50))
-	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(resources domain.AccountResources) (*domain.AccountResult, error) {
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(resources nauth.AccountResources) (*nauth.AccountResult, error) {
 		adoptions := nauth.NewAccountAdoptions()
 		t.Require().Equalf(2, len(resources.ExportGroups), "expected 2 export groups: export-1 and export-5")
 		for _, exportGroup := range resources.ExportGroups {
@@ -393,7 +393,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 				Ref: exportGroup.Ref,
 			}))
 		}
-		return &domain.AccountResult{
+		return &nauth.AccountResult{
 			AccountID:       accountID,
 			AccountSignedBy: "OPERATOR_SIGNING_KEY",
 			Claims:          &nauth.AccountClaims{},
@@ -519,7 +519,7 @@ type AccountManagerMock struct {
 	mock.Mock
 }
 
-func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources domain.AccountResources) (*domain.AccountResult, error) {
+func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources nauth.AccountResources) (*nauth.AccountResult, error) {
 	args := o.Called(ctx, resources)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -527,28 +527,28 @@ func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources domai
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-	return args.Get(0).(*domain.AccountResult), nil
+	return args.Get(0).(*nauth.AccountResult), nil
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *domain.AccountResult) *mock.Call {
+func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *nauth.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Return(result, nil)
 	return call
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdateFn(ctx interface{}, resources interface{}, fn func(resources domain.AccountResources) (*domain.AccountResult, error)) *mock.Call {
+func (o *AccountManagerMock) mockCreateOrUpdateFn(ctx interface{}, resources interface{}, fn func(resources nauth.AccountResources) (*nauth.AccountResult, error)) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Run(func(args mock.Arguments) {
-		result, err := fn(args.Get(1).(domain.AccountResources))
+		result, err := fn(args.Get(1).(nauth.AccountResources))
 		call.Return(result, err)
 	})
 	return call
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdateSpy(ctx interface{}, resourcesCallback func(resources domain.AccountResources), result *domain.AccountResult) *mock.Call {
+func (o *AccountManagerMock) mockCreateOrUpdateSpy(ctx interface{}, resourcesCallback func(resources nauth.AccountResources), result *nauth.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, mock.Anything)
 	call.Run(func(args mock.Arguments) {
-		resourcesCallback(args.Get(1).(domain.AccountResources))
+		resourcesCallback(args.Get(1).(nauth.AccountResources))
 	})
 	call.Return(result, nil)
 	return call
@@ -560,7 +560,7 @@ func (o *AccountManagerMock) mockCreateOrUpdateError(ctx interface{}, resources 
 	return call
 }
 
-func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
+func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*nauth.AccountResult, error) {
 	args := o.Called(ctx, state)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -568,7 +568,7 @@ func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account
 	if args.Get(0) == nil {
 		return nil, nil
 	}
-	return args.Get(0).(*domain.AccountResult), nil
+	return args.Get(0).(*nauth.AccountResult), nil
 }
 
 func (o *AccountManagerMock) Delete(ctx context.Context, state *v1alpha1.Account) error {
@@ -582,7 +582,7 @@ func (o *AccountManagerMock) mockDelete(ctx interface{}, state interface{}, err 
 	return call
 }
 
-func (o *AccountManagerMock) mockImport(ctx interface{}, state interface{}, result *domain.AccountResult) *mock.Call {
+func (o *AccountManagerMock) mockImport(ctx interface{}, state interface{}, result *nauth.AccountResult) *mock.Call {
 	call := o.On("Import", ctx, state)
 	call.Return(result, nil)
 	return call

@@ -130,7 +130,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -183,7 +183,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -229,7 +229,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -262,7 +262,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.resetAllMocks()
 			inputData, err := os.ReadFile(testCase.InputFile)
 			t.Require().NoError(err)
-			var input domain.AccountResources
+			var input nauth.AccountResources
 			t.Require().NoError(yaml.UnmarshalStrict(inputData, &input))
 			t.Require().NotEmpty(input.Account.Name, "account.name must be present in input file")
 			t.Require().NotEmpty(input.Account.Namespace, "account.namespace must be present in input file")
@@ -307,7 +307,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -330,7 +330,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreI
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -364,7 +364,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -398,7 +398,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -422,7 +422,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -459,7 +459,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -492,7 +492,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -530,7 +530,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -562,7 +562,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -606,7 +606,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	}).Once()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, domain.AccountResources{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
 		Account: v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "account-namespace",
@@ -948,7 +948,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 * Helpers
 *****************************************************/
 
-func (t *AccountManagerTestSuite) verifyAccountResult(result *domain.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
+func (t *AccountManagerTestSuite) verifyAccountResult(result *nauth.AccountResult, caughtAccountJWT string, expectRootKey, expectSignKey nkeys.KeyPair) *jwt.AccountClaims {
 	t.Require().NotEmpty(caughtAccountJWT, "caught Account JWT must not be empty")
 
 	rootKeyPublic, err := expectRootKey.PublicKey()

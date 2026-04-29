@@ -80,7 +80,7 @@ func (a *AccountManager) validate() error {
 	return nil
 }
 
-func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.AccountResources) (*domain.AccountResult, error) {
+func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources nauth.AccountResources) (*nauth.AccountResult, error) {
 	account := &resources.Account
 	accountRef := domain.NewNamespacedName(account.GetNamespace(), account.GetName())
 	if err := accountRef.Validate(); err != nil {
@@ -206,7 +206,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	}
 
 	nauthClaims := convertNatsAccountClaims(natsClaims)
-	return &domain.AccountResult{
+	return &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
 		Claims:          &nauthClaims,
@@ -245,7 +245,7 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 	return claims.Encode(operatorSigningKey)
 }
 
-func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error) {
+func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*nauth.AccountResult, error) {
 	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
@@ -300,7 +300,7 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash account claims during import: %w", err)
 	}
-	return &domain.AccountResult{
+	return &nauth.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: natsClaims.Issuer,
 		Claims:          &nauthClaims,

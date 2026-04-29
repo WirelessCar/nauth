@@ -4,13 +4,12 @@ import (
 	"context"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 )
 
 type AccountManager interface {
-	CreateOrUpdate(ctx context.Context, accountResources domain.AccountResources) (*domain.AccountResult, error)
-	Import(ctx context.Context, state *v1alpha1.Account) (*domain.AccountResult, error)
+	CreateOrUpdate(ctx context.Context, accountResources nauth.AccountResources) (*nauth.AccountResult, error)
+	Import(ctx context.Context, state *v1alpha1.Account) (*nauth.AccountResult, error)
 	Delete(ctx context.Context, desired *v1alpha1.Account) error
 }
 

@@ -3,7 +3,22 @@ package nauth
 import (
 	"fmt"
 	"time"
+
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
+
+type AccountResources struct {
+	Account      v1alpha1.Account `json:"account,omitempty"` // TODO: Migrate to domain model
+	ExportGroups ExportGroups     `json:"exportGroups,omitempty"`
+}
+
+type AccountResult struct {
+	AccountID       string
+	AccountSignedBy string
+	Claims          *AccountClaims
+	ClaimsHash      string
+	Adoptions       *AccountAdoptions
+}
 
 type Ref string
 
