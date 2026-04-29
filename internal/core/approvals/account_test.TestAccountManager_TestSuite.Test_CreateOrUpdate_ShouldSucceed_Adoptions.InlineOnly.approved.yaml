@@ -1,6 +1,7 @@
 AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
 AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
-Adoptions: {}
+Adoptions:
+  exports: {}
 Claims:
   accountLimits:
     conn: 100
@@ -9,11 +10,11 @@ Claims:
   displayName: account-namespace/account-name
   exports:
   - name: JS orders consumer create
-    responseType: Stream
+    responseType: stream
     subject: $JS.API.CONSUMER.CREATE.orders
     type: service
   - name: JS orders consumer create wildcard
-    responseType: Stream
+    responseType: stream
     subject: $JS.API.CONSUMER.CREATE.orders.>
     type: service
   - name: JS orders FC

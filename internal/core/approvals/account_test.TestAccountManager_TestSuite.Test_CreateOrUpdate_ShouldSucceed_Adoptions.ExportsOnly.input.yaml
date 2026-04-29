@@ -4,37 +4,21 @@ account:
   metadata:
     name: account-name
     namespace: account-namespace
-exports:
-  - apiVersion: nauth.io/v1alpha1
-    kind: Export
-    metadata:
-      name: foo API
-      namespace: account-namespace
-      uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
-      generation: 3
-    status:
-      desiredClaim:
-        observedGeneration: 2
-        rules:
-          - name: foo created events
-            subject: evt.foo.created
-            type: stream
-          - name: foo deleted events
-            subject: evt.foo.deleted
-            type: stream
-          - name: foo find service
-            subject: svc.foo.find
-            type: service
-  - apiVersion: nauth.io/v1alpha1
-    kind: Export
-    metadata:
-      name: bar API
-      namespace: account-namespace
-      uid: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
-      generation: 1
-    status:
-      desiredClaim:
-        observedGeneration: 1
-        rules:
-          - subject: bar.report
-            type: service
+exportGroups:
+  - ref: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+    name: foo API
+    exports:
+      - name: foo created events
+        subject: evt.foo.created
+        type: stream
+      - name: foo deleted events
+        subject: evt.foo.deleted
+        type: stream
+      - name: foo find service
+        subject: svc.foo.find
+        type: service
+  - ref: 2cecbfcb-e92d-4bc9-bf4d-67d82737e707
+    name: bar API
+    exports:
+      - subject: bar.report
+        type: service

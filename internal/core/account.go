@@ -13,7 +13,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -161,9 +160,19 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources domain.Ac
 	if err = applySpec(accountIDReader, claimsBuilder, account.Spec); err != nil {
 		return nil, fmt.Errorf("failed to prepare account claims: %w", err)
 	}
-	adoptions := &v1alpha1.AccountAdoptions{
-		Exports: adoptExports(claimsBuilder, resources.Exports),
+	adoptions := nauth.NewAccountAdoptions()
+	for _, exp := range resources.ExportGroups {
+		adoptionResult := nauth.AdoptionResult{Ref: exp.Ref}
+		err = claimsBuilder.addExportGroup(*exp)
+		if err != nil {
+			adoptionResult.Failure = nauth.AdoptionFailureConflict
+			adoptionResult.Message = err.Error()
+		}
+		if err = adoptions.Exports.Add(adoptionResult); err != nil {
+			return nil, fmt.Errorf("failed to add adoption result for export group %q: %w", exp.Ref, err)
+		}
 	}
+
 	natsClaims, err := claimsBuilder.build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build NATS account claims: %w", err)
@@ -210,54 +219,21 @@ func applySpec(accountIDReader resolveAccountIDFn, builder *accountClaimsBuilder
 	builder.
 		accountLimits(toNAuthAccountLimits(spec.AccountLimits)).
 		jetStreamLimits(toNAuthJetStreamLimits(spec.JetStreamLimits)).
-		natsLimits(toNAuthNatsLimits(spec.NatsLimits)).
-		exports(spec.Exports)
-	if len(spec.Imports) > 0 {
-		inlineImportGroup, inlineImportsErr := toInlineImportGroup(accountIDReader, spec.Imports)
-		if inlineImportsErr != nil {
-			return fmt.Errorf("failed to convert inline imports to domain model: %w", inlineImportsErr)
-		}
-		err := builder.addImportGroup(*inlineImportGroup)
-		if err != nil {
-			return fmt.Errorf("failed to add inline imports: %w", err)
-		}
+		natsLimits(toNAuthNatsLimits(spec.NatsLimits))
+
+	inlineExportGroup := toInlineExportGroup(spec.Exports)
+	if err := builder.addExportGroup(inlineExportGroup); err != nil {
+		return fmt.Errorf("failed to add inline exports: %w", err)
+	}
+
+	inlineImportGroup, inlineImportsErr := toInlineImportGroup(accountIDReader, spec.Imports)
+	if inlineImportsErr != nil {
+		return fmt.Errorf("failed to convert inline imports to domain model: %w", inlineImportsErr)
+	}
+	if err := builder.addImportGroup(inlineImportGroup); err != nil {
+		return fmt.Errorf("failed to add inline imports: %w", err)
 	}
 	return nil
-}
-
-func adoptExports(builder *accountClaimsBuilder, exports []v1alpha1.AccountExport) []v1alpha1.AccountAdoption {
-	adoptions := make([]v1alpha1.AccountAdoption, len(exports))
-	for i, export := range exports {
-		var adoptionStatus v1alpha1.AccountAdoptionStatus
-		desiredClaim := export.Status.DesiredClaim
-		if desiredClaim == nil {
-			adoptionStatus = v1alpha1.AccountAdoptionStatus{
-				Status:  metav1.ConditionFalse,
-				Reason:  string(metav1.StatusReasonInvalid),
-				Message: "missing desired claim in export status",
-			}
-		} else if err := builder.addExportRuleGroup(desiredClaim.Rules); err != nil {
-			adoptionStatus = v1alpha1.AccountAdoptionStatus{
-				Status:                         metav1.ConditionFalse,
-				Reason:                         string(metav1.StatusReasonInvalid),
-				DesiredClaimObservedGeneration: &desiredClaim.ObservedGeneration,
-				Message:                        err.Error(),
-			}
-		} else {
-			adoptionStatus = v1alpha1.AccountAdoptionStatus{
-				Status:                         metav1.ConditionTrue,
-				Reason:                         "Adopted",
-				DesiredClaimObservedGeneration: &desiredClaim.ObservedGeneration,
-			}
-		}
-		adoptions[i] = v1alpha1.AccountAdoption{
-			Name:               export.Name,
-			UID:                export.UID,
-			ObservedGeneration: export.Generation,
-			Status:             adoptionStatus,
-		}
-	}
-	return adoptions
 }
 
 func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair) (string, error) {
@@ -578,23 +554,21 @@ func toNAuthNatsLimits(source *v1alpha1.NatsLimits) *nauth.NatsLimits {
 	}
 }
 
-func toInlineImportGroup(reader resolveAccountIDFn, sources v1alpha1.Imports) (*nauth.ImportGroup, error) {
-	if len(sources) == 0 {
-		return nil, fmt.Errorf("no inline imports defined")
+func toInlineImportGroup(reader resolveAccountIDFn, sources v1alpha1.Imports) (nauth.ImportGroup, error) {
+	result := nauth.ImportGroup{
+		Name: GroupNameInline,
 	}
-
-	var imports nauth.Imports
 	for _, source := range sources {
 		accountRef := domain.NewNamespacedName(source.AccountRef.Namespace, source.AccountRef.Name)
 		var err error
 		accountID, err := reader(accountRef)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve account ID for inline import %s: %w", accountRef, err)
+			return result, fmt.Errorf("failed to resolve account ID for inline import %s: %w", accountRef, err)
 		}
 		if accountID == "" {
-			return nil, fmt.Errorf("account ID is missing for inline import %s", accountRef)
+			return result, fmt.Errorf("account ID is missing for inline import %s", accountRef)
 		}
-		imports = append(imports, &nauth.Import{
+		result.Imports = append(result.Imports, &nauth.Import{
 			AccountID:    nauth.AccountID(accountID),
 			Name:         source.Name,
 			Subject:      nauth.Subject(source.Subject),
@@ -604,10 +578,53 @@ func toInlineImportGroup(reader resolveAccountIDFn, sources v1alpha1.Imports) (*
 			AllowTrace:   source.AllowTrace,
 		})
 	}
-	return &nauth.ImportGroup{
-		Name:    GroupNameInline,
-		Imports: imports,
-	}, nil
+	return result, nil
+}
+
+func toInlineExportGroup(sources v1alpha1.Exports) nauth.ExportGroup {
+	result := nauth.ExportGroup{
+		Name: GroupNameInline,
+	}
+	for _, source := range sources {
+		result.Exports = append(result.Exports, &nauth.Export{
+			Name:                 source.Name,
+			Subject:              nauth.Subject(source.Subject),
+			Type:                 toNAuthExportTypeFromAPI(source.Type),
+			TokenReq:             source.TokenReq,
+			Revocations:          nauth.RevocationList(source.Revocations),
+			ResponseType:         toNAuthResponseTypeFromAPI(source.ResponseType),
+			ResponseThreshold:    source.ResponseThreshold,
+			Latency:              toNAuthServiceLatencyFromAPI(source.Latency),
+			AccountTokenPosition: source.AccountTokenPosition,
+			Advertise:            source.Advertise,
+			AllowTrace:           source.AllowTrace,
+		})
+	}
+	return result
+}
+
+func toNAuthResponseTypeFromAPI(source v1alpha1.ResponseType) nauth.ResponseType {
+	switch source {
+	case v1alpha1.ResponseTypeSingleton:
+		return nauth.ResponseTypeSingleton
+	case v1alpha1.ResponseTypeStream:
+		return nauth.ResponseTypeStream
+	case v1alpha1.ResponseTypeChunked:
+		return nauth.ResponseTypeChunked
+	default:
+		return ""
+	}
+}
+
+func toNAuthServiceLatencyFromAPI(source *v1alpha1.ServiceLatency) *nauth.ServiceLatency {
+	if source == nil {
+		return nil
+	}
+
+	return &nauth.ServiceLatency{
+		Sampling: nauth.SamplingRate(source.Sampling),
+		Results:  nauth.Subject(source.Results),
+	}
 }
 
 func toNAuthExportTypeFromAPI(exportType v1alpha1.ExportType) nauth.ExportType {

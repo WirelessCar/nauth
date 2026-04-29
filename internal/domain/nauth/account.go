@@ -1,6 +1,13 @@
 package nauth
 
-import "github.com/WirelessCar/nauth/api/v1alpha1"
+import (
+	"fmt"
+	"time"
+
+	"github.com/WirelessCar/nauth/api/v1alpha1"
+)
+
+type Ref string
 
 type AccountID string
 type Subject string
@@ -12,6 +19,18 @@ const (
 	ExportTypeStream  ExportType = "stream"
 	ExportTypeService ExportType = "service"
 )
+
+type RevocationList map[string]int64
+
+type ResponseType string
+
+const (
+	ResponseTypeSingleton ResponseType = "singleton"
+	ResponseTypeStream    ResponseType = "stream"
+	ResponseTypeChunked   ResponseType = "chunked"
+)
+
+type SamplingRate int
 
 type AccountLimits struct {
 	Imports         *int64 `json:"imports,omitempty"`
@@ -56,6 +75,34 @@ type Import struct {
 	AllowTrace   bool       `json:"allowTrace,omitempty"`
 }
 
+type ExportGroups []*ExportGroup
+
+type ExportGroup struct {
+	Ref     Ref     `json:"ref"`
+	Name    string  `json:"name,omitempty"`
+	Exports Exports `json:"exports"`
+}
+
+type Exports []*Export
+
+type Export struct {
+	Name                 string          `json:"name,omitempty"`
+	Subject              Subject         `json:"subject,omitempty"`
+	Type                 ExportType      `json:"type,omitempty"`
+	TokenReq             bool            `json:"tokenReq,omitempty"`
+	Revocations          RevocationList  `json:"revocations,omitempty"`
+	ResponseType         ResponseType    `json:"responseType,omitempty"`
+	ResponseThreshold    time.Duration   `json:"responseThreshold,omitempty"`
+	Latency              *ServiceLatency `json:"serviceLatency,omitempty"`
+	AccountTokenPosition uint            `json:"accountTokenPosition,omitempty"`
+	Advertise            bool            `json:"advertise,omitempty"`
+	AllowTrace           bool            `json:"allowTrace,omitempty"`
+}
+type ServiceLatency struct {
+	Sampling SamplingRate `json:"sampling"`
+	Results  Subject      `json:"results"`
+}
+
 type AccountClaims struct {
 	AccountID        AccountID            `json:"accountId,omitempty"`
 	DisplayName      string               `json:"displayName,omitempty"`
@@ -64,6 +111,53 @@ type AccountClaims struct {
 	JetStreamLimits  *JetStreamLimits     `json:"jetStreamLimits,omitempty"`
 	NatsLimits       *NatsLimits          `json:"natsLimits,omitempty"`
 	SigningKeys      v1alpha1.SigningKeys `json:"signingKeys,omitempty"` // TODO: Migrate to domain SigningKeys
-	Exports          v1alpha1.Exports     `json:"exports,omitempty"`     // TODO: Migrate to domain Exports
+	Exports          Exports              `json:"exports,omitempty"`
 	Imports          Imports              `json:"imports,omitempty"`
+}
+
+type AccountAdoptions struct {
+	Exports *AdoptionResults `json:"exports,omitempty"`
+}
+
+func NewAccountAdoptions() *AccountAdoptions {
+	return &AccountAdoptions{
+		Exports: &AdoptionResults{},
+	}
+}
+
+type AdoptionResults map[Ref]AdoptionResult
+
+func (r AdoptionResults) Add(result AdoptionResult) error {
+	if _, exists := r[result.Ref]; exists {
+		return fmt.Errorf("adoption result for Ref %q already exists", result.Ref)
+	}
+	r[result.Ref] = result
+	return nil
+}
+
+func (r AdoptionResults) Get(ref Ref) *AdoptionResult {
+	result, found := r[ref]
+	if !found {
+		return nil
+	}
+	return &result
+}
+
+// AdoptionFailure must be TitleCased to comply with k8s metav1.StatusReason
+type AdoptionFailure string
+
+const ( // FIXME: Remove unused
+	AdoptionFailureNoDesiredClaim AdoptionFailure = "NoDesiredClaim"
+	AdoptionFailureConflict       AdoptionFailure = "Conflict"
+	AdoptionFailureInvalid        AdoptionFailure = "Invalid"
+)
+
+type AdoptionResult struct {
+	Ref     Ref             `json:"-"`
+	Failure AdoptionFailure `json:"failure,omitempty"`
+	Message string          `json:"message,omitempty"`
+}
+
+func (a *AdoptionResult) IsSuccessful() bool {
+	return a.Failure == ""
 }

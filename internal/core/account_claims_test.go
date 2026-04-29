@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
@@ -30,7 +29,7 @@ type TestAccountClaimsSpec struct {
 	JetStreamLimits  *nauth.JetStreamLimits `json:"jetStreamLimits,omitempty"`
 	JetStreamEnabled *bool                  `json:"jetStreamEnabled,omitempty"`
 	NatsLimits       *nauth.NatsLimits      `json:"natsLimits,omitempty"`
-	Exports          v1alpha1.Exports       `json:"exports,omitempty"` // TODO: Migrate to nauth.Exports
+	Exports          nauth.Exports          `json:"exports,omitempty"`
 	Imports          nauth.Imports          `json:"imports,omitempty"`
 }
 
@@ -51,15 +50,15 @@ func Test_AccountClaims(t *testing.T) {
 					displayName(testClaimsDisplayName).
 					accountLimits(spec.AccountLimits).
 					jetStreamLimits(spec.JetStreamLimits).
-					natsLimits(spec.NatsLimits).
-					exports(spec.Exports)
-				if len(spec.Imports) > 0 {
-					inlineImportGroup := nauth.ImportGroup{
-						Name:    GroupNameInline,
-						Imports: spec.Imports,
-					}
-					require.NoError(t, builder.addImportGroup(inlineImportGroup))
-				}
+					natsLimits(spec.NatsLimits)
+				require.NoError(t, builder.addExportGroup(nauth.ExportGroup{
+					Name:    GroupNameInline,
+					Exports: spec.Exports,
+				}))
+				require.NoError(t, builder.addImportGroup(nauth.ImportGroup{
+					Name:    GroupNameInline,
+					Imports: spec.Imports,
+				}))
 				builder.signingKey(testClaimsSigningKey01)
 				builder.signingKey(testClaimsSigningKey02)
 				return builder.build()
@@ -112,30 +111,33 @@ func Test_AccountClaims(t *testing.T) {
 	}
 }
 
-func Test_AccountClaims_addExportRuleGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
+func Test_AccountClaims_addExportGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
 	// Given
-	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil).
-		exports(v1alpha1.Exports{
+	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
+	require.NoError(t, builder.addExportGroup(nauth.ExportGroup{
+		Name: "initial",
+		Exports: nauth.Exports{
 			{
 				Subject: "foo.>",
-				Type:    v1alpha1.Stream,
+				Type:    nauth.ExportTypeStream,
 			},
-		})
+		}}))
 
 	// When
-	err := builder.addExportRuleGroup([]v1alpha1.AccountExportRule{
-		{
-			Subject: "bar.>",
-			Type:    v1alpha1.Stream,
-		},
-		{
-			Subject: "foo.*",
-			Type:    v1alpha1.Stream,
-		},
-	})
+	err := builder.addExportGroup(nauth.ExportGroup{
+		Name: "conflicting",
+		Exports: nauth.Exports{
+			{
+				Subject: "bar.>",
+				Type:    nauth.ExportTypeStream,
+			},
+			{
+				Subject: "foo.*",
+				Type:    nauth.ExportTypeStream,
+			},
+		}})
 
 	// Then
-	require.ErrorContains(t, err, "failed to append export rule group:")
 	require.ErrorContains(t, err, "stream export subject \"foo.*\" already exports \"foo.>\"")
 	expected := jwt.Exports{
 		{

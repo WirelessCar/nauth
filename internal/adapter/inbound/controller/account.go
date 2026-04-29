@@ -28,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -80,8 +81,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	natsAccount := &v1alpha1.Account{}
 
-	err := r.Get(ctx, req.NamespacedName, natsAccount)
-	if err != nil {
+	if err := r.Get(ctx, req.NamespacedName, natsAccount); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -178,20 +178,23 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// RECONCILE ACCOUNT
 	var result *domain.AccountResult
+	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
+		var err error
 		result, err = r.manager.Import(ctx, natsAccount)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		resources, err := r.collectAccountResources(ctx, natsAccount, accountID)
+		resources, adoptionRefs, err := r.collectAccountResources(ctx, natsAccount, accountID)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to collect resources: %w", err)
 		}
-		result, err = r.manager.CreateOrUpdate(ctx, *resources)
+		result, err = r.manager.CreateOrUpdate(ctx, resources)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
+		adoptions = toAPIAdoptions(result.Adoptions, adoptionRefs)
 	}
 
 	// Apply result to Account resource labels and status
@@ -202,7 +205,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if result.Claims != nil {
 		natsAccount.Status.Claims = *toAPIAccountClaims(result.Claims)
 	}
-	natsAccount.Status.Adoptions = result.Adoptions
+	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
@@ -235,7 +238,7 @@ func toAPIAccountClaims(claims *nauth.AccountClaims) *v1alpha1.AccountClaims {
 		AccountLimits:    toAPIAccountLimits(claims.AccountLimits),
 		DisplayName:      claims.DisplayName,
 		SigningKeys:      claims.SigningKeys,
-		Exports:          claims.Exports,
+		Exports:          toAPIExports(claims.Exports),
 		Imports:          toAPIImports(claims.Imports),
 		JetStreamEnabled: claims.JetStreamEnabled,
 		JetStreamLimits:  toAPIAJetStreamLimits(claims.JetStreamLimits),
@@ -302,6 +305,36 @@ func toAPIImports(imports nauth.Imports) v1alpha1.Imports {
 	return result
 }
 
+func toAPIExports(exports nauth.Exports) v1alpha1.Exports {
+	result := make(v1alpha1.Exports, len(exports))
+	for i, exp := range exports {
+		export := v1alpha1.Export{
+			Name:                 exp.Name,
+			Subject:              v1alpha1.Subject(exp.Subject),
+			Type:                 toAPIExportType(exp.Type),
+			ResponseType:         v1alpha1.ResponseType(exp.ResponseType),
+			ResponseThreshold:    exp.ResponseThreshold,
+			AccountTokenPosition: exp.AccountTokenPosition,
+			Advertise:            exp.Advertise,
+			AllowTrace:           exp.AllowTrace,
+			Latency:              toAPIServiceLatency(exp.Latency),
+		}
+		result[i] = &export
+	}
+	return result
+}
+
+func toAPIServiceLatency(latency *nauth.ServiceLatency) *v1alpha1.ServiceLatency {
+	if latency == nil {
+		return nil
+	}
+
+	return &v1alpha1.ServiceLatency{
+		Sampling: v1alpha1.SamplingRate(latency.Sampling),
+		Results:  v1alpha1.Subject(latency.Results),
+	}
+}
+
 func toAPIExportType(exportType nauth.ExportType) v1alpha1.ExportType {
 	switch exportType {
 	case nauth.ExportTypeStream:
@@ -313,21 +346,42 @@ func toAPIExportType(exportType nauth.ExportType) v1alpha1.ExportType {
 	}
 }
 
-func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (*domain.AccountResources, error) {
-	result := domain.AccountResources{Account: *account}
+func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (domain.AccountResources, accountAdoptionRefs, error) {
+	resources := domain.AccountResources{Account: *account}
+	refs := accountAdoptionRefs{}
+
+	if accountID == "" {
+		return resources, refs, nil
+	}
 
 	if r.features.AccountExportEnabled {
-		if accountID != "" {
-			namespace := domain.Namespace(account.Namespace)
-			exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
-			if err != nil {
-				return nil, err
+		namespace := domain.Namespace(account.Namespace)
+		exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
+		if err != nil {
+			return resources, refs, err
+		}
+		for _, exp := range exports.Items {
+			claim := exp.Status.DesiredClaim
+			var adpRef adoptionRef
+			if claim == nil {
+				adpRef = newAdoptionRef(exp.ObjectMeta, nil)
+			} else {
+				adpRef = newAdoptionRef(exp.ObjectMeta, &claim.ObservedGeneration)
+				var nauthExports nauth.Exports
+				for _, rule := range claim.Rules {
+					nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
+				}
+				resources.ExportGroups = append(resources.ExportGroups, &nauth.ExportGroup{
+					Ref:     adpRef.Ref,
+					Name:    exp.Name,
+					Exports: nauthExports,
+				})
 			}
-			result.Exports = exports.Items
+			refs.exports = append(refs.exports, &adpRef)
 		}
 	}
 
-	return &result, nil
+	return resources, refs, nil
 }
 
 func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountExportList, error) {
@@ -447,4 +501,72 @@ func accountExportDesiredClaimSnapshot(export *v1alpha1.AccountExport) *accountE
 type accountExportDesiredClaimState struct {
 	ObservedGeneration int64
 	Rules              []v1alpha1.AccountExportRule
+}
+
+type accountAdoptionRefs struct {
+	exports []*adoptionRef
+}
+
+type adoptionRef struct {
+	Ref                            nauth.Ref
+	Name                           string
+	UID                            types.UID
+	ObservedGeneration             int64
+	ObservedGenerationDesiredClaim *int64
+}
+
+func newAdoptionRef(resource metav1.ObjectMeta, observedGenerationDesiredClaim *int64) adoptionRef {
+	return adoptionRef{
+		Ref:                            nauth.Ref(resource.UID),
+		Name:                           resource.Name,
+		UID:                            resource.UID,
+		ObservedGeneration:             resource.Generation,
+		ObservedGenerationDesiredClaim: observedGenerationDesiredClaim,
+	}
+}
+
+func toAPIAdoptions(adoptions *nauth.AccountAdoptions, adoptionRefs accountAdoptionRefs) *v1alpha1.AccountAdoptions {
+	if adoptions == nil {
+		return nil
+	}
+
+	result := &v1alpha1.AccountAdoptions{}
+	for _, adpRef := range adoptionRefs.exports {
+		var status v1alpha1.AccountAdoptionStatus
+		adpResult := adoptions.Exports.Get(adpRef.Ref)
+		if adpResult != nil && adpResult.IsSuccessful() {
+			status = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionTrue,
+				Reason:                         conditionReasonOK,
+				Message:                        "Adopted",
+				DesiredClaimObservedGeneration: adpRef.ObservedGenerationDesiredClaim,
+			}
+		} else {
+			status = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionFalse,
+				Reason:                         conditionReasonNOK,
+				DesiredClaimObservedGeneration: adpRef.ObservedGenerationDesiredClaim,
+			}
+			if adpResult == nil {
+				if adpRef.ObservedGenerationDesiredClaim == nil {
+					status.Message = "Adoption pending: no desired claim"
+				} else {
+					status.Message = "WARN: No adoption result reported"
+				}
+			} else if failure := adpResult.Failure; failure != "" {
+				status.Reason = string(failure)
+				status.Message = adpResult.Message
+			} else {
+				status.Message = "Adopted"
+			}
+		}
+		result.Exports = append(result.Exports, v1alpha1.AccountAdoption{
+			Name:               adpRef.Name,
+			UID:                adpRef.UID,
+			ObservedGeneration: adpRef.ObservedGeneration,
+			Status:             status,
+		})
+	}
+
+	return result
 }

@@ -24,11 +24,3 @@ type ExportRule struct {
 	// +optional
 	AllowTrace bool
 }
-
-type ResponseType string
-type SamplingRate int
-
-type ServiceLatency struct {
-	Sampling SamplingRate
-	Results  Subject
-}

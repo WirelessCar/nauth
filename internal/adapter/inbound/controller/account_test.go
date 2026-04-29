@@ -361,9 +361,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	var accountResources0 domain.AccountResources
+	var spyAccountResourcesInit domain.AccountResources
 	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources domain.AccountResources) {
-		accountResources0 = resources
+		spyAccountResourcesInit = resources
 	}, mockResult).Once()
 	account := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
@@ -374,21 +374,32 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 	t.Require().NoError(err)
-	t.Require().NotNil(accountResources0)
+	t.Require().NotNil(spyAccountResourcesInit)
 	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(account), account))
 	t.Require().Equal(accountID, account.GetLabel(v1alpha1.AccountLabelAccountID))
 
 	// Note: assert mock calls during setup and reset for test case
 	t.accountManagerMock.AssertExpectations(t.T())
-	var accountResources1 domain.AccountResources
-	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources domain.AccountResources) {
-		accountResources1 = resources
-	}, mockResult).Once()
-	t.createExport(domain.Namespace(t.accountNamespace), "export-1", accountID)
-	t.createExport("ns-other", "export-2", accountID)
-	t.createExport(domain.Namespace(t.accountNamespace), "export-3", accountID)
-	t.createExport(domain.Namespace(t.accountNamespace), "export-4", "ANOTHERACCOUNT")
-	t.createExport(domain.Namespace(t.accountNamespace), "export-5", accountID)
+	export1 := t.createExport(domain.Namespace(t.accountNamespace), "export-1", accountID, t.anyExportClaim(10))
+	t.createExport("ns-other", "export-2", accountID, t.anyExportClaim(20))
+	export3 := t.createExport(domain.Namespace(t.accountNamespace), "export-3", accountID, nil) // Not expected into manager
+	t.createExport(domain.Namespace(t.accountNamespace), "export-4", "ANOTHERACCOUNT", t.anyExportClaim(40))
+	export5 := t.createExport(domain.Namespace(t.accountNamespace), "export-5", accountID, t.anyExportClaim(50))
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(resources domain.AccountResources) (*domain.AccountResult, error) {
+		adoptions := nauth.NewAccountAdoptions()
+		t.Require().Equalf(2, len(resources.ExportGroups), "expected 2 export groups: export-1 and export-5")
+		for _, exportGroup := range resources.ExportGroups {
+			t.Require().NoError(adoptions.Exports.Add(nauth.AdoptionResult{
+				Ref: exportGroup.Ref,
+			}))
+		}
+		return &domain.AccountResult{
+			AccountID:       accountID,
+			AccountSignedBy: "OPERATOR_SIGNING_KEY",
+			Claims:          &nauth.AccountClaims{},
+			Adoptions:       adoptions,
+		}, nil
+	}).Once()
 
 	// When (expect manager.CreateOrUpdate)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -401,17 +412,61 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Empty(t.fakeRecorder.Events)
-	t.Require().NotNil(accountResources1)
-	exportNames := make([]string, len(accountResources1.Exports))
-	for i, export := range accountResources1.Exports {
-		exportNames[i] = export.Name
+	expectAdoptions := &v1alpha1.AccountAdoptions{
+		Exports: []v1alpha1.AccountAdoption{
+			{
+				Name:               export1.Name,
+				UID:                export1.UID,
+				ObservedGeneration: export1.Generation,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:                         metav1.ConditionTrue,
+					Reason:                         conditionReasonOK,
+					Message:                        "Adopted",
+					DesiredClaimObservedGeneration: &export1.Status.DesiredClaim.ObservedGeneration,
+				},
+			},
+			{
+				Name:               export3.Name,
+				UID:                export3.UID,
+				ObservedGeneration: export3.Generation,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:  metav1.ConditionFalse,
+					Reason:  conditionReasonNOK,
+					Message: "Adoption pending: no desired claim",
+				},
+			},
+			{
+				Name:               export5.Name,
+				UID:                export5.UID,
+				ObservedGeneration: export5.Generation,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:                         metav1.ConditionTrue,
+					Reason:                         conditionReasonOK,
+					Message:                        "Adopted",
+					DesiredClaimObservedGeneration: &export5.Status.DesiredClaim.ObservedGeneration,
+				},
+			},
+		},
 	}
-	t.ElementsMatch([]string{"export-1", "export-3", "export-5"}, exportNames)
+	t.Require().Equal(expectAdoptions, account.Status.Adoptions)
+}
+
+func (t *AccountControllerTestSuite) anyExportClaim(observedGeneration int64) *v1alpha1.AccountExportClaim {
+	subject := v1alpha1.Subject(fmt.Sprintf("foo.%d.>", observedGeneration))
+	return &v1alpha1.AccountExportClaim{
+		ObservedGeneration: observedGeneration,
+		Rules: []v1alpha1.AccountExportRule{
+			{
+				Subject: subject,
+				Type:    v1alpha1.Stream,
+			},
+		},
+	}
 }
 
 // Helpers
 
-func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, name, accountID string) v1alpha1.AccountExport {
+func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, name string, accountID string, claim *v1alpha1.AccountExportClaim) *v1alpha1.AccountExport {
 	namespaceResource := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: string(namespace)},
 	}
@@ -419,7 +474,7 @@ func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, na
 		t.Require().NoError(k8sClient.Create(t.ctx, namespaceResource))
 	}
 
-	export := v1alpha1.AccountExport{
+	initial := &v1alpha1.AccountExport{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: string(namespace),
@@ -438,8 +493,23 @@ func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, na
 			},
 		},
 	}
-	t.Require().NoError(k8sClient.Create(t.ctx, &export))
-	return export
+	t.Require().NoError(k8sClient.Create(t.ctx, initial))
+
+	// Set status
+	created := &v1alpha1.AccountExport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(initial), created))
+	status := v1alpha1.AccountExportStatus{
+		DesiredClaim: claim,
+	}
+	created.Status = status
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	// Verify
+	result := &v1alpha1.AccountExport{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(created), result))
+	t.Require().Equal(status, result.Status)
+
+	return result
 }
 
 /* ****************************************************
@@ -463,6 +533,15 @@ func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources domai
 func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *domain.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Return(result, nil)
+	return call
+}
+
+func (o *AccountManagerMock) mockCreateOrUpdateFn(ctx interface{}, resources interface{}, fn func(resources domain.AccountResources) (*domain.AccountResult, error)) *mock.Call {
+	call := o.On("CreateOrUpdate", ctx, resources)
+	call.Run(func(args mock.Arguments) {
+		result, err := fn(args.Get(1).(domain.AccountResources))
+		call.Return(result, err)
+	})
 	return call
 }
 

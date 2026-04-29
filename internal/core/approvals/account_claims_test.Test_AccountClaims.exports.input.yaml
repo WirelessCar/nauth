@@ -2,15 +2,15 @@ exports:
   - name: "my-service-singleton"
     subject: "service.request.singleton"
     type: service
-    responseType: Singleton
+    responseType: singleton
   - name: "my-service-stream"
     subject: "service.request.stream"
     type: service
-    responseType: Stream
+    responseType: stream
   - name: "my-service-chunked"
     subject: "service.request.chunked"
     type: service
-    responseType: Chunked
+    responseType: chunked
   - name: "my-stream"
     subject: "events.>"
     type: stream
@@ -21,7 +21,7 @@ exports:
     revocations:
       A000000000000000000000000000000000000000000000REVOKED01: 1234567890
       A000000000000000000000000000000000000000000000REVOKED02: 9876543210
-    responseType: Stream
+    responseType: stream
     responseThreshold: 5000
     serviceLatency:
       sampling: 25

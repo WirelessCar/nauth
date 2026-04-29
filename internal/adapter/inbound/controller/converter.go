@@ -40,6 +40,34 @@ func toAPIAccountImportRuleDerived(source nauth.Import) v1alpha1.AccountImportRu
 	}
 }
 
+func toNAuthExportFromRule(source v1alpha1.AccountExportRule) *nauth.Export {
+	result := nauth.Export{
+		Name:         source.Name,
+		Subject:      nauth.Subject(source.Subject),
+		Type:         toNAuthExportType(source.Type),
+		ResponseType: toNAuthResponseType(source.ResponseType),
+	}
+	if source.ResponseThreshold != nil {
+		result.ResponseThreshold = *source.ResponseThreshold
+	}
+	if source.AccountTokenPosition != nil {
+		result.AccountTokenPosition = *source.AccountTokenPosition
+	}
+	if source.Advertise != nil {
+		result.Advertise = *source.Advertise
+	}
+	if source.AllowTrace != nil {
+		result.AllowTrace = *source.AllowTrace
+	}
+	if source.Latency != nil {
+		result.Latency = &nauth.ServiceLatency{
+			Sampling: nauth.SamplingRate(source.Latency.Sampling),
+			Results:  nauth.Subject(source.Latency.Results),
+		}
+	}
+	return &result
+}
+
 func toNAuthExportType(source v1alpha1.ExportType) nauth.ExportType {
 	switch source {
 	case v1alpha1.Stream:
@@ -48,5 +76,18 @@ func toNAuthExportType(source v1alpha1.ExportType) nauth.ExportType {
 		return nauth.ExportTypeService
 	default:
 		return nauth.ExportTypeUnknown
+	}
+}
+
+func toNAuthResponseType(responseType v1alpha1.ResponseType) nauth.ResponseType {
+	switch responseType {
+	case v1alpha1.ResponseTypeStream:
+		return nauth.ResponseTypeStream
+	case v1alpha1.ResponseTypeSingleton:
+		return nauth.ResponseTypeSingleton
+	case v1alpha1.ResponseTypeChunked:
+		return nauth.ResponseTypeChunked
+	default:
+		return ""
 	}
 }

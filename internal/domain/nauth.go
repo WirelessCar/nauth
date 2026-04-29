@@ -6,8 +6,8 @@ import (
 )
 
 type AccountResources struct {
-	Account v1alpha1.Account         `json:"account,omitempty"`
-	Exports []v1alpha1.AccountExport `json:"exports,omitempty"`
+	Account      v1alpha1.Account   `json:"account,omitempty"`
+	ExportGroups nauth.ExportGroups `json:"exportGroups,omitempty"`
 }
 
 type AccountResult struct {
@@ -15,7 +15,7 @@ type AccountResult struct {
 	AccountSignedBy string
 	Claims          *nauth.AccountClaims
 	ClaimsHash      string
-	Adoptions       *v1alpha1.AccountAdoptions
+	Adoptions       *nauth.AccountAdoptions
 }
 
 type AccountExportClaim struct {

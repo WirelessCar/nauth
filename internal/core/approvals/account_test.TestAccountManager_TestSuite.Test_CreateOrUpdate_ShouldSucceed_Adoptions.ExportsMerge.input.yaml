@@ -15,24 +15,16 @@ account:
       - name: my extra inline stream
         subject: baz.*
         type: stream
-exports:
-  - apiVersion: nauth.io/v1alpha1
-    kind: Export
-    metadata:
-      name: extracted export
-      namespace: account-namespace
-      uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
-      generation: 1
-    status:
-      desiredClaim:
-        observedGeneration: 1
-        rules:
-          - name: my extra extracted stream
-            subject: boz.*
-            type: stream
-          - name: my stream
-            subject: foo.*
-            type: stream
-          - name: my service
-            subject: bar.*
-            type: service
+exportGroups:
+  - ref: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+    name: extracted export
+    exports:
+      - name: my extra extracted stream
+        subject: boz.*
+        type: stream
+      - name: my stream
+        subject: foo.*
+        type: stream
+      - name: my service
+        subject: bar.*
+        type: service

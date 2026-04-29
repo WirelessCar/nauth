@@ -112,32 +112,7 @@ func (b *accountClaimsBuilder) jetStreamLimits(limits *nauth.JetStreamLimits) *a
 	return b
 }
 
-func (b *accountClaimsBuilder) exports(exports v1alpha1.Exports) *accountClaimsBuilder {
-	for _, export := range exports {
-		exportClaim := &jwt.Export{
-			Name:                 export.Name,
-			Subject:              jwt.Subject(export.Subject),
-			Type:                 toJWTExportTypeFromAPI(export.Type),
-			TokenReq:             export.TokenReq,
-			Revocations:          jwt.RevocationList(export.Revocations),
-			ResponseType:         jwt.ResponseType(export.ResponseType),
-			ResponseThreshold:    export.ResponseThreshold,
-			AccountTokenPosition: export.AccountTokenPosition,
-			Advertise:            export.Advertise,
-			AllowTrace:           export.AllowTrace,
-		}
-		if export.Latency != nil {
-			exportClaim.Latency = toJWTServiceLatency(*export.Latency)
-		}
-		b.claim.Exports.Add(exportClaim)
-	}
-	return b
-}
-
 func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
-	if len(group.Imports) == 0 {
-		return fmt.Errorf("import group %q has no imports", group.Name)
-	}
 	for _, i := range group.Imports {
 		jwtImport := toJWTImport(*i)
 		result, err := mergeJWTImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
@@ -149,35 +124,14 @@ func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
 	return nil
 }
 
-func (b *accountClaimsBuilder) addExportRuleGroup(rules []v1alpha1.AccountExportRule) error {
-	jwtExports := make(jwt.Exports, len(rules))
-	for i, rule := range rules {
-		jwtExport := jwt.Export{
-			Name:         rule.Name,
-			Subject:      jwt.Subject(rule.Subject),
-			Type:         toJWTExportTypeFromAPI(rule.Type),
-			ResponseType: jwt.ResponseType(rule.ResponseType),
-		}
-		if rule.ResponseThreshold != nil {
-			jwtExport.ResponseThreshold = *rule.ResponseThreshold
-		}
-		if rule.Latency != nil {
-			jwtExport.Latency = toJWTServiceLatency(*rule.Latency)
-		}
-		if rule.AccountTokenPosition != nil {
-			jwtExport.AccountTokenPosition = *rule.AccountTokenPosition
-		}
-		if rule.Advertise != nil {
-			jwtExport.Advertise = *rule.Advertise
-		}
-		if rule.AllowTrace != nil {
-			jwtExport.AllowTrace = *rule.AllowTrace
-		}
-		jwtExports[i] = &jwtExport
+func (b *accountClaimsBuilder) addExportGroup(group nauth.ExportGroup) error {
+	jwtExports := make(jwt.Exports, len(group.Exports))
+	for i, e := range group.Exports {
+		jwtExports[i] = toJWTExport(*e)
 	}
 	result, err := mergeExports(b.claim.Exports, jwtExports)
 	if err != nil {
-		return fmt.Errorf("failed to append export rule group: %w", err)
+		return err
 	}
 	b.claim.Exports = result
 	return nil
@@ -311,43 +265,12 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 
 	// Exports
 	if len(claims.Exports) > 0 {
-		exports := make(v1alpha1.Exports, 0, len(claims.Exports))
+		exports := make(nauth.Exports, 0, len(claims.Exports))
 		for _, e := range claims.Exports {
 			if e == nil {
 				continue
 			}
-			var et v1alpha1.ExportType
-			switch e.Type {
-			case jwt.Stream:
-				et = v1alpha1.Stream
-			case jwt.Service:
-				et = v1alpha1.Service
-			default:
-				et = v1alpha1.Stream
-			}
-
-			var latency *v1alpha1.ServiceLatency
-			if e.Latency != nil {
-				latency = &v1alpha1.ServiceLatency{
-					Sampling: v1alpha1.SamplingRate(e.Latency.Sampling),
-					Results:  v1alpha1.Subject(e.Latency.Results),
-				}
-			}
-
-			export := &v1alpha1.Export{
-				Name:                 e.Name,
-				Subject:              v1alpha1.Subject(e.Subject),
-				Type:                 et,
-				TokenReq:             e.TokenReq,
-				Revocations:          v1alpha1.RevocationList(e.Revocations),
-				ResponseType:         v1alpha1.ResponseType(e.ResponseType),
-				ResponseThreshold:    e.ResponseThreshold,
-				Latency:              latency,
-				AccountTokenPosition: e.AccountTokenPosition,
-				Advertise:            e.Advertise,
-				AllowTrace:           e.AllowTrace,
-			}
-			exports = append(exports, export)
+			exports = append(exports, toNAuthExport(*e))
 		}
 		out.Exports = exports
 	}
@@ -420,6 +343,35 @@ func toJWTImport(source nauth.Import) *jwt.Import {
 	}
 }
 
+func toJWTExport(source nauth.Export) *jwt.Export {
+	return &jwt.Export{
+		Name:                 source.Name,
+		Subject:              jwt.Subject(source.Subject),
+		Type:                 toJWTExportType(source.Type),
+		TokenReq:             source.TokenReq,
+		Revocations:          jwt.RevocationList(source.Revocations),
+		ResponseType:         toJWTResponseType(source.ResponseType),
+		ResponseThreshold:    source.ResponseThreshold,
+		AccountTokenPosition: source.AccountTokenPosition,
+		Advertise:            source.Advertise,
+		AllowTrace:           source.AllowTrace,
+		Latency:              toJWTServiceLatency(source.Latency),
+	}
+}
+
+func toJWTResponseType(source nauth.ResponseType) jwt.ResponseType {
+	switch source {
+	case nauth.ResponseTypeSingleton:
+		return jwt.ResponseTypeSingleton
+	case nauth.ResponseTypeChunked:
+		return jwt.ResponseTypeChunked
+	case nauth.ResponseTypeStream:
+		return jwt.ResponseTypeStream
+	default:
+		return ""
+	}
+}
+
 func toNAuthImport(source jwt.Import) *nauth.Import {
 	return &nauth.Import{
 		AccountID:    nauth.AccountID(source.Account),
@@ -429,6 +381,45 @@ func toNAuthImport(source jwt.Import) *nauth.Import {
 		LocalSubject: nauth.Subject(source.LocalSubject),
 		Share:        source.Share,
 		AllowTrace:   source.AllowTrace,
+	}
+}
+
+func toNAuthExport(source jwt.Export) *nauth.Export {
+	return &nauth.Export{
+		Name:                 source.Name,
+		Subject:              nauth.Subject(source.Subject),
+		Type:                 toNAuthExportType(source.Type),
+		TokenReq:             source.TokenReq,
+		Revocations:          nauth.RevocationList(source.Revocations),
+		ResponseType:         toNAuthResponseType(source.ResponseType),
+		ResponseThreshold:    source.ResponseThreshold,
+		AccountTokenPosition: source.AccountTokenPosition,
+		Latency:              toNAuthServiceLatency(source.Latency),
+		Advertise:            source.Advertise,
+		AllowTrace:           source.AllowTrace,
+	}
+}
+
+func toNAuthResponseType(source jwt.ResponseType) nauth.ResponseType {
+	switch source {
+	case jwt.ResponseTypeSingleton:
+		return nauth.ResponseTypeSingleton
+	case jwt.ResponseTypeChunked:
+		return nauth.ResponseTypeChunked
+	case jwt.ResponseTypeStream:
+		return nauth.ResponseTypeStream
+	default:
+		return ""
+	}
+}
+
+func toNAuthServiceLatency(source *jwt.ServiceLatency) *nauth.ServiceLatency {
+	if source == nil {
+		return nil
+	}
+	return &nauth.ServiceLatency{
+		Sampling: nauth.SamplingRate(source.Sampling),
+		Results:  nauth.Subject(source.Results),
 	}
 }
 
@@ -456,19 +447,6 @@ func mergeJWTImports(importAccountID string, existing jwt.Imports, extras jwt.Im
 	return tmpResult, nil
 }
 
-func toJWTExportTypeFromAPI(source v1alpha1.ExportType) jwt.ExportType {
-	var result jwt.ExportType
-	switch source {
-	case v1alpha1.Stream:
-		result = jwt.Stream
-	case v1alpha1.Service:
-		result = jwt.Service
-	default:
-		result = jwt.Stream
-	}
-	return result
-}
-
 func toJWTExportType(source nauth.ExportType) jwt.ExportType {
 	switch source {
 	case nauth.ExportTypeService:
@@ -480,6 +458,16 @@ func toJWTExportType(source nauth.ExportType) jwt.ExportType {
 	}
 }
 
+func toJWTServiceLatency(source *nauth.ServiceLatency) *jwt.ServiceLatency {
+	if source == nil {
+		return nil
+	}
+	return &jwt.ServiceLatency{
+		Sampling: jwt.SamplingRate(source.Sampling),
+		Results:  jwt.Subject(source.Results),
+	}
+}
+
 func toNAuthExportType(source jwt.ExportType) nauth.ExportType {
 	switch source {
 	case jwt.Service:
@@ -488,12 +476,5 @@ func toNAuthExportType(source jwt.ExportType) nauth.ExportType {
 		return nauth.ExportTypeStream
 	default:
 		return nauth.ExportTypeUnknown
-	}
-}
-
-func toJWTServiceLatency(source v1alpha1.ServiceLatency) *jwt.ServiceLatency {
-	return &jwt.ServiceLatency{
-		Sampling: jwt.SamplingRate(source.Sampling),
-		Results:  jwt.Subject(source.Results),
 	}
 }

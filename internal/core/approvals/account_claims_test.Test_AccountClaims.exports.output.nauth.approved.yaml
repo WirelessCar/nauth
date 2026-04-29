@@ -8,7 +8,7 @@ exports:
   allowTrace: true
   name: my-complex
   responseThreshold: 5000
-  responseType: Stream
+  responseType: stream
   revocations:
     A000000000000000000000000000000000000000000000REVOKED01: 1234567890
     A000000000000000000000000000000000000000000000REVOKED02: 9876543210
@@ -19,15 +19,15 @@ exports:
   tokenReq: true
   type: service
 - name: my-service-chunked
-  responseType: Chunked
+  responseType: chunked
   subject: service.request.chunked
   type: service
 - name: my-service-singleton
-  responseType: Singleton
+  responseType: singleton
   subject: service.request.singleton
   type: service
 - name: my-service-stream
-  responseType: Stream
+  responseType: stream
   subject: service.request.stream
   type: service
 jetStreamEnabled: true

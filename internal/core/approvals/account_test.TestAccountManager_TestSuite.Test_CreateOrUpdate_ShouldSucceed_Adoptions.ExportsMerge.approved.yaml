@@ -2,13 +2,7 @@ AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
 AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
 Adoptions:
   exports:
-  - name: extracted export
-    observedGeneration: 1
-    status:
-      desiredClaimObservedGeneration: 1
-      reason: Adopted
-      status: "True"
-    uid: aac5f3ce-7ed4-4981-b346-5dfcf778e585
+    aac5f3ce-7ed4-4981-b346-5dfcf778e585: {}
 Claims:
   displayName: account-namespace/account-name
   exports:
