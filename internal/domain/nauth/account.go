@@ -3,13 +3,13 @@ package nauth
 import (
 	"fmt"
 	"time"
-
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
 
 type Ref string
 
 type AccountID string
+
+type PublicKey string
 type Subject string
 
 type ExportType string
@@ -56,6 +56,13 @@ type NatsLimits struct {
 	Subs    *int64 `json:"subs,omitempty"`
 	Data    *int64 `json:"data,omitempty"`
 	Payload *int64 `json:"payload,omitempty"`
+}
+
+type SigningKeys []*SigningKey
+
+type SigningKey struct {
+	Key string `json:"key,omitempty"`
+	// TODO: [#140] Add signing key scope
 }
 
 type ImportGroup struct {
@@ -115,15 +122,15 @@ type ServiceLatency struct {
 }
 
 type AccountClaims struct {
-	AccountID        AccountID            `json:"accountId,omitempty"`
-	DisplayName      string               `json:"displayName,omitempty"`
-	AccountLimits    *AccountLimits       `json:"accountLimits,omitempty"`
-	JetStreamEnabled *bool                `json:"jetStreamEnabled,omitempty"`
-	JetStreamLimits  *JetStreamLimits     `json:"jetStreamLimits,omitempty"`
-	NatsLimits       *NatsLimits          `json:"natsLimits,omitempty"`
-	SigningKeys      v1alpha1.SigningKeys `json:"signingKeys,omitempty"` // TODO: Migrate to domain SigningKeys
-	Exports          Exports              `json:"exports,omitempty"`
-	Imports          Imports              `json:"imports,omitempty"`
+	AccountID        AccountID        `json:"accountId,omitempty"`
+	DisplayName      string           `json:"displayName,omitempty"`
+	AccountLimits    *AccountLimits   `json:"accountLimits,omitempty"`
+	JetStreamEnabled *bool            `json:"jetStreamEnabled,omitempty"`
+	JetStreamLimits  *JetStreamLimits `json:"jetStreamLimits,omitempty"`
+	NatsLimits       *NatsLimits      `json:"natsLimits,omitempty"`
+	SigningKeys      SigningKeys      `json:"signingKeys,omitempty"`
+	Exports          Exports          `json:"exports,omitempty"`
+	Imports          Imports          `json:"imports,omitempty"`
 }
 
 type AccountAdoptions struct {

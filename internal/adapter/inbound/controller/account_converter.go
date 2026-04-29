@@ -147,7 +147,7 @@ func toAPIAccountClaims(claims *nauth.AccountClaims) *v1alpha1.AccountClaims {
 	return &v1alpha1.AccountClaims{
 		AccountLimits:    toAPIAccountLimits(claims.AccountLimits),
 		DisplayName:      claims.DisplayName,
-		SigningKeys:      claims.SigningKeys,
+		SigningKeys:      toAPISigningKeys(claims.SigningKeys),
 		Exports:          toAPIExports(claims.Exports),
 		Imports:          toAPIImports(claims.Imports),
 		JetStreamEnabled: claims.JetStreamEnabled,
@@ -197,6 +197,17 @@ func toAPINatsLimits(source *nauth.NatsLimits) *v1alpha1.NatsLimits {
 		Data:    source.Data,
 		Payload: source.Payload,
 	}
+}
+
+func toAPISigningKeys(keys nauth.SigningKeys) v1alpha1.SigningKeys {
+	result := make(v1alpha1.SigningKeys, len(keys))
+	for i, key := range keys {
+		result[i] = &v1alpha1.SigningKey{
+			Key: key.Key,
+			// TODO: [#140] map Signing Key scope
+		}
+	}
+	return result
 }
 
 func toAPIImports(imports nauth.Imports) v1alpha1.Imports {

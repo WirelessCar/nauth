@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -241,15 +240,15 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 
 	// Signing Keys
 	if len(claims.SigningKeys) > 0 {
-		signingKeys := make(v1alpha1.SigningKeys, 0, len(claims.SigningKeys))
+		signingKeys := make(nauth.SigningKeys, 0, len(claims.SigningKeys))
 		for key := range claims.SigningKeys {
-			signingKey := v1alpha1.SigningKey{
+			signingKey := nauth.SigningKey{
 				Key: key,
+				// TODO: [#140] Map scope
 			}
 			signingKeys = append(signingKeys, &signingKey)
-			// TODO: [https://github.com/WirelessCar/nauth/issues/140] Populate optional *UserScope
 		}
-		// Sort by key to ensure predictable, and human searchable, order.
+		// Sort by key to ensure predictable, and human-searchable, order.
 		sort.Slice(signingKeys, func(i, j int) bool {
 			return signingKeys[i].Key < signingKeys[j].Key
 		})
