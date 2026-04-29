@@ -318,6 +318,26 @@ func Test_validateJetStreamLimits(t *testing.T) {
 	}
 }
 
+func Test_toJWTExportType(t *testing.T) {
+	type args struct {
+		t nauth.ExportType
+	}
+	tests := []struct {
+		name string
+		args args
+		want jwt.ExportType
+	}{
+		{name: "service export type", args: args{t: "service"}, want: jwt.Service},
+		{name: "stream export type", args: args{t: "stream"}, want: jwt.Stream},
+		{name: "unknown export type", args: args{t: "something"}, want: jwt.Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, toJWTExportType(tt.args.t), "should be equal")
+		})
+	}
+}
+
 func loadTestAccountClaimsSpec(filePath string) (*TestAccountClaimsSpec, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {

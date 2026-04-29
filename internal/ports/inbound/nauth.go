@@ -15,7 +15,7 @@ type AccountManager interface {
 }
 
 type AccountExportManager interface {
-	ValidateRules(ctx context.Context, rules nauth.ExportRules) error
+	ValidateExports(exports nauth.Exports) error
 }
 
 type AccountImportManager interface {

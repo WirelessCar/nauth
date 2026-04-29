@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,11 +12,11 @@ import (
 func Test_mapToJwtExport(t *testing.T) {
 	responseThreshold := time.Duration(10)
 
-	have := nauth.ExportRule{
+	have := nauth.Export{
 		Name:              "Name",
 		Subject:           "Subject.*",
 		Type:              nauth.ExportTypeService,
-		ResponseType:      "Singleton",
+		ResponseType:      nauth.ResponseTypeSingleton,
 		ResponseThreshold: responseThreshold,
 		Latency: &nauth.ServiceLatency{
 			Sampling: 20,
@@ -45,12 +44,12 @@ func Test_mapToJwtExport(t *testing.T) {
 		Info:                 jwt.Info{},
 	}
 
-	got := mapToJwtExport(have)
+	got := toJWTExport(have)
 	assert.Equalf(t, want, got, "should be equal")
 }
 
 func Test_mapToJwtExport_requiredFields(t *testing.T) {
-	have := nauth.ExportRule{
+	have := nauth.Export{
 		Subject: "Subject",
 		Type:    nauth.ExportTypeService,
 	}
@@ -59,7 +58,7 @@ func Test_mapToJwtExport_requiredFields(t *testing.T) {
 		Type:    jwt.Service,
 	}
 
-	got := mapToJwtExport(have)
+	got := toJWTExport(have)
 	assert.Equalf(t, want, got, "should be equal")
 }
 
@@ -68,12 +67,12 @@ func TestAccountExportManager_ValidateRules(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		rules   nauth.ExportRules
+		exports nauth.Exports
 		wantErr bool
 	}{
 		{
 			name: "valid_rules",
-			rules: nauth.ExportRules{
+			exports: nauth.Exports{
 				{
 					Name:              "export1",
 					Subject:           "my.subject",
@@ -97,7 +96,7 @@ func TestAccountExportManager_ValidateRules(t *testing.T) {
 		},
 		{
 			name: "invalid_subject",
-			rules: nauth.ExportRules{
+			exports: nauth.Exports{
 				{
 					Name:    "invalid",
 					Subject: ".",
@@ -111,33 +110,13 @@ func TestAccountExportManager_ValidateRules(t *testing.T) {
 	manager := NewAccountExportManager()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := manager.ValidateRules(context.Background(), tt.rules)
+			err := manager.ValidateExports(tt.exports)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 
 			assert.NoError(t, err)
-		})
-	}
-}
-
-func Test_mapExportType(t *testing.T) {
-	type args struct {
-		t nauth.ExportType
-	}
-	tests := []struct {
-		name string
-		args args
-		want jwt.ExportType
-	}{
-		{name: "service export type", args: args{t: "service"}, want: jwt.Service},
-		{name: "stream export type", args: args{t: "stream"}, want: jwt.Stream},
-		{name: "unknown export type", args: args{t: "something"}, want: jwt.Unknown},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, mapExportType(tt.args.t), "should be equal")
 		})
 	}
 }

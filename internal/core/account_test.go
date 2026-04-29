@@ -643,7 +643,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	// Then
 	t.Nil(result)
 	t.ErrorContains(err, "failed to add inline imports")
-	t.ErrorContains(err, "failed to add import \"import-twice\"")
+	t.ErrorContains(err, "overlapping subject namespace for \"foo\" and \"foo\"")
 }
 
 func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {

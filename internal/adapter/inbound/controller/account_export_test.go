@@ -444,7 +444,7 @@ func Test_mapToExportRule(t *testing.T) {
 			AllowTrace:           &allowTrace,
 		}
 
-		want := nauth.ExportRule{
+		want := nauth.Export{
 			Name:              "my-export",
 			Subject:           nauth.Subject("subject.>"),
 			Type:              nauth.ExportTypeService,
@@ -459,7 +459,7 @@ func Test_mapToExportRule(t *testing.T) {
 			AllowTrace:           true,
 		}
 
-		assert.Equal(t, want, mapToExportRule(rule))
+		assert.Equal(t, want, mapToExport(rule))
 	})
 
 	t.Run("keeps_zero_values_when_optional_fields_missing", func(t *testing.T) {
@@ -468,12 +468,12 @@ func Test_mapToExportRule(t *testing.T) {
 			Type:    v1alpha1.Stream,
 		}
 
-		want := nauth.ExportRule{
+		want := nauth.Export{
 			Subject: nauth.Subject("subject"),
 			Type:    nauth.ExportTypeStream,
 		}
 
-		assert.Equal(t, want, mapToExportRule(rule))
+		assert.Equal(t, want, mapToExport(rule))
 	})
 }
 

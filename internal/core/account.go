@@ -471,10 +471,6 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	}, nil
 }
 
-func (a *AccountManager) ValidateImports(importAccountID nauth.AccountID, imports nauth.Imports) error {
-	return validateImports(string(importAccountID), imports)
-}
-
 func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
 	natsClusterRef := account.Spec.NatsClusterRef
 	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
@@ -639,5 +635,4 @@ func toNAuthExportTypeFromAPI(exportType v1alpha1.ExportType) nauth.ExportType {
 }
 
 var _ inbound.AccountManager = (*AccountManager)(nil)
-var _ inbound.AccountImportManager = (*AccountManager)(nil)
 var _ UserJWTSigner = (*AccountManager)(nil)

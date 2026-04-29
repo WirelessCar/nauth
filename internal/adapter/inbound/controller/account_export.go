@@ -85,12 +85,13 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		meta.SetStatusCondition(state.GetConditions(), newCondition(condType, metav1.ConditionTrue, conditionReasonOK, ""))
 	}
 
-	var rules nauth.ExportRules
+	var exports nauth.Exports
 	for _, rule := range state.Spec.Rules {
-		rules = append(rules, mapToExportRule(rule))
+		export := mapToExport(rule)
+		exports = append(exports, &export)
 	}
 
-	err := r.manager.ValidateRules(ctx, rules)
+	err := r.manager.ValidateExports(exports)
 	if err != nil {
 		updateConditionFalse(conditionTypeValidRules, conditionReasonInvalid, err.Error())
 	} else {
@@ -191,8 +192,8 @@ func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) *v1alpha1.Accou
 	return nil
 }
 
-func mapToExportRule(rule v1alpha1.AccountExportRule) nauth.ExportRule {
-	result := nauth.ExportRule{
+func mapToExport(rule v1alpha1.AccountExportRule) nauth.Export {
+	result := nauth.Export{
 		Name:         rule.Name,
 		Subject:      nauth.Subject(rule.Subject),
 		Type:         mapExportType(rule.Type),

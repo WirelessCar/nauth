@@ -113,23 +113,16 @@ func (b *accountClaimsBuilder) jetStreamLimits(limits *nauth.JetStreamLimits) *a
 }
 
 func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
-	for _, i := range group.Imports {
-		jwtImport := toJWTImport(*i)
-		result, err := mergeJWTImports(b.claim.Subject, b.claim.Imports, jwt.Imports{jwtImport})
-		if err != nil {
-			return fmt.Errorf("failed to add import %q from group %q: %w", i.Name, group.Name, err)
-		}
-		b.claim.Imports = result
+	result, err := mergeImports(b.claim.Subject, b.claim.Imports, group.Imports)
+	if err != nil {
+		return err
 	}
+	b.claim.Imports = result
 	return nil
 }
 
 func (b *accountClaimsBuilder) addExportGroup(group nauth.ExportGroup) error {
-	jwtExports := make(jwt.Exports, len(group.Exports))
-	for i, e := range group.Exports {
-		jwtExports[i] = toJWTExport(*e)
-	}
-	result, err := mergeExports(b.claim.Exports, jwtExports)
+	result, err := mergeExports(b.claim.Exports, group.Exports)
 	if err != nil {
 		return err
 	}
@@ -292,7 +285,20 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 
 // Helpers
 
-func mergeExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error) {
+func validateExports(exports nauth.Exports) error {
+	_, err := mergeExports(nil, exports)
+	return err
+}
+
+func mergeExports(existing jwt.Exports, extras nauth.Exports) (jwt.Exports, error) {
+	jwtExports := make(jwt.Exports, len(extras))
+	for i, e := range extras {
+		jwtExports[i] = toJWTExport(*e)
+	}
+	return mergeJWTExports(existing, jwtExports)
+}
+
+func mergeJWTExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error) {
 	tmpExports := existing
 	appendIfMissing := func(haystack jwt.Exports, needle jwt.Export) jwt.Exports {
 		for _, e := range haystack {
@@ -307,28 +313,47 @@ func mergeExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error)
 	}
 	valResults := &jwt.ValidationResults{}
 	tmpExports.Validate(valResults)
-	validationErrors := valResults.Errors()
-	if len(validationErrors) != 0 {
-		return existing, errors.Join(validationErrors...)
+	if valResults.IsBlocking(false) {
+		return existing, errors.Join(valResults.Errors()...)
 	}
 	return tmpExports, nil
 }
 
-func validateImports(importAccountID string, imports nauth.Imports) error {
-	_, err := mergeImports(importAccountID, nil, imports)
+func validateImports(importAccountID nauth.AccountID, imports nauth.Imports) error {
+	_, err := mergeImports(string(importAccountID), nil, imports)
 	return err
 }
 
-func mergeImports(importAccountID string, existing jwt.Imports, imports nauth.Imports) (jwt.Imports, error) {
-	jwtImports := make(jwt.Imports, len(imports))
-	for i, imp := range imports {
+func mergeImports(importAccountID string, existing jwt.Imports, extras nauth.Imports) (jwt.Imports, error) {
+	jwtImports := make(jwt.Imports, len(extras))
+	for i, imp := range extras {
 		jwtImports[i] = toJWTImport(*imp)
 	}
-	result, err := mergeJWTImports(importAccountID, existing, jwtImports)
-	if err != nil {
-		return existing, err
+	return mergeJWTImports(importAccountID, existing, jwtImports)
+}
+
+func mergeJWTImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
+	tmpResult := existing
+	appendIfMissing := func(haystack jwt.Imports, needle jwt.Import) jwt.Imports {
+		for _, e := range haystack {
+			if e != nil && reflect.DeepEqual(*e, needle) {
+				return haystack
+			}
+		}
+		return append(haystack, &needle)
 	}
-	return result, nil
+	for _, e := range extras {
+		if e != nil {
+			tmpResult = appendIfMissing(tmpResult, *e)
+		}
+	}
+	valResults := &jwt.ValidationResults{}
+	tmpResult.Validate(importAccountID, valResults)
+	validationErrors := valResults.Errors()
+	if len(validationErrors) != 0 {
+		return existing, errors.Join(validationErrors...)
+	}
+	return tmpResult, nil
 }
 
 func toJWTImport(source nauth.Import) *jwt.Import {
@@ -423,30 +448,6 @@ func toNAuthServiceLatency(source *jwt.ServiceLatency) *nauth.ServiceLatency {
 	}
 }
 
-func mergeJWTImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
-	tmpResult := existing
-	appendIfMissing := func(haystack jwt.Imports, needle jwt.Import) jwt.Imports {
-		for _, e := range haystack {
-			if e != nil && reflect.DeepEqual(*e, needle) {
-				return haystack
-			}
-		}
-		return append(haystack, &needle)
-	}
-	for _, e := range extras {
-		if e != nil {
-			tmpResult = appendIfMissing(tmpResult, *e)
-		}
-	}
-	valResults := &jwt.ValidationResults{}
-	tmpResult.Validate(importAccountID, valResults)
-	validationErrors := valResults.Errors()
-	if len(validationErrors) != 0 {
-		return existing, errors.Join(validationErrors...)
-	}
-	return tmpResult, nil
-}
-
 func toJWTExportType(source nauth.ExportType) jwt.ExportType {
 	switch source {
 	case nauth.ExportTypeService:
@@ -454,7 +455,7 @@ func toJWTExportType(source nauth.ExportType) jwt.ExportType {
 	case nauth.ExportTypeStream:
 		return jwt.Stream
 	default:
-		return jwt.Stream
+		return jwt.Unknown
 	}
 }
 

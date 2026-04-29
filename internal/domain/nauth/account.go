@@ -86,17 +86,28 @@ type ExportGroup struct {
 type Exports []*Export
 
 type Export struct {
-	Name                 string          `json:"name,omitempty"`
-	Subject              Subject         `json:"subject,omitempty"`
-	Type                 ExportType      `json:"type,omitempty"`
-	TokenReq             bool            `json:"tokenReq,omitempty"`
-	Revocations          RevocationList  `json:"revocations,omitempty"`
-	ResponseType         ResponseType    `json:"responseType,omitempty"`
-	ResponseThreshold    time.Duration   `json:"responseThreshold,omitempty"`
-	Latency              *ServiceLatency `json:"serviceLatency,omitempty"`
-	AccountTokenPosition uint            `json:"accountTokenPosition,omitempty"`
-	Advertise            bool            `json:"advertise,omitempty"`
-	AllowTrace           bool            `json:"allowTrace,omitempty"`
+	// +optional
+	Name string `json:"name,omitempty"`
+	// +required
+	Subject Subject `json:"subject,omitempty"`
+	// +required
+	Type ExportType `json:"type,omitempty"`
+	// +optional
+	TokenReq bool `json:"tokenReq,omitempty"`
+	// +optional
+	Revocations RevocationList `json:"revocations,omitempty"`
+	// +optional
+	ResponseType ResponseType `json:"responseType,omitempty"`
+	// +optional
+	ResponseThreshold time.Duration `json:"responseThreshold,omitempty"`
+	// +optional
+	Latency *ServiceLatency `json:"serviceLatency,omitempty"`
+	// +optional
+	AccountTokenPosition uint `json:"accountTokenPosition,omitempty"`
+	// +optional
+	Advertise bool `json:"advertise,omitempty"`
+	// +optional
+	AllowTrace bool `json:"allowTrace,omitempty"`
 }
 type ServiceLatency struct {
 	Sampling SamplingRate `json:"sampling"`
