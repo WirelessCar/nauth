@@ -224,6 +224,167 @@ func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict
 	require.Nil(t, claims)
 }
 
+func Test_validateExports_ShouldReturnErrorWhenDuplicatesProvided(t *testing.T) {
+	// Given
+	exports := nauth.Exports{
+		{
+			Subject: "foo.*",
+			Type:    nauth.ExportTypeStream,
+		},
+		{
+			Subject: "bar.>",
+			Type:    nauth.ExportTypeStream,
+		},
+		{
+			Subject: "foo.*",
+			Type:    nauth.ExportTypeStream,
+		},
+	}
+
+	// When
+	err := validateExports(exports)
+
+	// Then
+	require.Errorf(t, err, "expected error when duplicate export subjects provided")
+	require.ErrorContains(t, err, "stream export subject \"foo.*\" already exports \"foo.*\"")
+}
+
+func Test_addExportGroup_ShouldSucceed_WhenDuplicatesProvided(t *testing.T) {
+	// Given
+	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
+	require.NoError(t, builder.addExportGroup(nauth.ExportGroup{
+		Name: "initial",
+		Exports: nauth.Exports{
+			{
+				Subject: "foo.>",
+				Type:    nauth.ExportTypeStream,
+			},
+		}}))
+
+	// When
+	err := builder.addExportGroup(nauth.ExportGroup{
+		Name: "conflicting",
+		Exports: nauth.Exports{
+			{
+				Subject: "bar.>",
+				Type:    nauth.ExportTypeStream,
+			},
+			{
+				Subject: "foo.>",
+				Type:    nauth.ExportTypeStream,
+			},
+			{
+				Subject: "baz.>",
+				Type:    nauth.ExportTypeStream,
+			},
+		}})
+
+	// Then
+	require.NoError(t, err, "expected no error when duplicate export subjects provided by different groups")
+	expected := jwt.Exports{
+		{
+			Subject: "foo.>",
+			Type:    jwt.Stream,
+		},
+		{
+			Subject: "bar.>",
+			Type:    jwt.Stream,
+		},
+		{
+			Subject: "baz.>",
+			Type:    jwt.Stream,
+		},
+	}
+	require.Equal(t, expected, builder.claim.Exports)
+}
+
+func Test_validateImports_ShouldReturnErrorWhenDuplicatedServiceProvided(t *testing.T) {
+	// Given
+	importAccountID := nauth.AccountID("ACCI")
+	exportAccountID := nauth.AccountID("ACCE")
+	imports := nauth.Imports{
+		{
+			AccountID: exportAccountID,
+			Subject:   nauth.Subject("foo.*"),
+			Type:      nauth.ExportTypeService,
+		},
+		{
+			AccountID: exportAccountID,
+			Subject:   nauth.Subject("bar.>"),
+			Type:      nauth.ExportTypeStream,
+		},
+		{
+			AccountID: exportAccountID,
+			Subject:   nauth.Subject("foo.*"),
+			Type:      nauth.ExportTypeService,
+		},
+	}
+
+	// When
+	err := validateImports(importAccountID, imports)
+
+	// Then
+	require.Errorf(t, err, "expected error when duplicate import subjects provided")
+	require.ErrorContains(t, err, "overlapping subject namespace for \"foo.*\" and \"foo.*\" in same account \"ACCE\"")
+}
+
+func Test_addImportGroup_ShouldSucceed_WhenDuplicatedServiceProvided(t *testing.T) {
+	// Given
+	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
+	importAccountID := nauth.AccountID("ACCE")
+	require.NoError(t, builder.addImportGroup(nauth.ImportGroup{
+		Name: "initial",
+		Imports: nauth.Imports{
+			{
+				AccountID: importAccountID,
+				Subject:   "foo.*",
+				Type:      nauth.ExportTypeService,
+			},
+		}}))
+
+	// When
+	err := builder.addImportGroup(nauth.ImportGroup{
+		Name: "conflicting",
+		Imports: nauth.Imports{
+			{
+				AccountID: importAccountID,
+				Subject:   "bar.>",
+				Type:      nauth.ExportTypeStream,
+			},
+			{
+				AccountID: importAccountID,
+				Subject:   "foo.*",
+				Type:      nauth.ExportTypeService,
+			},
+			{
+				AccountID: importAccountID,
+				Subject:   "baz.*",
+				Type:      nauth.ExportTypeStream,
+			},
+		}})
+
+	// Then
+	require.NoError(t, err, "expected no error when duplicate import subjects provided by different groups")
+	expected := jwt.Imports{
+		{
+			Account: string(importAccountID),
+			Subject: "foo.*",
+			Type:    jwt.Service,
+		},
+		{
+			Account: string(importAccountID),
+			Subject: "bar.>",
+			Type:    jwt.Stream,
+		},
+		{
+			Account: string(importAccountID),
+			Subject: "baz.*",
+			Type:    jwt.Stream,
+		},
+	}
+	require.Equal(t, expected, builder.claim.Imports)
+}
+
 func Test_validateJetStreamLimits(t *testing.T) {
 	operatorLimitsDefault := jwt.NewAccountClaims("test").Limits
 	boolTrue := true

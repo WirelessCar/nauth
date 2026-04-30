@@ -112,7 +112,8 @@ func (b *accountClaimsBuilder) jetStreamLimits(limits *nauth.JetStreamLimits) *a
 }
 
 func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
-	result, err := mergeImports(b.claim.Subject, b.claim.Imports, group.Imports)
+	result := jwt.Imports(mergeJWTItems(b.claim.Imports, toJWTImports(group.Imports), true))
+	err := validateJWTImports(b.claim.Subject, result)
 	if err != nil {
 		return err
 	}
@@ -121,7 +122,8 @@ func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
 }
 
 func (b *accountClaimsBuilder) addExportGroup(group nauth.ExportGroup) error {
-	result, err := mergeExports(b.claim.Exports, group.Exports)
+	result := jwt.Exports(mergeJWTItems(b.claim.Exports, toJWTExports(group.Exports), true))
+	err := validateJWTExports(result)
 	if err != nil {
 		return err
 	}
@@ -285,74 +287,59 @@ func convertNatsAccountClaims(claims *jwt.AccountClaims) nauth.AccountClaims {
 // Helpers
 
 func validateExports(exports nauth.Exports) error {
-	_, err := mergeExports(nil, exports)
-	return err
+	return validateJWTExports(toJWTExports(exports))
 }
 
-func mergeExports(existing jwt.Exports, extras nauth.Exports) (jwt.Exports, error) {
-	jwtExports := make(jwt.Exports, len(extras))
-	for i, e := range extras {
-		jwtExports[i] = toJWTExport(*e)
-	}
-	return mergeJWTExports(existing, jwtExports)
-}
-
-func mergeJWTExports(existing jwt.Exports, extras jwt.Exports) (jwt.Exports, error) {
-	tmpExports := existing
-	appendIfMissing := func(haystack jwt.Exports, needle jwt.Export) jwt.Exports {
-		for _, e := range haystack {
-			if e != nil && reflect.DeepEqual(*e, needle) {
-				return haystack
-			}
-		}
-		return append(haystack, &needle)
-	}
-	for _, e := range extras {
-		tmpExports = appendIfMissing(tmpExports, *e)
-	}
+func validateJWTExports(exports jwt.Exports) error {
 	valResults := &jwt.ValidationResults{}
-	tmpExports.Validate(valResults)
+	exports.Validate(valResults)
 	if valResults.IsBlocking(false) {
-		return existing, errors.Join(valResults.Errors()...)
+		return errors.Join(valResults.Errors()...)
 	}
-	return tmpExports, nil
+	return nil
 }
 
 func validateImports(importAccountID nauth.AccountID, imports nauth.Imports) error {
-	_, err := mergeImports(string(importAccountID), nil, imports)
-	return err
+	return validateJWTImports(string(importAccountID), toJWTImports(imports))
 }
 
-func mergeImports(importAccountID string, existing jwt.Imports, extras nauth.Imports) (jwt.Imports, error) {
-	jwtImports := make(jwt.Imports, len(extras))
-	for i, imp := range extras {
-		jwtImports[i] = toJWTImport(*imp)
+func validateJWTImports(importAccountID string, imports jwt.Imports) error {
+	valResults := &jwt.ValidationResults{}
+	imports.Validate(importAccountID, valResults)
+	if valResults.IsBlocking(false) {
+		return errors.Join(valResults.Errors()...)
 	}
-	return mergeJWTImports(importAccountID, existing, jwtImports)
+	return nil
 }
 
-func mergeJWTImports(importAccountID string, existing jwt.Imports, extras jwt.Imports) (jwt.Imports, error) {
-	tmpResult := existing
-	appendIfMissing := func(haystack jwt.Imports, needle jwt.Import) jwt.Imports {
-		for _, e := range haystack {
-			if e != nil && reflect.DeepEqual(*e, needle) {
-				return haystack
+func mergeJWTItems[T jwt.Import | jwt.Export](existing []*T, additions []*T, mergeDuplicates bool) []*T {
+	result := existing
+	for _, a := range additions {
+		if a == nil {
+			continue
+		}
+		add := true
+		if mergeDuplicates {
+			for _, e := range result {
+				if e != nil && reflect.DeepEqual(*e, *a) {
+					add = false
+					break
+				}
 			}
 		}
-		return append(haystack, &needle)
-	}
-	for _, e := range extras {
-		if e != nil {
-			tmpResult = appendIfMissing(tmpResult, *e)
+		if add {
+			result = append(result, a)
 		}
 	}
-	valResults := &jwt.ValidationResults{}
-	tmpResult.Validate(importAccountID, valResults)
-	validationErrors := valResults.Errors()
-	if len(validationErrors) != 0 {
-		return existing, errors.Join(validationErrors...)
+	return result
+}
+
+func toJWTImports(sources nauth.Imports) jwt.Imports {
+	result := make(jwt.Imports, len(sources))
+	for i, s := range sources {
+		result[i] = toJWTImport(*s)
 	}
-	return tmpResult, nil
+	return result
 }
 
 func toJWTImport(source nauth.Import) *jwt.Import {
@@ -365,6 +352,14 @@ func toJWTImport(source nauth.Import) *jwt.Import {
 		Share:        source.Share,
 		AllowTrace:   source.AllowTrace,
 	}
+}
+
+func toJWTExports(exports nauth.Exports) jwt.Exports {
+	result := make(jwt.Exports, len(exports))
+	for i, s := range exports {
+		result[i] = toJWTExport(*s)
+	}
+	return result
 }
 
 func toJWTExport(source nauth.Export) *jwt.Export {
