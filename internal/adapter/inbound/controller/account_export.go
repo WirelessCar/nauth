@@ -178,20 +178,6 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) *v1alpha1.AccountAdoption {
-	if account.Status.Adoptions == nil {
-		return nil
-	}
-
-	for _, adoption := range account.Status.Adoptions.Exports {
-		if adoption.UID == uid {
-			return &adoption
-		}
-	}
-
-	return nil
-}
-
 func mapToExport(rule v1alpha1.AccountExportRule) nauth.Export {
 	result := nauth.Export{
 		Name:         rule.Name,
