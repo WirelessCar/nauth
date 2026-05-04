@@ -5,73 +5,46 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type ClusterTestSuite struct {
 	suite.Suite
-	ctx                     context.Context
-	natsClusterResolverMock *NatsClusterReaderMock
-	natsSysClientMock       *NatsSysClientMock
-	natsSysConnMock         *NatsSysConnectionMock
-	secretClientMock        *SecretClientMock
-	configMapResolverMock   *ConfigMapReaderMock
+	ctx               context.Context
+	clusterReaderMock *ClusterReaderMock
+	natsSysClientMock *NatsSysClientMock
+	natsSysConnMock   *NatsSysConnectionMock
 }
 
 func (t *ClusterTestSuite) SetupTest() {
 	t.ctx = context.Background()
-	t.natsClusterResolverMock = NewNatsClusterReaderMock()
+	t.clusterReaderMock = NewClusterReaderMock()
 	t.natsSysClientMock = NewNatsSysClientMock()
 	t.natsSysConnMock = NewNatsSysConnectionMock()
-	t.secretClientMock = NewSecretClientMock()
-	t.configMapResolverMock = NewConfigMapReaderMock()
 }
 
 func (t *ClusterTestSuite) TearDownTest() {
-	t.natsClusterResolverMock.AssertExpectations(t.T())
+	t.clusterReaderMock.AssertExpectations(t.T())
 	t.natsSysClientMock.AssertExpectations(t.T())
 	t.natsSysConnMock.AssertExpectations(t.T())
-	t.secretClientMock.AssertExpectations(t.T())
-	t.configMapResolverMock.AssertExpectations(t.T())
 }
 
 func TestClusterManager_TestSuite(t *testing.T) {
 	suite.Run(t, new(ClusterTestSuite))
 }
 
-func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClusterRef() {
+func (t *ClusterTestSuite) Test_ResolveClusterTarget_ShouldSucceed_WhenOperatorClusterRef() {
 	// Given
-	opClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "my-namespace",
-		Name:      "my-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
+	opClusterRef := nauth.ClusterRef("my-namespace/my-cluster")
+	unitUnderTest := t.newUnitUnderTest(&opClusterRef, false, "nats")
 
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, domain.NewNamespacedName("my-namespace", "my-cluster"),
-		&v1alpha1.NatsCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "my-namespace",
-				Name:      "my-cluster",
-			},
-			Spec: v1alpha1.NatsClusterSpec{
-				URL:                             "nats://my-cluster:4222",
-				OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-			},
-		})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
+	opClusterTarget := t.generateClusterTarget()
+	t.clusterReaderMock.mockGetTarget(t.ctx, "my-namespace/my-cluster", &opClusterTarget)
 
 	// When
 	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
@@ -79,174 +52,88 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenOperatorClust
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
-		NatsURL:            "nats://my-cluster:4222",
-		SystemAdminCreds:   sauCreds,
-		OperatorSigningKey: opSignKey,
-	}, result)
+	require.Equal(t.T(), &opClusterTarget, result)
 }
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountClusterRef() {
 	// Given´
 	unitUnderTest := t.newUnitUnderTest(nil, false, "nats")
 
-	acClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "ac-namespace",
-		Name:      "ac-cluster",
-	}
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, domain.NewNamespacedName("ac-namespace", "ac-cluster"),
-		&v1alpha1.NatsCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "ac-namespace",
-				Name:      "ac-cluster",
-			},
-			Spec: v1alpha1.NatsClusterSpec{
-				URL:                             "nats://ac-cluster:4222",
-				OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-			},
-		})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("ac-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("ac-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
+	acClusterRef, err := nauth.NewClusterRef("ac-namespace/ac-cluster")
+	require.NoError(t.T(), err)
+	acClusterTarget := t.generateClusterTarget()
+	t.clusterReaderMock.mockGetTarget(t.ctx, "ac-namespace/ac-cluster", &acClusterTarget)
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, acClusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &acClusterRef)
 
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
-		NatsURL:            "nats://ac-cluster:4222",
-		SystemAdminCreds:   sauCreds,
-		OperatorSigningKey: opSignKey,
-	}, result)
+	require.Equal(t.T(), acClusterTarget, *result)
 }
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountClusterRefSameAsNonOptionalOperatorClusterRef() {
 	// Given
-	clusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "my-namespace",
-		Name:      "my-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(clusterRef, false, "nats")
+	clusterRef := nauth.ClusterRef("my-namespace/my-cluster")
+	clusterTarget := t.generateClusterTarget()
+	t.clusterReaderMock.mockGetTarget(t.ctx, "my-namespace/my-cluster", &clusterTarget).Once()
 
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, domain.NewNamespacedName("my-namespace", "my-cluster"),
-		&v1alpha1.NatsCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "my-namespace",
-				Name:      "my-cluster",
-			},
-			Spec: v1alpha1.NatsClusterSpec{
-				URL:                             "nats://my-cluster:4222",
-				OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-			},
-		})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
+	unitUnderTest := t.newUnitUnderTest(&clusterRef, false, "nats")
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, clusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &clusterRef)
 
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
-		NatsURL:            "nats://my-cluster:4222",
-		SystemAdminCreds:   sauCreds,
-		OperatorSigningKey: opSignKey,
-	}, result)
+	require.Equal(t.T(), &clusterTarget, result)
 }
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldSucceed_WhenAccountClusterRefDifferentFromOptionalOperatorClusterRef() {
 	// Given
-	opClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "op-namespace",
-		Name:      "op-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats")
+	opClusterRef := nauth.ClusterRef("op-namespace/op-cluster")
+	unitUnderTest := t.newUnitUnderTest(&opClusterRef, true, "nats")
 
-	acClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "ac-namespace",
-		Name:      "ac-cluster",
-	}
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-	t.natsClusterResolverMock.mockGetNatsCluster(t.ctx, domain.NewNamespacedName("ac-namespace", "ac-cluster"),
-		&v1alpha1.NatsCluster{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "ac-namespace",
-				Name:      "ac-cluster",
-			},
-			Spec: v1alpha1.NatsClusterSpec{
-				URL:                             "nats://ac-cluster:4222",
-				OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-				SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-			},
-		})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("ac-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("ac-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
+	acClusterRef := nauth.ClusterRef("ac-namespace/ac-cluster")
+	acClusterTarget := t.generateClusterTarget()
+	t.clusterReaderMock.mockGetTarget(t.ctx, acClusterRef, &acClusterTarget)
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, acClusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &acClusterRef)
 
 	// Then
 	require.NoError(t.T(), err)
 	require.NotNil(t.T(), result)
-	require.Equal(t.T(), &clusterTarget{
-		NatsURL:            "nats://ac-cluster:4222",
-		SystemAdminCreds:   sauCreds,
-		OperatorSigningKey: opSignKey,
-	}, result)
+	require.Equal(t.T(), &acClusterTarget, result)
 }
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterRefDifferentFromNonOptionalOperatorClusterRef() {
 	// Given
-	opClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "op-namespace",
-		Name:      "op-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
-
-	acClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "ac-namespace",
-		Name:      "ac-cluster",
-	}
+	opClusterRef := nauth.ClusterRef("op-namespace/op-cluster")
+	unitUnderTest := t.newUnitUnderTest(&opClusterRef, false, "nats")
+	acClusterRef := nauth.ClusterRef("ac-namespace/ac-cluster")
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, acClusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &acClusterRef)
 
 	// Then
-	require.ErrorContains(t.T(), err, "invalid cluster reference: account cluster reference ac-namespace/ac-cluster does not match required operator cluster op-namespace/op-cluster")
+	require.ErrorContains(t.T(), err, "account cluster reference ac-namespace/ac-cluster does not match required operator cluster op-namespace/op-cluster")
 	require.Nil(t.T(), result)
 }
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenOperatorClusterNotFound() {
 	// Given
-	opClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "my-namespace",
-		Name:      "my-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, false, "nats")
-
-	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, domain.NewNamespacedName("my-namespace", "my-cluster"),
-		fmt.Errorf("the root cause"))
+	opClusterRef := nauth.ClusterRef("my-namespace/my-cluster")
+	unitUnderTest := t.newUnitUnderTest(&opClusterRef, false, "nats")
+	acClusterRef := nauth.ClusterRef("my-namespace/my-cluster")
+	t.clusterReaderMock.mockGetTargetError(t.ctx, acClusterRef, fmt.Errorf("fake not found"))
 
 	// When
 	result, err := unitUnderTest.GetClusterTarget(t.ctx, nil)
 
 	// Then
-	require.ErrorContains(t.T(), err, "resolve cluster target: failed to resolve NATS cluster my-namespace/my-cluster: the root cause")
+	require.ErrorContains(t.T(), err, "resolve cluster target \"my-namespace/my-cluster\": fake not found")
 	require.Nil(t.T(), result)
 }
 
@@ -264,24 +151,16 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenNeitherAccountNo
 
 func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterNotFound() {
 	// Given
-	opClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "op-namespace",
-		Name:      "op-cluster",
-	}
-	unitUnderTest := t.newUnitUnderTest(opClusterRef, true, "nats")
-
-	acClusterRef := &v1alpha1.NatsClusterRef{
-		Namespace: "ac-namespace",
-		Name:      "ac-cluster",
-	}
-	t.natsClusterResolverMock.mockGetNatsClusterError(t.ctx, domain.NewNamespacedName("ac-namespace", "ac-cluster"),
-		fmt.Errorf("the root cause"))
+	opClusterRef := nauth.ClusterRef("op-namespace/op-cluster")
+	unitUnderTest := t.newUnitUnderTest(&opClusterRef, true, "nats")
+	acClusterRef := nauth.ClusterRef("ac-namespace/ac-cluster")
+	t.clusterReaderMock.mockGetTargetError(t.ctx, acClusterRef, fmt.Errorf("fake not found"))
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, acClusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &acClusterRef)
 
 	// Then
-	require.ErrorContains(t.T(), err, "resolve cluster target: failed to resolve NATS cluster ac-namespace/ac-cluster: the root cause")
+	require.ErrorContains(t.T(), err, "resolve cluster target \"ac-namespace/ac-cluster\": fake not found")
 	require.Nil(t.T(), result)
 }
 
@@ -289,175 +168,28 @@ func (t *ClusterTestSuite) Test_GetClusterTarget_ShouldFail_WhenAccountClusterRe
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
 
-	acClusterRef := &v1alpha1.NatsClusterRef{
-		Name: "ac-cluster",
-	}
+	acClusterRef := nauth.ClusterRef("ac-cluster")
 
 	// When
-	result, err := unitUnderTest.GetClusterTarget(t.ctx, acClusterRef)
+	result, err := unitUnderTest.GetClusterTarget(t.ctx, &acClusterRef)
 
 	// Then
-	require.ErrorContains(t.T(), err, "invalid account cluster reference: namespace required")
+	require.ErrorContains(t.T(), err, "invalid account cluster ref:")
+	require.ErrorContains(t.T(), err, "invalid cluster ref \"ac-cluster\" (expected NamespacedName):")
+	require.ErrorContains(t.T(), err, "invalid Namespaced Name format \"ac-cluster\": expected namespace/name")
 	require.Nil(t.T(), result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMap() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	t.configMapResolverMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-config"),
-		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "my-namespace",
-			Name:      "my-cluster",
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind: v1alpha1.URLFromKindConfigMap,
-				Name: "my-config",
-				Key:  "theNatsURL",
-			},
-		},
-	})
-
-	// Then
-	require.NoError(t.T(), err)
-	require.Equal(t.T(), "nats://custom-nats:4222", result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromConfigMapWithExplicitNamespace() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	t.configMapResolverMock.mockGet(t.ctx, domain.NewNamespacedName("config-namespace", "my-config"),
-		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "my-namespace",
-			Name:      "my-cluster",
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind:      v1alpha1.URLFromKindConfigMap,
-				Namespace: "config-namespace",
-				Name:      "my-config",
-				Key:       "theNatsURL",
-			},
-		},
-	})
-
-	// Then
-	require.NoError(t.T(), err)
-	require.Equal(t.T(), "nats://custom-nats:4222", result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecret() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-secret"),
-		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "my-namespace",
-			Name:      "my-cluster",
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind: v1alpha1.URLFromKindSecret,
-				Name: "my-secret",
-				Key:  "theNatsURL",
-			},
-		},
-	})
-
-	// Then
-	require.NoError(t.T(), err)
-	require.Equal(t.T(), "nats://custom-nats:4222", result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldSucceed_FromSecretWithExplicitNamespace() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("config-namespace", "my-secret"),
-		map[string]string{"theNatsURL": "nats://custom-nats:4222"})
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "my-namespace",
-			Name:      "my-cluster",
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind:      v1alpha1.URLFromKindSecret,
-				Namespace: "config-namespace",
-				Name:      "my-secret",
-				Key:       "theNatsURL",
-			},
-		},
-	})
-
-	// Then
-	require.NoError(t.T(), err)
-	require.Equal(t.T(), "nats://custom-nats:4222", result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenNoNatsURLReferenceProvided() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{})
-
-	// Then
-	require.ErrorContains(t.T(), err, "neither url nor urlFrom is set")
-	require.Empty(t.T(), result)
-}
-
-func (t *ClusterTestSuite) Test_resolveNatsURL_ShouldFail_WhenUnsupportedFromKindProvided() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-
-	// When
-	result, err := unitUnderTest.resolveNatsURL(t.ctx, &v1alpha1.NatsCluster{
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind: "NotSoKind",
-			},
-		},
-	})
-
-	// Then
-	require.ErrorContains(t.T(), err, "unsupported urlFrom.kind \"NotSoKind\"")
-	require.Empty(t.T(), result)
 }
 
 func (t *ClusterTestSuite) Test_Validate_ShouldSucceed() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsSysClientMock.mockConnect("nats://my-cluster:4222", sauCreds, t.natsSysConnMock)
+	clusterTarget := t.generateClusterTarget()
+	t.natsSysClientMock.mockConnect(clusterTarget.NatsURL, clusterTarget.SystemAdminCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockVerifySystemAccountAccess()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
 
 	// Then
 	t.NoError(err)
@@ -466,64 +198,37 @@ func (t *ClusterTestSuite) Test_Validate_ShouldSucceed() {
 func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenOperatorSigningKeySecretMissing() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
-	_, sauCreds := t.generateSecrets()
-
-	t.secretClientMock.mockGetError(domain.NewNamespacedName("my-namespace", "op-sign-secret"), fmt.Errorf("the root cause"))
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
+	clusterTarget := t.generateClusterTarget()
+	clusterTarget.OperatorSigningKey = nil
 
 	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
 
 	// Then
-	t.ErrorContains(err, "resolve operator signing key for NatsCluster my-namespace/my-cluster:")
-	t.ErrorContains(err, "resolve secret my-namespace/op-sign-secret: the root cause")
+	t.ErrorContains(err, "invalid cluster target: operator signing key is required")
 }
 
 func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenSystemAccountUserCredsSecretMissing() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
-	t.secretClientMock.mockGetError(domain.NewNamespacedName("my-namespace", "sau-creds"), fmt.Errorf("the root cause"))
+	clusterTarget := t.generateClusterTarget()
+	clusterTarget.SystemAdminCreds = domain.NatsUserCreds{}
 
 	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
 
 	// Then
-	t.ErrorContains(err, "resolve system account user creds for NatsCluster my-namespace/my-cluster:")
-	t.ErrorContains(err, "resolve secret my-namespace/sau-creds: the root cause")
-}
-
-func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenNatsURLCannotBeResolved() {
-	// Given
-	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsClusterFromConfigMap("my-namespace", "my-cluster", "my-config", "theNatsURL")
-	t.configMapResolverMock.mockGetError(t.ctx, domain.NewNamespacedName("my-namespace", "my-config"), fmt.Errorf("the root cause"))
-
-	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
-
-	// Then
-	t.ErrorContains(err, "resolve NATS URL for NatsCluster my-namespace/my-cluster:")
-	t.ErrorContains(err, "get ConfigMap my-namespace/my-config: the root cause")
+	t.ErrorContains(err, "invalid cluster target: invalid system admin credentials: credentials cannot be empty")
 }
 
 func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenNatsConnectionFails() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsSysClientMock.mockConnectError("nats://my-cluster:4222", sauCreds, fmt.Errorf("authentication failed"))
+	clusterTarget := t.generateClusterTarget()
+	t.natsSysClientMock.mockConnectError(clusterTarget.NatsURL, clusterTarget.SystemAdminCreds, fmt.Errorf("authentication failed"))
 
 	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
 
 	// Then
 	t.ErrorContains(err, "connect to NATS cluster using System Account User Credentials: authentication failed")
@@ -532,20 +237,13 @@ func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenNatsConnectionFails() {
 func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenVerifySystemAccountAccessFails() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()
-	cluster := t.newNatsCluster("my-namespace", "my-cluster", "nats://my-cluster:4222")
-	opSignKey, sauCreds := t.generateSecrets()
-	opSignSeed, _ := opSignKey.Seed()
-
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "op-sign-secret"),
-		map[string]string{k8s.DefaultSecretKeyName: string(opSignSeed)})
-	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "sau-creds"),
-		map[string]string{k8s.DefaultSecretKeyName: string(sauCreds.Creds)})
-	t.natsSysClientMock.mockConnect("nats://my-cluster:4222", sauCreds, t.natsSysConnMock)
+	clusterTarget := t.generateClusterTarget()
+	t.natsSysClientMock.mockConnect(clusterTarget.NatsURL, clusterTarget.SystemAdminCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockVerifySystemAccountAccessError(fmt.Errorf("permission denied"))
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	err := unitUnderTest.Validate(t.ctx, cluster)
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
 
 	// Then
 	t.ErrorContains(err, "verify NATS System Account access: permission denied")
@@ -555,7 +253,7 @@ func (t *ClusterTestSuite) newUnitUnderTestWithDefaults() *ClusterManager {
 	return t.newUnitUnderTest(nil, false, "")
 }
 
-func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRef, opClusterOptional bool, opNamespace domain.Namespace) *ClusterManager {
+func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *nauth.ClusterRef, opClusterOptional bool, opNamespace domain.Namespace) *ClusterManager {
 	var operatorNatsCluster *OperatorNatsCluster
 	var err error
 	if opClusterRef != nil {
@@ -573,10 +271,8 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 	}
 
 	u, err := NewClusterManager(
-		t.natsClusterResolverMock,
+		t.clusterReaderMock,
 		t.natsSysClientMock,
-		t.secretClientMock,
-		t.configMapResolverMock,
 		config,
 	)
 	if err != nil {
@@ -587,39 +283,7 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *v1alpha1.NatsClusterRe
 	return u
 }
 
-func (t *ClusterTestSuite) newNatsCluster(namespace, name, natsURL string) *v1alpha1.NatsCluster {
-	return &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URL:                             natsURL,
-			OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-			SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-		},
-	}
-}
-
-func (t *ClusterTestSuite) newNatsClusterFromConfigMap(namespace, name, configMapName, key string) *v1alpha1.NatsCluster {
-	return &v1alpha1.NatsCluster{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Spec: v1alpha1.NatsClusterSpec{
-			URLFrom: &v1alpha1.URLFromReference{
-				Kind: v1alpha1.URLFromKindConfigMap,
-				Name: configMapName,
-				Key:  key,
-			},
-			OperatorSigningKeySecretRef:     v1alpha1.SecretKeyReference{Name: "op-sign-secret"},
-			SystemAccountUserCredsSecretRef: v1alpha1.SecretKeyReference{Name: "sau-creds"},
-		},
-	}
-}
-
-func (t *ClusterTestSuite) generateSecrets() (domain.NatsOperatorSigningKey, domain.NatsUserCreds) {
+func (t *ClusterTestSuite) generateClusterTarget() nauth.ClusterTarget {
 	opSign, _ := nkeys.CreateOperator()
 
 	acKey, _ := nkeys.CreateAccount()
@@ -645,5 +309,9 @@ func (t *ClusterTestSuite) generateSecrets() (domain.NatsOperatorSigningKey, dom
 		t.Failf("failed to create NatsUserCreds from SAU creds", "error: %v", err)
 	}
 
-	return opSign, *sauNatsUserCreds
+	return nauth.ClusterTarget{
+		NatsURL:            "nats://my-cluster:4222",
+		OperatorSigningKey: opSign,
+		SystemAdminCreds:   *sauNatsUserCreds,
+	}
 }

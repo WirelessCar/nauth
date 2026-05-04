@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -246,15 +247,13 @@ func main() {
 	secretClient := k8s.NewSecretClient(mgr.GetClient())
 	configMapClient := k8s.NewConfigMapClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
-	natsClusterClient := k8s.NewNatsClusterClient(mgr.GetClient())
+	clusterClient := k8s.NewClusterClient(mgr.GetClient(), secretClient, configMapClient)
 	natsSysClient := nats.NewSysClient()
 	natsAccClient := nats.NewAccountClient()
 
 	clusterManager, err := core.NewClusterManager(
-		natsClusterClient,
+		clusterClient,
 		natsSysClient,
-		secretClient,
-		configMapClient,
 		config,
 	)
 	if err != nil {
@@ -334,6 +333,7 @@ func main() {
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		clusterManager,
+		clusterClient,
 		mgr.GetEventRecorder("natscluster-controller"),
 	)
 	if err = natsClusterReconciler.SetupWithManager(mgr); err != nil {
@@ -364,7 +364,7 @@ func main() {
 	}
 }
 
-func parseNatsClusterRef(refStr string) (*v1alpha1.NatsClusterRef, error) {
+func parseNatsClusterRef(refStr string) (*nauth.ClusterRef, error) {
 	parts := strings.Split(refStr, "/")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid cluster ref pattern %q, expected namespace/name", refStr)
@@ -372,6 +372,14 @@ func parseNatsClusterRef(refStr string) (*v1alpha1.NatsClusterRef, error) {
 
 	namespace := parts[0]
 	name := parts[1]
+	namespacedName := domain.NewNamespacedName(namespace, name)
+	if err := namespacedName.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid cluster ref namespaced name %q: %w", refStr, err)
+	}
+	result := nauth.ClusterRef(refStr)
+	if err := result.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid cluster ref %q: %w", refStr, err)
+	}
 
-	return &v1alpha1.NatsClusterRef{Name: name, Namespace: namespace}, nil
+	return &result, nil
 }

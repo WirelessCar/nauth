@@ -7,6 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
@@ -57,10 +58,6 @@ func (s *SecretClientMock) mockGet(ctx context.Context, namespacedName domain.Na
 
 func (s *SecretClientMock) mockGetNotFound(namespacedName domain.NamespacedName) {
 	s.On("Get", mock.Anything, namespacedName).Return(nil, false, nil)
-}
-
-func (s *SecretClientMock) mockGetError(namespacedName domain.NamespacedName, err error) {
-	s.On("Get", mock.Anything, namespacedName).Return(nil, false, err)
 }
 
 func (s *SecretClientMock) GetByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) (*corev1.SecretList, error) {
@@ -384,54 +381,28 @@ var _ outbound.AccountReader = &AccountReaderMock{}
 /* ****************************************************
 * NatsCluster Resolver
 *****************************************************/
-type NatsClusterReaderMock struct {
+type ClusterReaderMock struct {
 	mock.Mock
 }
 
-func NewNatsClusterReaderMock() *NatsClusterReaderMock {
-	return &NatsClusterReaderMock{}
+func NewClusterReaderMock() *ClusterReaderMock {
+	return &ClusterReaderMock{}
 }
 
-func (m *NatsClusterReaderMock) Get(ctx context.Context, clusterRef domain.NamespacedName) (*v1alpha1.NatsCluster, error) {
+func (m *ClusterReaderMock) GetTarget(ctx context.Context, clusterRef nauth.ClusterRef) (*nauth.ClusterTarget, error) {
 	args := m.Called(ctx, clusterRef)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*v1alpha1.NatsCluster), args.Error(1)
+	return args.Get(0).(*nauth.ClusterTarget), args.Error(1)
 }
 
-func (m *NatsClusterReaderMock) mockGetNatsCluster(ctx context.Context, clusterRef domain.NamespacedName, result *v1alpha1.NatsCluster) {
-	m.On("Get", ctx, clusterRef).Return(result, nil)
+func (m *ClusterReaderMock) mockGetTarget(ctx context.Context, clusterRef nauth.ClusterRef, result *nauth.ClusterTarget) *mock.Call {
+	return m.On("GetTarget", ctx, clusterRef).Return(result, nil)
 }
 
-func (m *NatsClusterReaderMock) mockGetNatsClusterError(ctx context.Context, clusterRef domain.NamespacedName, err error) {
-	m.On("Get", ctx, clusterRef).Return(nil, err)
+func (m *ClusterReaderMock) mockGetTargetError(ctx context.Context, clusterRef nauth.ClusterRef, err error) {
+	m.On("GetTarget", ctx, clusterRef).Return(nil, err)
 }
 
-var _ outbound.NatsClusterReader = (*NatsClusterReaderMock)(nil)
-
-/* ****************************************************
-* outbound.ConfigMapReader Mock
-*****************************************************/
-type ConfigMapReaderMock struct {
-	mock.Mock
-}
-
-func NewConfigMapReaderMock() *ConfigMapReaderMock {
-	return &ConfigMapReaderMock{}
-}
-
-func (m *ConfigMapReaderMock) Get(ctx context.Context, namespacedName domain.NamespacedName) (map[string]string, error) {
-	args := m.Called(ctx, namespacedName)
-	return args.Get(0).(map[string]string), args.Error(1)
-}
-
-func (m *ConfigMapReaderMock) mockGet(ctx context.Context, namespacedName domain.NamespacedName, result map[string]string) {
-	m.On("Get", ctx, namespacedName).Return(result, nil)
-}
-
-func (m *ConfigMapReaderMock) mockGetError(ctx context.Context, namespacedName domain.NamespacedName, err error) {
-	m.On("Get", ctx, namespacedName).Return(map[string]string{}, err)
-}
-
-var _ outbound.ConfigMapReader = (*ConfigMapReaderMock)(nil)
+var _ outbound.ClusterReader = (*ClusterReaderMock)(nil)

@@ -3,11 +3,9 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/WirelessCar/nauth/internal/domain"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -162,13 +160,4 @@ func cleanSecret(ctx context.Context, secretRef domain.NamespacedName) error {
 	}
 
 	return k8sClient.Delete(ctx, k8sSecret)
-}
-
-func sanitizeTestName(name string) string {
-	replacer := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-", "_", "-")
-	return strings.ToLower(replacer.Replace(name))
-}
-
-func TestSanitizeTestName(t *testing.T) {
-	require.Equal(t, "test-name", sanitizeTestName("Test Name"))
 }

@@ -25,7 +25,8 @@ type AccountManagerTestSuite struct {
 	keys          testKeys
 	sauCreds      domain.NatsUserCreds
 	natsURL       string
-	clusterTarget clusterTarget
+	clusterRef    nauth.ClusterRef
+	clusterTarget nauth.ClusterTarget
 
 	accountReaderMock         *AccountReaderMock
 	natsSysClientMock         *NatsSysClientMock
@@ -47,7 +48,8 @@ func (t *AccountManagerTestSuite) SetupTest() {
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}
 	t.natsURL = "nats://nats:4222"
-	t.clusterTarget = clusterTarget{
+	t.clusterRef = "account-namespace/account-namespace-cluster"
+	t.clusterTarget = nauth.ClusterTarget{
 		NatsURL:            t.natsURL,
 		OperatorSigningKey: t.keys.OpSign.KeyPair,
 		SystemAdminCreds:   t.sauCreds,
@@ -166,10 +168,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	natsLimitsSubs := int64(100)
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, &v1alpha1.NatsClusterRef{
-		Namespace: "account-namespace",
-		Name:      "account-namespace-cluster",
-	}, &t.clusterTarget)
+	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, &t.clusterRef, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -984,17 +983,17 @@ func newClusterTargetResolverMock() *clusterTargetResolverMock {
 	return &clusterTargetResolverMock{}
 }
 
-func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef) (*clusterTarget, error) {
+func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef) (*nauth.ClusterTarget, error) {
 	args := m.Called(ctx, accountClusterRef)
-	return args.Get(0).(*clusterTarget), args.Error(1)
+	return args.Get(0).(*nauth.ClusterTarget), args.Error(1)
 }
 
-func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, result *clusterTarget) {
+func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef, result *nauth.ClusterTarget) {
 	m.On("GetClusterTarget", ctx, accountClusterRef).Return(result, nil)
 }
 
-func (m *clusterTargetResolverMock) mockGetClusterTargetError(ctx context.Context, accountClusterRef *v1alpha1.NatsClusterRef, err error) {
-	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*clusterTarget)(nil), err)
+func (m *clusterTargetResolverMock) mockGetClusterTargetError(ctx context.Context, accountClusterRef *nauth.ClusterRef, err error) {
+	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*nauth.ClusterTarget)(nil), err)
 }
 
 var _ clusterTargetResolver = (*clusterTargetResolverMock)(nil)

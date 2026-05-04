@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -36,18 +37,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type ClusterResolver interface {
+	ResolveClusterTarget(ctx context.Context, cluster *v1alpha1.NatsCluster) (*nauth.ClusterTarget, error)
+}
+
 type NatsClusterReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	manager  inbound.NatsClusterManager
+	manager  inbound.ClusterManager
+	resolver ClusterResolver
 	reporter *statusReporter
 }
 
-func NewNatsClusterReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.NatsClusterManager, recorder events.EventRecorder) *NatsClusterReconciler {
+func NewNatsClusterReconciler(
+	k8sClient client.Client,
+	scheme *runtime.Scheme,
+	manager inbound.ClusterManager,
+	resolver ClusterResolver,
+	recorder events.EventRecorder,
+) *NatsClusterReconciler {
 	return &NatsClusterReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
 		manager:  manager,
+		resolver: resolver,
 		reporter: newStatusReporter(k8sClient, recorder),
 	}
 }
@@ -86,7 +99,12 @@ func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	if err := r.manager.Validate(ctx, natsCluster); err != nil {
+	clusterTarget, err := r.resolver.ResolveClusterTarget(ctx, natsCluster)
+	if err != nil {
+		return r.reporter.error(ctx, natsCluster, fmt.Errorf("failed to resolve NatsCluster target: %w", err))
+	}
+
+	if err = r.manager.Validate(ctx, *clusterTarget); err != nil {
 		return r.reporter.error(ctx, natsCluster, fmt.Errorf("failed to validate NatsCluster: %w", err))
 	}
 

@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,8 +36,9 @@ type NatsClusterControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	natsClusterManagerMock *NatsClusterManagerMock
-	fakeRecorder           *events.FakeRecorder
+	managerMock  *ClusterManagerMock
+	resolverMock *ClusterResolverMock
+	fakeRecorder *events.FakeRecorder
 
 	resourceName    ktypes.NamespacedName
 	operatorVersion string
@@ -60,12 +63,14 @@ func (t *NatsClusterControllerTestSuite) SetupTest() {
 		Namespace: namespace,
 	}
 
-	t.natsClusterManagerMock = &NatsClusterManagerMock{}
+	t.managerMock = &ClusterManagerMock{}
+	t.resolverMock = &ClusterResolverMock{}
 	t.fakeRecorder = events.NewFakeRecorder(5)
 	t.unitUnderTest = NewNatsClusterReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
-		t.natsClusterManagerMock,
+		t.managerMock,
+		t.resolverMock,
 		t.fakeRecorder,
 	)
 
@@ -84,13 +89,21 @@ func (t *NatsClusterControllerTestSuite) SetupTest() {
 }
 
 func (t *NatsClusterControllerTestSuite) TearDownTest() {
-	t.natsClusterManagerMock.AssertExpectations(t.T())
+	t.managerMock.AssertExpectations(t.T())
+	t.resolverMock.AssertExpectations(t.T())
 	t.Require().NoError(os.Unsetenv(envOperatorVersion))
 }
 
 func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	// Given
-	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
+	target := t.anyClusterTarget()
+	t.resolverMock.mockResolveClusterTarget(&target, nil)
+
+	var targetSpied *nauth.ClusterTarget
+	t.managerMock.mockValidateSpy(func(target nauth.ClusterTarget) error {
+		targetSpied = &target
+		return nil
+	})
 
 	// When
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
@@ -108,12 +121,20 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Empty(t.fakeRecorder.Events)
+	t.Require().NotNil(targetSpied, "expected manager.Validate to be called with a ClusterTarget")
+	t.Equal(target, *targetSpied)
 }
 
-func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail() {
+func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail_WhenValidationFails() {
 	// Given
 	validateErr := fmt.Errorf("a test error")
-	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(validateErr).Once()
+	target := t.anyClusterTarget()
+	t.resolverMock.mockResolveClusterTarget(&target, nil)
+	var targetSpied *nauth.ClusterTarget
+	t.managerMock.mockValidateSpy(func(target nauth.ClusterTarget) error {
+		targetSpied = &target
+		return validateErr
+	})
 
 	// When
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
@@ -130,12 +151,38 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail() {
 	}
 	t.Len(t.fakeRecorder.Events, 1)
 	t.Contains(<-t.fakeRecorder.Events, "failed to validate NatsCluster: a test error")
+	t.Require().NotNil(targetSpied, "expected manager.Validate to be called with a ClusterTarget")
+	t.Equal(target, *targetSpied)
+}
+
+func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldFail_WhenResolveTargetFails() {
+	// Given
+	resolveErr := fmt.Errorf("a test error")
+	t.resolverMock.mockResolveClusterTarget(nil, resolveErr)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
+
+	// Then
+	t.Error(err)
+	t.Contains(err.Error(), resolveErr.Error())
+
+	cluster := &v1alpha1.NatsCluster{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.resourceName, cluster))
+	for _, c := range cluster.Status.Conditions {
+		t.Equal(metav1.ConditionFalse, c.Status)
+		t.Equal(conditionReasonErrored, c.Reason)
+	}
+	t.Len(t.fakeRecorder.Events, 1)
+	t.Contains(<-t.fakeRecorder.Events, "failed to resolve NatsCluster target: a test error")
 }
 
 func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSkip_WhenGenerationAndOperatorVersionAreUnchanged() {
 	// Given
-	// Note: Expect manager.Validate during setup only
-	t.natsClusterManagerMock.On("Validate", mock.Anything).Return(nil).Once()
+	// Note: Expect during setup only
+	target := t.anyClusterTarget()
+	t.resolverMock.mockResolveClusterTarget(&target, nil)
+	t.managerMock.mockValidate(nil)
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
 
@@ -146,7 +193,7 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSkip_WhenGeneratio
 	t.Equal(cluster.Generation, cluster.Status.ObservedGeneration)
 
 	// Note: assert mock calls during setup and reset for test case
-	t.natsClusterManagerMock.AssertExpectations(t.T())
+	t.managerMock.AssertExpectations(t.T())
 
 	// When (expect no manager calls)
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.resourceName})
@@ -155,11 +202,46 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSkip_WhenGeneratio
 	t.NoError(err)
 }
 
-type NatsClusterManagerMock struct {
+// Helpers
+
+func (t *NatsClusterControllerTestSuite) anyClusterTarget() nauth.ClusterTarget {
+	return nauth.ClusterTarget{NatsURL: fmt.Sprintf("nats://%s.my-cluster:4222", shortHash(t.T().Name()))}
+}
+
+type ClusterManagerMock struct {
 	mock.Mock
 }
 
-func (m *NatsClusterManagerMock) Validate(ctx context.Context, state *v1alpha1.NatsCluster) error {
-	args := m.Called(state)
+func (m *ClusterManagerMock) Validate(ctx context.Context, target nauth.ClusterTarget) error {
+	args := m.Called(ctx, target)
 	return args.Error(0)
 }
+
+func (m *ClusterManagerMock) mockValidate(err error) {
+	m.On("Validate", mock.Anything, mock.Anything).Return(err).Once()
+}
+
+func (m *ClusterManagerMock) mockValidateSpy(spy func(target nauth.ClusterTarget) error) {
+	call := m.On("Validate", mock.Anything, mock.Anything).Once()
+	call.Run(func(args mock.Arguments) { call.Return(spy(args.Get(1).(nauth.ClusterTarget))) })
+}
+
+var _ inbound.ClusterManager = (*ClusterManagerMock)(nil)
+
+type ClusterResolverMock struct {
+	mock.Mock
+}
+
+func (m *ClusterResolverMock) ResolveClusterTarget(ctx context.Context, cluster *v1alpha1.NatsCluster) (*nauth.ClusterTarget, error) {
+	args := m.Called(ctx, cluster)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*nauth.ClusterTarget), args.Error(1)
+}
+
+func (m *ClusterResolverMock) mockResolveClusterTarget(result *nauth.ClusterTarget, err error) {
+	m.On("ResolveClusterTarget", mock.Anything, mock.Anything).Return(result, err).Once()
+}
+
+var _ ClusterResolver = (*ClusterResolverMock)(nil)

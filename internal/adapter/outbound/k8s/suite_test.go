@@ -18,8 +18,11 @@ package k8s
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -114,4 +117,41 @@ func getFirstFoundEnvTestBinaryDir() string {
 		}
 	}
 	return ""
+}
+
+func sanitizeTestName(name string) string {
+	replacer := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-", "_", "-")
+	return strings.ToLower(replacer.Replace(name))
+}
+
+func scopedTestName(prefix, testName string) string {
+	slug := sanitizeTestName(testName)
+	hash := shortHash(testName)
+	maxSlugLen := 63 - len(prefix) - len(hash) - 2
+	if maxSlugLen < 1 {
+		return prefix + "-" + hash
+	}
+	if len(slug) > maxSlugLen {
+		slug = slug[:maxSlugLen]
+	}
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		return prefix + "-" + hash
+	}
+	return prefix + "-" + slug + "-" + hash
+}
+
+func shortHash(value string) string {
+	sum := md5.Sum([]byte(value))
+	return hex.EncodeToString(sum[:])[:6]
+}
+
+func ensureNamespace(ctx context.Context, namespace string) error {
+	err := k8sClient.Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }

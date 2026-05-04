@@ -374,7 +374,7 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 	return nil
 }
 
-func (a *AccountManager) listAccountStreams(cluster *clusterTarget, accountSecrets *Secrets, accountID string) ([]string, error) {
+func (a *AccountManager) listAccountStreams(cluster *nauth.ClusterTarget, accountSecrets *Secrets, accountID string) ([]string, error) {
 	tempUserCreds, err := createTempJetStreamCreds(accountID, accountSecrets.Root)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary account JetStream credentials: %w", err)
@@ -471,14 +471,24 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	}, nil
 }
 
-func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*clusterTarget, error) {
+// TODO: [#11] Migrate from API- to domain model
+func (a *AccountManager) resolveClusterTarget(ctx context.Context, account *v1alpha1.Account) (*nauth.ClusterTarget, error) {
+	var optAccClusterRef *nauth.ClusterRef
 	natsClusterRef := account.Spec.NatsClusterRef
-	if natsClusterRef != nil && natsClusterRef.Namespace == "" {
-		natsClusterRef = natsClusterRef.DeepCopy()
-		natsClusterRef.Namespace = account.GetNamespace()
+	if natsClusterRef != nil {
+		namespace := natsClusterRef.Namespace
+		if namespace == "" {
+			namespace = account.GetNamespace()
+		}
+		namespacedName := domain.NewNamespacedName(namespace, natsClusterRef.Name)
+		clusterRef, err := nauth.NewClusterRef(namespacedName.String())
+		if err != nil {
+			return nil, fmt.Errorf("invalid account NatsClusterRef %q: %w", namespacedName, err)
+		}
+		optAccClusterRef = &clusterRef
 	}
 
-	return a.clusterTargetResolver.GetClusterTarget(ctx, natsClusterRef)
+	return a.clusterTargetResolver.GetClusterTarget(ctx, optAccClusterRef)
 }
 
 func getDisplayName(account *v1alpha1.Account) string {
