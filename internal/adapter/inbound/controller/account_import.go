@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -31,11 +32,17 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+const importAccountNameIndexKey string = "import.spec.accountName"
 
 // AccountImportReconciler reconciles an AccountImport object.
 type AccountImportReconciler struct {
@@ -172,14 +179,117 @@ func (r *AccountImportReconciler) validateImports(importAccountID string, export
 }
 
 func (r *AccountImportReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.AccountImport{},
+		importAccountNameIndexKey,
+		importBySpecAccountNameIndexFunc,
+	); err != nil {
+		return fmt.Errorf("failed to index AccountImport by account name: %w", err)
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.AccountImport{}).
+		For(&v1alpha1.AccountImport{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Named("accountimport").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
+		Watches(
+			&v1alpha1.Account{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountToAccountImports),
+			builder.WithPredicates(accountImportAccountWatchPredicate()),
+		).
 		Complete(r)
+}
+
+func importBySpecAccountNameIndexFunc(rawObj client.Object) []string {
+	imp := rawObj.(*v1alpha1.AccountImport)
+	if imp.Spec.AccountName == "" {
+		return nil
+	}
+	return []string{imp.Spec.AccountName}
+}
+
+func (r *AccountImportReconciler) mapAccountToAccountImports(ctx context.Context, obj client.Object) []reconcile.Request {
+	account, ok := obj.(*v1alpha1.Account)
+	if !ok {
+		return nil
+	}
+
+	imports := &v1alpha1.AccountImportList{}
+	if err := r.List(ctx, imports,
+		client.InNamespace(account.Namespace),
+		client.MatchingFields{importAccountNameIndexKey: account.Name},
+	); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list AccountImports for Account watch", "account", account.Name, "namespace", account.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(imports.Items))
+	for _, export := range imports.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: export.Namespace,
+				Name:      export.Name,
+			},
+		})
+	}
+
+	return requests
+}
+
+func accountImportAccountWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool { return true },
+		DeleteFunc: func(event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAccount, oldOK := e.ObjectOld.(*v1alpha1.Account)
+			newAccount, newOK := e.ObjectNew.(*v1alpha1.Account)
+			return oldOK && newOK && accountUpdateAffectsAccountImports(oldAccount, newAccount)
+		},
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
+}
+
+func accountUpdateAffectsAccountImports(oldAccount *v1alpha1.Account, newAccount *v1alpha1.Account) bool {
+	if oldAccount == nil || newAccount == nil {
+		return false
+	}
+
+	oldAccountID := oldAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	newAccountID := newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	if oldAccountID != newAccountID {
+		return true
+	}
+
+	return !reflect.DeepEqual(accountImportAdoptionSnapshot(oldAccount), accountImportAdoptionSnapshot(newAccount))
+}
+
+// Builds a comparable snapshot of import adoption state so Account changes relevant to AccountImports can be detected efficiently.
+func accountImportAdoptionSnapshot(account *v1alpha1.Account) map[string]accountImportAdoptionState {
+	if account == nil || account.Status.Adoptions == nil {
+		return nil
+	}
+
+	adoptions := make(map[string]accountImportAdoptionState, len(account.Status.Adoptions.Imports))
+	for _, adoption := range account.Status.Adoptions.Imports {
+		adoptions[string(adoption.UID)] = accountImportAdoptionState{
+			ObservedGeneration:             adoption.ObservedGeneration,
+			Status:                         adoption.Status.Status,
+			Reason:                         adoption.Status.Reason,
+			Message:                        adoption.Status.Message,
+			DesiredClaimObservedGeneration: adoption.Status.DesiredClaimObservedGeneration,
+		}
+	}
+	return adoptions
+}
+
+type accountImportAdoptionState struct {
+	ObservedGeneration             int64
+	Status                         metav1.ConditionStatus
+	Reason                         string
+	Message                        string
+	DesiredClaimObservedGeneration *int64
 }
 
 func (r *AccountImportReconciler) getConditionedAccount(ctx context.Context, accountRef domain.NamespacedName, boundAccountID string) (*v1alpha1.Account, metav1.Condition) {
