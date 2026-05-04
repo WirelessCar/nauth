@@ -135,7 +135,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			updateConditionTrue(conditionTypeBoundToAccount)
 		}
 
-		adoption := findAdoptionByUID(account, state.UID)
+		adoption := findExportAdoptionByUID(account.Status.Adoptions, state.UID)
 		if adoption == nil {
 			// adoption not found
 			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, "waiting for account to adopt export")

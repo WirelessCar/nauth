@@ -5,12 +5,26 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func findAdoptionByUID(account *v1alpha1.Account, uid types.UID) *v1alpha1.AccountAdoption {
-	if account.Status.Adoptions == nil {
+func findExportAdoptionByUID(adoptions *v1alpha1.AccountAdoptions, uid types.UID) *v1alpha1.AccountAdoption {
+	if adoptions == nil {
+		return nil
+	}
+	return findAdoptionByUID(adoptions.Exports, uid)
+}
+
+func findImportAdoptionByUID(adoptions *v1alpha1.AccountAdoptions, uid types.UID) *v1alpha1.AccountAdoption {
+	if adoptions == nil {
+		return nil
+	}
+	return findAdoptionByUID(adoptions.Imports, uid)
+}
+
+func findAdoptionByUID(adoptions []v1alpha1.AccountAdoption, uid types.UID) *v1alpha1.AccountAdoption {
+	if adoptions == nil {
 		return nil
 	}
 
-	for _, adoption := range account.Status.Adoptions.Exports {
+	for _, adoption := range adoptions {
 		if adoption.UID == uid {
 			return &adoption
 		}
