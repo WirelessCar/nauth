@@ -106,7 +106,7 @@ func toAPIAdoptions(adoptions *nauth.AccountAdoptions, adoptionRefs accountAdopt
 			status = v1alpha1.AccountAdoptionStatus{
 				Status:                         metav1.ConditionTrue,
 				Reason:                         conditionReasonOK,
-				Message:                        "Adopted",
+				Message:                        conditionMessageAdopted,
 				DesiredClaimObservedGeneration: adpRef.ObservedGenerationDesiredClaim,
 			}
 		} else {
@@ -125,7 +125,7 @@ func toAPIAdoptions(adoptions *nauth.AccountAdoptions, adoptionRefs accountAdopt
 				status.Reason = string(failure)
 				status.Message = adpResult.Message
 			} else {
-				status.Message = "Adopted"
+				status.Message = conditionMessageAdopted
 			}
 		}
 		result.Exports = append(result.Exports, v1alpha1.AccountAdoption{

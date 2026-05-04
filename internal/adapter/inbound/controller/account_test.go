@@ -421,7 +421,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 				Status: v1alpha1.AccountAdoptionStatus{
 					Status:                         metav1.ConditionTrue,
 					Reason:                         conditionReasonOK,
-					Message:                        "Adopted",
+					Message:                        conditionMessageAdopted,
 					DesiredClaimObservedGeneration: &export1.Status.DesiredClaim.ObservedGeneration,
 				},
 			},
@@ -442,7 +442,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 				Status: v1alpha1.AccountAdoptionStatus{
 					Status:                         metav1.ConditionTrue,
 					Reason:                         conditionReasonOK,
-					Message:                        "Adopted",
+					Message:                        conditionMessageAdopted,
 					DesiredClaimObservedGeneration: &export5.Status.DesiredClaim.ObservedGeneration,
 				},
 			},

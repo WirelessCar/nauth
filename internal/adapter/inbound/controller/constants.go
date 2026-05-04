@@ -24,6 +24,9 @@ const ( // Conditions
 	conditionReasonNotFound    = "NotFound"
 	conditionReasonAdopting    = "Adopting"
 	conditionReasonFailed      = "Failed"
+
+	// Messages
+	conditionMessageAdopted = "Adopted"
 )
 
 const ( // Events
