@@ -672,14 +672,9 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.Import(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
+	result, err := t.unitUnderTest.Import(t.ctx, nauth.AccountReference{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then
@@ -724,14 +719,9 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID).Once()
 
 	// When
-	err := t.unitUnderTest.Delete(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
+	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then
@@ -770,14 +760,9 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAr
 	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, accountID).Once()
 
 	// When
-	err := t.unitUnderTest.Delete(t.ctx, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
+	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then

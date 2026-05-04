@@ -138,7 +138,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
 			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
-				if err := r.manager.Delete(ctx, natsAccount); err != nil {
+				if err := r.manager.Delete(ctx, toAccountReference(natsAccount)); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
@@ -181,7 +181,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		var err error
-		result, err = r.manager.Import(ctx, natsAccount)
+		result, err = r.manager.Import(ctx, toAccountReference(natsAccount))
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
@@ -227,6 +227,27 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return r.reporter.status(ctx, natsAccount)
+}
+
+func toAccountReference(state *v1alpha1.Account) nauth.AccountReference {
+	natsClusterRef := state.Spec.NatsClusterRef
+	var clusterRef *nauth.ClusterRef
+	if natsClusterRef != nil {
+		namespacedName := domain.NewNamespacedName(natsClusterRef.Namespace, natsClusterRef.Name)
+		if namespacedName.Namespace == "" {
+			namespacedName.Namespace = state.Namespace
+		}
+		ref := nauth.ClusterRef(namespacedName.String())
+		clusterRef = &ref
+	}
+	return nauth.AccountReference{
+		AccountRef: domain.NamespacedName{
+			Name:      state.Name,
+			Namespace: state.Namespace,
+		},
+		AccountID:      nauth.AccountID(state.GetLabel(v1alpha1.AccountLabelAccountID)),
+		NatsClusterRef: clusterRef,
+	}
 }
 
 func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (nauth.AccountResources, accountAdoptionRefs, error) {

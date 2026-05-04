@@ -245,20 +245,20 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 	return claims.Encode(operatorSigningKey)
 }
 
-func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*nauth.AccountResult, error) {
-	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
+func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) {
+	accountRef := reference.AccountRef
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
 
-	cluster, err := a.resolveClusterTarget(ctx, state)
+	cluster, err := a.clusterTargetResolver.GetClusterTarget(ctx, reference.NatsClusterRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
 
-	accountID := state.GetLabel(v1alpha1.AccountLabelAccountID)
+	accountID := string(reference.AccountID)
 	if accountID == "" {
-		return nil, fmt.Errorf("account ID is missing for account %s during import", state.GetName())
+		return nil, fmt.Errorf("account ID is missing for account %s during import", accountRef)
 	}
 
 	secrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
@@ -308,13 +308,12 @@ func (a *AccountManager) Import(ctx context.Context, state *v1alpha1.Account) (*
 	}, nil
 }
 
-func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) error {
-	accountRef := domain.NewNamespacedName(state.GetNamespace(), state.GetName())
-	if err := accountRef.Validate(); err != nil {
-		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountReference) error {
+	if err := reference.AccountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference: %w", err)
 	}
 
-	cluster, err := a.resolveClusterTarget(ctx, state)
+	cluster, err := a.clusterTargetResolver.GetClusterTarget(ctx, reference.NatsClusterRef)
 	if err != nil {
 		return fmt.Errorf("failed to resolve cluster target: %w", err)
 	}
@@ -324,12 +323,12 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to get operator signing public key: %w", err)
 	}
 
-	accountID := state.GetLabel(v1alpha1.AccountLabelAccountID)
+	accountID := string(reference.AccountID)
 	if accountID == "" {
-		return fmt.Errorf("account ID is missing for account %s", accountRef)
+		return fmt.Errorf("account ID is missing for account %s", reference.AccountRef)
 	}
 
-	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, reference.AccountRef, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get secrets for account: %w", err)
 	}
@@ -366,7 +365,7 @@ func (a *AccountManager) Delete(ctx context.Context, state *v1alpha1.Account) er
 		return fmt.Errorf("failed to delete account JWT in NATS: %w", err)
 	}
 
-	err = a.secretManager.DeleteAll(ctx, accountRef, accountID)
+	err = a.secretManager.DeleteAll(ctx, reference.AccountRef, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to delete account secrets: %w", err)
 	}

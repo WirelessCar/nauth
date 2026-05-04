@@ -560,8 +560,8 @@ func (o *AccountManagerMock) mockCreateOrUpdateError(ctx interface{}, resources 
 	return call
 }
 
-func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account) (*nauth.AccountResult, error) {
-	args := o.Called(ctx, state)
+func (o *AccountManagerMock) Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) {
+	args := o.Called(ctx, reference)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
 	}
@@ -571,8 +571,8 @@ func (o *AccountManagerMock) Import(ctx context.Context, state *v1alpha1.Account
 	return args.Get(0).(*nauth.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Delete(ctx context.Context, state *v1alpha1.Account) error {
-	args := o.Called(ctx, state)
+func (o *AccountManagerMock) Delete(ctx context.Context, reference nauth.AccountReference) error {
+	args := o.Called(ctx, reference)
 	return args.Error(0)
 }
 
