@@ -318,6 +318,15 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 	}
 
+	// TODO: [#11] feature toggle
+	if true {
+		controllerBuilder = controllerBuilder.Watches(
+			&v1alpha1.AccountImport{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
+			builder.WithPredicates(accountImportWatchPredicateForAccounts()),
+		)
+	}
+
 	return controllerBuilder.
 		Complete(r)
 }
@@ -405,6 +414,91 @@ func accountExportDesiredClaimSnapshot(export *v1alpha1.AccountExport) *accountE
 type accountExportDesiredClaimState struct {
 	ObservedGeneration int64
 	Rules              []v1alpha1.AccountExportRule
+}
+
+func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj client.Object) []reconcile.Request {
+	imp, ok := obj.(*v1alpha1.AccountImport)
+	if !ok {
+		return nil
+	}
+
+	accountID := imp.GetLabel(v1alpha1.AccountImportLabelAccountID)
+	if accountID == "" {
+		return nil
+	}
+
+	accounts := &v1alpha1.AccountList{}
+	if err := r.List(ctx, accounts,
+		client.InNamespace(imp.Namespace),
+		client.MatchingLabels{string(v1alpha1.AccountLabelAccountID): accountID},
+	); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountImport watch", "accountID", accountID, "namespace", imp.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(accounts.Items))
+	for _, account := range accounts.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: client.ObjectKeyFromObject(&account),
+		})
+	}
+
+	return requests
+}
+
+func accountImportWatchPredicateForAccounts() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			export, ok := e.Object.(*v1alpha1.AccountImport)
+			return ok && export.GetLabel(v1alpha1.AccountImportLabelAccountID) != ""
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			export, ok := e.Object.(*v1alpha1.AccountImport)
+			return ok && export.GetLabel(v1alpha1.AccountImportLabelAccountID) != ""
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldImport, oldOK := e.ObjectOld.(*v1alpha1.AccountImport)
+			newImport, newOK := e.ObjectNew.(*v1alpha1.AccountImport)
+			return oldOK && newOK && accountImportUpdateAffectsAccounts(oldImport, newImport)
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
+}
+
+func accountImportUpdateAffectsAccounts(oldImport *v1alpha1.AccountImport, newImport *v1alpha1.AccountImport) bool {
+	if oldImport == nil || newImport == nil {
+		return false
+	}
+
+	oldAccountID := oldImport.GetLabel(v1alpha1.AccountImportLabelAccountID)
+	newAccountID := newImport.GetLabel(v1alpha1.AccountImportLabelAccountID)
+	if oldAccountID != newAccountID {
+		return true
+	}
+
+	return !reflect.DeepEqual(accountImportDesiredClaimSnapshot(oldImport), accountImportDesiredClaimSnapshot(newImport))
+}
+
+func accountImportDesiredClaimSnapshot(imp *v1alpha1.AccountImport) *accountImportDesiredClaimState {
+	if imp == nil || imp.Status.DesiredClaim == nil {
+		return nil
+	}
+
+	claim := imp.Status.DesiredClaim
+	rules := make([]v1alpha1.AccountImportRuleDerived, len(claim.Rules))
+	copy(rules, claim.Rules)
+
+	return &accountImportDesiredClaimState{
+		ObservedGeneration: claim.ObservedGeneration,
+		Rules:              rules,
+	}
+}
+
+type accountImportDesiredClaimState struct {
+	ObservedGeneration int64
+	Rules              []v1alpha1.AccountImportRuleDerived
 }
 
 type accountAdoptionRefs struct {
