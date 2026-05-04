@@ -304,6 +304,7 @@ func (r *AccountReconciler) collectAccountResources(ctx context.Context, account
 					nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
 				}
 				resources.ImportGroups = append(resources.ImportGroups, &nauth.ImportGroup{
+					Ref:     adpRef.Ref,
 					Name:    imp.Name,
 					Imports: nauthImports,
 				})

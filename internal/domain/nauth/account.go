@@ -159,8 +159,6 @@ type Import struct {
 }
 
 type ExportGroups []*ExportGroup
-type ImportGroups []*ImportGroup
-
 type ExportGroup struct {
 	Ref      Ref     `json:"ref"`
 	Required bool    `json:"required,omitempty"`

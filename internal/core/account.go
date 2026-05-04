@@ -85,6 +85,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources nauth.Acc
 		return nil, err
 	}
 	request.ExportGroups = append(request.ExportGroups, resources.ExportGroups...)
+	request.ImportGroups = append(request.ImportGroups, resources.ImportGroups...)
 	return a.tmpCreateOrUpdate(ctx, *request)
 }
 
@@ -165,6 +166,7 @@ func (a *AccountManager) tmpCreateOrUpdate(ctx context.Context, request nauth.Ac
 		accountLimits(request.AccountLimits).
 		jetStreamLimits(request.JetStreamLimits).
 		natsLimits(request.NatsLimits)
+
 	adoptions := nauth.NewAccountAdoptions()
 	if err = adoptExportGroups(request.ExportGroups, claimsBuilder, adoptions); err != nil {
 		return nil, fmt.Errorf("failed to adopt export groups: %w", err)
@@ -172,6 +174,7 @@ func (a *AccountManager) tmpCreateOrUpdate(ctx context.Context, request nauth.Ac
 	if err = adoptImportGroups(request.ImportGroups, claimsBuilder, adoptions); err != nil {
 		return nil, fmt.Errorf("failed to adopt import groups: %w", err)
 	}
+
 	natsClaims, err := claimsBuilder.build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build NATS account claims: %w", err)

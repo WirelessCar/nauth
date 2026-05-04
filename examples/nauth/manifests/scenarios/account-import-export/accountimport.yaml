@@ -13,5 +13,5 @@ spec:
     namespace: account-ie-test
   rules:
     - name: test-rule
-      subject: my-subject2.>
+      subject: my-subject.>
       type: stream
