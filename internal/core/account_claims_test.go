@@ -52,11 +52,11 @@ func Test_AccountClaims(t *testing.T) {
 					jetStreamLimits(spec.JetStreamLimits).
 					natsLimits(spec.NatsLimits)
 				require.NoError(t, builder.addExportGroup(nauth.ExportGroup{
-					Name:    GroupNameInline,
+					Name:    tmpGroupNameInline,
 					Exports: spec.Exports,
 				}))
 				require.NoError(t, builder.addImportGroup(nauth.ImportGroup{
-					Name:    GroupNameInline,
+					Name:    tmpGroupNameInline,
 					Imports: spec.Imports,
 				}))
 				builder.signingKey(testClaimsSigningKey01)

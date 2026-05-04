@@ -3,6 +3,8 @@ AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
 Adoptions:
   exports:
     aac5f3ce-7ed4-4981-b346-5dfcf778e585: {}
+    inline: {}
+  imports: {}
 Claims:
   displayName: account-namespace/account-name
   exports:

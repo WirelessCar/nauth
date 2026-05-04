@@ -1,7 +1,9 @@
 AccountID: ABVIZMZGIFNQNOEMNHPGQLSL5NW7SUMTPBWT3HD65DQDNDKOU4XGBTL4
 AccountSignedBy: ODSQ3FLLTVD4O3K4BAXXOFPURAFMOSNPB74DBTLPDD5NAXSBOIC6M3M5
 Adoptions:
-  exports: {}
+  exports:
+    inline: {}
+  imports: {}
 Claims:
   accountLimits:
     conn: 100

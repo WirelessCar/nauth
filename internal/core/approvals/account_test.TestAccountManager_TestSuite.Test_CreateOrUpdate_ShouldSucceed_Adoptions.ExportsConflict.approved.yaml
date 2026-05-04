@@ -6,6 +6,8 @@ Adoptions:
       failure: Conflict
       message: stream export subject "foo.*" already exports "foo.*"
     aac5f3ce-7ed4-4981-b346-5dfcf778e585: {}
+    inline: {}
+  imports: {}
 Claims:
   displayName: account-namespace/account-name
   exports:

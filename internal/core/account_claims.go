@@ -112,7 +112,12 @@ func (b *accountClaimsBuilder) jetStreamLimits(limits *nauth.JetStreamLimits) *a
 }
 
 func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
-	result := jwt.Imports(mergeJWTItems(b.claim.Imports, toJWTImports(group.Imports), true))
+	imports := toJWTImports(group.Imports)
+	if err := validateJWTImports(b.claim.Subject, imports); err != nil {
+		return err
+	}
+
+	result := jwt.Imports(mergeJWTItems(b.claim.Imports, imports, true))
 	err := validateJWTImports(b.claim.Subject, result)
 	if err != nil {
 		return err
@@ -122,7 +127,12 @@ func (b *accountClaimsBuilder) addImportGroup(group nauth.ImportGroup) error {
 }
 
 func (b *accountClaimsBuilder) addExportGroup(group nauth.ExportGroup) error {
-	result := jwt.Exports(mergeJWTItems(b.claim.Exports, toJWTExports(group.Exports), true))
+	exports := toJWTExports(group.Exports)
+	if err := validateJWTExports(exports); err != nil {
+		return err
+	}
+
+	result := jwt.Exports(mergeJWTItems(b.claim.Exports, exports, true))
 	err := validateJWTExports(result)
 	if err != nil {
 		return err

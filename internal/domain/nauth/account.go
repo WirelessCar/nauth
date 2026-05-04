@@ -13,6 +13,55 @@ type AccountResources struct {
 	ExportGroups ExportGroups     `json:"exportGroups,omitempty"`
 }
 
+type AccountRequest struct {
+	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
+	AccountID        AccountID             `json:"accountId,omitempty"`
+	ClaimsHash       string                `json:"claimsHash,omitempty"`
+	DisplayName      string                `json:"displayName,omitempty"`
+	ClusterRef       *ClusterRef           `json:"clusterRef,omitempty"`
+	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
+	JetStreamEnabled *bool                 `json:"jetStreamEnabled,omitempty"`
+	JetStreamLimits  *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
+	NatsLimits       *NatsLimits           `json:"natsLimits,omitempty"`
+	ExportGroups     ExportGroups          `json:"exportGroups,omitempty"`
+	ImportGroups     ImportGroups          `json:"importGroups,omitempty"`
+}
+
+func (r AccountRequest) Validate() error {
+	if err := r.AccountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference: %w", err)
+	}
+
+	if r.ClusterRef != nil {
+		if err := r.ClusterRef.Validate(); err != nil {
+			return fmt.Errorf("invalid cluster reference: %w", err)
+		}
+	}
+
+	exportGroupNames := make(map[Ref]struct{})
+	for _, exportGroup := range r.ExportGroups {
+		if exportGroup.Ref == "" {
+			return fmt.Errorf("export group ref is required")
+		}
+		if _, exists := exportGroupNames[exportGroup.Ref]; exists {
+			return fmt.Errorf("duplicate export group ref: %q", exportGroup.Ref)
+		}
+		exportGroupNames[exportGroup.Ref] = struct{}{}
+	}
+
+	importGroupNames := make(map[Ref]struct{})
+	for _, importGroup := range r.ImportGroups {
+		if importGroup.Ref == "" {
+			return fmt.Errorf("import group ref is required")
+		}
+		if _, exists := importGroupNames[importGroup.Ref]; exists {
+			return fmt.Errorf("duplicate import group ref: %q", importGroup.Ref)
+		}
+		importGroupNames[importGroup.Ref] = struct{}{}
+	}
+	return nil
+}
+
 type AccountReference struct {
 	AccountRef     domain.NamespacedName
 	AccountID      AccountID
@@ -87,9 +136,13 @@ type SigningKey struct {
 	// TODO: [#140] Add signing key scope
 }
 
+type ImportGroups []*ImportGroup
+
 type ImportGroup struct {
-	Name    string  `json:"name,omitempty"`
-	Imports Imports `json:"imports,omitempty"`
+	Ref      Ref     `json:"ref"`
+	Required bool    `json:"required,omitempty"`
+	Name     string  `json:"name,omitempty"`
+	Imports  Imports `json:"imports,omitempty"`
 }
 
 type Imports []*Import
@@ -107,9 +160,10 @@ type Import struct {
 type ExportGroups []*ExportGroup
 
 type ExportGroup struct {
-	Ref     Ref     `json:"ref"`
-	Name    string  `json:"name,omitempty"`
-	Exports Exports `json:"exports"`
+	Ref      Ref     `json:"ref"`
+	Required bool    `json:"required,omitempty"`
+	Name     string  `json:"name,omitempty"`
+	Exports  Exports `json:"exports"`
 }
 
 type Exports []*Export
@@ -157,11 +211,13 @@ type AccountClaims struct {
 
 type AccountAdoptions struct {
 	Exports *AdoptionResults `json:"exports,omitempty"`
+	Imports *AdoptionResults `json:"imports,omitempty"`
 }
 
 func NewAccountAdoptions() *AccountAdoptions {
 	return &AccountAdoptions{
 		Exports: &AdoptionResults{},
+		Imports: &AdoptionResults{},
 	}
 }
 
