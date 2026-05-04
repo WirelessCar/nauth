@@ -4,14 +4,14 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: account-export-test
+  name: account-ie-test
 
 ---
 apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
   name: my-account
-  namespace: account-export-test
+  namespace: account-ie-test
 spec:
   natsClusterRef:
     namespace: nats
@@ -22,21 +22,8 @@ apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
   name: my-other-account
-  namespace: account-export-test
+  namespace: account-ie-test
 spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
-
----
-apiVersion: nauth.io/v1alpha1
-kind: AccountExport
-metadata:
-  name: my-account-export
-  namespace: account-export-test
-spec:
-  accountName: my-account
-  rules:
-    - name: test-rule
-      subject: export-account.>
-      type: stream

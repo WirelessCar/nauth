@@ -1,0 +1,17 @@
+# AccountExport example manifest
+# NOTE: this is experimental, work in progress, protected by feature flag
+
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import
+  namespace: account-ie-test
+spec:
+  accountName: my-other-account
+  exportAccountRef:
+    name: my-account
+    namespace: account-ie-test
+  rules:
+    - name: test-rule
+      subject: my-subject2.>
+      type: stream
