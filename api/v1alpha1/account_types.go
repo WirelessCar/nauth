@@ -141,7 +141,11 @@ func (a *Account) SetLabel(label AccountLabel, value string) {
 // AccountAdoptions defines the status of child resources that have been adopted or are candidates for adoption by this account.
 type AccountAdoptions struct {
 	// Exports defines adoptions of type `AccountExport` that are bound to the account.
+	// +optional
 	Exports []AccountAdoption `json:"exports,omitempty"`
+	// Imports defines adoptions of type `AccountImport` that are bound to the account.
+	// +optional
+	Imports []AccountAdoption `json:"imports,omitempty"`
 }
 
 type AccountAdoption struct {
