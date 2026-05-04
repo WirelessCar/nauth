@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -95,7 +94,7 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to upsert labels")
 		return ctrl.Result{}, err
 	} else if labelsUpdated {
-		return ctrl.Result{RequeueAfter: time.Millisecond}, nil
+		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
 	derivedRules, validRulesErr := r.validateImports(importAccountID, exportAccountID, state.Spec.Rules)
@@ -121,12 +120,26 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// TODO: [#11] Check account adoption
 	adoptedByAccountCondition := metav1.Condition{
 		Type:    conditionTypeAdoptedByAccount,
 		Status:  metav1.ConditionFalse,
-		Reason:  "NotImplemented",
-		Message: "Rules validation not implemented",
+		Reason:  conditionReasonAdopting,
+		Message: "waiting for account to adopt import",
+	}
+	adoption := findImportAdoptionByUID(importAccount.Status.Adoptions, state.UID)
+	if adoption != nil {
+		adoptionGen := adoption.Status.DesiredClaimObservedGeneration
+		sameGeneration := adoptionGen != nil && *adoptionGen == state.Generation
+		if adoption.Status.Status == metav1.ConditionTrue && sameGeneration {
+			adoptedByAccountCondition.Status = metav1.ConditionTrue
+			adoptedByAccountCondition.Reason = conditionReasonOK
+			adoptedByAccountCondition.Message = ""
+		} else if !sameGeneration {
+			adoptedByAccountCondition.Message = fmt.Sprintf("waiting for account to adopt generation %d", state.Generation)
+		} else {
+			adoptedByAccountCondition.Reason = conditionReasonFailed
+			adoptedByAccountCondition.Message = fmt.Sprintf("%s: %s", adoption.Status.Reason, adoption.Status.Message)
+		}
 	}
 
 	r.setConditions(state, importAccountCondition, exportAccountCondition, validRulesCondition, adoptedByAccountCondition)
