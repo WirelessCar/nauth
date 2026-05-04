@@ -285,6 +285,33 @@ func (r *AccountReconciler) collectAccountResources(ctx context.Context, account
 		}
 	}
 
+	// TODO: [#11] feature flag imports?
+	if true {
+		namespace := domain.Namespace(account.Namespace)
+		imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
+		if err != nil {
+			return resources, refs, err
+		}
+		for _, imp := range imports.Items {
+			claim := imp.Status.DesiredClaim
+			var adpRef adoptionRef
+			if claim == nil {
+				adpRef = newAdoptionRef(imp.ObjectMeta, nil)
+			} else {
+				adpRef = newAdoptionRef(imp.ObjectMeta, &claim.ObservedGeneration)
+				var nauthImports nauth.Imports
+				for _, rule := range claim.Rules {
+					nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
+				}
+				resources.ImportGroups = append(resources.ImportGroups, &nauth.ImportGroup{
+					Name:    imp.Name,
+					Imports: nauthImports,
+				})
+			}
+			refs.imports = append(refs.imports, &adpRef)
+		}
+	}
+
 	return resources, refs, nil
 }
 
@@ -300,6 +327,20 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 		return nil, fmt.Errorf("failed to list account exports: %w", err)
 	}
 	return exports, nil
+}
+
+func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountImportList, error) {
+	if accountID == "" {
+		return nil, fmt.Errorf("account ID required")
+	}
+	imports := &v1alpha1.AccountImportList{}
+	err := r.List(ctx, imports, client.InNamespace(namespace), client.MatchingLabels{
+		string(v1alpha1.AccountImportLabelAccountID): accountID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list account imports: %w", err)
+	}
+	return imports, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -503,6 +544,7 @@ type accountImportDesiredClaimState struct {
 
 type accountAdoptionRefs struct {
 	exports []*adoptionRef
+	imports []*adoptionRef
 }
 
 type adoptionRef struct {

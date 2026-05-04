@@ -69,6 +69,23 @@ func toNAuthExportFromRule(source v1alpha1.AccountExportRule) *nauth.Export {
 	return &result
 }
 
+func toNAuthImportFromRule(source v1alpha1.AccountImportRuleDerived) *nauth.Import {
+	result := nauth.Import{
+		AccountID:    nauth.AccountID(source.Account),
+		Name:         source.Name,
+		Subject:      nauth.Subject(source.Subject),
+		LocalSubject: nauth.Subject(source.LocalSubject),
+		Type:         toNAuthExportType(source.Type),
+	}
+	if source.Share != nil {
+		result.Share = *source.Share
+	}
+	if source.AllowTrace != nil {
+		result.AllowTrace = *source.AllowTrace
+	}
+	return &result
+}
+
 func toNAuthExportType(source v1alpha1.ExportType) nauth.ExportType {
 	switch source {
 	case v1alpha1.Stream:
@@ -136,6 +153,42 @@ func toAPIAdoptions(adoptions *nauth.AccountAdoptions, adoptionRefs accountAdopt
 		})
 	}
 
+	for _, adpRef := range adoptionRefs.imports {
+		var status v1alpha1.AccountAdoptionStatus
+		adpResult := adoptions.Imports.Get(adpRef.Ref)
+		if adpResult != nil && adpResult.IsSuccessful() {
+			status = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionTrue,
+				Reason:                         conditionReasonOK,
+				Message:                        "Adopted",
+				DesiredClaimObservedGeneration: adpRef.ObservedGenerationDesiredClaim,
+			}
+		} else {
+			status = v1alpha1.AccountAdoptionStatus{
+				Status:                         metav1.ConditionFalse,
+				Reason:                         conditionReasonNOK,
+				DesiredClaimObservedGeneration: adpRef.ObservedGenerationDesiredClaim,
+			}
+			if adpResult == nil {
+				if adpRef.ObservedGenerationDesiredClaim == nil {
+					status.Message = "Adoption pending: no desired claim"
+				} else {
+					status.Message = "WARN: No adoption result reported"
+				}
+			} else if failure := adpResult.Failure; failure != "" {
+				status.Reason = string(failure)
+				status.Message = adpResult.Message
+			} else {
+				status.Message = "Adopted"
+			}
+		}
+		result.Imports = append(result.Imports, v1alpha1.AccountAdoption{
+			Name:               adpRef.Name,
+			UID:                adpRef.UID,
+			ObservedGeneration: adpRef.ObservedGeneration,
+			Status:             status,
+		})
+	}
 	return result
 }
 

@@ -11,6 +11,7 @@ import (
 type AccountResources struct {
 	Account      v1alpha1.Account `json:"account,omitempty"` // TODO: [#11] Migrate from API- to domain model
 	ExportGroups ExportGroups     `json:"exportGroups,omitempty"`
+	ImportGroups ImportGroups     `json:"importGroups,omitempty"`
 }
 
 type AccountRequest struct {
@@ -158,6 +159,7 @@ type Import struct {
 }
 
 type ExportGroups []*ExportGroup
+type ImportGroups []*ImportGroup
 
 type ExportGroup struct {
 	Ref      Ref     `json:"ref"`
