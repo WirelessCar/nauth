@@ -135,7 +135,10 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if importAccount != nil {
-		adoption := findImportAdoptionByUID(importAccount.Status.Adoptions, state.UID)
+		var adoption *v1alpha1.AccountAdoption
+		if importAccount.Status.Adoptions != nil {
+			adoption = findAdoptionByUID(importAccount.Status.Adoptions.Imports, state.UID)
+		}
 		if adoption != nil {
 			adoptionGen := adoption.Status.DesiredClaimObservedGeneration
 			sameGeneration := adoptionGen != nil && *adoptionGen == state.Generation
@@ -269,14 +272,14 @@ func accountUpdateAffectsAccountImports(oldAccount *v1alpha1.Account, newAccount
 }
 
 // Builds a comparable snapshot of import adoption state so Account changes relevant to AccountImports can be detected efficiently.
-func accountImportAdoptionSnapshot(account *v1alpha1.Account) map[string]accountImportAdoptionState {
+func accountImportAdoptionSnapshot(account *v1alpha1.Account) map[string]adoptionState {
 	if account == nil || account.Status.Adoptions == nil {
 		return nil
 	}
 
-	adoptions := make(map[string]accountImportAdoptionState, len(account.Status.Adoptions.Imports))
+	adoptions := make(map[string]adoptionState, len(account.Status.Adoptions.Imports))
 	for _, adoption := range account.Status.Adoptions.Imports {
-		adoptions[string(adoption.UID)] = accountImportAdoptionState{
+		adoptions[string(adoption.UID)] = adoptionState{
 			ObservedGeneration:             adoption.ObservedGeneration,
 			Status:                         adoption.Status.Status,
 			Reason:                         adoption.Status.Reason,
@@ -285,14 +288,6 @@ func accountImportAdoptionSnapshot(account *v1alpha1.Account) map[string]account
 		}
 	}
 	return adoptions
-}
-
-type accountImportAdoptionState struct {
-	ObservedGeneration             int64
-	Status                         metav1.ConditionStatus
-	Reason                         string
-	Message                        string
-	DesiredClaimObservedGeneration *int64
 }
 
 func (r *AccountImportReconciler) getConditionedAccount(ctx context.Context, accountRef domain.NamespacedName, boundAccountID string) (*v1alpha1.Account, metav1.Condition) {

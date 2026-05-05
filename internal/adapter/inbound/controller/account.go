@@ -361,25 +361,22 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Account{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).Named("account").
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&v1alpha1.Account{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Named("account").
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
-		})
-
-	controllerBuilder = controllerBuilder.Watches(
-		&v1alpha1.AccountExport{},
-		handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
-		builder.WithPredicates(accountExportWatchPredicateForAccounts()),
-	)
-
-	controllerBuilder = controllerBuilder.Watches(
-		&v1alpha1.AccountImport{},
-		handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
-		builder.WithPredicates(accountImportWatchPredicateForAccounts()),
-	)
-
-	return controllerBuilder.
+		}).
+		Watches(
+			&v1alpha1.AccountExport{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
+			builder.WithPredicates(accountExportWatchPredicateForAccounts()),
+		).
+		Watches(
+			&v1alpha1.AccountImport{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
+			builder.WithPredicates(accountImportWatchPredicateForAccounts()),
+		).
 		Complete(r)
 }
 
@@ -429,6 +426,7 @@ func accountExportWatchPredicateForAccounts() predicate.Funcs {
 			return oldOK && newOK && accountExportUpdateAffectsAccounts(oldExport, newExport)
 		},
 		GenericFunc: func(event.GenericEvent) bool {
+			// Ignore all other type of events
 			return false
 		},
 	}

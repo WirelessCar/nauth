@@ -135,7 +135,10 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			updateConditionTrue(conditionTypeBoundToAccount)
 		}
 
-		adoption := findExportAdoptionByUID(account.Status.Adoptions, state.UID)
+		var adoption *v1alpha1.AccountAdoption
+		if account.Status.Adoptions != nil {
+			adoption = findAdoptionByUID(account.Status.Adoptions.Exports, state.UID)
+		}
 		if adoption == nil {
 			// adoption not found
 			updateConditionFalse(conditionTypeAdoptedByAccount, conditionReasonAdopting, "waiting for account to adopt export")
@@ -307,14 +310,14 @@ func accountUpdateAffectsAccountExports(oldAccount *v1alpha1.Account, newAccount
 }
 
 // Builds a comparable snapshot of export adoption state so Account changes relevant to AccountExports can be detected efficiently.
-func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]accountExportAdoptionState {
+func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]adoptionState {
 	if account == nil || account.Status.Adoptions == nil {
 		return nil
 	}
 
-	adoptions := make(map[string]accountExportAdoptionState, len(account.Status.Adoptions.Exports))
+	adoptions := make(map[string]adoptionState, len(account.Status.Adoptions.Exports))
 	for _, adoption := range account.Status.Adoptions.Exports {
-		adoptions[string(adoption.UID)] = accountExportAdoptionState{
+		adoptions[string(adoption.UID)] = adoptionState{
 			ObservedGeneration:             adoption.ObservedGeneration,
 			Status:                         adoption.Status.Status,
 			Reason:                         adoption.Status.Reason,
@@ -323,14 +326,6 @@ func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]account
 		}
 	}
 	return adoptions
-}
-
-type accountExportAdoptionState struct {
-	ObservedGeneration             int64
-	Status                         metav1.ConditionStatus
-	Reason                         string
-	Message                        string
-	DesiredClaimObservedGeneration *int64
 }
 
 func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {

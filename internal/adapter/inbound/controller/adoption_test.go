@@ -21,10 +21,14 @@ func Test_findAdoptionByUID(t *testing.T) {
 		want    *v1alpha1.AccountAdoption
 	}{
 		{
-			name:    "nil_adoptions",
-			account: &v1alpha1.Account{},
-			uid:     "export-1",
-			want:    nil,
+			name: "nil_adoptions",
+			account: &v1alpha1.Account{
+				Status: v1alpha1.AccountStatus{
+					Adoptions: &v1alpha1.AccountAdoptions{},
+				},
+			},
+			uid:  "export-1",
+			want: nil,
 		},
 		{
 			name: "matching_uid",
@@ -50,7 +54,7 @@ func Test_findAdoptionByUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := findExportAdoptionByUID(tt.account.Status.Adoptions, tt.uid)
+			got := findAdoptionByUID(tt.account.Status.Adoptions.Exports, tt.uid)
 			assert.Equal(t, tt.want, got)
 		})
 	}
