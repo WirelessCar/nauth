@@ -257,55 +257,78 @@ func (r *AccountReconciler) collectAccountResources(ctx context.Context, account
 	}
 
 	namespace := domain.Namespace(account.Namespace)
+
 	exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
 	if err != nil {
 		return resources, refs, err
-	}
-	for _, exp := range exports.Items {
-		claim := exp.Status.DesiredClaim
-		var adpRef adoptionRef
-		if claim == nil {
-			adpRef = newAdoptionRef(exp.ObjectMeta, nil)
-		} else {
-			adpRef = newAdoptionRef(exp.ObjectMeta, &claim.ObservedGeneration)
-			var nauthExports nauth.Exports
-			for _, rule := range claim.Rules {
-				nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
-			}
-			resources.ExportGroups = append(resources.ExportGroups, &nauth.ExportGroup{
-				Ref:     adpRef.Ref,
-				Name:    exp.Name,
-				Exports: nauthExports,
-			})
-		}
-		refs.exports = append(refs.exports, &adpRef)
 	}
 
 	imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
 	if err != nil {
 		return resources, refs, err
 	}
+
+	newExportGroups, newExportRefs := collectExportResources(exports)
+	resources.ExportGroups = append(resources.ExportGroups, newExportGroups...)
+	refs.exports = append(refs.exports, newExportRefs...)
+
+	newImportGroups, newImportRefs := collectImportResources(imports)
+	resources.ImportGroups = append(resources.ImportGroups, newImportGroups...)
+	refs.imports = append(refs.imports, newImportRefs...)
+
+	return resources, refs, nil
+}
+
+func collectExportResources(exports *v1alpha1.AccountExportList) (nauth.ExportGroups, []*adoptionRef) {
+	itemCount := len(exports.Items)
+	groups := make(nauth.ExportGroups, 0, itemCount)
+	refs := make([]*adoptionRef, 0, itemCount)
+
+	for _, exp := range exports.Items {
+		adpRef := newAdoptionRef(exp.ObjectMeta, nil)
+
+		claim := exp.Status.DesiredClaim
+		if claim != nil {
+			adpRef.ObservedGenerationDesiredClaim = &claim.ObservedGeneration
+			nauthExports := make(nauth.Exports, 0, len(claim.Rules))
+			for _, rule := range claim.Rules {
+				nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
+			}
+			groups = append(groups, &nauth.ExportGroup{
+				Ref:     adpRef.Ref,
+				Name:    exp.Name,
+				Exports: nauthExports,
+			})
+		}
+		refs = append(refs, &adpRef)
+	}
+	return groups, refs
+}
+
+func collectImportResources(imports *v1alpha1.AccountImportList) (nauth.ImportGroups, []*adoptionRef) {
+	itemCount := len(imports.Items)
+	groups := make(nauth.ImportGroups, 0, itemCount)
+	refs := make([]*adoptionRef, 0, itemCount)
+
 	for _, imp := range imports.Items {
+		adpRef := newAdoptionRef(imp.ObjectMeta, nil)
+
 		claim := imp.Status.DesiredClaim
-		var adpRef adoptionRef
-		if claim == nil {
-			adpRef = newAdoptionRef(imp.ObjectMeta, nil)
-		} else {
-			adpRef = newAdoptionRef(imp.ObjectMeta, &claim.ObservedGeneration)
-			var nauthImports nauth.Imports
+		if claim != nil {
+			adpRef.ObservedGenerationDesiredClaim = &claim.ObservedGeneration
+			nauthImports := make(nauth.Imports, 0, len(claim.Rules))
 			for _, rule := range claim.Rules {
 				nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
 			}
-			resources.ImportGroups = append(resources.ImportGroups, &nauth.ImportGroup{
+			groups = append(groups, &nauth.ImportGroup{
 				Ref:     adpRef.Ref,
 				Name:    imp.Name,
 				Imports: nauthImports,
 			})
 		}
-		refs.imports = append(refs.imports, &adpRef)
+		refs = append(refs, &adpRef)
 	}
-
-	return resources, refs, nil
+	return groups, refs
 }
 
 func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountExportList, error) {
