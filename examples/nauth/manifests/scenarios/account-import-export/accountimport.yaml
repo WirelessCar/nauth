@@ -1,5 +1,4 @@
-# AccountExport example manifest
-# NOTE: this is experimental, work in progress, protected by feature flag
+# AccountImport example manifest
 
 apiVersion: nauth.io/v1alpha1
 kind: AccountImport

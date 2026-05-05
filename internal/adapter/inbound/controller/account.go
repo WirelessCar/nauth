@@ -51,16 +51,14 @@ type AccountReconciler struct {
 	Scheme   *runtime.Scheme
 	manager  inbound.AccountManager
 	reporter *statusReporter
-	features *ExperimentalFeatures
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder, features *ExperimentalFeatures) *AccountReconciler {
+func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
 	return &AccountReconciler{
 		Client:   k8sClient,
 		Scheme:   scheme,
 		manager:  manager,
 		reporter: newStatusReporter(k8sClient, recorder),
-		features: features,
 	}
 }
 
@@ -258,59 +256,53 @@ func (r *AccountReconciler) collectAccountResources(ctx context.Context, account
 		return resources, refs, nil
 	}
 
-	if r.features.AccountExportEnabled {
-		namespace := domain.Namespace(account.Namespace)
-		exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
-		if err != nil {
-			return resources, refs, err
-		}
-		for _, exp := range exports.Items {
-			claim := exp.Status.DesiredClaim
-			var adpRef adoptionRef
-			if claim == nil {
-				adpRef = newAdoptionRef(exp.ObjectMeta, nil)
-			} else {
-				adpRef = newAdoptionRef(exp.ObjectMeta, &claim.ObservedGeneration)
-				var nauthExports nauth.Exports
-				for _, rule := range claim.Rules {
-					nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
-				}
-				resources.ExportGroups = append(resources.ExportGroups, &nauth.ExportGroup{
-					Ref:     adpRef.Ref,
-					Name:    exp.Name,
-					Exports: nauthExports,
-				})
+	namespace := domain.Namespace(account.Namespace)
+	exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
+	if err != nil {
+		return resources, refs, err
+	}
+	for _, exp := range exports.Items {
+		claim := exp.Status.DesiredClaim
+		var adpRef adoptionRef
+		if claim == nil {
+			adpRef = newAdoptionRef(exp.ObjectMeta, nil)
+		} else {
+			adpRef = newAdoptionRef(exp.ObjectMeta, &claim.ObservedGeneration)
+			var nauthExports nauth.Exports
+			for _, rule := range claim.Rules {
+				nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
 			}
-			refs.exports = append(refs.exports, &adpRef)
+			resources.ExportGroups = append(resources.ExportGroups, &nauth.ExportGroup{
+				Ref:     adpRef.Ref,
+				Name:    exp.Name,
+				Exports: nauthExports,
+			})
 		}
+		refs.exports = append(refs.exports, &adpRef)
 	}
 
-	// TODO: [#11] feature flag imports?
-	if true {
-		namespace := domain.Namespace(account.Namespace)
-		imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
-		if err != nil {
-			return resources, refs, err
-		}
-		for _, imp := range imports.Items {
-			claim := imp.Status.DesiredClaim
-			var adpRef adoptionRef
-			if claim == nil {
-				adpRef = newAdoptionRef(imp.ObjectMeta, nil)
-			} else {
-				adpRef = newAdoptionRef(imp.ObjectMeta, &claim.ObservedGeneration)
-				var nauthImports nauth.Imports
-				for _, rule := range claim.Rules {
-					nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
-				}
-				resources.ImportGroups = append(resources.ImportGroups, &nauth.ImportGroup{
-					Ref:     adpRef.Ref,
-					Name:    imp.Name,
-					Imports: nauthImports,
-				})
+	imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
+	if err != nil {
+		return resources, refs, err
+	}
+	for _, imp := range imports.Items {
+		claim := imp.Status.DesiredClaim
+		var adpRef adoptionRef
+		if claim == nil {
+			adpRef = newAdoptionRef(imp.ObjectMeta, nil)
+		} else {
+			adpRef = newAdoptionRef(imp.ObjectMeta, &claim.ObservedGeneration)
+			var nauthImports nauth.Imports
+			for _, rule := range claim.Rules {
+				nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
 			}
-			refs.imports = append(refs.imports, &adpRef)
+			resources.ImportGroups = append(resources.ImportGroups, &nauth.ImportGroup{
+				Ref:     adpRef.Ref,
+				Name:    imp.Name,
+				Imports: nauthImports,
+			})
 		}
+		refs.imports = append(refs.imports, &adpRef)
 	}
 
 	return resources, refs, nil
@@ -352,22 +344,17 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			MaxConcurrentReconciles: 1,
 		})
 
-	if r.features.AccountExportEnabled {
-		controllerBuilder = controllerBuilder.Watches(
-			&v1alpha1.AccountExport{},
-			handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
-			builder.WithPredicates(accountExportWatchPredicateForAccounts()),
-		)
-	}
+	controllerBuilder = controllerBuilder.Watches(
+		&v1alpha1.AccountExport{},
+		handler.EnqueueRequestsFromMapFunc(r.mapAccountExportToAccounts),
+		builder.WithPredicates(accountExportWatchPredicateForAccounts()),
+	)
 
-	// TODO: [#11] feature toggle
-	if true {
-		controllerBuilder = controllerBuilder.Watches(
-			&v1alpha1.AccountImport{},
-			handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
-			builder.WithPredicates(accountImportWatchPredicateForAccounts()),
-		)
-	}
+	controllerBuilder = controllerBuilder.Watches(
+		&v1alpha1.AccountImport{},
+		handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
+		builder.WithPredicates(accountImportWatchPredicateForAccounts()),
+	)
 
 	return controllerBuilder.
 		Complete(r)
