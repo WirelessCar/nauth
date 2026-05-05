@@ -23,6 +23,7 @@ on:
       - 'charts/**'
       - 'cmd/**'
       - 'internal/**'
+      - 'test/**'
       - Dockerfile
       - go.*
 
