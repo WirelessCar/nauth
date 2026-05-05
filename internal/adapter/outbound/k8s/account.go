@@ -30,7 +30,7 @@ func (a *AccountClient) Get(ctx context.Context, accountRef domain.NamespacedNam
 	}
 
 	if !isReady(account) {
-		return nil, domain.ErrAccountNotReady()
+		return nil, domain.ErrAccountNotReady
 	}
 	return account, nil
 }
@@ -43,23 +43,23 @@ func (a *AccountClient) GetAccountID(ctx context.Context, accountRef domain.Name
 
 	accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
 	if accountID == "" {
-		return "", domain.ErrAccountNotReady()
+		return "", domain.ErrAccountNotReady
 	}
 	return nauth.AccountID(accountID), nil
 }
 
-func (a *AccountClient) get(ctx context.Context, accountRef domain.NamespacedName) (*v1alpha1.Account, domain.NAuthError) {
+func (a *AccountClient) get(ctx context.Context, accountRef domain.NamespacedName) (*v1alpha1.Account, error) {
 	if err := accountRef.Validate(); err != nil {
-		return nil, domain.ErrBadRequest(fmt.Errorf("invalid reference %q: %w", accountRef, err))
+		return nil, domain.ErrBadRequest.WithCause(fmt.Errorf("invalid reference %q: %w", accountRef, err))
 	}
 	key := client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}
 
 	account := &v1alpha1.Account{}
 	if err := a.client.Get(ctx, key, account); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			return nil, domain.ErrAccountNotFound()
+			return nil, domain.ErrAccountNotFound
 		}
-		return nil, domain.ErrUnknownError(fmt.Errorf("failed to get account %q: %w", accountRef, err))
+		return nil, domain.ErrUnknownError.WithCause(fmt.Errorf("failed to get account %q: %w", accountRef, err))
 	}
 	return account, nil
 }

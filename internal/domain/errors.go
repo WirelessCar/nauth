@@ -1,104 +1,37 @@
 package domain
 
-import "errors"
-
-type ErrCode string
-
-const (
-	CodeUnknownError      ErrCode = "UnknownError"
-	CodeBadRequest        ErrCode = "BadRequest"
-	CodeConfigMapNotFound ErrCode = "ConfigMapNotFound"
-	CodeAccountNotFound   ErrCode = "AccountNotFound"
-	CodeAccountNotReady   ErrCode = "AccountNotReady"
+import (
+	"errors"
+	"fmt"
 )
 
-func ErrBadRequest(cause error) NAuthError {
-	return Err(CodeBadRequest, cause)
+type Error string
+
+const (
+	ErrUnknownError      Error = "UnknownError"
+	ErrBadRequest        Error = "BadRequest"
+	ErrAccountNotFound   Error = "AccountNotFound"
+	ErrAccountNotReady   Error = "AccountNotReady"
+	ErrConfigMapNotFound Error = "ConfigMapNotFound"
+)
+
+func (e Error) Error() string {
+	return string(e)
 }
 
-func ErrConfigMapNotFound() NAuthError {
-	return Err(CodeConfigMapNotFound, nil)
+func (e Error) Is(target error) bool {
+	var targetErr Error
+	ok := errors.As(target, &targetErr)
+	return ok && e == targetErr
 }
 
-func ErrAccountNotFound() NAuthError {
-	return Err(CodeAccountNotFound, nil)
+func (e Error) WithCause(cause error) error {
+	return wrapError(e, cause)
 }
 
-func ErrAccountNotReady() NAuthError {
-	return Err(CodeAccountNotReady, nil)
-}
-
-func ErrUnknownError(cause error) NAuthError {
-	return Err(CodeUnknownError, cause)
-}
-
-func Err(code ErrCode, cause error) NAuthError {
-	return &nauthError{
-		code:  code,
-		cause: cause,
+func wrapError(err Error, cause error) error {
+	if cause == nil {
+		return err
 	}
+	return fmt.Errorf("%w: %w", err, cause)
 }
-
-func CodeOf(err error) ErrCode {
-	if err == nil {
-		return ""
-	}
-
-	if domainErr, ok := errors.AsType[NAuthError](err); ok {
-		return domainErr.Code()
-	}
-	return CodeUnknownError
-}
-
-func HasCode(err error, code ErrCode) bool {
-	return CodeOf(err) == code
-}
-
-type NAuthError interface {
-	error
-	Code() ErrCode
-	Unwrap() error
-}
-
-type nauthError struct {
-	code  ErrCode
-	cause error
-}
-
-func (e *nauthError) Error() string {
-	code := e.Code()
-	if code == "" {
-		code = CodeUnknownError
-	}
-
-	result := string(code)
-	if e.cause != nil {
-		result += ": " + e.cause.Error()
-	}
-	return result
-}
-
-func (e *nauthError) Code() ErrCode {
-	if e.code == "" {
-		return CodeUnknownError
-	}
-	return e.code
-}
-
-func (e *nauthError) Unwrap() error {
-	return e.cause
-}
-
-func (e *nauthError) Is(target error) bool {
-	if target == nil {
-		return false
-	}
-
-	if targetErr, ok := errors.AsType[NAuthError](target); ok {
-		return e.Code() == targetErr.Code()
-	}
-	return false
-}
-
-var _ error = &nauthError{}
-var _ NAuthError = &nauthError{}

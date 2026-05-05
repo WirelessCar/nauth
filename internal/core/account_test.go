@@ -830,7 +830,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotRea
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 
-	t.accountIDReaderMock.mockGetAccountIDError(t.ctx, accountRef, domain.ErrAccountNotReady()).Once()
+	t.accountIDReaderMock.mockGetAccountIDError(t.ctx, accountRef, domain.ErrAccountNotReady).Once()
 
 	userKey, _ := nkeys.CreateUser()
 	userKeyPublic, _ := userKey.PublicKey()

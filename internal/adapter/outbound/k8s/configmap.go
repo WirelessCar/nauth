@@ -41,15 +41,15 @@ func NewConfigMapClient(c client.Client) *ConfigMapClient {
 // Keys from both Data and BinaryData are included.
 func (c *ConfigMapClient) Get(ctx context.Context, configMapRef domain.NamespacedName) (map[string]string, error) {
 	if err := configMapRef.Validate(); err != nil {
-		return nil, domain.ErrBadRequest(fmt.Errorf("invalid ConfigMap reference %q: %w", configMapRef, err))
+		return nil, domain.ErrBadRequest.WithCause(fmt.Errorf("invalid ConfigMap reference %q: %w", configMapRef, err))
 	}
 	cm := &v1.ConfigMap{}
 	key := client.ObjectKey{Namespace: configMapRef.Namespace, Name: configMapRef.Name}
 	if err := c.client.Get(ctx, key, cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, domain.ErrConfigMapNotFound()
+			return nil, domain.ErrConfigMapNotFound
 		}
-		return nil, domain.ErrUnknownError(fmt.Errorf("failed to get ConfigMap %s: %w", configMapRef, err))
+		return nil, domain.ErrUnknownError.WithCause(fmt.Errorf("failed to get ConfigMap %s: %w", configMapRef, err))
 	}
 	result := make(map[string]string)
 	for k, v := range cm.Data {

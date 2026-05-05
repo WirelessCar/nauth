@@ -95,7 +95,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpd
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFailsBecauseNoAccountExists() {
 	// Given
-	errAccountNotFound := domain.ErrAccountNotFound()
+	errAccountNotFound := domain.ErrAccountNotFound
 	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(errAccountNotFound).Once()
 
 	// When

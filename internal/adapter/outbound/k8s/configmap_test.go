@@ -42,7 +42,7 @@ func (t *ConfigMapClientTestSuite) Test_Get_ShouldFail_WhenConfigMapDoesNotExist
 
 	result, err := t.unitUnderTest.Get(t.ctx, nonExistingConfigMapRef)
 
-	t.ErrorIs(err, domain.ErrConfigMapNotFound())
+	t.ErrorIs(err, domain.ErrConfigMapNotFound)
 	t.Nil(result)
 }
 

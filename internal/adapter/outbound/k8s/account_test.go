@@ -69,7 +69,7 @@ func (t *AccountClientTestSuite) Test_Get_ShouldFail_WhenAccountIsNotReady() {
 	result, err := t.unitUnderTest.Get(t.ctx, t.accountRef)
 
 	// Then
-	t.ErrorIs(err, domain.ErrAccountNotReady())
+	t.ErrorIs(err, domain.ErrAccountNotReady)
 	t.Nil(result)
 }
 
@@ -79,7 +79,7 @@ func (t *AccountClientTestSuite) Test_Get_ShouldFail_WhenAccountIsNotFound() {
 
 	// Then
 	t.Nil(result)
-	t.ErrorIs(err, domain.ErrAccountNotFound())
+	t.ErrorIs(err, domain.ErrAccountNotFound)
 }
 
 func (t *AccountClientTestSuite) Test_GetAccountID_ShouldSucceed() {
@@ -116,7 +116,7 @@ func (t *AccountClientTestSuite) Test_GetAccountID_ShouldFail_WhenAccountIsNotRe
 	result, err := t.unitUnderTest.GetAccountID(t.ctx, t.accountRef)
 
 	// Then
-	t.ErrorIs(err, domain.ErrAccountNotReady())
+	t.ErrorIs(err, domain.ErrAccountNotReady)
 	t.Empty(result)
 }
 
@@ -125,7 +125,7 @@ func (t *AccountClientTestSuite) Test_GetAccountID_ShouldFail_WhenAccountIsNotFo
 	result, err := t.unitUnderTest.GetAccountID(t.ctx, t.accountRef)
 
 	// Then
-	t.ErrorIs(err, domain.ErrAccountNotFound())
+	t.ErrorIs(err, domain.ErrAccountNotFound)
 	t.Empty(result)
 }
 
@@ -137,7 +137,7 @@ func (t *AccountClientTestSuite) Test_GetAccountID_ShouldFail_WhenAccountReferen
 	result, err := t.unitUnderTest.GetAccountID(t.ctx, accountRef)
 
 	// Then
-	t.ErrorIs(err, domain.ErrBadRequest(nil))
+	t.ErrorIs(err, domain.ErrBadRequest)
 	t.Empty(result)
 }
 
