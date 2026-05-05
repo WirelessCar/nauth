@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
@@ -19,7 +18,7 @@ import (
 type AccountManager struct {
 	natsSysClient         outbound.NatsSysClient
 	natsAccClient         outbound.NatsAccountClient
-	accountReader         outbound.AccountReader
+	accountIDReader       outbound.AccountIDReader
 	clusterTargetResolver clusterTargetResolver
 	secretManager         secretManager
 }
@@ -27,7 +26,7 @@ type AccountManager struct {
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
-	accountReader outbound.AccountReader,
+	accountIDReader outbound.AccountIDReader,
 	secretClient outbound.SecretClient,
 	clusterManager *ClusterManager,
 ) (*AccountManager, error) {
@@ -35,20 +34,20 @@ func NewAccountManager(
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, natsAccClient, accountReader, clusterManager, sm)
+	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, clusterManager, sm)
 }
 
 func newAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
-	accountReader outbound.AccountReader,
+	accountIDReader outbound.AccountIDReader,
 	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*AccountManager, error) {
 	m := &AccountManager{
 		natsSysClient:         natsSysClient,
 		natsAccClient:         natsAccClient,
-		accountReader:         accountReader,
+		accountIDReader:       accountIDReader,
 		clusterTargetResolver: clusterTargetResolver,
 		secretManager:         secretManager,
 	}
@@ -62,8 +61,8 @@ func (a *AccountManager) validate() error {
 	if a.clusterTargetResolver == nil {
 		return errors.New("clusterTargetResolver is required")
 	}
-	if a.accountReader == nil {
-		return errors.New("accountReader is required")
+	if a.accountIDReader == nil {
+		return errors.New("accountIDReader is required")
 	}
 	if a.secretManager == nil {
 		return errors.New("secretManager is required")
@@ -80,7 +79,7 @@ func (a *AccountManager) validate() error {
 
 func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources nauth.AccountResources) (*nauth.AccountResult, error) {
 	// TODO: [#11] Migrate to CreateOrUpdate with nauth.AccountRequest as input
-	request, err := tmpToAccountRequest(ctx, resources.Account, a.accountReader)
+	request, err := tmpToAccountRequest(ctx, resources.Account, a.accountIDReader)
 	if err != nil {
 		return nil, err
 	}
@@ -446,26 +445,22 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	if err := accountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
 	}
-	account, err := a.accountReader.Get(ctx, accountRef)
+	accountID, err := a.accountIDReader.GetAccountID(ctx, accountRef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get account for user JWT signing: %w", err)
+		return nil, fmt.Errorf("failed to lookup Account ID for %q during user JWT signing: %w", accountRef, err)
 	}
-	accountID := account.GetLabel(v1alpha1.AccountLabelAccountID)
-	if accountID == "" {
-		return nil, fmt.Errorf("account ID is missing for account %s during user JWT signing", accountRef)
-	}
-	if claims.IssuerAccount != "" && claims.IssuerAccount != accountID {
+	if claims.IssuerAccount != "" && claims.IssuerAccount != string(accountID) {
 		return nil, fmt.Errorf("claims issuer account ID %s does not match %s bound to account %q during user JWT signing", claims.IssuerAccount, accountID, accountRef)
 	}
 	if claims.IssuerAccount == "" {
-		claims.IssuerAccount = accountID
+		claims.IssuerAccount = string(accountID)
 	}
 	claimsVal := &jwt.ValidationResults{}
 	claims.Validate(claimsVal)
 	if errs := claimsVal.Errors(); len(errs) > 0 {
 		return nil, fmt.Errorf("claims validation failed during user JWT signing: %v", claimsVal.Errors())
 	}
-	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, accountID)
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, string(accountID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get account secrets for user JWT signing: %w", err)
 	}
@@ -482,7 +477,7 @@ func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.Name
 	}
 	return &SignedUserJWT{
 		UserJWT:   userJWT,
-		AccountID: accountID,
+		AccountID: string(accountID),
 		SignedBy:  signPubKey,
 	}, nil
 }

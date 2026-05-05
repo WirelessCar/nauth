@@ -14,13 +14,13 @@ import (
 
 const tmpGroupNameInline = "inline"
 
-type tmpResolveAccountIDFn func(accountRef domain.NamespacedName) (accountID string, err error)
+type tmpResolveAccountIDFn func(accountRef domain.NamespacedName) (accountID nauth.AccountID, err error)
 
-func tmpToAccountRequest(ctx context.Context, state v1alpha1.Account, accountReader outbound.AccountReader) (*nauth.AccountRequest, error) {
+func tmpToAccountRequest(ctx context.Context, state v1alpha1.Account, accountIDReader outbound.AccountIDReader) (*nauth.AccountRequest, error) {
 	accountID := nauth.AccountID(state.GetLabel(v1alpha1.AccountLabelAccountID))
 	accountRef := domain.NewNamespacedName(state.Namespace, state.Name)
 
-	accountIDResolver := tmpCachedAccountIDReader(ctx, accountReader)
+	accountIDResolver := tmpCachedAccountIDReader(ctx, accountIDReader)
 
 	clusterRef, err := tmpToClusterRef(state.Spec.NatsClusterRef, state.Namespace)
 	if err != nil {
@@ -58,17 +58,17 @@ func tmpToAccountRequest(ctx context.Context, state v1alpha1.Account, accountRea
 	return &result, nil
 }
 
-func tmpCachedAccountIDReader(ctx context.Context, accountReader outbound.AccountReader) tmpResolveAccountIDFn {
-	cache := make(map[domain.NamespacedName]string)
-	return func(accountRef domain.NamespacedName) (string, error) {
-		accountID := ""
+func tmpCachedAccountIDReader(ctx context.Context, accountIDReader outbound.AccountIDReader) tmpResolveAccountIDFn {
+	cache := make(map[domain.NamespacedName]nauth.AccountID)
+	return func(accountRef domain.NamespacedName) (nauth.AccountID, error) {
+		var accountID nauth.AccountID
 		var cached bool
 		if accountID, cached = cache[accountRef]; !cached {
-			account, err := accountReader.Get(ctx, accountRef)
+			var err error
+			accountID, err = accountIDReader.GetAccountID(ctx, accountRef)
 			if err != nil {
 				return "", fmt.Errorf("failed to resolve account ID: %w", err)
 			}
-			accountID = account.GetLabel(v1alpha1.AccountLabelAccountID)
 			cache[accountRef] = accountID
 		}
 		if accountID == "" {
@@ -183,7 +183,7 @@ func tmpToNAuthImportGroup(groupRef nauth.Ref, required bool, sources v1alpha1.I
 			return nil, fmt.Errorf("account ID is missing for inline import %s", accountRef)
 		}
 		result.Imports = append(result.Imports, &nauth.Import{
-			AccountID:    nauth.AccountID(accountID),
+			AccountID:    accountID,
 			Name:         source.Name,
 			Subject:      nauth.Subject(source.Subject),
 			LocalSubject: nauth.Subject(source.LocalSubject),

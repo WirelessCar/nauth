@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
-	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
@@ -95,14 +95,14 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpd
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFailsBecauseNoAccountExists() {
 	// Given
-	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(k8s.ErrNoAccountFound).Once()
+	errAccountNotFound := domain.ErrAccountNotFound()
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(errAccountNotFound).Once()
 
 	// When
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
 	// Then
-	t.Error(err)
-	t.Equal(k8s.ErrNoAccountFound, err)
+	t.ErrorIs(err, errAccountNotFound)
 
 	user := &v1alpha1.User{}
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
@@ -114,7 +114,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFa
 	}
 
 	t.Len(t.fakeRecorder.Events, 1)
-	t.Contains(<-t.fakeRecorder.Events, k8s.ErrNoAccountFound.Error())
+	t.Contains(<-t.fakeRecorder.Events, errAccountNotFound.Error())
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeletion() {

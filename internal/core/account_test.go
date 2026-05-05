@@ -28,7 +28,7 @@ type AccountManagerTestSuite struct {
 	clusterRef    nauth.ClusterRef
 	clusterTarget nauth.ClusterTarget
 
-	accountReaderMock         *AccountReaderMock
+	accountIDReaderMock       *AccountIDReaderMock
 	natsSysClientMock         *NatsSysClientMock
 	natsSysConnMock           *NatsSysConnectionMock
 	natsAccClientMock         *NatsAccountClientMock
@@ -57,7 +57,7 @@ func (t *AccountManagerTestSuite) SetupTest() {
 
 	t.clusterTargetResolverMock = newClusterTargetResolverMock()
 	t.secretManagerMock = newSecretManagerMock()
-	t.accountReaderMock = NewAccountReaderMock()
+	t.accountIDReaderMock = NewAccountIDReaderMock()
 	t.natsSysClientMock = NewNatsSysClientMock()
 	t.natsSysConnMock = NewNatsSysConnectionMock()
 	t.natsAccClientMock = NewNatsAccountClientMock()
@@ -67,7 +67,7 @@ func (t *AccountManagerTestSuite) SetupTest() {
 	t.unitUnderTest, err = newAccountManager(
 		t.natsSysClientMock,
 		t.natsAccClientMock,
-		t.accountReaderMock,
+		t.accountIDReaderMock,
 		t.clusterTargetResolverMock,
 		t.secretManagerMock,
 	)
@@ -86,7 +86,7 @@ func (t *AccountManagerTestSuite) assertAndResetAllMock() {
 func (t *AccountManagerTestSuite) assertAllMocks() {
 	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
-	t.accountReaderMock.AssertExpectations(t.T())
+	t.accountIDReaderMock.AssertExpectations(t.T())
 	t.natsSysClientMock.AssertExpectations(t.T())
 	t.natsSysConnMock.AssertExpectations(t.T())
 	t.natsAccClientMock.AssertExpectations(t.T())
@@ -96,7 +96,7 @@ func (t *AccountManagerTestSuite) assertAllMocks() {
 func (t *AccountManagerTestSuite) resetAllMocks() {
 	t.clusterTargetResolverMock.Mock = mock.Mock{}
 	t.secretManagerMock.Mock = mock.Mock{}
-	t.accountReaderMock.Mock = mock.Mock{}
+	t.accountIDReaderMock.Mock = mock.Mock{}
 	t.natsSysClientMock.Mock = mock.Mock{}
 	t.natsSysConnMock.Mock = mock.Mock{}
 	t.natsAccClientMock.Mock = mock.Mock{}
@@ -594,15 +594,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 		Root: accountRootKey,
 		Sign: accountSignKey,
 	})
-	t.accountReaderMock.mockGet(t.ctx, importAccountRef, &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "import-namespace",
-			Name:      "import-account",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): importAccountID,
-			},
-		},
-	}).Once()
+	t.accountIDReaderMock.mockGetAccountID(t.ctx, importAccountRef, importAccountID).Once()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
@@ -808,20 +800,11 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 	accountSignKey, _ := nkeys.CreateAccount()
 	accountSignKeyPublic, _ := accountSignKey.PublicKey()
 
-	account := &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
-	}
-	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+	t.accountIDReaderMock.mockGetAccountID(t.ctx, accountRef, accountID).Once()
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
-	})
+	}).Once()
 
 	userKey, _ := nkeys.CreateUser()
 	userKeyPublic, _ := userKey.PublicKey()
@@ -847,13 +830,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotRea
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 
-	account := &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-		},
-	}
-	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+	t.accountIDReaderMock.mockGetAccountIDError(t.ctx, accountRef, domain.ErrAccountNotReady()).Once()
 
 	userKey, _ := nkeys.CreateUser()
 	userKeyPublic, _ := userKey.PublicKey()
@@ -864,7 +841,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotRea
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "account ID is missing for account account-namespace/account-name during user JWT signing")
+	t.ErrorContains(err, "failed to lookup Account ID for \"account-namespace/account-name\" during user JWT signing: AccountNotReady")
 }
 
 func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAccountDoesNotMatchFoundAccountID() {
@@ -873,16 +850,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAcc
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 
-	account := &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
-	}
-	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+	t.accountIDReaderMock.mockGetAccountID(t.ctx, accountRef, accountID).Once()
 
 	userKey, _ := nkeys.CreateUser()
 	userKeyPublic, _ := userKey.PublicKey()
@@ -904,16 +872,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 
-	account := &v1alpha1.Account{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "account-namespace",
-			Name:      "account-name",
-			Labels: map[string]string{
-				string(v1alpha1.AccountLabelAccountID): accountID,
-			},
-		},
-	}
-	t.accountReaderMock.mockGet(t.ctx, accountRef, account)
+	t.accountIDReaderMock.mockGetAccountID(t.ctx, accountRef, accountID).Once()
 
 	userKey, _ := nkeys.CreateUser()
 	userKeyPublic, _ := userKey.PublicKey()
@@ -1042,8 +1001,8 @@ func (m *secretManagerMock) GetSecrets(ctx context.Context, accountRef domain.Na
 	return args.Get(0).(*Secrets), args.Bool(1), args.Error(2)
 }
 
-func (m *secretManagerMock) mockGetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string, result *Secrets) {
-	m.On("GetSecrets", ctx, accountRef, accountID).Return(result, true, nil)
+func (m *secretManagerMock) mockGetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string, result *Secrets) *mock.Call {
+	return m.On("GetSecrets", ctx, accountRef, accountID).Return(result, true, nil)
 }
 
 func (m *secretManagerMock) mockGetSecretsFoundError(ctx context.Context, accountRef domain.NamespacedName, accountID string, err error) {

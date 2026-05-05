@@ -9,6 +9,10 @@ import (
 )
 
 type ConfigMapReader interface {
+	// Get returns the ConfigMap data as a map of key to string value.
+	// Keys from both Data and BinaryData are included.
+	// Returns domain.ErrBadRequest if the configMapRef is invalid.
+	// Returns domain.ErrConfigMapNotFound if the ConfigMap does not exist.
 	Get(ctx context.Context, configMapRef domain.NamespacedName) (map[string]string, error)
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
@@ -355,28 +354,31 @@ func (n *NatsAccConnectionMock) mockListAccountStreams(result []string) *mock.Ca
 var _ outbound.NatsAccountConnection = (*NatsAccConnectionMock)(nil)
 
 /* ****************************************************
-* outbound.AccountReader Resolver
+* outbound.AccountIDReader mock
 *****************************************************/
 
-// TODO: [#228] Remove AccountReaderMock
-type AccountReaderMock struct {
+type AccountIDReaderMock struct {
 	mock.Mock
 }
 
-func NewAccountReaderMock() *AccountReaderMock {
-	return &AccountReaderMock{}
+func NewAccountIDReaderMock() *AccountIDReaderMock {
+	return &AccountIDReaderMock{}
 }
 
-func (a *AccountReaderMock) Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error) {
+func (a *AccountIDReaderMock) GetAccountID(ctx context.Context, accountRef domain.NamespacedName) (nauth.AccountID, error) {
 	args := a.Called(ctx, accountRef)
-	return args.Get(0).(*v1alpha1.Account), args.Error(1)
+	return args.Get(0).(nauth.AccountID), args.Error(1)
 }
 
-func (a *AccountReaderMock) mockGet(ctx context.Context, accountRef domain.NamespacedName, result *v1alpha1.Account) *mock.Call {
-	return a.On("Get", ctx, accountRef).Return(result, nil)
+func (a *AccountIDReaderMock) mockGetAccountID(ctx context.Context, accountRef domain.NamespacedName, result string) *mock.Call {
+	return a.On("GetAccountID", ctx, accountRef).Return(nauth.AccountID(result), nil)
 }
 
-var _ outbound.AccountReader = &AccountReaderMock{}
+func (a *AccountIDReaderMock) mockGetAccountIDError(ctx context.Context, accountRef domain.NamespacedName, err error) *mock.Call {
+	return a.On("GetAccountID", ctx, accountRef).Return(nauth.AccountID(""), err)
+}
+
+var _ outbound.AccountIDReader = &AccountIDReaderMock{}
 
 /* ****************************************************
 * NatsCluster Resolver

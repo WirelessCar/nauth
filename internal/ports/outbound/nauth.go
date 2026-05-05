@@ -15,5 +15,13 @@ type ClusterReader interface {
 // AccountReader reads NAuth Account resources
 // TODO: [#228] Remove outbound.AccountReader as an outbound port
 type AccountReader interface {
-	Get(ctx context.Context, accountRef domain.NamespacedName) (account *v1alpha1.Account, err error)
+	Get(ctx context.Context, accountRef domain.NamespacedName) (*v1alpha1.Account, error)
+}
+
+type AccountIDReader interface {
+	// GetAccountID returns the NAuth Account ID for the given account reference.
+	// Returns domain.ErrBadRequest if the accountRef is invalid.
+	// Returns domain.ErrAccountNotFound if the Account does not exist.
+	// Returns domain.ErrAccountNotReady if the Account is not ready or does not have an Account ID label.
+	GetAccountID(ctx context.Context, accountRef domain.NamespacedName) (nauth.AccountID, error)
 }
