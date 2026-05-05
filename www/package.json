@@ -6,20 +6,23 @@
 		"dev": "astro dev",
 		"start": "astro dev",
 		"build": "astro build",
+		"check": "astro check",
 		"preview": "astro preview",
 		"astro": "astro"
 	},
 	"dependencies": {
-		"@astro-community/astro-embed-youtube": "^0.5.6",
-		"@astrojs/starlight": "^0.35.2",
-		"@iconify/json": "^2.2.373",
-		"astro": "^5.6.1",
-		"sharp": "^0.34.2",
-		"starlight-llms-txt": "^0.6.0",
-		"starlight-theme-flexoki": "^0.2.0",
-		"unplugin-icons": "^22.2.0"
+		"@astro-community/astro-embed-youtube": "^0.5.10",
+		"@astrojs/starlight": "^0.38.4",
+		"@iconify/json": "^2.2.469",
+		"astro": "^6.2.2",
+		"sharp": "^0.34.5",
+		"starlight-llms-txt": "^0.8.1",
+		"starlight-theme-flexoki": "^0.2.2",
+		"unplugin-icons": "^23.0.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.1.1"
+		"@astrojs/check": "^0.9.9",
+		"@biomejs/biome": "2.4.14",
+		"typescript": "^6.0.3"
 	}
 }
