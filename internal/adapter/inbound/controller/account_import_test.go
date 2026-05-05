@@ -90,6 +90,24 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 		},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, &resourceInput))
+	importAccount := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, ktypes.NamespacedName{Namespace: t.namespace, Name: t.importAccountName}, importAccount))
+	importAccount.Status.Adoptions = &v1alpha1.AccountAdoptions{
+		Imports: []v1alpha1.AccountAdoption{
+			{
+				Name:               t.importName,
+				ObservedGeneration: resourceInput.Generation,
+				UID:                resourceInput.UID,
+				Status: v1alpha1.AccountAdoptionStatus{
+					Status:                         metav1.ConditionTrue,
+					DesiredClaimObservedGeneration: &resourceInput.Generation,
+					Reason:                         conditionReasonOK,
+					Message:                        "",
+				},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, importAccount))
 	expectNAuthImports := nauth.Imports{
 		&nauth.Import{
 			AccountID: nauth.AccountID(exportAccountID),
@@ -112,9 +130,8 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	t.assertCondition(resource, conditionTypeBoundToAccount, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
 	t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionTrue, conditionReasonOK)
-	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
-	// TODO: [#11] Verify account adoption condition
-	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionTrue, conditionReasonOK)
+	t.assertCondition(resource, conditionTypeReady, metav1.ConditionTrue, conditionReasonReady)
 
 	boolFalse := false
 	expectClaim := &v1alpha1.AccountImportClaim{
@@ -333,8 +350,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenRule
 	t.assertCondition(resource, conditionTypeBoundToExportAccount, metav1.ConditionTrue, conditionReasonOK)
 	rulesCondition := t.assertCondition(resource, conditionTypeValidRules, metav1.ConditionFalse, conditionReasonNOK)
 	t.Contains(rulesCondition.Message, "invalid test rules")
-	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, "NotImplemented")
-	// TODO: [#11] Verify account adoption condition
+	t.assertCondition(resource, conditionTypeAdoptedByAccount, metav1.ConditionFalse, conditionReasonAdopting)
 	t.assertCondition(resource, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 
 	t.Nil(resource.Status.DesiredClaim, "expected no claim")
