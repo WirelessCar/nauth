@@ -143,7 +143,3 @@ type AccountImportList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []AccountImport `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&AccountImport{}, &AccountImportList{})
-}

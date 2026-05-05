@@ -138,7 +138,3 @@ func (u *UserLimits) Empty() bool {
 func (u *UserLimits) IsUnlimited() bool {
 	return len(u.Src) == 0 && len(u.Times) == 0
 }
-
-func init() {
-	SchemeBuilder.Register(&User{}, &UserList{})
-}

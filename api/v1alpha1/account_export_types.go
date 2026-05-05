@@ -131,7 +131,3 @@ type AccountExportList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []AccountExport `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&AccountExport{}, &AccountExportList{})
-}

@@ -117,7 +117,3 @@ type NatsClusterList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []NatsCluster `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&NatsCluster{}, &NatsClusterList{})
-}

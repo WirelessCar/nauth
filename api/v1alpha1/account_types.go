@@ -247,10 +247,6 @@ type AccountList struct {
 
 type RevocationList map[string]int64
 
-func init() {
-	SchemeBuilder.Register(&Account{}, &AccountList{})
-}
-
 type SigningKeys []*SigningKey
 
 type SigningKey struct {

@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha1 contains API Schema definitions for the nats v1alpha1 API group.
+// Package v1alpha1 contains API schema definitions for the nauth.io v1alpha1 API group.
 // +kubebuilder:object:generate=true
 // +groupName=nauth.io
 package v1alpha1
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
 var (
@@ -29,8 +30,25 @@ var (
 	GroupVersion = schema.GroupVersion{Group: "nauth.io", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme.
-	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )
+
+func addKnownTypes(scheme *runtime.Scheme) error {
+	scheme.AddKnownTypes(GroupVersion,
+		&Account{},
+		&AccountList{},
+		&AccountExport{},
+		&AccountExportList{},
+		&AccountImport{},
+		&AccountImportList{},
+		&NatsCluster{},
+		&NatsClusterList{},
+		&User{},
+		&UserList{},
+	)
+	metav1.AddToGroupVersion(scheme, GroupVersion)
+	return nil
+}
