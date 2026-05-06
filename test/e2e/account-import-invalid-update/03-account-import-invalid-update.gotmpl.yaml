@@ -1,0 +1,16 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}
+  rules:
+    - name: invalid-rule-a
+      subject: duplicate-service.*
+      type: service
+    - name: invalid-rule-b
+      subject: duplicate-service.*
+      type: service

@@ -426,7 +426,7 @@ func accountExportWatchPredicateForAccounts() predicate.Funcs {
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			oldExport, oldOK := e.ObjectOld.(*v1alpha1.AccountExport)
 			newExport, newOK := e.ObjectNew.(*v1alpha1.AccountExport)
-			return oldOK && newOK && accountExportUpdateAffectsReferencedResources(oldExport, newExport)
+			return oldOK && newOK && accountExportUpdateAffectsAccounts(oldExport, newExport)
 		},
 		GenericFunc: func(event.GenericEvent) bool {
 			// Ignore all other type of events
@@ -435,7 +435,7 @@ func accountExportWatchPredicateForAccounts() predicate.Funcs {
 	}
 }
 
-func accountExportUpdateAffectsReferencedResources(oldExport *v1alpha1.AccountExport, newExport *v1alpha1.AccountExport) bool {
+func accountExportUpdateAffectsAccounts(oldExport *v1alpha1.AccountExport, newExport *v1alpha1.AccountExport) bool {
 	if oldExport == nil || newExport == nil {
 		return false
 	}

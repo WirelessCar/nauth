@@ -1,0 +1,16 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: import-account
+    ref: import_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    namespace: {{ .Namespace }}-export
+    name: export-account
+    ref: export_account
+assertAll:
+  - celExpr: import_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")
+  - celExpr: export_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")

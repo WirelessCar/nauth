@@ -1,0 +1,13 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}-export
+  rules:
+    - name: cross-namespace-rule
+      subject: shared.cross.>
+      type: stream

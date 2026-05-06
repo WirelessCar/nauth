@@ -1,0 +1,8 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: export-account
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats

@@ -1,0 +1,31 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: import-account
+    ref: import_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: export-account
+    ref: export_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountImport
+    name: my-account-import
+    ref: my_account_import
+assertAll:
+  - celExpr: my_account_import.metadata.labels["accountimport.nauth.io/account-id"] == import_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: my_account_import.metadata.labels["accountimport.nauth.io/export-account-id"] == export_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: my_account_import.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Ready")
+  - celExpr: my_account_import.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_import.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_import.status.conditions.exists(c, c.type == "BoundToExportAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_import.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True" && c.reason == "OK")
+  - celExpr: my_account_import.status.desiredClaim.observedGeneration == my_account_import.metadata.generation
+  - celExpr: my_account_import.status.desiredClaim.rules.size() == 1
+  - celExpr: my_account_import.status.desiredClaim.rules[0].name == "initial-rule"
+  - celExpr: my_account_import.status.desiredClaim.rules[0].subject == "shared.>"
+  - celExpr: my_account_import.status.desiredClaim.rules[0].type == "stream"
+  - celExpr: my_account_import.status.desiredClaim.rules[0].account == export_account.metadata.labels["account.nauth.io/id"]
+

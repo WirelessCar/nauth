@@ -1,0 +1,14 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}
+  rules:
+    - name: service-rule
+      subject: svc.request
+      localSubject: local.svc.request
+      type: service
