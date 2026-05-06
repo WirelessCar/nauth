@@ -1,10 +1,9 @@
-account:
-  apiVersion: nauth.io/v1alpha1
-  kind: Account
-  metadata:
-    name: account-name
-    namespace: account-namespace
-  spec:
+accountRef:
+  namespace: account-namespace
+  name: account-name
+exportGroups:
+  - ref: inline
+    required: true
     exports:
       - name: my stream
         subject: foo.*
@@ -15,7 +14,6 @@ account:
       - name: my extra inline stream
         subject: baz.*
         type: stream
-exportGroups:
   - ref: aac5f3ce-7ed4-4981-b346-5dfcf778e585
     name: extracted export
     exports:

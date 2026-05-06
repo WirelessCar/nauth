@@ -1,17 +1,23 @@
-account:
-  apiVersion: nauth.io/v1alpha1
-  kind: Account
-  metadata:
-    name: account-name
-    namespace: account-namespace
-  spec:
-    jetStreamEnabled: true
-    accountLimits:
-      conn: 100
-      exports: 100
-      imports: 100
-      leaf: -1
-      wildcards: true
+accountRef:
+  namespace: account-namespace
+  name: account-name
+jetStreamEnabled: true
+accountLimits:
+  conn: 100
+  exports: 100
+  imports: 100
+  leaf: -1
+  wildcards: true
+jetStreamLimits:
+  consumer: 50
+  streams: 10
+natsLimits:
+  data: 1024000
+  payload: 50000
+  subs: 100
+exportGroups:
+  - ref: inline
+    required: true
     exports:
       - name: JS orders stream
         subject: orders.S.>
@@ -20,17 +26,10 @@ account:
         subject: $JS.FC.orders.>
         type: service
       - name: JS orders consumer create
-        responseType: Stream
+        responseType: stream
         subject: $JS.API.CONSUMER.CREATE.orders
         type: service
       - name: JS orders consumer create wildcard
-        responseType: Stream
+        responseType: stream
         subject: $JS.API.CONSUMER.CREATE.orders.>
         type: service
-    jetStreamLimits:
-      consumer: 50
-      streams: 10
-    natsLimits:
-      data: 1024000
-      payload: 50000
-      subs: 100
