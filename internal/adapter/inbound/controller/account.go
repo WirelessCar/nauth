@@ -123,7 +123,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
 		}
-
 		if len(userList.Items) > 0 {
 			return r.reporter.error(
 				ctx,
@@ -132,14 +131,29 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			)
 		}
 
-		// TODO: [#11] This will block the deletion and requires manual intervention to continue (removing finalizer)
-		// TODO: [#11] Investigate and understand if blocking preemptively with webhooks is a better option (not allowing change)?
-		adoptions := natsAccount.Status.Adoptions
-		if adoptions != nil && len(adoptions.Exports) > 0 {
+		exports, err := r.findExportsByAccountID(ctx, domain.Namespace(natsAccount.Namespace), accountID)
+		if err != nil {
+			log.Error(err, "Failed to list exports for account during deletion", "name", natsAccount.Name)
+			return ctrl.Result{}, err
+		}
+		if len(exports.Items) > 0 {
 			return r.reporter.error(
 				ctx,
 				natsAccount,
-				fmt.Errorf("cannot delete an account with adopted exports, found %d adoptions", len(adoptions.Exports)),
+				fmt.Errorf("cannot delete an account with bound exports, found %d bindings", len(exports.Items)),
+			)
+		}
+
+		imports, err := r.findImportsByAccountID(ctx, domain.Namespace(natsAccount.Namespace), accountID)
+		if err != nil {
+			log.Error(err, "Failed to list imports for account during deletion", "name", natsAccount.Name)
+			return ctrl.Result{}, err
+		}
+		if len(imports.Items) > 0 {
+			return r.reporter.error(
+				ctx,
+				natsAccount,
+				fmt.Errorf("cannot delete an account with bound imports, found %d bindings", len(imports.Items)),
 			)
 		}
 
