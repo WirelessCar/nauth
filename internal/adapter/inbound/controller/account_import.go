@@ -59,7 +59,8 @@ func NewAccountImportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 	}
 }
 
-// +kubebuilder:rbac:groups=nauth.io,resources=accountimports,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nauth.io,resources=accountimports,verbs=get;list;watch;patch
+// +kubebuilder:rbac:groups=nauth.io,resources=accountimports/status,verbs=get;update;patch
 
 func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
