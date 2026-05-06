@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	approvals "github.com/approvals/go-approval-tests"
@@ -14,7 +13,6 @@ import (
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -132,17 +130,10 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-			},
-			Spec: v1alpha1.AccountSpec{
-				NatsLimits: &v1alpha1.NatsLimits{
-					Subs: &natsLimitsSubs,
-				},
-			},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		NatsLimits: &nauth.NatsLimits{
+			Subs: &natsLimitsSubs,
 		},
 	})
 
@@ -182,20 +173,11 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-			},
-			Spec: v1alpha1.AccountSpec{
-				NatsClusterRef: &v1alpha1.NatsClusterRef{
-					Name: "account-namespace-cluster",
-				},
-				NatsLimits: &v1alpha1.NatsLimits{
-					Subs: &natsLimitsSubs,
-				},
-			},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		ClusterRef: new(nauth.ClusterRef("account-namespace/account-namespace-cluster")),
+		NatsLimits: &nauth.NatsLimits{
+			Subs: &natsLimitsSubs,
 		},
 	})
 
@@ -228,17 +210,10 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-			},
-			Spec: v1alpha1.AccountSpec{
-				NatsLimits: &v1alpha1.NatsLimits{
-					Subs: &natsLimitsSubs,
-				},
-			},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		NatsLimits: &nauth.NatsLimits{
+			Subs: &natsLimitsSubs,
 		},
 	})
 
@@ -261,17 +236,15 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.resetAllMocks()
 			inputData, err := os.ReadFile(testCase.InputFile)
 			t.Require().NoError(err)
-			var input nauth.AccountResources
+			var input nauth.AccountRequest
 			t.Require().NoError(yaml.UnmarshalStrict(inputData, &input))
-			t.Require().NotEmpty(input.Account.Name, "account.name must be present in input file")
-			t.Require().NotEmpty(input.Account.Namespace, "account.namespace must be present in input file")
-			t.Require().Nil(input.Account.Spec.NatsClusterRef, "account.natsClusterRef must be absent in input file")
+			t.Require().NoError(input.Validate())
+			t.Require().Nil(input.ClusterRef, "clusterRef must be absent in input file")
 
-			accountRef := domain.NewNamespacedName(input.Account.Namespace, input.Account.Name)
 			keys := testKeys1()
 
 			t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
-			t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, "", &Secrets{
+			t.secretManagerMock.mockGetSecrets(t.ctx, input.AccountRef, "", &Secrets{
 				Root: keys.AcRoot.KeyPair,
 				Sign: keys.AcSign.KeyPair,
 			})
@@ -281,7 +254,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.natsSysConnMock.mockDisconnect()
 
 			// When
-			result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, input)
+			result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, input)
 
 			// Then
 			t.assertAndResetAllMock()
@@ -306,14 +279,8 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 	})
 
 	// Then
@@ -329,14 +296,8 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreI
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 	})
 
 	// Then
@@ -363,17 +324,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then
@@ -397,17 +350,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	initialResult, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
@@ -421,20 +366,10 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-			Status: v1alpha1.AccountStatus{
-				ClaimsHash: initialResult.ClaimsHash,
-			},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
+		ClaimsHash: initialResult.ClaimsHash,
 	})
 
 	// Then
@@ -458,17 +393,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	initialResult, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
@@ -491,20 +418,10 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-			Status: v1alpha1.AccountStatus{
-				ClaimsHash: initialResult.ClaimsHash,
-			},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
+		ClaimsHash: initialResult.ClaimsHash,
 	})
 
 	// Then
@@ -529,17 +446,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then
@@ -561,17 +470,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	})
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{},
-		},
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
 	})
 
 	// Then
@@ -587,44 +488,33 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	accountSignKey, _ := nkeys.CreateAccount()
 	importAccountKey, _ := nkeys.CreateAccount()
 	importAccountID, _ := importAccountKey.PublicKey()
-	importAccountRef := domain.NewNamespacedName("import-namespace", "import-account")
 
 	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
 	})
-	t.accountIDReaderMock.mockGetAccountID(t.ctx, importAccountRef, importAccountID).Once()
 
 	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountResources{
-		Account: v1alpha1.Account{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "account-namespace",
-				Name:      "account-name",
-				Labels: map[string]string{
-					string(v1alpha1.AccountLabelAccountID): accountID,
-				},
-			},
-			Spec: v1alpha1.AccountSpec{
-				Imports: v1alpha1.Imports{
+	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
+		ImportGroups: nauth.ImportGroups{
+			{
+				Ref:      "inline",
+				Required: true,
+				Imports: nauth.Imports{
 					{
-						Name: "import-once",
-						AccountRef: v1alpha1.AccountRef{
-							Namespace: "import-namespace",
-							Name:      "import-account",
-						},
-						Subject: "foo",
-						Type:    v1alpha1.Service,
+						AccountID: nauth.AccountID(importAccountID),
+						Name:      "import-once",
+						Subject:   "foo",
+						Type:      nauth.ExportTypeService,
 					},
 					{
-						Name: "import-twice",
-						AccountRef: v1alpha1.AccountRef{
-							Namespace: "import-namespace",
-							Name:      "import-account",
-						},
-						Subject: "foo",
-						Type:    v1alpha1.Service,
+						AccountID: nauth.AccountID(importAccountID),
+						Name:      "import-twice",
+						Subject:   "foo",
+						Type:      nauth.ExportTypeService,
 					},
 				},
 			},

@@ -1,15 +1,13 @@
-account:
-  apiVersion: nauth.io/v1alpha1
-  kind: Account
-  metadata:
-    name: account-name
-    namespace: account-namespace
-  spec:
+accountRef:
+  namespace: account-namespace
+  name: account-name
+exportGroups:
+  - ref: inline
+    required: true
     exports:
       - name: inline export
         subject: inline.foor.*
         type: stream
-exportGroups:
   - ref: aac5f3ce-7ed4-4981-b346-5dfcf778e585
     name: valid API
     exports:
