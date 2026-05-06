@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
@@ -48,7 +49,7 @@ type AccountControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	accountManagerMock *AccountManagerMock
+	accountManagerMock *accountManagerMock
 	fakeRecorder       *events.FakeRecorder
 
 	accountNamespacedRef ktypes.NamespacedName
@@ -78,12 +79,14 @@ func (t *AccountControllerTestSuite) SetupTest() {
 		Namespace: t.accountNamespace,
 	}
 
-	t.accountManagerMock = &AccountManagerMock{}
+	t.accountManagerMock = &accountManagerMock{}
+	accountClient := k8s.NewAccountClient(k8sClient)
 	t.fakeRecorder = events.NewFakeRecorder(5)
 	t.unitUnderTest = NewAccountReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
 		t.accountManagerMock,
+		accountClient,
 		t.fakeRecorder,
 	)
 
@@ -352,9 +355,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 		Claims:          &nauth.AccountClaims{},
 	}
 	// Note: Expect manager.CreateOrUpdate during setup only
-	var spyAccountResourcesInit nauth.AccountResources
-	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(resources nauth.AccountResources) {
-		spyAccountResourcesInit = resources
+	var spyAccountRequestInit nauth.AccountRequest
+	t.accountManagerMock.mockCreateOrUpdateSpy(t.ctx, func(request nauth.AccountRequest) {
+		spyAccountRequestInit = request
 	}, mockResult).Once()
 	account := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
@@ -365,7 +368,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 	t.Require().NoError(err)
-	t.Require().NotNil(spyAccountResourcesInit)
+	t.Require().NotNil(spyAccountRequestInit)
 	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(account), account))
 	t.Require().Equal(accountID, account.GetLabel(v1alpha1.AccountLabelAccountID))
 
@@ -376,10 +379,10 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 	export3 := t.createExport(domain.Namespace(t.accountNamespace), "export-3", accountID, nil) // Not expected into manager
 	t.createExport(domain.Namespace(t.accountNamespace), "export-4", "ANOTHERACCOUNT", t.anyExportClaim(40))
 	export5 := t.createExport(domain.Namespace(t.accountNamespace), "export-5", accountID, t.anyExportClaim(50))
-	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(resources nauth.AccountResources) (*nauth.AccountResult, error) {
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
 		adoptions := nauth.NewAccountAdoptions()
-		t.Require().Equalf(2, len(resources.ExportGroups), "expected 2 export groups: export-1 and export-5")
-		for _, exportGroup := range resources.ExportGroups {
+		t.Require().Equalf(2, len(request.ExportGroups), "expected 2 export groups: export-1 and export-5")
+		for _, exportGroup := range request.ExportGroups {
 			t.Require().NoError(adoptions.Exports.Add(nauth.AdoptionResult{
 				Ref: exportGroup.Ref,
 			}))
@@ -506,52 +509,50 @@ func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, na
 /* ****************************************************
 * inbound.AccountManager Mock
 *****************************************************/
-type AccountManagerMock struct {
+type accountManagerMock struct {
 	mock.Mock
 }
 
-func (o *AccountManagerMock) CreateOrUpdate(ctx context.Context, resources nauth.AccountResources) (*nauth.AccountResult, error) {
-	args := o.Called(ctx, resources)
-	if args.Error(1) != nil {
-		return nil, args.Error(1)
+func (o *accountManagerMock) CreateOrUpdate(ctx context.Context, request nauth.AccountRequest) (*nauth.AccountResult, error) {
+	args := o.Called(ctx, request)
+	result := args.Get(0)
+	if result != nil {
+		return result.(*nauth.AccountResult), args.Error(1)
 	}
-	if args.Get(0) == nil {
-		return nil, nil
-	}
-	return args.Get(0).(*nauth.AccountResult), nil
+	return nil, args.Error(1)
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *nauth.AccountResult) *mock.Call {
+func (o *accountManagerMock) mockCreateOrUpdate(ctx interface{}, resources interface{}, result *nauth.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Return(result, nil)
 	return call
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdateFn(ctx interface{}, resources interface{}, fn func(resources nauth.AccountResources) (*nauth.AccountResult, error)) *mock.Call {
+func (o *accountManagerMock) mockCreateOrUpdateFn(ctx interface{}, resources interface{}, fn func(request nauth.AccountRequest) (*nauth.AccountResult, error)) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Run(func(args mock.Arguments) {
-		result, err := fn(args.Get(1).(nauth.AccountResources))
+		result, err := fn(args.Get(1).(nauth.AccountRequest))
 		call.Return(result, err)
 	})
 	return call
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdateSpy(ctx interface{}, resourcesCallback func(resources nauth.AccountResources), result *nauth.AccountResult) *mock.Call {
+func (o *accountManagerMock) mockCreateOrUpdateSpy(ctx interface{}, resourcesCallback func(request nauth.AccountRequest), result *nauth.AccountResult) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, mock.Anything)
 	call.Run(func(args mock.Arguments) {
-		resourcesCallback(args.Get(1).(nauth.AccountResources))
+		resourcesCallback(args.Get(1).(nauth.AccountRequest))
 	})
 	call.Return(result, nil)
 	return call
 }
 
-func (o *AccountManagerMock) mockCreateOrUpdateError(ctx interface{}, resources interface{}, err error) *mock.Call {
+func (o *accountManagerMock) mockCreateOrUpdateError(ctx interface{}, resources interface{}, err error) *mock.Call {
 	call := o.On("CreateOrUpdate", ctx, resources)
 	call.Return(nil, err)
 	return call
 }
 
-func (o *AccountManagerMock) Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) {
+func (o *accountManagerMock) Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) {
 	args := o.Called(ctx, reference)
 	if args.Error(1) != nil {
 		return nil, args.Error(1)
@@ -562,21 +563,21 @@ func (o *AccountManagerMock) Import(ctx context.Context, reference nauth.Account
 	return args.Get(0).(*nauth.AccountResult), nil
 }
 
-func (o *AccountManagerMock) Delete(ctx context.Context, reference nauth.AccountReference) error {
+func (o *accountManagerMock) Delete(ctx context.Context, reference nauth.AccountReference) error {
 	args := o.Called(ctx, reference)
 	return args.Error(0)
 }
 
-func (o *AccountManagerMock) mockDelete(ctx interface{}, state interface{}, err error) *mock.Call {
+func (o *accountManagerMock) mockDelete(ctx interface{}, state interface{}, err error) *mock.Call {
 	call := o.On("Delete", ctx, state)
 	call.Return(err)
 	return call
 }
 
-func (o *AccountManagerMock) mockImport(ctx interface{}, state interface{}, result *nauth.AccountResult) *mock.Call {
+func (o *accountManagerMock) mockImport(ctx interface{}, state interface{}, result *nauth.AccountResult) *mock.Call {
 	call := o.On("Import", ctx, state)
 	call.Return(result, nil)
 	return call
 }
 
-var _ inbound.AccountManager = (*AccountManagerMock)(nil)
+var _ inbound.AccountManager = (*accountManagerMock)(nil)

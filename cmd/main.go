@@ -263,6 +263,7 @@ func main() {
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
+		accountClient,
 		mgr.GetEventRecorder("account-controller"),
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {

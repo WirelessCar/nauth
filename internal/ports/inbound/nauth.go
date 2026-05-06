@@ -8,7 +8,7 @@ import (
 )
 
 type AccountManager interface {
-	CreateOrUpdate(ctx context.Context, accountResources nauth.AccountResources) (*nauth.AccountResult, error)
+	CreateOrUpdate(ctx context.Context, request nauth.AccountRequest) (*nauth.AccountResult, error)
 	Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error)
 	Delete(ctx context.Context, reference nauth.AccountReference) error
 }

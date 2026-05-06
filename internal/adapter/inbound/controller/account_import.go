@@ -173,7 +173,7 @@ func (r *AccountImportReconciler) validateImports(importAccountID string, export
 		return nil, fmt.Errorf("at least one rule is required")
 	}
 
-	imports := toNAuthImports(exportAccountID, rules)
+	imports := toNAuthImportsFromRules(exportAccountID, rules)
 	if err := r.manager.ValidateImports(nauth.AccountID(importAccountID), imports); err != nil {
 		return nil, fmt.Errorf("rules validation failed: %w", err)
 	}

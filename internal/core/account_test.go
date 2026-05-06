@@ -130,7 +130,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		NatsLimits: &nauth.NatsLimits{
 			Subs: &natsLimitsSubs,
@@ -173,7 +173,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		ClusterRef: new(nauth.ClusterRef("account-namespace/account-namespace-cluster")),
 		NatsLimits: &nauth.NatsLimits{
@@ -210,7 +210,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		NatsLimits: &nauth.NatsLimits{
 			Subs: &natsLimitsSubs,
@@ -254,7 +254,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.natsSysConnMock.mockDisconnect()
 
 			// When
-			result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, input)
+			result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, input)
 
 			// Then
 			t.assertAndResetAllMock()
@@ -279,7 +279,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
 	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 	})
 
@@ -296,7 +296,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreI
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 	})
 
@@ -324,7 +324,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 	})
@@ -350,7 +350,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 	})
@@ -366,7 +366,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	})
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 		ClaimsHash: initialResult.ClaimsHash,
@@ -393,7 +393,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
 	t.natsSysConnMock.mockDisconnect()
 
-	initialResult, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 	})
@@ -418,7 +418,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 		ClaimsHash: initialResult.ClaimsHash,
@@ -446,7 +446,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 	})
@@ -470,7 +470,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	})
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 	})
@@ -496,7 +496,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	})
 
 	// When
-	result, err := t.unitUnderTest.tmpCreateOrUpdate(t.ctx, nauth.AccountRequest{
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
 		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:  nauth.AccountID(accountID),
 		ImportGroups: nauth.ImportGroups{

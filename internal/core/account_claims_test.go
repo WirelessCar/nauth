@@ -51,14 +51,8 @@ func Test_AccountClaims(t *testing.T) {
 					accountLimits(spec.AccountLimits).
 					jetStreamLimits(spec.JetStreamLimits).
 					natsLimits(spec.NatsLimits)
-				require.NoError(t, builder.addExportGroup(nauth.ExportGroup{
-					Name:    tmpGroupNameInline,
-					Exports: spec.Exports,
-				}))
-				require.NoError(t, builder.addImportGroup(nauth.ImportGroup{
-					Name:    tmpGroupNameInline,
-					Imports: spec.Imports,
-				}))
+				require.NoError(t, builder.addExportGroup(nauth.ExportGroup{Exports: spec.Exports}))
+				require.NoError(t, builder.addImportGroup(nauth.ImportGroup{Imports: spec.Imports}))
 				builder.signingKey(testClaimsSigningKey01)
 				builder.signingKey(testClaimsSigningKey02)
 				return builder.build()

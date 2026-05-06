@@ -4,15 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 )
-
-type AccountResources struct {
-	Account      v1alpha1.Account `json:"account,omitempty"` // TODO: [#11] Migrate from API- to domain model
-	ExportGroups ExportGroups     `json:"exportGroups,omitempty"`
-	ImportGroups ImportGroups     `json:"importGroups,omitempty"`
-}
 
 type AccountRequest struct {
 	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`

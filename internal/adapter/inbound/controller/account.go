@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
@@ -48,17 +49,25 @@ import (
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	manager  inbound.AccountManager
-	reporter *statusReporter
+	Scheme        *runtime.Scheme
+	manager       inbound.AccountManager
+	accountReader k8s.AccountReader
+	reporter      *statusReporter
 }
 
-func NewAccountReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountManager, recorder events.EventRecorder) *AccountReconciler {
+func NewAccountReconciler(
+	k8sClient client.Client,
+	scheme *runtime.Scheme,
+	manager inbound.AccountManager,
+	accountReader k8s.AccountReader,
+	recorder events.EventRecorder,
+) *AccountReconciler {
 	return &AccountReconciler{
-		Client:   k8sClient,
-		Scheme:   scheme,
-		manager:  manager,
-		reporter: newStatusReporter(k8sClient, recorder),
+		Client:        k8sClient,
+		Scheme:        scheme,
+		manager:       manager,
+		accountReader: accountReader,
+		reporter:      newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -89,7 +98,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	accountID := natsAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	accountID := nauth.AccountID(natsAccount.GetLabel(v1alpha1.AccountLabelAccountID))
 	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
 
 	// ACCOUNT MARKED FOR DELETION
@@ -109,7 +118,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		// Check for connected users
 		userList := &v1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): accountID}, client.InNamespace(req.Namespace))
+		err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): string(accountID)}, client.InNamespace(req.Namespace))
 		if err != nil {
 			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
@@ -184,11 +193,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		resources, adoptionRefs, err := r.collectAccountResources(ctx, natsAccount, accountID)
+		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountID)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to collect resources: %w", err)
+			return ctrl.Result{}, fmt.Errorf("failed to create account request: %w", err)
 		}
-		result, err = r.manager.CreateOrUpdate(ctx, resources)
+		result, err = r.manager.CreateOrUpdate(ctx, request)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to apply account: %w", err))
 		}
@@ -248,96 +257,95 @@ func toAccountReference(state *v1alpha1.Account) nauth.AccountReference {
 	}
 }
 
-func (r *AccountReconciler) collectAccountResources(ctx context.Context, account *v1alpha1.Account, accountID string) (nauth.AccountResources, accountAdoptionRefs, error) {
-	resources := nauth.AccountResources{Account: *account}
-	refs := accountAdoptionRefs{}
+func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountID nauth.AccountID) (nauth.AccountRequest, accountAdoptionRefs, error) {
+	var request nauth.AccountRequest
+	adoptionRefs := accountAdoptionRefs{}
 
-	if accountID == "" {
-		return resources, refs, nil
+	namespace := domain.Namespace(state.Namespace)
+	clusterRef, err := toNAuthClusterRef(state.Spec.NatsClusterRef, state.Namespace)
+	if err != nil {
+		return request, adoptionRefs, err
 	}
 
-	namespace := domain.Namespace(account.Namespace)
+	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
+
+	var exportGroups nauth.ExportGroups
+	inlineExportGroup := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
+	if inlineExportGroup != nil {
+		exportGroups = nauth.ExportGroups{inlineExportGroup}
+	}
+
+	var importGroups nauth.ImportGroups
+	inlineImportGroup, err := toNAuthImportGroup(GroupNameInline, true, state.Spec.Imports, cachedAccountIDReader)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline imports: %w", err)
+	}
+	if inlineImportGroup != nil {
+		importGroups = nauth.ImportGroups{inlineImportGroup}
+	}
+
+	request = nauth.AccountRequest{
+		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
+		AccountID:        accountID,
+		ClaimsHash:       state.Status.ClaimsHash,
+		DisplayName:      state.Spec.DisplayName,
+		ClusterRef:       clusterRef,
+		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
+		JetStreamEnabled: state.Spec.JetStreamEnabled,
+		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
+		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
+		ExportGroups:     exportGroups,
+		ImportGroups:     importGroups,
+	}
+
+	if accountID == "" {
+		return request, adoptionRefs, nil
+	}
 
 	exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
 	if err != nil {
-		return resources, refs, err
+		return request, adoptionRefs, err
 	}
+	newExportGroups, newExportRefs := toNAuthExportGroups(exports)
+	request.ExportGroups = append(request.ExportGroups, newExportGroups...)
+	adoptionRefs.exports = append(adoptionRefs.exports, newExportRefs...)
 
 	imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
 	if err != nil {
-		return resources, refs, err
+		return request, adoptionRefs, err
 	}
+	newImportGroups, newImportRefs := toNAuthImportGroups(imports)
+	request.ImportGroups = append(request.ImportGroups, newImportGroups...)
+	adoptionRefs.imports = append(adoptionRefs.imports, newImportRefs...)
 
-	newExportGroups, newExportRefs := collectExportResources(exports)
-	resources.ExportGroups = append(resources.ExportGroups, newExportGroups...)
-	refs.exports = append(refs.exports, newExportRefs...)
-
-	newImportGroups, newImportRefs := collectImportResources(imports)
-	resources.ImportGroups = append(resources.ImportGroups, newImportGroups...)
-	refs.imports = append(refs.imports, newImportRefs...)
-
-	return resources, refs, nil
+	return request, adoptionRefs, nil
 }
 
-func collectExportResources(exports *v1alpha1.AccountExportList) (nauth.ExportGroups, []*adoptionRef) {
-	itemCount := len(exports.Items)
-	groups := make(nauth.ExportGroups, 0, itemCount)
-	refs := make([]*adoptionRef, 0, itemCount)
-
-	for _, exp := range exports.Items {
-		adpRef := newAdoptionRef(exp.ObjectMeta, nil)
-
-		claim := exp.Status.DesiredClaim
-		if claim != nil {
-			adpRef.ObservedGenerationDesiredClaim = &claim.ObservedGeneration
-			nauthExports := make(nauth.Exports, 0, len(claim.Rules))
-			for _, rule := range claim.Rules {
-				nauthExports = append(nauthExports, toNAuthExportFromRule(rule))
-			}
-			groups = append(groups, &nauth.ExportGroup{
-				Ref:     adpRef.Ref,
-				Name:    exp.Name,
-				Exports: nauthExports,
-			})
+func newCachedAccountIDReader(ctx context.Context, accountIDReader k8s.AccountReader) ResolveAccountIDFn {
+	type cachedResult struct {
+		accountID nauth.AccountID
+		err       error
+	}
+	cache := make(map[domain.NamespacedName]cachedResult)
+	return func(accountRef domain.NamespacedName) (nauth.AccountID, error) {
+		var result cachedResult
+		var cached bool
+		if result, cached = cache[accountRef]; !cached {
+			accountID, err := accountIDReader.GetAccountID(ctx, accountRef)
+			result = cachedResult{accountID: accountID, err: err}
+			cache[accountRef] = result
 		}
-		refs = append(refs, &adpRef)
+		return result.accountID, result.err
 	}
-	return groups, refs
 }
 
-func collectImportResources(imports *v1alpha1.AccountImportList) (nauth.ImportGroups, []*adoptionRef) {
-	itemCount := len(imports.Items)
-	groups := make(nauth.ImportGroups, 0, itemCount)
-	refs := make([]*adoptionRef, 0, itemCount)
-
-	for _, imp := range imports.Items {
-		adpRef := newAdoptionRef(imp.ObjectMeta, nil)
-
-		claim := imp.Status.DesiredClaim
-		if claim != nil {
-			adpRef.ObservedGenerationDesiredClaim = &claim.ObservedGeneration
-			nauthImports := make(nauth.Imports, 0, len(claim.Rules))
-			for _, rule := range claim.Rules {
-				nauthImports = append(nauthImports, toNAuthImportFromRule(rule))
-			}
-			groups = append(groups, &nauth.ImportGroup{
-				Ref:     adpRef.Ref,
-				Name:    imp.Name,
-				Imports: nauthImports,
-			})
-		}
-		refs = append(refs, &adpRef)
-	}
-	return groups, refs
-}
-
-func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountExportList, error) {
+func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID nauth.AccountID) (*v1alpha1.AccountExportList, error) {
 	if accountID == "" {
 		return nil, fmt.Errorf("account ID required")
 	}
 	exports := &v1alpha1.AccountExportList{}
 	err := r.List(ctx, exports, client.InNamespace(namespace), client.MatchingLabels{
-		string(v1alpha1.AccountExportLabelAccountID): accountID,
+		string(v1alpha1.AccountExportLabelAccountID): string(accountID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list account exports: %w", err)
@@ -345,13 +353,13 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 	return exports, nil
 }
 
-func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID string) (*v1alpha1.AccountImportList, error) {
+func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespace domain.Namespace, accountID nauth.AccountID) (*v1alpha1.AccountImportList, error) {
 	if accountID == "" {
 		return nil, fmt.Errorf("account ID required")
 	}
 	imports := &v1alpha1.AccountImportList{}
 	err := r.List(ctx, imports, client.InNamespace(namespace), client.MatchingLabels{
-		string(v1alpha1.AccountImportLabelAccountID): accountID,
+		string(v1alpha1.AccountImportLabelAccountID): string(accountID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list account imports: %w", err)

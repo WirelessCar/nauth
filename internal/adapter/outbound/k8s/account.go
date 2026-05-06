@@ -11,6 +11,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type AccountReader interface {
+	Get(ctx context.Context, accountRef domain.NamespacedName) (*v1alpha1.Account, error)
+	GetAccountID(ctx context.Context, accountRef domain.NamespacedName) (nauth.AccountID, error)
+}
+
 type AccountClient struct {
 	client client.Client
 }
@@ -69,5 +74,5 @@ func isReady(account *v1alpha1.Account) bool {
 }
 
 // Compile-time assertion that implementation satisfies the ports interface
-var _ outbound.AccountReader = (*AccountClient)(nil)
+var _ AccountReader = (*AccountClient)(nil)
 var _ outbound.AccountIDReader = (*AccountClient)(nil)

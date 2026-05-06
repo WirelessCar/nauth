@@ -77,18 +77,7 @@ func (a *AccountManager) validate() error {
 	return nil
 }
 
-func (a *AccountManager) CreateOrUpdate(ctx context.Context, resources nauth.AccountResources) (*nauth.AccountResult, error) {
-	// TODO: [#11] Migrate to CreateOrUpdate with nauth.AccountRequest as input
-	request, err := tmpToAccountRequest(ctx, resources.Account, a.accountIDReader)
-	if err != nil {
-		return nil, err
-	}
-	request.ExportGroups = append(request.ExportGroups, resources.ExportGroups...)
-	request.ImportGroups = append(request.ImportGroups, resources.ImportGroups...)
-	return a.tmpCreateOrUpdate(ctx, *request)
-}
-
-func (a *AccountManager) tmpCreateOrUpdate(ctx context.Context, request nauth.AccountRequest) (*nauth.AccountResult, error) {
+func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.AccountRequest) (*nauth.AccountResult, error) {
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account request: %w", err)
 	}
