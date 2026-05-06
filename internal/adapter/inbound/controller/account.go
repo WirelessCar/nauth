@@ -210,7 +210,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// UPDATE ACCOUNT STATUS
 	if result.Claims != nil {
-		natsAccount.Status.Claims = *toAPIAccountClaims(result.Claims)
+		claims, err := toAPIAccountClaims(result.Claims)
+		if err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to convert account claims: %w", err))
+		}
+		natsAccount.Status.Claims = claims
 	}
 	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
@@ -270,7 +274,10 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
 
 	var exportGroups nauth.ExportGroups
-	inlineExportGroup := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
+	inlineExportGroup, err := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline exports: %w", err)
+	}
 	if inlineExportGroup != nil {
 		exportGroups = nauth.ExportGroups{inlineExportGroup}
 	}
@@ -306,7 +313,10 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	if err != nil {
 		return request, adoptionRefs, err
 	}
-	newExportGroups, newExportRefs := toNAuthExportGroups(exports)
+	newExportGroups, newExportRefs, err := toNAuthExportGroups(exports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert export groups: %w", err)
+	}
 	request.ExportGroups = append(request.ExportGroups, newExportGroups...)
 	adoptionRefs.exports = append(adoptionRefs.exports, newExportRefs...)
 
@@ -314,7 +324,10 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	if err != nil {
 		return request, adoptionRefs, err
 	}
-	newImportGroups, newImportRefs := toNAuthImportGroups(imports)
+	newImportGroups, newImportRefs, err := toNAuthImportGroups(imports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert import groups: %w", err)
+	}
 	request.ImportGroups = append(request.ImportGroups, newImportGroups...)
 	adoptionRefs.imports = append(adoptionRefs.imports, newImportRefs...)
 

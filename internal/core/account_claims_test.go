@@ -74,7 +74,8 @@ func Test_AccountClaims(t *testing.T) {
 				approvals.Options().ForFile().WithAdditionalInformation("output.nats"))
 
 			// Convert back to NAuth AccountClaims and verify YAML structure (used in Account CR `status.claims`)
-			nauthClaims := convertNatsAccountClaims(natsClaims)
+			nauthClaims, err := convertNatsAccountClaims(natsClaims)
+			require.NoError(t, err)
 			nauthClaimsYaml, err := yaml.Marshal(nauthClaims)
 			require.NoError(t, err)
 			approvals.VerifyString(t, string(nauthClaimsYaml), approvals.Options().
@@ -147,9 +148,10 @@ func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *te
 	claims := jwt.NewAccountClaims("ACCID")
 
 	// When
-	result := convertNatsAccountClaims(claims)
+	result, err := convertNatsAccountClaims(claims)
 
 	// Then
+	require.NoError(t, err)
 	boolFalse := false
 	require.Equal(t, nauth.AccountClaims{
 		JetStreamEnabled: &boolFalse,
@@ -484,13 +486,25 @@ func Test_toJWTExportType(t *testing.T) {
 	}{
 		{name: "service export type", args: args{t: "service"}, want: jwt.Service},
 		{name: "stream export type", args: args{t: "stream"}, want: jwt.Stream},
-		{name: "unknown export type", args: args{t: "something"}, want: jwt.Unknown},
+		{name: "unknown export type", args: args{t: "unknown"}, want: jwt.Unknown},
+		{name: "no export type", args: args{t: ""}, want: jwt.Unknown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, toJWTExportType(tt.args.t), "should be equal")
+			result, err := toJWTExportType(tt.args.t)
+			require.NoError(t, err)
+			assert.Equalf(t, tt.want, result, "should be equal")
 		})
 	}
+}
+
+func Test_toJWTExportType_ShouldFailForUnknownInput(t *testing.T) {
+	// When
+	result, err := toJWTExportType("invalid")
+
+	// Then
+	require.ErrorContains(t, err, "unknown nauth export type: \"invalid\"")
+	require.Equal(t, jwt.Unknown, result)
 }
 
 func loadTestAccountClaimsSpec(filePath string) (*TestAccountClaimsSpec, error) {

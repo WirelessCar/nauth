@@ -195,7 +195,10 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
 	}
 
-	nauthClaims := convertNatsAccountClaims(natsClaims)
+	nauthClaims, err := convertNatsAccountClaims(natsClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert NATS account claims: %w", err)
+	}
 	return &nauth.AccountResult{
 		AccountID:       accountPublicKey,
 		AccountSignedBy: operatorSigningPublicKey,
@@ -300,7 +303,10 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		return nil, fmt.Errorf("failed to decode account jwt for account %s during import: %w", accountID, err)
 	}
 
-	nauthClaims := convertNatsAccountClaims(natsClaims)
+	nauthClaims, err := convertNatsAccountClaims(natsClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert NATS account claims for account %s during import: %w", accountID, err)
+	}
 	claimsHash, err := hashSignedAccountJWTClaims(accountJWT)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash account claims during import: %w", err)

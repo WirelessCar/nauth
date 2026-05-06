@@ -173,13 +173,20 @@ func (r *AccountImportReconciler) validateImports(importAccountID string, export
 		return nil, fmt.Errorf("at least one rule is required")
 	}
 
-	imports := toNAuthImportsFromRules(exportAccountID, rules)
-	if err := r.manager.ValidateImports(nauth.AccountID(importAccountID), imports); err != nil {
+	imports, err := toNAuthImportsFromRules(exportAccountID, rules)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert rules to domain imports: %w", err)
+	}
+	if err = r.manager.ValidateImports(nauth.AccountID(importAccountID), imports); err != nil {
 		return nil, fmt.Errorf("rules validation failed: %w", err)
 	}
 	result := make([]v1alpha1.AccountImportRuleDerived, len(imports))
 	for i, imp := range imports {
-		result[i] = toAPIAccountImportRuleDerived(*imp)
+		derived, err := toAPIAccountImportRuleDerived(*imp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert rule to derived rule for import at index %d: %w", i, err)
+		}
+		result[i] = *derived
 	}
 	return result, nil
 }

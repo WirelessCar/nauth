@@ -7,6 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_mapToJwtExport(t *testing.T) {
@@ -44,7 +45,8 @@ func Test_mapToJwtExport(t *testing.T) {
 		Info:                 jwt.Info{},
 	}
 
-	got := toJWTExport(have)
+	got, err := toJWTExport(have)
+	assert.NoError(t, err)
 	assert.Equalf(t, want, got, "should be equal")
 }
 
@@ -58,7 +60,8 @@ func Test_mapToJwtExport_requiredFields(t *testing.T) {
 		Type:    jwt.Service,
 	}
 
-	got := toJWTExport(have)
+	got, err := toJWTExport(have)
+	require.NoError(t, err)
 	assert.Equalf(t, want, got, "should be equal")
 }
 
