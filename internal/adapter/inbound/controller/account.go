@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -116,45 +117,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		// Check for connected users
-		userList := &v1alpha1.UserList{}
-		err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): string(accountID)}, client.InNamespace(req.Namespace))
+		err := r.validateAccountDeletion(ctx, accountID, domain.Namespace(natsAccount.Namespace))
 		if err != nil {
-			log.Info("Failed to list users", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
-		}
-		if len(userList.Items) > 0 {
-			return r.reporter.error(
-				ctx,
-				natsAccount,
-				fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items)),
-			)
-		}
-
-		exports, err := r.findExportsByAccountID(ctx, domain.Namespace(natsAccount.Namespace), accountID)
-		if err != nil {
-			log.Error(err, "Failed to list exports for account during deletion", "name", natsAccount.Name)
-			return ctrl.Result{}, err
-		}
-		if len(exports.Items) > 0 {
-			return r.reporter.error(
-				ctx,
-				natsAccount,
-				fmt.Errorf("cannot delete an account with bound exports, found %d bindings", len(exports.Items)),
-			)
-		}
-
-		imports, err := r.findImportsByAccountID(ctx, domain.Namespace(natsAccount.Namespace), accountID)
-		if err != nil {
-			log.Error(err, "Failed to list imports for account during deletion", "name", natsAccount.Name)
-			return ctrl.Result{}, err
-		}
-		if len(imports.Items) > 0 {
-			return r.reporter.error(
-				ctx,
-				natsAccount,
-				fmt.Errorf("cannot delete an account with bound imports, found %d bindings", len(imports.Items)),
-			)
+			if errors.Is(err, domain.ErrUnknownError) {
+				return ctrl.Result{}, err
+			}
+			return r.reporter.error(ctx, natsAccount, err)
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
@@ -529,6 +497,43 @@ func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj 
 	}
 
 	return requests
+}
+
+func (r *AccountReconciler) validateAccountDeletion(ctx context.Context, accountID nauth.AccountID, namespace domain.Namespace) error {
+	log := logf.FromContext(ctx)
+
+	// Check for bound users
+	userList := &v1alpha1.UserList{}
+	err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): string(accountID)}, client.InNamespace(namespace))
+	if err != nil {
+		log.Error(err, "Failed to list users bound to account")
+		return domain.ErrUnknownError.WithCause(err)
+	}
+	if len(userList.Items) > 0 {
+		return fmt.Errorf("cannot delete an account with associated users, found %d users", len(userList.Items))
+	}
+
+	// check for bound exports
+	exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
+	if err != nil {
+		log.Error(err, "Failed to list exports bound to account")
+		return domain.ErrUnknownError.WithCause(err)
+	}
+	if len(exports.Items) > 0 {
+		return fmt.Errorf("found %d export bindings", len(exports.Items))
+	}
+
+	// check for bound imports
+	imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
+	if err != nil {
+		log.Error(err, "Failed to list imports bound to account")
+		return domain.ErrUnknownError.WithCause(err)
+	}
+	if len(imports.Items) > 0 {
+		return fmt.Errorf("found %d import bindings", len(imports.Items))
+	}
+
+	return nil
 }
 
 func accountImportWatchPredicateForAccounts() predicate.Funcs {
