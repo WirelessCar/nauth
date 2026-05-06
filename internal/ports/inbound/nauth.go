@@ -9,8 +9,8 @@ import (
 
 type AccountManager interface {
 	CreateOrUpdate(ctx context.Context, accountResources nauth.AccountResources) (*nauth.AccountResult, error)
-	Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) // TODO: [#11] Migrate from API- to domain model
-	Delete(ctx context.Context, reference nauth.AccountReference) error                         // TODO: [#11] Migrate from API- to domain model
+	Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error)
+	Delete(ctx context.Context, reference nauth.AccountReference) error
 }
 
 type AccountExportManager interface {
