@@ -43,6 +43,7 @@ import (
 )
 
 const importAccountNameIndexKey string = "import.spec.accountName"
+const importExportAccountRefIndexKey string = "import.spec.exportAccountRef"
 
 // AccountImportReconciler reconciles an AccountImport object.
 type AccountImportReconciler struct {
@@ -197,9 +198,18 @@ func (r *AccountImportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		context.Background(),
 		&v1alpha1.AccountImport{},
 		importAccountNameIndexKey,
-		importBySpecAccountNameIndexFunc,
+		byAccountNameIndexFunc,
 	); err != nil {
 		return fmt.Errorf("failed to index AccountImport by account name: %w", err)
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&v1alpha1.AccountImport{},
+		importExportAccountRefIndexKey,
+		byExportAccountRefIndexFunc,
+	); err != nil {
+		return fmt.Errorf("failed to index AccountImport by export account ref: %w", err)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -213,15 +223,53 @@ func (r *AccountImportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapAccountToAccountImports),
 			builder.WithPredicates(accountImportAccountWatchPredicate()),
 		).
+		Watches(
+			&v1alpha1.Account{},
+			handler.EnqueueRequestsFromMapFunc(r.mapExportAccountToAccountImports),
+			builder.WithPredicates(accountImportExportAccountWatchPredicate()),
+		).
 		Complete(r)
 }
 
-func importBySpecAccountNameIndexFunc(rawObj client.Object) []string {
+func byAccountNameIndexFunc(rawObj client.Object) []string {
 	imp := rawObj.(*v1alpha1.AccountImport)
 	if imp.Spec.AccountName == "" {
 		return nil
 	}
 	return []string{imp.Spec.AccountName}
+}
+
+func byExportAccountRefIndexFunc(rawObj client.Object) []string {
+	imp := rawObj.(*v1alpha1.AccountImport)
+	ref := imp.Spec.ExportAccountRef
+	if ref.Name == "" && ref.Namespace == "" {
+		return nil
+	}
+
+	nsn := types.NamespacedName{
+		Namespace: ref.Namespace,
+		Name:      ref.Name,
+	}
+	if ref.Namespace == "" {
+		// default to import namespace if not set
+		nsn.Namespace = imp.Namespace
+	}
+	return []string{nsn.String()}
+}
+
+func accountImportExportAccountWatchPredicate() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool { return true },
+		DeleteFunc: func(event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAccount, oldOK := e.ObjectOld.(*v1alpha1.Account)
+			newAccount, newOK := e.ObjectNew.(*v1alpha1.Account)
+			return oldOK && newOK && accountUpdateAffectsExportAccountImports(oldAccount, newAccount)
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
 }
 
 func (r *AccountImportReconciler) mapAccountToAccountImports(ctx context.Context, obj client.Object) []reconcile.Request {
@@ -240,16 +288,57 @@ func (r *AccountImportReconciler) mapAccountToAccountImports(ctx context.Context
 	}
 
 	requests := make([]reconcile.Request, 0, len(imports.Items))
-	for _, export := range imports.Items {
+	for _, imp := range imports.Items {
 		requests = append(requests, reconcile.Request{
 			NamespacedName: types.NamespacedName{
-				Namespace: export.Namespace,
-				Name:      export.Name,
+				Namespace: imp.Namespace,
+				Name:      imp.Name,
 			},
 		})
 	}
 
 	return requests
+}
+
+func (r *AccountImportReconciler) mapExportAccountToAccountImports(ctx context.Context, obj client.Object) []reconcile.Request {
+	account, ok := obj.(*v1alpha1.Account)
+	if !ok {
+		return nil
+	}
+
+	accountNsn := types.NamespacedName{
+		Namespace: account.Namespace,
+		Name:      account.Name,
+	}
+
+	imports := &v1alpha1.AccountImportList{}
+	if err := r.List(ctx, imports,
+		// search all namespaces
+		client.MatchingFields{importExportAccountRefIndexKey: accountNsn.String()},
+	); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list AccountImports for export Account watch", "account", account.Name, "namespace", account.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(imports.Items))
+	for _, imp := range imports.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: imp.Namespace,
+				Name:      imp.Name,
+			},
+		})
+	}
+
+	return requests
+}
+
+func accountUpdateAffectsExportAccountImports(oldAccount *v1alpha1.Account, newAccount *v1alpha1.Account) bool {
+	if oldAccount == nil || newAccount == nil {
+		return false
+	}
+
+	return oldAccount.GetLabel(v1alpha1.AccountLabelAccountID) != newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
 }
 
 func accountImportAccountWatchPredicate() predicate.Funcs {

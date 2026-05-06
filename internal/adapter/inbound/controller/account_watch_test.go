@@ -113,7 +113,7 @@ func TestAccountReconciler_ShouldReconcileForAccountExportUpdate(t *testing.T) {
 			newExport := oldExport.DeepCopy()
 			tt.mutate(newExport)
 
-			assert.Equal(t, tt.expectRequeue, accountExportUpdateAffectsAccounts(oldExport, newExport))
+			assert.Equal(t, tt.expectRequeue, accountExportUpdateAffectsReferencedResources(oldExport, newExport))
 		})
 	}
 }
