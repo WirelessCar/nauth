@@ -20,6 +20,7 @@ jq = "1.8.1"
 
 [settings]
 experimental = true
+disable_tools = ["controller-gen"]
 
 [tasks.go-test]
 description = "Run go tests"
