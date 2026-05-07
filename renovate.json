@@ -5,6 +5,7 @@
     ":dependencyDashboard",
     ":semanticCommits",
     ":semanticCommitTypeAll(chore)",
+    ":gitSignOff",
     "customManagers:biomeVersions"
   ],
   "timezone": "Europe/Stockholm",
