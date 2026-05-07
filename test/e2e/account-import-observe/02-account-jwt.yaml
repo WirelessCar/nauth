@@ -1,4 +1,5 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - command: ../../script/nats-jwt-upload.sh ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO.jwt
+  - command: 'e2e-ctl account upload-jwt --jwt-file ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO.jwt --nats-cluster local-nats --nats-namespace nats --timeout 20'
+    timeout: 30

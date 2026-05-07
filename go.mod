@@ -10,6 +10,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.14.0 // tests only
 	github.com/nats-io/nats.go v1.51.0
 	github.com/nats-io/nkeys v0.4.15
+	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1 // tests only
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
@@ -69,7 +70,6 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

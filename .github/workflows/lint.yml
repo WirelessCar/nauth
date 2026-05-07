@@ -20,6 +20,7 @@ on:
       - 'api/**'
       - 'cmd/**'
       - 'internal/**'
+      - 'test/e2e-ctl/**'
 
 jobs:
   lint:

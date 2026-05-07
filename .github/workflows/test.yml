@@ -21,6 +21,7 @@ on:
       - 'dir/**'
       - 'cmd/**'
       - 'internal/**'
+      - 'test/e2e-ctl/**'
       - Dockerfile
       - go.*
 

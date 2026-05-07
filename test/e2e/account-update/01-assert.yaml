@@ -26,14 +26,4 @@ resourceRefs:
 assertAll:
   - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
 commands:
-  - script: |
-      bash <<'BASH'
-      source ../../script/e2e-debug.sh
-
-      log "persist account id before update"
-      # Store the original account id on the resource so the next step can assert it was preserved.
-      before_id="$(kubectl get accounts.nauth.io example-account -n "$NAMESPACE" -o jsonpath='{.metadata.labels.account\.nauth\.io/id}')"
-      test -n "$before_id"
-
-      run kubectl annotate accounts.nauth.io example-account -n "$NAMESPACE" --overwrite "test.nauth.io/id-before=$before_id"
-      BASH
+  - command: 'e2e-ctl account annotate-id --account example-account --annotation test.nauth.io/id-before'
