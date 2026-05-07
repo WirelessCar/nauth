@@ -1,7 +1,7 @@
 apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
-  name: import-account
+  name: my-account
 status:
   conditions:
     - type: Ready

@@ -1,0 +1,49 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-account
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  adoptions:
+    exports:
+      - name: my-account-export-a
+        observedGeneration: 1
+        status:
+          status: "True"
+          reason: OK
+          desiredClaimObservedGeneration: 1
+      - name: my-account-export-b
+        observedGeneration: 1
+        status:
+          status: "False"
+          reason: Conflict
+          desiredClaimObservedGeneration: 1
+  claims:
+    exports:
+      - name: conflicting-a
+        subject: conflict.>
+        type: stream
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: my-account
+    ref: my_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-a
+    ref: export_a
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountExport
+    name: my-account-export-b
+    ref: export_b
+assertAll:
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_a.metadata.uid)
+  - celExpr: my_account.status.adoptions.exports.exists(a, a.uid == export_b.metadata.uid)

@@ -13,13 +13,29 @@ resourceRefs:
 assertAll:
   - celExpr: my_account_export.metadata.labels["accountexport.nauth.io/account-id"] == my_account.metadata.labels["account.nauth.io/id"]
   - celExpr: my_account_export.status.accountID == my_account.metadata.labels["account.nauth.io/id"]
-  - celExpr: my_account_export.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "OK")
-  - celExpr: my_account_export.status.conditions.exists(c, c.type == "ValidRules" && c.status == "True" && c.reason == "OK")
-  - celExpr: my_account_export.status.conditions.exists(c, c.type == "BoundToAccount" && c.status == "True" && c.reason == "OK")
-  - celExpr: my_account_export.status.conditions.exists(c, c.type == "AdoptedByAccount" && c.status == "True" && c.reason == "OK")
-  - celExpr: my_account_export.status.desiredClaim.observedGeneration == my_account_export.metadata.generation
-  - celExpr: my_account_export.status.desiredClaim.rules.size() == 1
-  - celExpr: my_account_export.status.desiredClaim.rules[0].name == "initial-rule"
-  - celExpr: my_account_export.status.desiredClaim.rules[0].subject == "export-invalid-update.>"
-  - celExpr: my_account_export.status.desiredClaim.rules[0].type == "stream"
 
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountExport
+metadata:
+  name: my-account-export
+status:
+  conditions:
+    - type: AdoptedByAccount
+      status: "True"
+      reason: OK
+    - type: BoundToAccount
+      status: "True"
+      reason: OK
+    - type: Ready
+      status: "True"
+      reason: OK
+    - type: ValidRules
+      status: "True"
+      reason: OK
+  desiredClaim:
+    observedGeneration: 1
+    rules:
+      - name: initial-rule
+        subject: export-invalid-update.>
+        type: stream

@@ -1,0 +1,13 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import-a
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}
+  rules:
+    - name: conflicting-a
+      subject: svc.request
+      type: service

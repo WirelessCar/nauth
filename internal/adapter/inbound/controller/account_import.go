@@ -159,7 +159,7 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	r.setConditions(state, importAccountCondition, exportAccountCondition, validRulesCondition, adoptedByAccountCondition)
 
-	// sort conditions before save (helps keep kuttl tests robust)
+	// sort conditions before save (to keep consistent order)
 	sortConditions(state.Status.Conditions)
 
 	if err := r.Status().Update(ctx, state); err != nil {

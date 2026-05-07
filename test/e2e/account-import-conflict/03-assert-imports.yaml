@@ -1,0 +1,85 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: import-account
+    ref: import_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: export-account
+    ref: export_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountImport
+    name: my-account-import-a
+    ref: import_a
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountImport
+    name: my-account-import-b
+    ref: import_b
+assertAll:
+  - celExpr: import_a.metadata.labels["accountimport.nauth.io/account-id"] == import_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: import_b.metadata.labels["accountimport.nauth.io/account-id"] == import_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: import_a.metadata.labels["accountimport.nauth.io/export-account-id"] == export_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: import_b.metadata.labels["accountimport.nauth.io/export-account-id"] == export_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: import_a.status.desiredClaim.rules[0].account == export_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: import_b.status.desiredClaim.rules[0].account == export_account.metadata.labels["account.nauth.io/id"]
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import-a
+status:
+  conditions:
+    - type: AdoptedByAccount
+      status: "True"
+      reason: OK
+    - type: BoundToAccount
+      status: "True"
+      reason: OK
+    - type: BoundToExportAccount
+      status: "True"
+      reason: OK
+    - type: Ready
+      status: "True"
+      reason: Ready
+    - type: ValidRules
+      status: "True"
+      reason: OK
+  desiredClaim:
+    observedGeneration: 1
+    rules:
+      - name: conflicting-a
+        subject: svc.request
+        type: service
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: my-account-import-b
+status:
+  conditions:
+    - type: AdoptedByAccount
+      status: "False"
+      reason: Failed
+    - type: BoundToAccount
+      status: "True"
+      reason: OK
+    - type: BoundToExportAccount
+      status: "True"
+      reason: OK
+    - type: Ready
+      status: "False"
+      reason: NotReady
+    - type: ValidRules
+      status: "True"
+      reason: OK
+  desiredClaim:
+    observedGeneration: 1
+    rules:
+      - name: conflicting-b
+        subject: svc.request
+        type: service

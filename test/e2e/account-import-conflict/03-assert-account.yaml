@@ -9,22 +9,28 @@ status:
       reason: Reconciled
   adoptions:
     imports:
-      - name: my-account-import
+      - name: my-account-import-a
         observedGeneration: 1
         status:
           status: "True"
           reason: OK
           desiredClaimObservedGeneration: 1
+      - name: my-account-import-b
+        observedGeneration: 1
+        status:
+          status: "False"
+          reason: Conflict
+          desiredClaimObservedGeneration: 1
   claims:
     imports:
-      - name: cross-namespace-rule
-        subject: shared.cross.>
-        type: stream
+      - name: conflicting-a
+        subject: svc.request
+        type: service
 
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 20
+timeout: 30
 resourceRefs:
   - apiVersion: nauth.io/v1alpha1
     kind: Account
@@ -32,15 +38,17 @@ resourceRefs:
     ref: import_account
   - apiVersion: nauth.io/v1alpha1
     kind: Account
-    namespace: {{ .Namespace }}-export
     name: export-account
     ref: export_account
   - apiVersion: nauth.io/v1alpha1
     kind: AccountImport
-    name: my-account-import
-    ref: my_account_import
+    name: my-account-import-a
+    ref: import_a
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountImport
+    name: my-account-import-b
+    ref: import_b
 assertAll:
-  - celExpr: has(import_account.status.adoptions) && has(import_account.status.adoptions.imports) && import_account.status.adoptions.imports.size() == 1
-  - celExpr: import_account.status.adoptions.imports[0].uid == my_account_import.metadata.uid
-  - celExpr: has(import_account.status.claims) && has(import_account.status.claims.imports) && import_account.status.claims.imports.size() == 1
+  - celExpr: import_account.status.adoptions.imports.exists(a, a.uid == import_a.metadata.uid)
+  - celExpr: import_account.status.adoptions.imports.exists(a, a.uid == import_b.metadata.uid)
   - celExpr: import_account.status.claims.imports[0].account == export_account.metadata.labels["account.nauth.io/id"]
