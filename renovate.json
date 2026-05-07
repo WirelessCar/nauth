@@ -26,12 +26,18 @@
       "addLabels": ["major"]
     },
     {
+      "description": "Group remaining non-major dependency updates",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["*"],
+      "groupName": "misc dependency updates",
+      "groupSlug": "misc-dependencies"
+    },
+    {
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "Go dependencies"
     },
     {
-      "matchManagers": ["bun"],
       "matchFileNames": ["www/**"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "www dependencies"
@@ -42,6 +48,13 @@
       "groupName": "GitHub Actions"
     },
     {
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["/^actions\\//"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "GitHub Actions major updates",
+      "groupSlug": "github-actions-major"
+    },
+    {
       "matchManagers": ["helmv3"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "Helm chart dependencies"
@@ -49,12 +62,14 @@
     {
       "matchManagers": ["mise"],
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "mise tools"
+      "groupName": "local development tools",
+      "groupSlug": "local-development-tools"
     },
     {
       "matchFileNames": [".tool-versions"],
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "local tool versions"
+      "groupName": "local development tools",
+      "groupSlug": "local-development-tools"
     },
     {
       "matchFileNames": ["mise.toml"],
