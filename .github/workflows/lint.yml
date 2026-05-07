@@ -17,8 +17,14 @@ name: Lint
 on:
   pull_request:
     paths:
+      - '.github/workflows/lint.yml'
+      - '.golangci.yml'
+      - '.tool-versions'
+      - 'Makefile'
       - 'api/**'
       - 'cmd/**'
+      - 'go.mod'
+      - 'go.sum'
       - 'internal/**'
       - 'test/e2e-ctl/**'
 
@@ -39,3 +45,6 @@ jobs:
 
       - name: Lint
         uses: golangci/golangci-lint-action@v9.1.0
+        with:
+          version-file: .tool-versions
+          args: ./...
