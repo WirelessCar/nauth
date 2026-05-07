@@ -34,7 +34,7 @@ jobs:
         run: |
           docker build -t ghcr.io/wirelesscar/nauth-operator:${{ github.sha }} .
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'ghcr.io/wirelesscar/nauth-operator:${{ github.sha }}'
           format: 'template'
@@ -42,7 +42,6 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM'
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
-
