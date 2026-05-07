@@ -36,6 +36,9 @@ linters:
           - lll
         path: internal/*
       - linters:
+          - lll
+        path: test/e2e-ctl/.*\.go
+      - linters:
           - unparam
           - goconst
         path: .*_test\.go

@@ -64,10 +64,14 @@ verify-go-version-sync: ## Verify that Go versions are aligned across go.mod, mi
 
 .PHONY: test
 test: verify-go-version-sync manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+
+.PHONY: build-e2e-ctl
+build-e2e-ctl: $(LOCALBIN) ## Build the e2e-ctl binary used by KUTTL e2e tests.
+	go build -o $(LOCALBIN)/e2e-ctl ./test/e2e-ctl
 
 .PHONY: test-e2e
-test-e2e: verify-go-version-sync manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
+test-e2e: verify-go-version-sync manifests generate fmt vet build-e2e-ctl ## Run the e2e tests. Expected an isolated environment using Kind.
 	@command -v $(KIND) >/dev/null 2>&1 || { \
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
@@ -80,7 +84,7 @@ test-e2e: verify-go-version-sync manifests generate fmt vet ## Run the e2e tests
 		echo "kubectl-kuttl is not installed. Please install the KUTTL plugin manually."; \
 		exit 1; \
 	}
-	kubectl kuttl test
+	PATH="$(LOCALBIN):$$PATH" kubectl kuttl test
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

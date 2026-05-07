@@ -1,9 +1,4 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - script: |
-      bash <<'BASH'
-      source ../../script/e2e-debug.sh
-
-      run kubectl delete accounts.nauth.io example-account -n "$NAMESPACE" --wait=false
-      BASH
+  - command: 'e2e-ctl account delete --account example-account --wait=false'

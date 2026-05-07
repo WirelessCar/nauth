@@ -40,33 +40,4 @@ assertAll:
   # Verify account ID label is set (starts with A)
   - celExpr: matches(account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
 commands:
-  - script: |
-      bash <<'BASH'
-      source ../../script/e2e-debug.sh
-
-      log "validate cluster-ref account uses NatsCluster secrets"
-      # The cluster-ref path must not create legacy operator secret copies in the account namespace.
-      legacy_count=$(kubectl get secret -n cluster-ref-test -l nauth.io/secret-type=operator-sign -o json | jq '.items | length')
-      if [ "$legacy_count" != "0" ]; then
-        echo "ERROR: Found secrets with legacy operator-sign label in cluster-ref-test namespace"
-        exit 1
-      fi
-
-      # The system account creds should also be referenced through NatsCluster, not copied.
-      legacy_count=$(kubectl get secret -n cluster-ref-test -l nauth.io/secret-type=system-account-user-creds -o json | jq '.items | length')
-      if [ "$legacy_count" != "0" ]; then
-        echo "ERROR: Found secrets with legacy system-account-user-creds label in cluster-ref-test namespace"
-        exit 1
-      fi
-
-      # Read account id from account metadata; generated secrets are labelled with this id.
-      aid="$(kubectl get accounts.nauth.io cluster-ref-account -n cluster-ref-test -o jsonpath='{.metadata.labels.account\.nauth\.io/id}')"
-      test -n "$aid"
-
-      # Verify the controller generated account root and signing secrets for the account.
-      sec="$(kubectl get secret -n cluster-ref-test -l account.nauth.io/id="$aid",nauth.io/secret-type=account-root -o jsonpath='{.items[0].data.default}')"
-      test -n "$sec"
-
-      sec="$(kubectl get secret -n cluster-ref-test -l account.nauth.io/id="$aid",nauth.io/secret-type=account-sign -o jsonpath='{.items[0].data.default}')"
-      test -n "$sec"
-      BASH
+  - command: 'e2e-ctl assert account-secrets --namespace cluster-ref-test --account cluster-ref-account --forbid-legacy-cluster-secrets'
