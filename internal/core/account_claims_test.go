@@ -381,6 +381,48 @@ func Test_addImportGroup_ShouldSucceed_WhenDuplicatedServiceProvided(t *testing.
 	require.Equal(t, expected, builder.claim.Imports)
 }
 
+func Test_AccountClaims_addImportGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
+	// Given
+	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
+	importAccountID := nauth.AccountID("ACCE")
+	require.NoError(t, builder.addImportGroup(nauth.ImportGroup{
+		Name: "initial",
+		Imports: nauth.Imports{
+			{
+				AccountID: importAccountID,
+				Name:      "conflicting-a",
+				Subject:   "svc.request",
+				Type:      nauth.ExportTypeService,
+			},
+		},
+	}))
+
+	// When
+	err := builder.addImportGroup(nauth.ImportGroup{
+		Name: "conflicting",
+		Imports: nauth.Imports{
+			{
+				AccountID: importAccountID,
+				Name:      "conflicting-b",
+				Subject:   "svc.request",
+				Type:      nauth.ExportTypeService,
+			},
+		},
+	})
+
+	// Then
+	require.ErrorContains(t, err, "overlapping subject namespace for \"svc.request\" and \"svc.request\"")
+	expected := jwt.Imports{
+		{
+			Account: string(importAccountID),
+			Name:    "conflicting-a",
+			Subject: "svc.request",
+			Type:    jwt.Service,
+		},
+	}
+	require.Equal(t, expected, builder.claim.Imports)
+}
+
 func Test_validateJetStreamLimits(t *testing.T) {
 	operatorLimitsDefault := jwt.NewAccountClaims("test").Limits
 	boolTrue := true

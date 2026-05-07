@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -107,6 +110,10 @@ func toNAuthExportGroup(groupRef nauth.Ref, required bool, sources v1alpha1.Expo
 }
 
 func toNAuthExportGroups(exports *v1alpha1.AccountExportList) (nauth.ExportGroups, []*adoptionRef, error) {
+	slices.SortFunc(exports.Items, func(a, b v1alpha1.AccountExport) int {
+		return compareObjectOrder(a.ObjectMeta, b.ObjectMeta)
+	})
+
 	itemCount := len(exports.Items)
 	groups := make(nauth.ExportGroups, 0, itemCount)
 	refs := make([]*adoptionRef, 0, itemCount)
@@ -173,6 +180,10 @@ func toNAuthImportGroup(groupRef nauth.Ref, required bool, sources v1alpha1.Impo
 }
 
 func toNAuthImportGroups(imports *v1alpha1.AccountImportList) (nauth.ImportGroups, []*adoptionRef, error) {
+	slices.SortFunc(imports.Items, func(a, b v1alpha1.AccountImport) int {
+		return compareObjectOrder(a.ObjectMeta, b.ObjectMeta)
+	})
+
 	itemCount := len(imports.Items)
 	groups := make(nauth.ImportGroups, 0, itemCount)
 	refs := make([]*adoptionRef, 0, itemCount)
@@ -229,6 +240,22 @@ func toNAuthResponseType(source v1alpha1.ResponseType) (nauth.ResponseType, erro
 		return "", fmt.Errorf("unknown v1alpha1.ResponseType: %s", source)
 	}
 	return result, nil
+}
+
+func compareObjectOrder(a, b metav1.ObjectMeta) int {
+	aTime := objectCreationTime(a)
+	bTime := objectCreationTime(b)
+	if timeCmp := aTime.Compare(bTime); timeCmp != 0 {
+		return timeCmp
+	}
+	return cmp.Compare(a.Name, b.Name)
+}
+
+func objectCreationTime(meta metav1.ObjectMeta) time.Time {
+	if meta.CreationTimestamp.IsZero() {
+		return time.Time{}
+	}
+	return meta.CreationTimestamp.Time
 }
 
 func toNAuthExportType(source v1alpha1.ExportType) (nauth.ExportType, error) {
