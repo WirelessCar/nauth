@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"cmp"
+	"slices"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -24,4 +27,10 @@ func conditionsReady(conditions []metav1.Condition, conditionType []string) bool
 	}
 
 	return true
+}
+
+func sortConditions(conditions []metav1.Condition) {
+	slices.SortFunc(conditions, func(a, b metav1.Condition) int {
+		return cmp.Compare(a.Type, b.Type)
+	})
 }

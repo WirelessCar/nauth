@@ -173,6 +173,9 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
+	// sort conditions before save (helps keep kuttl tests robust)
+	sortConditions(state.Status.Conditions)
+
 	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
 		log.Error(updateErr, "Failed to update status: %w", updateErr)
 		return ctrl.Result{}, updateErr

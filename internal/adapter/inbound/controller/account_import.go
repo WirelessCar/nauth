@@ -159,6 +159,9 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	r.setConditions(state, importAccountCondition, exportAccountCondition, validRulesCondition, adoptedByAccountCondition)
 
+	// sort conditions before save (helps keep kuttl tests robust)
+	sortConditions(state.Status.Conditions)
+
 	if err := r.Status().Update(ctx, state); err != nil {
 		log.Error(err, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
 		return ctrl.Result{}, err
