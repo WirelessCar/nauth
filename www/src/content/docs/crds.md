@@ -16,7 +16,7 @@ All NAuth CRDs are standard Kubernetes resources and include:
 
 - `apiVersion`: API group/version, for example `nauth.io/v1alpha1`
 - `kind`: resource type, for example `Account`, `User`, or `NatsCluster`
-- `metadata`: Kubernetes object metadata (`name`, `namespace`, labels, annotations, etc.). See [Kubernetes `ObjectMeta`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#objectmeta-v1-meta)
+- `metadata`: Kubernetes object metadata (`name`, `namespace`, labels, annotations, etc.). See [Kubernetes `ObjectMeta`](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)
 
 ### Resource Types
 - [Account](#account)
