@@ -5,9 +5,6 @@ PROJECT_NAME = "{{ config_root | basename }}"
 
 NODE_ENV = "development"
 
-[tools]
-bun = "latest"
-
 [tasks."nauth:web:install"]
 description = "Install dependencies"
 alias = "nwi"

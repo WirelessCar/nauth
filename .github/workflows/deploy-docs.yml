@@ -10,6 +10,8 @@ on:
     paths: 
       - 'www/**'     # Starlight site changes
       - 'docs/**'    # Source documentation changes
+      - '.tool-versions'
+      - '.github/workflows/deploy-docs.yml'
   workflow_dispatch:
 
 permissions:
@@ -36,7 +38,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: .tool-versions
       
       - name: Setup Pages
         uses: actions/configure-pages@v6
