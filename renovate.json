@@ -38,6 +38,13 @@
       "groupName": "Go dependencies"
     },
     {
+      "description": "Keep go.mod's Go directive as the minimum compatibility version",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang"],
+      "rangeStrategy": "replace"
+    },
+    {
       "matchFileNames": ["www/**"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "www dependencies"
@@ -70,6 +77,14 @@
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "local development tools",
       "groupSlug": "local-development-tools"
+    },
+    {
+      "description": "Group preferred Go toolchain updates across local and container builds",
+      "matchManagers": ["dockerfile", "mise"],
+      "matchDepNames": ["go", "golang"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Go toolchain",
+      "groupSlug": "go-toolchain"
     },
     {
       "matchFileNames": ["mise.toml"],
