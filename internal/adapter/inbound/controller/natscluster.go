@@ -85,6 +85,30 @@ func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
+	if !natsCluster.DeletionTimestamp.IsZero() {
+		// check for bound accounts in all namespaces
+		accounts := &v1alpha1.AccountList{}
+		err := r.List(ctx, accounts, client.MatchingLabels{string(v1alpha1.AccountLabelNatsClusterID): string(natsCluster.UID)})
+		if err != nil {
+			log.Error(err, "Failed to list accounts bound to nats cluster")
+			return ctrl.Result{}, err
+		}
+		if len(accounts.Items) > 0 {
+			err = fmt.Errorf("delete blocked, found %d account bindings", len(accounts.Items))
+			return r.reporter.error(ctx, natsCluster, err)
+		}
+
+		// remove our finalizer from the list and update it.
+		controllerutil.RemoveFinalizer(natsCluster, finalizerNatsCluster)
+		if err = r.Update(ctx, natsCluster); err != nil {
+			log.Error(err, "failed to remove finalizer")
+			return ctrl.Result{}, err
+		}
+
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
+	}
+
 	// Add finalizer if not present
 	if added := controllerutil.AddFinalizer(natsCluster, finalizerNatsCluster); added {
 		if err := r.Update(ctx, natsCluster); err != nil {
