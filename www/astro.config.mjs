@@ -41,7 +41,10 @@ export default defineConfig({
 			sidebar: [
 				{
 					label: "Guides",
-					items: [{ label: "Getting Started", slug: "guides/getting-started" }],
+					items: [
+						{ label: "Getting Started", slug: "guides/getting-started" },
+						{ label: "Observability", slug: "guides/observability" },
+					],
 				},
 				{
 					label: "Reference",

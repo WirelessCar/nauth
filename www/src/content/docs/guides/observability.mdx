@@ -1,0 +1,71 @@
+---
+title: Observability
+description: Observe NAuth reconciliation metrics
+---
+
+NAuth exposes controller-runtime metrics on `/metrics` when chart monitoring is enabled. These are Prometheus metrics and can be scraped by Prometheus directly or by the OpenTelemetry Collector Prometheus receiver.
+
+Enable the metrics endpoint:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --set monitoring.enabled=true
+```
+
+The reconciliation count metric is:
+
+```text
+controller_runtime_reconcile_total{controller="<controller>",result="<result>"}
+```
+
+Current controller labels:
+
+| Resource | Controller label |
+| --- | --- |
+| `Account` | `account` |
+| `AccountExport` | `accountexport` |
+| `AccountImport` | `accountimport` |
+| `User` | `user` |
+| `NatsCluster` | `natscluster` |
+
+Useful Grafana queries:
+
+```text
+sum by (controller, result) (rate(controller_runtime_reconcile_total{service="nauth-metrics-service"}[5m]))
+```
+
+```text
+increase(controller_runtime_reconcile_total{service="nauth-metrics-service"}[15m])
+```
+
+```text
+rate(controller_runtime_reconcile_errors_total{service="nauth-metrics-service"}[5m])
+```
+
+OpenTelemetry Collector scrape example:
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: nauth
+          metrics_path: /metrics
+          static_configs:
+            - targets:
+                - nauth-metrics-service.nauth.svc:8080
+
+exporters:
+  otlp:
+    endpoint: grafana-agent.grafana.svc:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      exporters: [otlp]
+```

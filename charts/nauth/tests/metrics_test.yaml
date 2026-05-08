@@ -1,0 +1,41 @@
+suite: controller-runtime metrics
+templates:
+  - deployment.yaml
+  - metrics_service.yaml
+tests:
+  - it: does not expose metrics service by default
+    template: metrics_service.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: exposes metrics endpoint when monitoring is enabled
+    template: deployment.yaml
+    set:
+      monitoring:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: http-metrics
+            containerPort: 8080
+            protocol: TCP
+
+  - it: renders service for Prometheus or OpenTelemetry Collector scraping when monitoring is enabled
+    template: metrics_service.yaml
+    set:
+      monitoring:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: Service
+      - equal:
+          path: spec.ports[0].name
+          value: http-metrics
+      - equal:
+          path: spec.ports[0].port
+          value: 8080

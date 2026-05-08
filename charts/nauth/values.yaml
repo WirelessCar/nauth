@@ -99,7 +99,7 @@ securityContext:
     type: RuntimeDefault
 
 monitoring:
-  # -- Enables nauth to use monitoring capabilities. Requires CRD:s to be installed.
+  # -- Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver.
   enabled: false
   # -- Enables serviceMonitor feature. Requies CRD to be installed beforehand.
   serviceMonitor:
