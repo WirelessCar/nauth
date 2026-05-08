@@ -1,0 +1,12 @@
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: deletion-test-cluster
+  namespace: natscluster-deletion-bound-account
+  finalizers:
+    - natscluster.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled

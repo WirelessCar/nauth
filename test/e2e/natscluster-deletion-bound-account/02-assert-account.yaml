@@ -1,0 +1,29 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: bound-account
+  namespace: natscluster-deletion-bound-account
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: bound-account
+    namespace: natscluster-deletion-bound-account
+    ref: account
+  - apiVersion: nauth.io/v1alpha1
+    kind: NatsCluster
+    name: deletion-test-cluster
+    namespace: natscluster-deletion-bound-account
+    ref: cluster
+assertAll:
+  - celExpr: account.metadata.labels["account.nauth.io/nats-cluster-id"] == cluster.metadata.uid

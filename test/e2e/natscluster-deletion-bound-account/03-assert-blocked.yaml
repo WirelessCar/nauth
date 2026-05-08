@@ -1,0 +1,25 @@
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: deletion-test-cluster
+  namespace: natscluster-deletion-bound-account
+  finalizers:
+    - natscluster.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "False"
+      reason: Errored
+      message: "delete blocked, found 1 account bindings"
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 60
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: NatsCluster
+    name: deletion-test-cluster
+    namespace: natscluster-deletion-bound-account
+    ref: cluster
+assertAll:
+  - celExpr: has(cluster.metadata.deletionTimestamp)

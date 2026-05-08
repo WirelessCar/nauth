@@ -1,0 +1,13 @@
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: deletion-test-cluster
+  namespace: natscluster-deletion-bound-account
+spec:
+  url: nats://nats.nats.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: system-account-creds
+    key: user.creds

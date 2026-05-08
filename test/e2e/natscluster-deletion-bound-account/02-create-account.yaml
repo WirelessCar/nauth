@@ -1,0 +1,12 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: bound-account
+  namespace: natscluster-deletion-bound-account
+spec:
+  natsClusterRef:
+    name: deletion-test-cluster
+    namespace: natscluster-deletion-bound-account
+  displayName: Bound Account
+  accountLimits:
+    conn: 10

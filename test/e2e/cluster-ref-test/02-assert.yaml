@@ -36,8 +36,15 @@ resourceRefs:
     name: cluster-ref-account
     namespace: cluster-ref-test
     ref: account
+  - apiVersion: nauth.io/v1alpha1
+    kind: NatsCluster
+    name: test-cluster
+    namespace: cluster-ref-test
+    ref: cluster
 assertAll:
   # Verify account ID label is set (starts with A)
   - celExpr: matches(account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
+  ## Verify account is bound to nats cluster
+  - celExpr: matches(account.metadata.labels["account.nauth.io/nats-cluster-id"], cluster.metadata.uid)
 commands:
   - command: 'e2e-ctl assert account-secrets --namespace cluster-ref-test --account cluster-ref-account --forbid-legacy-cluster-secrets'

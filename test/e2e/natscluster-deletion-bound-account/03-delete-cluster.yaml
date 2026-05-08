@@ -1,0 +1,4 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - command: kubectl delete natscluster deletion-test-cluster -n natscluster-deletion-bound-account --wait=false
