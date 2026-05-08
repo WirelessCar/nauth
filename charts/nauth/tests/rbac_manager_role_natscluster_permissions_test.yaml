@@ -1,0 +1,33 @@
+suite: manager role NatsCluster permissions
+templates:
+  - templates/rbac_manager_role.yaml
+tests:
+  - it: grants update on natsclusters for finalizer management
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - nauth.io
+            resources:
+              - natsclusters
+            verbs:
+              - get
+              - list
+              - update
+              - watch
+
+  - it: grants update on natsclusters finalizers
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - nauth.io
+            resources:
+              - accounts/finalizers
+              - natsclusters/finalizers
+              - users/finalizers
+            verbs:
+              - update
+

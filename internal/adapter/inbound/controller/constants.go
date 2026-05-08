@@ -35,8 +35,9 @@ const ( // Events
 )
 
 const ( // Finalizers
-	finalizerAccount = "account.nauth.io/finalizer"
-	finalizerUser    = "user.nauth.io/finalizer"
+	finalizerNatsCluster = "natscluster.nauth.io/finalizer"
+	finalizerAccount     = "account.nauth.io/finalizer"
+	finalizerUser        = "user.nauth.io/finalizer"
 )
 
 const ( // Environment Variables

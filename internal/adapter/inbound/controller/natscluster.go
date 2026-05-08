@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -65,8 +66,9 @@ func NewNatsClusterReconciler(
 	}
 }
 
-// +kubebuilder:rbac:groups=nauth.io,resources=natsclusters,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nauth.io,resources=natsclusters,verbs=get;list;watch;update
 // +kubebuilder:rbac:groups=nauth.io,resources=natsclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=nauth.io,resources=natsclusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
 func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -81,6 +83,15 @@ func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 		log.Error(err, "Failed to get resource")
 		return ctrl.Result{}, err
+	}
+
+	// Add finalizer if not present
+	if added := controllerutil.AddFinalizer(natsCluster, finalizerNatsCluster); added {
+		if err := r.Update(ctx, natsCluster); err != nil {
+			log.Info("Failed to add finalizer", "name", natsCluster.Name, "error", err)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
 	operatorVersion := os.Getenv(envOperatorVersion)
