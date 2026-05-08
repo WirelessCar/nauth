@@ -154,17 +154,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
 
-	meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-		Type:    conditionTypeReady,
-		Status:  metav1.ConditionFalse,
-		Reason:  conditionReasonReconciling,
-		Message: "Reconciling account",
-	})
-	if err := r.Status().Update(ctx, natsAccount); err != nil {
-		log.Info("Failed to create the account status", "name", natsAccount.Name, "error", err)
-		return ctrl.Result{}, err
-	}
-
 	// RECONCILE ACCOUNT
 	var result *nauth.AccountResult
 	var adoptions *v1alpha1.AccountAdoptions
