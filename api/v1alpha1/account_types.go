@@ -28,6 +28,7 @@ type AccountLabel string
 const (
 	AccountLabelAccountID        AccountLabel = "account.nauth.io/id"
 	AccountLabelSignedBy         AccountLabel = "account.nauth.io/signed-by"
+	AccountLabelNatsClusterID    AccountLabel = "account.nauth.io/nats-cluster-id"
 	AccountLabelManagementPolicy AccountLabel = "nauth.io/management-policy"
 
 	AccountManagementPolicyObserve = "observe"

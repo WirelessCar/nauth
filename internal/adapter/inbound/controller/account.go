@@ -88,7 +88,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log := logf.FromContext(ctx)
 
 	natsAccount := &v1alpha1.Account{}
-
 	if err := r.Get(ctx, req.NamespacedName, natsAccount); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
@@ -155,6 +154,36 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// RECONCILE ACCOUNT
+
+	// Bind to NatsCluster
+
+	natsClusterRef := natsAccount.Spec.NatsClusterRef
+	// TODO: [#11] what if not set?
+	// TODO: [#11] what if set and then removed?
+	if natsClusterRef != nil {
+		natsCluster := v1alpha1.NatsCluster{}
+		err := r.Get(ctx, types.NamespacedName{Name: natsClusterRef.Name, Namespace: natsClusterRef.Namespace}, &natsCluster)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				err = fmt.Errorf("nats cluster %s/%s not found: %w", natsClusterRef.Namespace, natsClusterRef.Name, err)
+				return r.reporter.error(ctx, natsAccount, err)
+			}
+			// Error reading the object - requeue the request.
+			log.Error(err, "Failed to get resource")
+			return ctrl.Result{}, err
+		}
+
+		boundToClusterID := natsAccount.GetLabel(v1alpha1.AccountLabelNatsClusterID)
+		clusterID := natsCluster.GetUID()
+		if boundToClusterID == "" {
+			natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, string(clusterID))
+		} else if boundToClusterID != string(clusterID) {
+			err = fmt.Errorf("account already bound to cluster with id: %s", boundToClusterID)
+			return r.reporter.error(ctx, natsAccount, err)
+		}
+	}
+
+	// Manage NATS resources
 	var result *nauth.AccountResult
 	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
