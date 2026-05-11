@@ -42,8 +42,7 @@ NAuth resolves these credentials through a `NatsCluster`. Choose one of these re
 
 **B.** Define an explicit `spec.natsClusterRef` reference in each `Account` CR to a specific `NatsCluster`.
 
-You can see a full [operator example setup here](./examples/nauth/manifests/operator.yaml.md). 
-For a more secrets related example on how to set up NAuth using explicit secrets lookup based on `NatsClusterRef` and `NatsCluster` resources, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).
+For an example that defines a `NatsCluster`, explicit `spec.natsClusterRef`, and the required credential Secret references, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).
 
 ## Getting Started
 Running a large NATS cluster requires that the operator is secured properly. If you do not already have an operator, try
