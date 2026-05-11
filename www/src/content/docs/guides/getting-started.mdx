@@ -50,6 +50,50 @@ out:
 
 You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator & system account.
 
+## Manage Accounts and Users
+NAuth's main workflow is to declare NATS accounts and users as Kubernetes resources. The controller creates the NATS account JWT, keeps it updated from `Account.spec`, and creates user credentials for each `User`.
+
+Create an account:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: example-account
+  namespace: my-team
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: my-nats-cluster
+  accountLimits:
+    conn: 100
+    imports: 10
+    exports: 10
+  natsLimits:
+    subs: 100
+```
+
+Create a user for that account:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: example-user
+  namespace: my-team
+spec:
+  accountName: example-account
+  permissions:
+    pub:
+      allow:
+        - foo.>
+    sub:
+      allow:
+        - foo.>
+```
+
+NAuth writes the resulting user credentials to a Kubernetes Secret named `<user>-nats-user-creds` in the same namespace. For the full API surface, see the [API reference](/crds/).
+
 Already have NATS accounts you do not want NAuth to manage yet? Use [observe mode](/guides/observe-existing-accounts/) to read existing account claims into status before migrating them into `spec`.
 
 ## More on decentralized JWT Auth
