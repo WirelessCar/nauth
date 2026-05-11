@@ -32,7 +32,7 @@ without too much consequence.
 Break out the Operator management to a separate manual process.
 
 ## Consequences
-- The NATS cluster will be much more secure, especially in a bigger cluster.
-- It will become more intuitive how to work with the Operator
+- The NATS cluster is much more secure, especially in a bigger cluster.
+- It becomes more intuitive how to work with the Operator
 - A separate process needs to be done, involving other tools such as `nsc` or custom built
 - There is no automatic creation of an Operator in NAuth

@@ -207,7 +207,7 @@ This includes:
 * conflict detection when subjects overlap
 * clear reporting when two resources cannot be merged safely
 
-To identify conflicts, we will use the NATS JWT imports validation function.
+To identify conflicts, use the NATS JWT imports validation function.
 
 ### Benefits:
 

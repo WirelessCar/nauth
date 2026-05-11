@@ -28,7 +28,7 @@ Account seed keys are the identities of accounts and these should be secured to 
 Used when minting new users. Can also be rotated more frequently to keep the validity of user credentials to an acceptable duration.
 
 ### User credentials
-User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it will be valid according to the user JWT.
+User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it remains valid according to the user JWT.
 
 New user credentials can be minted easily and there is no consequence from the credentials being deleted other than the need of getting new ones.
 
@@ -71,7 +71,7 @@ If a signing key is lost, a new key is minted and added to the trusted JWT by th
 **All keys are stored in Kubernetes secrets**
 
 ## Consequences
-The NAuth implementation will not have any external dependencies in the form of services for secrets more than Kubernetes native secrets.
+The NAuth implementation has no external dependencies in the form of services for secrets more than Kubernetes native secrets.
 
 ### Advantages
 - Developer experience is improved as development & testing is easy to do in a local environment without dependencies

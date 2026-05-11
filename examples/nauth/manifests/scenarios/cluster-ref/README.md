@@ -28,4 +28,4 @@ Create these secrets in the `cluster-ref-example` namespace before applying the 
 kubectl apply -f cluster-ref.yaml
 ```
 
-Ensure the operator signing key and system account credentials secrets exist beforehand, or the NatsCluster will not be usable.
+Ensure the operator signing key and system account credentials secrets exist beforehand, or the NatsCluster is not usable.

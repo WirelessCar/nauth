@@ -6,7 +6,7 @@
 We're glad you would like to take part of contributing to NAuth!
 
 > [!NOTE]
-> The project is in an early phase. Contributing will be streamlined further down the road.
+> The project is in an early phase. Contributing is still being streamlined.
 
 Please note that this project is released with a [Contributor Code of Conduct][code-of-conduct]. By participating in this project you agree to abide by its terms.
 
@@ -35,7 +35,7 @@ If you need to add your sign off to a commit you have already made, please see t
 1. Push to your fork and [submit a pull request][pr].
 1. Pat your self on the back and wait for your pull request to be reviewed and merged.
 
-Here are a few things you can do that will increase the likelihood of your pull request being accepted:
+Here are a few things you can do that increase the likelihood of your pull request being accepted:
 
 - Write and update tests.
 - Keep your changes as focused as possible. If there are multiple changes you would like to make that are not dependent upon each other, consider submitting them as separate pull requests.
@@ -68,7 +68,7 @@ These scripts are provided as `mise` tasks, but are also possible to run standal
 mise nauth:install
 ```
 
-This will install both dependent resources such as `nats` but also adds a static provided `operator` which can be used
+This installs both dependent resources such as `nats` but also adds a static provided `operator` which can be used
 for testing.
 
 ### Trying out some examples

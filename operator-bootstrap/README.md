@@ -23,7 +23,7 @@ rotation operations.
 The **root store** is the only import required, which is an `7z` archive containing a `nsc` store.
 
 ## Output
-When the required rotation actions have been completed, the utility will output two artifacts:
+When the required rotation actions have been completed, the utility outputs two artifacts:
 - **Workload secrets** - New system Account user creds & operator signing key - to be used by NAuth
 - **Root store** - The updated root information to be stored securely
 

@@ -42,7 +42,7 @@ Account seed keys are the identities of accounts and these should be secured to 
 Used when minting new users. Can also be rotated more frequently to keep the validity of user credentials to an acceptable duration.
 
 #### User credentials
-User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it will be valid according to the user JWT.
+User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it remains valid according to the user JWT.
 
 New user credentials can be minted easily and there is no consequence from the user credentials being deleted other than the need of getting new ones.
 

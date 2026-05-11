@@ -41,7 +41,7 @@ they are important to keep in mind when evaluating the options.
 - How to present reconciliation state in a good way in tools such as `kubectl`, `k9s` and `argoCD`?
 - How to handle overlapping subjects for same target account, from one or more CRs?
 - Can an account in one namespace reference exports/imports in another namespace?
-- Will import/export activation tokens work with these options?
+- Can import/export activation tokens work with these options?
 - Must use deterministic ordering of imports/exports, so that reconciliation does not go into loop.
 
 ### Out of Scope - Deferred to future ADRs
@@ -94,9 +94,9 @@ fragments directly in `Account`.
 * First release must support what is supported today by inline imports and exports
 * Deprecate the import and export fields in `Account` CRD.
 * Use `Option 4 - Contract-based imports/exports` as a target vision (not all features might be necessary)
-* `tokenReq` and `revocations` in export will be deferred, as these are not implemented today
+* `tokenReq` and `revocations` in export are deferred, as these are not implemented today
 
 ## Consequences
 
 * Import and export CRDs can reconcile by themselves.
-* Failing import and export CRDs will not block account reconciliation.
+* Failing import and export CRDs do not block account reconciliation.

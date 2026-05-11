@@ -93,7 +93,7 @@ flowchart TD
 
 **Implementation hint**
 
-The controller will typically need field indexes for at least:
+The controller typically needs field indexes for at least:
 
 * `AccountExport.spec.accountRef`
 * `AccountImport.spec.accountRef`
