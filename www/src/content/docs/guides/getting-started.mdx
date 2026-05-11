@@ -50,6 +50,8 @@ out:
 
 You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator & system account.
 
+Already have NATS accounts you do not want NAuth to manage yet? Use [observe mode](/guides/observe-existing-accounts/) to read existing account claims into status before migrating them into `spec`.
+
 ## More on decentralized JWT Auth
 It is recommended to have an understanding of how [decentralized authentication & authorization for
 NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt) works before using NAuth.

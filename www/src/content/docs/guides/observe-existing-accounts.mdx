@@ -1,0 +1,49 @@
+---
+title: Observe Existing Accounts
+description: Observe existing NATS accounts without letting NAuth manage them
+---
+
+NAuth's main workflow is to manage NATS `Account` and `User` resources from Kubernetes desired state. Observe mode is the exception: use it when an account already exists in NATS and you want NAuth to read it without taking ownership.
+
+In observe mode, NAuth reads the existing account JWT from NATS and populates `status.claims`. It does not manage or push a new JWT. The observed claims can be used as a starting point when migrating the account into `spec` or recovering desired state.
+
+The account root seed and account signing seed must exist as Kubernetes Secrets. NAuth discovers them by labels and reads each seed from the `default` data key.
+
+- account root seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-root`
+- account signing seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-sign`
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-acc-root
+  labels:
+    account.nauth.io/id: $ACCOUNT_PUBKEY
+    nauth.io/secret-type: account-root
+stringData:
+  default: $ACCOUNT_ROOT_SEED
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-acc-sign
+  labels:
+    account.nauth.io/id: $ACCOUNT_PUBKEY
+    nauth.io/secret-type: account-sign
+stringData:
+  default: $ACCOUNT_SIGNING_SEED
+```
+
+Create the `Account` resource with `nauth.io/management-policy: observe`:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-acc
+  labels:
+    account.nauth.io/id: $ACCOUNT_PUBKEY
+    nauth.io/management-policy: observe
+```
+
+If you represent the NATS system account in NAuth, use observe mode. NAuth prevents management of the system account JWT.
