@@ -3,7 +3,7 @@
 [pr]: /compare
 [code-of-conduct]: CODE_OF_CONDUCT.md
 
-We're glad you would like to take part of contributing to NAuth!
+Thanks for contributing to NAuth.
 
 > [!NOTE]
 > The project is in an early phase. Contributing is still being streamlined.
@@ -12,9 +12,9 @@ Please note that this project is released with a [Contributor Code of Conduct][c
 
 ## Issues and PRs
 
-If you have suggestions for how this project could be improved, or want to report a bug, open an issue. We'd love all and any contributions. If you have questions, too, we'd love to hear them.
+If you have suggestions for how this project could be improved, or want to report a bug, open an issue. Contributions and questions are welcome.
 
-We'd also love PRs. If you're thinking of a large PR, we advise opening up an issue first to talk about it. Look at the links below if you're not sure how to open a PR.
+PRs are welcome too. If you're thinking of a large PR, open an issue first to talk about it. Look at the links below if you're not sure how to open a PR.
 
 ## Developer’s Certificate of Origin
 The sign-off is a simple line at the end of the explanation for the commit, which certifies that you wrote it or otherwise have the right to pass it on as open source work. The rules are pretty simple: if you can certify the [Developer Certificate of Origin](https://developercertificate.org) then just add a line saying:
@@ -53,7 +53,7 @@ You can use `mise` to setup the environment to the needed setup as well as run t
 handles both tool installation and a convenient way to handle environments and tasks.
 
 ## Testing
-Unit and integration tests run with `make test`. For end-to-end coverage, we use KUTTL scenarios under `test/e2e`.
+Unit and integration tests run with `make test`. End-to-end coverage uses KUTTL scenarios under `test/e2e`.
 Run them with:
 ```bash
 make test-e2e

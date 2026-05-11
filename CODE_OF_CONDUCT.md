@@ -1,5 +1,7 @@
 # Contributor Covenant Code of Conduct
 
+<!-- vale Google.We = NO -->
+
 ## Our Pledge
 
 <!-- vale Google.OxfordComma = NO -->

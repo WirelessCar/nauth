@@ -117,7 +117,7 @@ AccountExport A3:
 
 ### Drawbacks:
 
-- Extremely verbose, at least if we think about import/export for JetStream stuff.
+- Extremely verbose, at least for import/export for JetStream stuff.
 
 ## Option 4 - Contract-based imports/exports
 
