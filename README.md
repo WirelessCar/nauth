@@ -1,18 +1,18 @@
 <p align="center">
-    <img src="./www/public/nauth.svg" alt="NAUTH" width="280" height="200">
+    <img src="./www/public/nauth.svg" alt="NAuth" width="280" height="200">
 </p>
 
-# NAUTH
-A Kubernetes operator for managing [decentralized authentication & authorization for NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt)
+# NAuth
+A Kubernetes operator for managing [decentralized authentication and authorization for NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt)
 
-NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` & `User` CRD:s that conveniently packages:
+NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` and `User` CRDs that package:
 
-- Account creation & updates
-- Account exports & imports
-- User creation & credentials delivery
+- Account creation and updates
+- Account exports and imports
+- User creation and credentials delivery
 
 > [!NOTE]
-> This project is still in early and active development. There will likely be breaking changes before getting to a stable release.
+> This project is still in early and active development. Expect breaking changes before a stable release.
 
 ## Installation
 NAuth supports installation through packaged [Helm](https://helm.sh) charts.
@@ -21,14 +21,14 @@ NAuth supports installation through packaged [Helm](https://helm.sh) charts.
 helm install nauth oci://ghcr.io/wirelesscar/nauth --create-namespace --namespace nauth
 ```
 
-A [`nauth-crds`](./charts/nauth-crds) chart is also available for installing CRDs separately, which works 
+A [`nauth-crds`](./charts/nauth-crds) chart is also available for installing CRDs separately, which works
 alongside the main chart with `crds.install=false`.
 
-### Pre-requisites
-NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
-See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
+### Prerequisites
+NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS to provide account JWT data.
+See examples of how to set up NATS with JWT authentication together with NAuth in the [examples](./examples) directory.
 
-NAuth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as Kubernetes Secrets.
+NAuth requires the **system account user credentials** and the [**operator signing key NKey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as Kubernetes Secrets.
 
 NAuth resolves these credentials through a `NatsCluster`. Choose one of these reference patterns:
 
@@ -44,11 +44,11 @@ NAuth resolves these credentials through a `NatsCluster`. Choose one of these re
 
 For an example that defines a `NatsCluster`, explicit `spec.natsClusterRef`, and the required credential Secret references, see the [cluster reference scenario](./examples/nauth/manifests/scenarios/cluster-ref/README.md).
 
-## Getting Started
+## Getting started
 Running a large NATS cluster requires that the operator is secured properly. If you do not already have an operator, try
 out the [operator-bootstrap](./operator-bootstrap) utility which comes with NAuth.
 
-You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator & system account.
+You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator and system account.
 
 ## More on decentralized JWT Auth
 Check out this video for a comprehensive description on how decentralized JWT Auth works. In order to work with NAuth,
@@ -64,5 +64,5 @@ See the [observe existing accounts guide](https://nauth.io/guides/observe-existi
 ## Contributing
 Contributions are welcome. Open an issue for bugs, ideas, or larger changes, and read the [CONTRIBUTING](./CONTRIBUTING.md) guide for local setup and PR guidance.
 
-### Join our Slack
-We co-locate with the NATS Slack in our [own channel](https://natsio.slack.com/archives/C0AFYH76KPD)
+### Community
+NAuth discussions happen in the project [Slack channel](https://natsio.slack.com/archives/C0AFYH76KPD)

@@ -4,13 +4,13 @@ description: Get started with NAuth
 ---
 import { YouTube } from '@astro-community/astro-embed-youtube';
 
-A Kubernetes operator for managing [decentralized authentication & authorization for NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt).
+A Kubernetes operator for managing [decentralized authentication and authorization for NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt).
 
-NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` & `User` CRD:s that conveniently packages:
+NAuth allows platform teams to provide easy multi-tenancy support for development teams by providing `Account` and `User` CRDs that package:
 
-- Account creation & updates
-- Account exports & imports
-- User creation & credentials delivery
+- Account creation and updates
+- Account exports and imports
+- User creation and credentials delivery
 
 ## Installation
 NAuth supports installation through packaged [Helm](https://helm.sh) charts.
@@ -23,14 +23,14 @@ helm install nauth oci://ghcr.io/wirelesscar/nauth \
 
 A [`nauth-crds`](https://github.com/WirelessCar/nauth/tree/main/charts/nauth-crds) chart is also available for installing CRDs separately. Use it alongside the main chart with `crds.install=false`.
 
-### Pre-requisites
-NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
-See examples of how to setup NATS with JWT auth together with NAuth in the [examples](https://github.com/WirelessCar/nauth/tree/main/examples) directory.
+### Prerequisites
+NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS to provide account JWT data.
+See examples of how to set up NATS with JWT authentication together with NAuth in the [examples](https://github.com/WirelessCar/nauth/tree/main/examples) directory.
 
 NAuth requires these credentials as Kubernetes Secrets:
 
 - system account user credentials
-- [operator signing key nkey seed](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth)
+- [operator signing key NKey seed](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth)
 
 > **Since v0.6.0:** NAuth resolves NATS connection and credential references through the `NatsCluster` resource.
 
@@ -43,16 +43,16 @@ Then choose how accounts target that cluster:
 
 By default, an operator-level `NATS_CLUSTER_REF` is strict: account-level refs must match it. Set `NATS_CLUSTER_REF_OPTIONAL=true` when accounts without `spec.natsClusterRef` should use the operator cluster by default while still allowing explicit overrides.
 
-## Operator Setup
+## Operator setup
 Running a large NATS cluster requires that the operator is secured properly. If you do not already have an operator, try
 out:
 - the [operator-bootstrap](https://github.com/WirelessCar/nauth/tree/main/operator-bootstrap) utility which comes with NAuth to create your own operator
-- check out our [examples](https://github.com/WirelessCar/nauth/tree/main/examples) which contains a static operator and
+- review the [examples](https://github.com/WirelessCar/nauth/tree/main/examples), which contain a static operator and
   corresponding NATS configuration
 
-You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator & system account.
+You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator and system account.
 
-## Manage Accounts and Users
+## Manage accounts and users
 > **Since v0.1.0:** `Account` and `User` resources are the core NAuth workflow.
 
 NAuth's main workflow is to declare NATS accounts and users as Kubernetes resources. The controller creates the NATS account JWT, keeps it updated from `Account.spec`, and creates user credentials for each `User`.
@@ -101,7 +101,7 @@ NAuth writes the resulting user credentials to a Kubernetes Secret named `<user>
 Already have NATS accounts you do not want NAuth to manage yet? Use [observe mode](/guides/observe-existing-accounts/) to read existing account claims into status before migrating them into `spec`.
 
 ## More on decentralized JWT Auth
-It is recommended to have an understanding of how [decentralized authentication & authorization for
+It is recommended to have an understanding of how [decentralized authentication and authorization for
 NATS](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt) works before using NAuth.
 Hands-on manifests are available in the [examples directory](https://github.com/WirelessCar/nauth/tree/main/examples), including account, user, import/export, and cluster reference scenarios.
 

@@ -34,7 +34,7 @@ if (image) {
 }
 
 // Custom tagline with icons
-const _customTagline = tagline === "Simplify NATS Operator & Account management for Kubernetes";
+const _customTagline = tagline === "Simplify NATS operator and account management for Kubernetes";
 ---
 
 <div class="hero">
@@ -54,7 +54,7 @@ const _customTagline = tagline === "Simplify NATS Operator & Account management 
 			<h1 id={_PAGE_TITLE_ID} data-page-title set:html={title} />
 			{_customTagline ? (
 				<div class="tagline">
-					Simplify <NatsIcon class="inline-icon" /> NATS Operator & Account management for <KubernetesIcon class="inline-icon" /> Kubernetes
+					Simplify <NatsIcon class="inline-icon" /> NATS operator and account management for <KubernetesIcon class="inline-icon" /> Kubernetes
 				</div>
 			) : tagline && (
 				<div class="tagline" set:html={tagline} />
