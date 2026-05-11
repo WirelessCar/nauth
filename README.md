@@ -61,8 +61,8 @@ NAuth can observe an existing NATS account without taking ownership of its JWT. 
 
 See the [observe existing accounts guide](https://nauth.io/guides/observe-existing-accounts/) for the required Secret labels and `Account` resource example.
 
-## Nauth Development
-Check out the [CONTRIBUTING](./CONTRIBUTING.md) guide.
+## Contributing
+Contributions are welcome. Open an issue for bugs, ideas, or larger changes, and read the [CONTRIBUTING](./CONTRIBUTING.md) guide for local setup and PR guidance.
 
 ### Join our Slack
 We co-locate with the NATS Slack in our [own channel](https://natsio.slack.com/archives/C0AFYH76KPD)
