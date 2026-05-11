@@ -15,7 +15,7 @@
 | image.tag | string | appVersion | Overrides the image tag |
 | livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/ |
 | monitoring.enabled | bool | `false` | Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver. |
-| monitoring.serviceMonitor | object | `{"enabled":false}` | Enables serviceMonitor feature. Requies CRD to be installed beforehand. |
+| monitoring.serviceMonitor | object | `{"enabled":false}` | Enables serviceMonitor feature. Requires CRD to be installed beforehand. |
 | nameOverride | string | `""` | Override the chart name |
 | namespace | object | `{"nameOverride":""}` | Override the namespace |
 | namespaced | bool | `false` | If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched. |

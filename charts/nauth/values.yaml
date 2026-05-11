@@ -101,7 +101,7 @@ securityContext:
 monitoring:
   # -- Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver.
   enabled: false
-  # -- Enables serviceMonitor feature. Requies CRD to be installed beforehand.
+  # -- Enables serviceMonitor feature. Requires CRD to be installed beforehand.
   serviceMonitor:
     enabled: false
 
