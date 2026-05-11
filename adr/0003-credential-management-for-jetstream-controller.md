@@ -48,4 +48,4 @@ The `User` CRD already supports the use case and can be used to create the requi
 NAuth & NACK work well side by side and adding NACK integration to NAuth is a natural way to go. The solution with global configuration is generic enough to be used by any other operator if this would be the case.
 The reconciliation would need to handle updates to global configuration and push the changed permissions to the underlying child resources.
 
-There is nothing blocking from using the CRDs as-is now and build out the feature in a later stage since the `User` CRD is re-used for the functionality.
+There is nothing blocking from using the CRDs as-is now and build out the feature in a later stage since the `User` CRD is re-used for the feature.

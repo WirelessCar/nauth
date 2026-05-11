@@ -25,7 +25,7 @@ The primary operator signing key is used to sign every account which is minted, 
 Account seed keys are the identities of accounts and these should be secured to avoid having to recreate export/imports as well as all persistent data. The root key does not need to be used for anything but provide the identity - it is not needed for minting users.
 
 ### Account signing keys
-Used when minting new users. Can also be rotated more frequently in order to keep the validity of user credentials to an acceptable duration.
+Used when minting new users. Can also be rotated more frequently to keep the validity of user credentials to an acceptable duration.
 
 ### User credentials
 User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it will be valid according to the user JWT.
@@ -55,7 +55,7 @@ NAuth would not incur any rate limiting towards a secret service, since this wou
 During a disaster recovery or during an upgrade using a new cluster, all credentials would need to be restored from backup or re-created. It also means that backup of credentials increases in importance and that the backups themselves contains more sensitive data.
 
 ### Operator root keys in external secret store - others as Kubernetes secrets
-The root operator needs to be stored securely in a way that it does not get removed in the case of a cluster failure. It also needs to be able to be fetched when the Operator CR is updated and the JWT needs to be updated in order to sign it.
+The root operator needs to be stored securely in a way that it does not get removed in the case of a cluster failure. It also needs to be able to be fetched when the Operator CR is updated and the JWT needs to be updated to sign it.
 
 #### User credentials
 Since the user credentials can be lost and simply recreated, there is no need for the credentials to be backed up. NAuth can create new ones from the `User` CRs.

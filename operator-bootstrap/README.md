@@ -17,8 +17,8 @@ offline store, but also the **entire NSC store** containing:
 - List of signing keys to be removed when rotating
 
 ## Input
-The utility can create a new operator, but after this has been exported, it can be imported again in order to do
-rotation operations to it.
+The utility can create a new operator, but after this has been exported, it can be imported again to perform
+rotation operations.
 
 The **root store** is the only import required, which is an `7z` archive containing a `nsc` store.
 
@@ -51,4 +51,3 @@ sequenceDiagram
 
   deactivate C
 ```
-

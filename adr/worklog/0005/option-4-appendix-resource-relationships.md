@@ -99,7 +99,7 @@ The controller will typically need field indexes for at least:
 * `AccountImport.spec.accountRef`
 * `AccountImport.spec.exportRef`
 
-This keeps the dependent requeues above practical without requiring broad scans.
+This keeps the preceding dependent requeues practical without requiring broad scans.
 
 **Operational rule**
 

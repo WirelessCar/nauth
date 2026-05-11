@@ -4,7 +4,7 @@ Date: 2025-05-09
 ## Problem statement
 The different seeds & user credentials that are required for the NATS JWT AuthN & AuthZ all have different requirements for how they are used and how sensitive they are - and need to be stored accordingly.
 
-How should NAuth be designed in order to achieve isolation between the different types of keys?
+How should NAuth be designed to achieve isolation between the different types of keys?
 
 ## Status
 
@@ -39,7 +39,7 @@ The primary operator signing key is used to sign every account which is minted, 
 Account seed keys are the identities of accounts and these should be secured to avoid having to recreate export/imports as well as all persistent data. The root key does not need to be used for anything but provide the identity - it is not needed for minting users.
 
 #### Account signing keys
-Used when minting new users. Can also be rotated more frequently in order to keep the validity of user credentials to an acceptable duration.
+Used when minting new users. Can also be rotated more frequently to keep the validity of user credentials to an acceptable duration.
 
 #### User credentials
 User credentials are a combination of a private key and a, by the account signing key, signed JWT. Theses live their own life and as long as the identity is not on the revocation list or if the signing key has been removed from the account JWT on the server, it will be valid according to the user JWT.
@@ -59,7 +59,7 @@ This would be a manual operation which would be time consuming, but could also i
 The operator signing key would need to be made available for NAuth for account minting, hence NAuth needs to be able to reach it during runtime.
 
 ### All controllers act under the same deployment
-Since the controllers are quite similar and the application itself is not very big, it is redundant to split the controllers into multiple pods with their own access.
+Since the controllers are quite similar and the app itself is not very big, it is redundant to split the controllers into multiple pods with their own access.
 
 It is not sure how much more security is gained by splitting the controllers into separate pods, even if it gives the possibility to use separate roles for the external secrets in that case. For an attacker to be able to exploit the permissions `NAuth` has, the attack vector is either via the Kubernetes API and the events listened to, or a breach that enables the attacker to start up new containers that acts as NAuth. This as NAuth doesn't expose is own API nor makes it possible to initiate shell access to NAuth.
 

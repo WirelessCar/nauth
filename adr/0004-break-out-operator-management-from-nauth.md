@@ -15,7 +15,7 @@ Supersedes [ADR-1: Deploy controller handling NATS operator as separate Kubernet
 ## Context
 
 The operator is a very sensitive key, which reassembles a Root CA since it is the single source of trust within a NATS
-(super) cluster. NAuth needs at least the signing key and a system user in order to manage accounts.
+(super) cluster. NAuth needs at least the signing key and a system user to manage accounts.
 
 ## Options
 The options stay the same as for ADR-1

@@ -81,7 +81,7 @@ status:
 
 ### AccountExport
 
-Restricting the exports of an account is handled by NAuth and does not leverage the NATS private export/import functionality.
+Restricting the exports of an account is handled by NAuth and does not leverage the NATS private export/import feature.
 This might be added in future releases if it would add security to the solution. Only NAuth is able to push new JWTs to NATS, making it the only gate for signing imports.
 
 ```yaml
