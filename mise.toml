@@ -13,6 +13,7 @@ nsc = "2.12.2"
 helm = "4.1.4"
 kind = "0.31.0"
 helm-docs = "1.14.2"
+vale = "3.14.1"
 "github:elastic/crd-ref-docs" = "0.3.0"
 "go:github.com/nats-io/natscli/nats" = "0.4.0"
 kubectl-kuttl = "0.26.0"
@@ -27,6 +28,11 @@ description = "Run go tests"
 dir = "{{ cwd }}"
 alias = "gt"
 run = "go test ./..."
+
+[tasks."nauth:lint-docs"]
+description = "Lint public documentation with Vale"
+alias = "nld"
+run = "vale README.md www/src/content/docs/index.mdx www/src/content/docs/guides"
 
 [tasks."nauth:e2e-test"]
 silent = true
