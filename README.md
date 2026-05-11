@@ -28,11 +28,11 @@ alongside the main chart with `crds.install=false`.
 NAuth requires [NATS](https://nats.io) to be installed in the cluster, since NAuth integrates with NATS (over NATS) to provide the account JWT:s.
 See examples of how to setup NATS with JWT auth together with NAuth in the [examples](./examples) directory.
 
-Nauth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as k8s secrets.
+NAuth requires the **system account user credentials** and the [**operator signing key nkey seed**](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth) to be provided as Kubernetes Secrets.
 
-You can provide and resolve these secrets in three ways:
+NAuth resolves these credentials through a `NatsCluster`. Choose one of these reference patterns:
 
-**A.** For single-cluster deployments, set `NATS_CLUSTER_REF` on the nauth controller (`namespace/name`, for example `nats/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
+**A.** For single-cluster deployments, set `NATS_CLUSTER_REF` on the NAuth controller (`namespace/name`, for example `nats/my-nats-cluster`) and define the secrets in that referenced `NatsCluster` (`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`).
    - Default behavior (`NATS_CLUSTER_REF_OPTIONAL=false`) is strict mode: account-level `spec.natsClusterRef` must match `NATS_CLUSTER_REF`.
    - `NATS_CLUSTER_REF_OPTIONAL=true` is explicit opt-in default mode: accounts without `spec.natsClusterRef` use `NATS_CLUSTER_REF`, while accounts may override with their own ref.
    - Recommended migration to per-account explicit refs:
