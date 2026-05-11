@@ -1,5 +1,5 @@
 ---
-title: Nauth
+title: NAuth
 description: Simplify NATS Operator & Account management for Kubernetes
 template: splash
 editUrl: false
@@ -22,39 +22,7 @@ import IconKubernetes from "~icons/devicon/kubernetes";
 import FluentColorShieldCheckmark48 from '~icons/fluent-color/shield-checkmark-48';
 import Card from "../../components/Card.astro";
 
-{/* ## Quick Start
-
-<CardGrid stagger>
-  <LinkCard 
-    title="Quick Start" 
-    icon="rocket"
-    href="./guides/quick-start/"
-    description="Get up and running with Nauth in minutes. Perfect for testing and development environments."
-  />
-  
-  <LinkCard 
-    title="Complete Setup" 
-    icon="open-book"
-    href="./guides/installation/"
-    description="Full installation guide with production-ready configurations and security best practices."
-  />
-  
-  <LinkCard 
-    title="User Management" 
-    icon="users"
-    href="./guides/user-management/"
-    description="Create and manage NATS users with fine-grained permissions and access controls."
-  />
-  
-  <LinkCard 
-    title="Account Management" 
-    icon="setting"
-    href="./guides/account-management/"
-    description="Configure NATS accounts, set limits, and organize your messaging infrastructure."
-  />
-</CardGrid> */}
-
-## Why Nauth?
+## Why NAuth?
 
 <CardGrid stagger>
   <Card title="Kubernetes Native">
@@ -75,10 +43,28 @@ import Card from "../../components/Card.astro";
 ## Documentation
 
 <CardGrid>
+  <LinkCard
+    title="Getting Started"
+    icon="rocket"
+    href="./guides/getting-started/"
+    description="Install NAuth, configure NATS credentials, and manage Accounts and Users."
+  />
+  <LinkCard
+    title="Observability"
+    icon="chart"
+    href="./guides/observability/"
+    description="Scrape controller-runtime metrics and monitor reconciliation behavior."
+  />
   <LinkCard 
     title="API Reference" 
     icon="document"
     href="./crds/"
     description="Complete API documentation for all Custom Resource Definitions."
+  />
+  <LinkCard
+    title="Examples"
+    icon="open-book"
+    href="https://github.com/WirelessCar/nauth/tree/main/examples"
+    description="Runnable Account, User, import/export, and cluster reference scenarios."
   />
 </CardGrid>
