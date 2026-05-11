@@ -469,7 +469,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account<br />If not specified, defaults to legacy behavior |  | Optional: \{\} <br /> |
+| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account.<br />If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.<br />Otherwise, reconciliation fails because the target NatsCluster cannot be resolved. |  | Optional: \{\} <br /> |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the account. May be derived if absent. |  | Optional: \{\} <br /> |
 | `jetStreamEnabled` _boolean_ | JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.<br />If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits. |  | Optional: \{\} <br /> |
 | `accountLimits` _[AccountLimits](#accountlimits)_ |  |  | Optional: \{\} <br /> |

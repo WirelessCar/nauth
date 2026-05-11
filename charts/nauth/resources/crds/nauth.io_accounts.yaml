@@ -217,8 +217,9 @@ spec:
                 type: object
               natsClusterRef:
                 description: |-
-                  NatsClusterRef references the NatsCluster to use for this account
-                  If not specified, defaults to legacy behavior
+                  NatsClusterRef references the NatsCluster to use for this account.
+                  If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.
+                  Otherwise, reconciliation fails because the target NatsCluster cannot be resolved.
                 properties:
                   name:
                     description: Name of the NatsCluster

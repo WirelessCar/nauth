@@ -44,8 +44,9 @@ type NatsClusterRef struct {
 
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
-	// NatsClusterRef references the NatsCluster to use for this account
-	// If not specified, defaults to legacy behavior
+	// NatsClusterRef references the NatsCluster to use for this account.
+	// If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.
+	// Otherwise, reconciliation fails because the target NatsCluster cannot be resolved.
 	// +optional
 	NatsClusterRef *NatsClusterRef `json:"natsClusterRef,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
