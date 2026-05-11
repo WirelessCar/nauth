@@ -105,7 +105,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/^\\.tool-versions$/"],
-      "matchStrings": ["(?:^|\\n)controller-gen\\s+(?<currentValue>\\S+)"],
+      "matchStrings": ["(?:^|\\n)go:sigs\\.k8s\\.io/controller-tools/cmd/controller-gen\\s+(?<currentValue>\\S+)"],
       "depNameTemplate": "sigs.k8s.io/controller-tools",
       "datasourceTemplate": "go",
       "versioningTemplate": "semver-coerced"
