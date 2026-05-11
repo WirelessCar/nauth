@@ -13,7 +13,7 @@ end-to-end suite.
 From the repo root (uses `mise` tasks):
 
 ```sh
-mise run nauth:e2e-test
+mise nauth:e2e-test
 ```
 
 This runs `kubectl kuttl test` using `kuttl-test.yaml`, which creates a Kind
@@ -27,7 +27,7 @@ the tests finish.
 To bring up a local Kind cluster with NATS, NAUTH, and example scenarios:
 
 ```sh
-mise run nauth:install
+mise nauth:install
 ```
 
 The task scripts live under `.mise-tasks/nauth` and can be run individually.

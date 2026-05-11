@@ -89,7 +89,7 @@ Whenever updating Helm values, follow format of [`helm-docs`](https://github.com
 
 Then run:
 ```bash
-mise run nauth:generate-docs
+mise nauth:generate-docs
 ```
 (this runs `helm-docs` together with CRD reference generation)
 

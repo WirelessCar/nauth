@@ -9,7 +9,7 @@ They are designed to work with the `mise` tasks (scripts live under
 Apply the example scenarios to a local cluster:
 
 ```sh
-mise run nauth:install-examples
+mise nauth:install-examples
 ```
 
 If you prefer to run it manually:
