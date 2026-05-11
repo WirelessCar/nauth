@@ -93,6 +93,14 @@ mise run nauth:generate-docs
 ```
 (this runs `helm-docs` together with CRD reference generation)
 
+### Version labels
+The documentation website follows the current `main` branch. Mark release-sensitive features with:
+
+- `Since vX.Y.Z` when the feature is available from a published release.
+- `Unreleased` when the feature is documented on `main` before the next NAuth release.
+
+Before tagging a release, replace relevant `Unreleased` labels with `Since vX.Y.Z`.
+
 ## Releasing
 Releases are tag-driven and use [SemVer](https://semver.org/). Release candidate tags use SemVer
 pre-release identifiers; the leading `v` is only the Git tag prefix and is stripped before publishing artifacts.

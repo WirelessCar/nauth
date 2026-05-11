@@ -3,6 +3,8 @@ title: Observe Existing Accounts
 description: Observe existing NATS accounts without letting NAuth manage them
 ---
 
+> **Since v0.6.1:** Observe mode is available through the `nauth.io/management-policy: observe` label.
+
 NAuth's main workflow is to manage NATS `Account` and `User` resources from Kubernetes desired state. Observe mode is the exception: use it when an account already exists in NATS and you want NAuth to read it without taking ownership.
 
 In observe mode, NAuth reads the existing account JWT from NATS and populates `status.claims`. It does not manage or push a new JWT. The observed claims can be used as a starting point when migrating the account into `spec` or recovering desired state.

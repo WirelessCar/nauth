@@ -32,6 +32,8 @@ NAuth requires these credentials as Kubernetes Secrets:
 - system account user credentials
 - [operator signing key nkey seed](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth)
 
+> **Since v0.6.0:** NAuth resolves NATS connection and credential references through the `NatsCluster` resource.
+
 Define a `NatsCluster` resource with either `spec.url` or `spec.urlFrom`, plus `spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`.
 
 Then choose how accounts target that cluster:
@@ -51,6 +53,8 @@ out:
 You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator & system account.
 
 ## Manage Accounts and Users
+> **Since v0.1.0:** `Account` and `User` resources are the core NAuth workflow.
+
 NAuth's main workflow is to declare NATS accounts and users as Kubernetes resources. The controller creates the NATS account JWT, keeps it updated from `Account.spec`, and creates user credentials for each `User`.
 
 Create an account:
