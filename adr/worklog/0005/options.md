@@ -172,8 +172,8 @@ AccountImport:
 
 In this example:
 
-* Account A says: "I export these subjects and I allow any account to import them"
-* Account B says: "I want to import only eu-west-1 related orders from the export, and rename the local subject."
+* Account A exports these subjects and allows any account to import them.
+* Account B imports only eu-west-1 related orders from the export and renames the local subject.
 * NAuth only renders final account JWT on the export account when `AccountExport` is ready
 * NAuth only renders final account JWT on the import account when `AccountImport` is ready
 
