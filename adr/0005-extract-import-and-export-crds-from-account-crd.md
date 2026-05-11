@@ -14,8 +14,8 @@ Accepted
 
 ## Context
 
-There exists several identified issues or improvements related to imports and exports, such as: validation of imports
-and matching exports, import and export using activation tokens, support for grouping of related imports and exports (
+There exists several identified issues or improvements related to imports and exports, such as import validation,
+export matching, activation-token based imports and exports, and support for grouping related imports and exports (
 for example, JetStream related API subjects).
 
 All these are concerns of imports and exports, and might benefit from the split as well as make the account resources
