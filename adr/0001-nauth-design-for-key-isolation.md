@@ -10,7 +10,7 @@ How should Nauth be designed in order to achieve isolation between the different
 
 **Accepted**
 
-Superceded by [ADR-4: Break out Operator management from Nauth](0004-break-out-operator-management-from-nauth.md)
+Superseded by [ADR-4: Break out Operator management from Nauth](0004-break-out-operator-management-from-nauth.md)
 
 ## Context
 
