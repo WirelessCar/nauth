@@ -94,15 +94,51 @@ mise run nauth:generate-docs
 (this runs `helm-docs` together with CRD reference generation)
 
 ## Releasing
-Releases are tag-driven.
+Releases are tag-driven and use [SemVer](https://semver.org/). Release candidate tags use SemVer
+pre-release identifiers; the leading `v` is only the Git tag prefix and is stripped before publishing artifacts.
 
-1. Create and push a new release tag using valid [SemVer](https://semver.org) with a `v` prefix, for example `v0.5.4`.
-2. Create and publish a GitHub release for that tag.
+Release tags must use one of these formats:
+- stable release: `vX.Y.Z`, for example `v0.7.0`
+- release candidate: `vX.Y.Z-rc.N`, for example `v0.7.0-rc.1`
+
+Do not use `v0.7.0-rc-1`; use `v0.7.0-rc.1`.
+
+1. Create and push a new release tag:
+   ```bash
+   git tag v0.7.0-rc.1
+   git push origin v0.7.0-rc.1
+   ```
+2. Create and publish the GitHub release from the GitHub UI.
 
 The `Operator Release` workflow derives the release version from the tag (without the `v`) and uses it for:
 - operator image tags/labels
 - `charts/nauth/Chart.yaml` (`version` and `appVersion`) during packaging
 - `charts/nauth-crds/Chart.yaml` (`version`) during packaging
+
+Release candidates publish the same artifacts as stable releases. When creating an RC release in the GitHub UI:
+- mark it as a pre-release
+- do not mark it as the latest release
+
+Install an RC explicitly:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --version 0.7.0-rc.1
+```
+
+When promoting a tested RC line to a stable release, create the final stable tag:
+
+```bash
+git tag v0.7.0
+git push origin v0.7.0
+```
+
+Release notes are generated from the latest previous non-RC release tag. For example, if `v0.6.3` is the latest stable
+release and `v0.7.0-rc.1` plus `v0.7.0-rc.2` have been published, the final `v0.7.0` release notes start at `v0.6.3`,
+not at `v0.7.0-rc.2`. When using generated release notes in the GitHub UI, select the latest previous non-RC release tag
+as the previous tag before generating or publishing the notes.
 
 ## Resources
 
