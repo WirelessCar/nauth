@@ -10,7 +10,7 @@ practical & security process of these need to reflect this.
 
 Accepted
 
-Supersedes [ADR-1: Deploy controller handling NATS operator as separate Kubernetes deployment](0001-nauth-design-for-key-isolation.md)
+Supersedes [ADR-1](0001-nauth-design-for-key-isolation.md)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # v1alpha2
 
-**Status: DRAFT**
+**Status:** draft
 
 This describes the intention of the `v1alpha2` version of the NAuth CRDs.
 It includes updates such as:
