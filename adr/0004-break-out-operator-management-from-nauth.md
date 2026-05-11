@@ -1,4 +1,4 @@
-# ADR-4: Break out Operator management from Nauth
+# ADR-4: Break out Operator management from NAuth
 
 Date: 2025-08-13
 
@@ -15,12 +15,12 @@ Supersedes [ADR-1: Deploy controller handling NATS operator as separate Kubernet
 ## Context
 
 The operator is a very sensitive key, which reassembles a Root CA since it is the single source of trust within a NATS
-(super) cluster. Nauth needs at least the signing key and a system user in order to manage accounts.
+(super) cluster. NAuth needs at least the signing key and a system user in order to manage accounts.
 
 ## Options
 The options stay the same as for ADR-1
 
-### Operator management is broken out of Nauth and provided as secrets
+### Operator management is broken out of NAuth and provided as secrets
 Since the operator is something handled by the platform engineer persona and inherently does not allow more than one in
 a cluster it is natural that the management is moved outside of NAuth.
 The process could instead be an offline process similar of how a Root CA would be handled. This could even be done on a

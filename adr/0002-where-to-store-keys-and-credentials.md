@@ -16,7 +16,7 @@ How should keys & credentials be stored to meet needs of security & usability?
 ### Operator root key
 The operator root key is essential for the operation of a NATS cluster (or supercluster). It is the base for the trust chain and without it, the whole cluster would need to be rebuilt.
 
-Nauth needs to be able to create the operator key from the `Operator` custom resource and use the key to sign new JWTs whenever a signing key needs to be rotated.
+NAuth needs to be able to create the operator key from the `Operator` custom resource and use the key to sign new JWTs whenever a signing key needs to be rotated.
 
 ### Operator signing keys
 The primary operator signing key is used to sign every account which is minted, so it is needed frequently. If a signing key is compromised, it can be rotated using the operator root key. The operator JWT can have multiple keys, so if an operator signing key is lost but not compromised - the accounts signed by it are still valid.
@@ -44,13 +44,13 @@ The drawbacks are:
 * increased cost of managed secret stores for every key type regardless of requirements
 
 ### All keys are stored in Kubernetes secrets
-No external dependency and it would be possible to use tools such as external-secrets operator to push secrets to an external store if wanted. It would not be part of Nauth to handle this.
+No external dependency and it would be possible to use tools such as external-secrets operator to push secrets to an external store if wanted. It would not be part of NAuth to handle this.
 
-This would give a good responsibility boundary, since it would not require Nauth to have any cloud provider specific implementations.
+This would give a good responsibility boundary, since it would not require NAuth to have any cloud provider specific implementations.
 
 Could however be impractical to pull the secret back from external-secret in the event of a cluster recovery since the name of the secret would likely need to be the same as the pushed secret.
 
-Nauth would not incur any rate limiting towards a secret service, since this would be handled outside in a fashion which is not likely to cause rate limiting.
+NAuth would not incur any rate limiting towards a secret service, since this would be handled outside in a fashion which is not likely to cause rate limiting.
 
 During a disaster recovery or during an upgrade using a new cluster, all credentials would need to be restored from backup or re-created. It also means that backup of credentials increases in importance and that the backups themselves contains more sensitive data.
 
@@ -58,7 +58,7 @@ During a disaster recovery or during an upgrade using a new cluster, all credent
 The root operator needs to be stored securely in a way that it does not get removed in the case of a cluster failure. It also needs to be able to be fetched when the Operator CR is updated and the JWT needs to be updated in order to sign it.
 
 #### User credentials
-Since the user credentials can be lost and simply recreated, there is no need for the credentials to be backed up. Nauth can create new ones from the `User` CRs. 
+Since the user credentials can be lost and simply recreated, there is no need for the credentials to be backed up. NAuth can create new ones from the `User` CRs.
 This allows for quick distribution without the risk of rate limiting services which hold secrets.
 
 #### Signing keys
@@ -71,7 +71,7 @@ If a signing key is lost, a new key is minted and added to the trusted JWT by th
 **All keys are stored in Kubernetes secrets**
 
 ## Consequences
-The nauth implementation will not have any external dependencies in the form of services for secrets more than Kubernetes native secrets.
+The NAuth implementation will not have any external dependencies in the form of services for secrets more than Kubernetes native secrets.
 
 ### Advantages
 - Developer experience is improved as development & testing is easy to do in a local environment without dependencies
@@ -79,5 +79,5 @@ The nauth implementation will not have any external dependencies in the form of 
 - Any interaction with external secret services can be achieved by other solutions which specialize in secret management
 
 ### Disadvantages
-- Sensitive keys like operator root key are being accessed by the nauth controller even if not always needed
+- Sensitive keys like operator root key are being accessed by the NAuth controller even if not always needed
 - Still need to handle isolation of operator root key in other solution (external-secrets)

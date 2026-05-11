@@ -78,9 +78,9 @@ AccountExport A:
 - Allows for configuration that affects all listed subjects.
 - Allows for configuration of individual subjects.
 - Less verbose but still allows user to define one import or export per AccountXport if so desired.
-- Allows grouping of related imports and exports, for example, all jetstream related API topics can be grouped together
+- Allows grouping of related imports and exports, for example, all JetStream related API topics can be grouped together
   in one CRD.
-    - And as a consequence, it is "all or nothing" for that group, which makes sense when it comes to jetstream.
+    - And as a consequence, it is "all or nothing" for that group, which makes sense when it comes to JetStream.
 
 ### Drawbacks
 
@@ -207,7 +207,7 @@ This includes:
 * conflict detection when subjects overlap
 * clear reporting when two resources cannot be merged safely
 
-To identify conflicts, we will use nats.io's JWT imports validation function.
+To identify conflicts, we will use the NATS JWT imports validation function.
 
 ### Benefits:
 

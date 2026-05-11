@@ -7,8 +7,8 @@ ArgoCD
 ARN
 Astro
 Auth
-authn
-authz
+[Aa]uth[Nn]
+[Aa]uth[Zz]
 auditable
 AWS
 AWS Owned Keys

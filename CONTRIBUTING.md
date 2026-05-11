@@ -3,7 +3,7 @@
 [pr]: /compare
 [code-of-conduct]: CODE_OF_CONDUCT.md
 
-We're glad you would like to take part of contributing to Nauth!
+We're glad you would like to take part of contributing to NAuth!
 
 > [!NOTE]
 > The project is in an early phase. Contributing will be streamlined further down the road.
@@ -44,7 +44,7 @@ Here are a few things you can do that will increase the likelihood of your pull 
 Work in Progress pull requests are also welcome to get feedback early on, or if there is something blocked you.
 
 ## Developer setup
-Nauth was originally scaffolded with `kubebuilder` and still uses controller-gen markers and related conventions.
+NAuth was originally scaffolded with `kubebuilder` and still uses controller-gen markers and related conventions.
 The repository layout and deployment workflow have since diverged from the default Kubebuilder structure.
 `mise` is the canonical developer tool for installing the toolchain and running common project tasks.
 The `Makefile` remains available as a compatibility layer for common contributor workflows.

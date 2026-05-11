@@ -2,7 +2,7 @@
 
 **Status: DRAFT**
 
-This describes the intention of the `v1alpha2` version of the Nauth CRDs.
+This describes the intention of the `v1alpha2` version of the NAuth CRDs.
 It includes updates such as:
 
 - AccountExports & AccountImports separated into CRDs
@@ -59,7 +59,7 @@ spec:
         name: account-a
         namespace: system-a
   # END
-  signingKeyExpirationDays: 30 # Allow for setting the expiry if needed, otherwise use the settings of nauth
+  signingKeyExpirationDays: 30 # Allow for setting the expiry if needed, otherwise use the settings of NAuth
 status:
   conditions: []
   # The claims of the JWT, including the imports and exports which are configured in the AccountExport & AccountImport manifests
@@ -81,8 +81,8 @@ status:
 
 ### AccountExport
 
-Restricting the exports of an account is handled by nauth and does not leverage the NATS private export/import functionality.
-This might be added in future releases if it would add security to the solution. Only nauth is able to push new JWTs to NATS, making it the only gate for signing imports.
+Restricting the exports of an account is handled by NAuth and does not leverage the NATS private export/import functionality.
+This might be added in future releases if it would add security to the solution. Only NAuth is able to push new JWTs to NATS, making it the only gate for signing imports.
 
 ```yaml
 apiVersion: nauth.io/v1alpha2
@@ -175,4 +175,3 @@ result := &accountexport.AccountExportList{}
 for i, item := range result.Items {
 ...
 }
-

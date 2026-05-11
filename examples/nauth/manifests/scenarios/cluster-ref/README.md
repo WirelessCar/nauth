@@ -5,7 +5,7 @@ This scenario demonstrates the **cluster approach**: using `NatsCluster` and `na
 ## Overview
 
 - **NatsCluster**: Defines a NATS cluster connection (URL, operator signing key, system account credentials). Supports `url` or `urlFrom` (ConfigMap/Secret).
-- **Account** with `spec.natsClusterRef`: Targets a specific NatsCluster; the nauth controller uses it to resolve the provider.
+- **Account** with `spec.natsClusterRef`: Targets a specific NatsCluster; the NAuth controller uses it to resolve the provider.
 - **User**: Lives in the same namespace as the Account; inherits the cluster via the account reference.
 
 ## Prerequisites
