@@ -1,4 +1,11 @@
 {{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+{{- $controllers := list
+  (dict "label" "account" "name" "Account" "display" "Account")
+  (dict "label" "accountexport" "name" "AccountExport" "display" "AccountExport")
+  (dict "label" "accountimport" "name" "AccountImport" "display" "AccountImport")
+  (dict "label" "user" "name" "User" "display" "User")
+  (dict "label" "natscluster" "name" "NatsCluster" "display" "NatsCluster")
+}}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -10,53 +17,23 @@ metadata:
     {{- include "nauth.labels" . | nindent 4 }}
 spec:
   groups:
-    - name: account.controller.rules
+{{ range $controller := $controllers }}
+    - name: {{ $controller.label }}.controller.rules
       rules:
-        - alert: AccountControllerReconcileErrorsHigh
-          expr: rate(controller_runtime_reconcile_errors_total{controller="account", service="nauth-metrics-service"}[5m]) > 0.1
+        - alert: {{ $controller.name }}ControllerReconcileErrorsHigh
+          expr: rate(controller_runtime_reconcile_errors_total{controller="{{ $controller.label }}", service="nauth-metrics-service"}[5m]) > 0.1
           for: 5m
           labels:
             severity: warning
           annotations:
-            summary: High reconciliation error rate in account controller
+            summary: High reconciliation error rate in {{ $controller.display }} controller
             description: |
-              The account controller is experiencing a high rate of reconciliation errors.
+              The {{ $controller.display }} controller is experiencing a high rate of reconciliation errors.
               This may indicate issues with the operator's logic or external dependencies.
               Instance:  {{`{{ $labels.instance }}`}}
               Pod:  {{`{{ $labels.pod }}`}}
               Namespace: {{`{{ $labels.namespace }}`}}
               Current error rate:  {{`{{ $value }}`}} errors/sec
-    - name: operator.controller.rules
-      rules:
-        - alert: OperatorControllerReconcileErrorsHigh
-          expr: rate(controller_runtime_reconcile_errors_total{controller="operator", service="nauth-metrics-service"}[5m]) > 0.1
-          for: 5m
-          labels:
-            severity: warning
-          annotations:
-            summary: High reconciliation error rate in operator controller
-            description: |
-              The operator controller is experiencing a high rate of reconciliation errors.
-              This may indicate issues with the operator's logic or external dependencies.
-              Instance:  {{`{{ $labels.instance }}`}}
-              Pod:  {{`{{ $labels.pod }}`}}
-              Namespace: {{`{{ $labels.namespace }}`}}
-              Current error rate:  {{`{{ $value }}`}} errors/sec
-    - name: user.controller.rules
-      rules:
-        - alert: UserControllerReconcileErrorsHigh
-          expr: rate(controller_runtime_reconcile_errors_total{controller="user", service="nauth-metrics-service"}[5m]) > 0.1
-          for: 5m
-          labels:
-            severity: warning
-          annotations:
-            summary: High reconciliation error rate in user controller
-            description: |
-              The user controller is experiencing a high rate of reconciliation errors.
-              This may indicate issues with the operator's logic or external dependencies.
-              Instance:  {{`{{ $labels.instance }}`}}
-              Pod:  {{`{{ $labels.pod }}`}}
-              Namespace: {{`{{ $labels.namespace }}`}}
-              Current error rate:  {{`{{ $value }}`}} errors/sec
+{{- end }}
 
 {{- end }}

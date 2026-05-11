@@ -2,6 +2,7 @@ suite: controller-runtime metrics
 templates:
   - deployment.yaml
   - metrics_service.yaml
+  - monitor_alarms.yaml
 tests:
   - it: does not expose metrics service by default
     template: metrics_service.yaml
@@ -39,3 +40,35 @@ tests:
       - equal:
           path: spec.ports[0].port
           value: 8080
+
+  - it: renders reconcile error alerts for every controller exposed in metrics docs
+    template: monitor_alarms.yaml
+    set:
+      monitoring:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: kind
+          value: PrometheusRule
+      - lengthEqual:
+          path: spec.groups
+          count: 5
+      - equal:
+          path: spec.groups[0].name
+          value: account.controller.rules
+      - equal:
+          path: spec.groups[1].name
+          value: accountexport.controller.rules
+      - equal:
+          path: spec.groups[2].name
+          value: accountimport.controller.rules
+      - equal:
+          path: spec.groups[3].name
+          value: user.controller.rules
+      - equal:
+          path: spec.groups[4].name
+          value: natscluster.controller.rules
