@@ -112,7 +112,7 @@ AccountExport A3:
 
 ### Benefits:
 
-- Very granular validation, i.e. an entire group of rules wouldn't be left out just because one of the subjects are
+- Very granular validation, that is an entire group of rules wouldn't be left out just because one of the subjects are
   conflicting or invalid.
 
 ### Drawbacks:
