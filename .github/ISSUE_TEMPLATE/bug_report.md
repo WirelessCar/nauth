@@ -18,7 +18,7 @@ Steps to reproduce the behavior:
 4. See error
 
 **Versions**
-Which versions where used when the problem was observed?
+Which versions were used when the problem was observed?
 - NAuth (chart & app)
 - Kubernetes
 - NATS
