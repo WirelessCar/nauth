@@ -222,6 +222,34 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 	t.Contains(<-t.fakeRecorder.Events, "failed to apply account: a test error")
 }
 
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenChangingNatsCluster() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelNatsClusterID, "natscluster1")
+		}),
+	)
+
+	target := createDummyClusterTarget()
+	target.UID = "natscluster2"
+	t.clusterManagerMock.mockGetClusterTarget(target, nil)
+
+	// When (expect manager.CreateOrUpdate)
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Error(err)
+	t.Equal(err.Error(), "account already bound to cluster with uid: natscluster1")
+
+	account := &v1alpha1.Account{}
+	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
+	t.Require().NoError(err)
+	c := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Equal(metav1.ConditionFalse, c.Status)
+	t.Equal(conditionReasonErrored, c.Reason)
+}
+
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccount() {
 	// Given
 	t.setupAccount(

@@ -171,7 +171,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	boundToClusterID := natsAccount.GetLabel(v1alpha1.AccountLabelNatsClusterID)
 	clusterID := clusterTarget.UID
 	if boundToClusterID == "" {
-		natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, string(clusterID))
+		natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
 	} else if boundToClusterID != clusterID {
 		err = fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
 		return r.reporter.error(ctx, natsAccount, err)
