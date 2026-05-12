@@ -8,7 +8,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -37,7 +36,7 @@ func (t *AccountClientTestSuite) SetupTest() {
 
 func (t *AccountClientTestSuite) Test_Get_ShouldSucceed_WhenAccountIsReady() {
 	// Given
-	accountID := t.newAccountID()
+	accountID := testutil.AnyNatsTestAccountID()
 	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountRef.Name,
@@ -85,7 +84,7 @@ func (t *AccountClientTestSuite) Test_Get_ShouldFail_WhenAccountIsNotFound() {
 
 func (t *AccountClientTestSuite) Test_GetAccountID_ShouldSucceed() {
 	// Given
-	accountID := t.newAccountID()
+	accountID := testutil.AnyNatsTestAccountID()
 	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      t.accountRef.Name,
@@ -140,12 +139,4 @@ func (t *AccountClientTestSuite) Test_GetAccountID_ShouldFail_WhenAccountReferen
 	// Then
 	t.ErrorIs(err, domain.ErrBadRequest)
 	t.Empty(result)
-}
-
-// Helpers
-
-func (t *AccountClientTestSuite) newAccountID() string {
-	account, _ := nkeys.CreateAccount()
-	publicKey, _ := account.PublicKey()
-	return publicKey
 }

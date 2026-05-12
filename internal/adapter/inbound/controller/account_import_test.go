@@ -10,7 +10,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/testutil"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -66,9 +65,9 @@ func (t *AccountImportControllerTestSuite) TearDownTest() {
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 	// Given
-	importAccountID := t.anyAccountID()
+	importAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.importAccountName, importAccountID)
-	exportAccountID := t.anyAccountID()
+	exportAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.foreignNamespace, t.exportAccountName, exportAccountID)
 
 	resourceInput := v1alpha1.AccountImport{
@@ -157,9 +156,9 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed() {
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExportAccountInImplicitSameNamespace() {
 	// Given
-	importAccountID := t.anyAccountID()
+	importAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.importAccountName, importAccountID)
-	exportAccountID := t.anyAccountID()
+	exportAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.exportAccountName, exportAccountID)
 
 	resourceInput := v1alpha1.AccountImport{
@@ -209,7 +208,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImportAccountIsNotReady() {
 	// Given
 	t.ensureAccount(t.namespace, t.importAccountName, "")
-	exportAccountID := t.anyAccountID()
+	exportAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.exportAccountName, exportAccountID)
 
 	resourceInput := v1alpha1.AccountImport{
@@ -257,7 +256,7 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenImpo
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExportAccountIsNotReady() {
 	// Given
-	accountID := t.anyAccountID()
+	accountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.importAccountName, accountID)
 	t.ensureAccount(t.namespace, t.exportAccountName, "")
 
@@ -303,9 +302,9 @@ func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenExpo
 
 func (t *AccountImportControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenRulesValidationFail() {
 	// Given
-	importAccountID := t.anyAccountID()
+	importAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.namespace, t.importAccountName, importAccountID)
-	exportAccountID := t.anyAccountID()
+	exportAccountID := testutil.AnyNatsTestAccountID()
 	t.ensureAccount(t.foreignNamespace, t.exportAccountName, exportAccountID)
 
 	resourceInput := v1alpha1.AccountImport{
@@ -414,10 +413,10 @@ func (t *AccountImportControllerTestSuite) Test_getConditionedAccount_ShouldRetu
 func (t *AccountImportControllerTestSuite) Test_getConditionedAccount_ShouldReturnFalse_WhenAccountIDMismatchBound() {
 	// Given
 	accountRef := domain.NewNamespacedName(t.namespace, "my-account")
-	t.ensureAccount(t.namespace, "my-account", t.anyAccountID())
+	t.ensureAccount(t.namespace, "my-account", testutil.AnyNatsTestAccountID())
 
 	// When
-	account, condition := t.unitUnderTest.getConditionedAccount(t.ctx, accountRef, t.anyAccountID())
+	account, condition := t.unitUnderTest.getConditionedAccount(t.ctx, accountRef, testutil.AnyNatsTestAccountID())
 
 	// Then
 	t.Equal(metav1.ConditionFalse, condition.Status)
@@ -472,12 +471,6 @@ func (t *AccountImportControllerTestSuite) ensureAccount(namespace, name, accoun
 			},
 		},
 	}))
-}
-
-func (t *AccountImportControllerTestSuite) anyAccountID() (accountID string) {
-	accountKey, _ := nkeys.CreateAccount()
-	accountID, _ = accountKey.PublicKey()
-	return
 }
 
 type accountImportManagerMock struct {

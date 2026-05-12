@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/yaml"
@@ -34,8 +34,7 @@ type TestAccountClaimsSpec struct {
 }
 
 func Test_AccountClaims(t *testing.T) {
-
-	opSigningKey, _ := nkeys.FromSeed([]byte(testClaimsOperatorSeed))
+	opSigningKey := testutil.CreateNatsTestOperatorKeyFromSeed(testClaimsOperatorSeed)
 
 	testCases := discoverTestCases("approvals/account_claims_test.Test_AccountClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
@@ -63,7 +62,7 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, natsClaims)
 			// Ensure that the NATS JWT can be encoded
-			natsJWT, err := signAccountJWT(natsClaims, opSigningKey)
+			natsJWT, err := signAccountJWT(natsClaims, opSigningKey.Key)
 			require.NoError(t, err)
 			require.NotEmpty(t, natsJWT)
 
@@ -97,7 +96,7 @@ func Test_AccountClaims(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, natsClaimsRebuilt)
 			// Sign the JWT to ensure matching issuer details
-			_, err = natsClaimsRebuilt.Encode(opSigningKey)
+			_, err = natsClaimsRebuilt.Encode(opSigningKey.Key)
 			require.NoError(t, err)
 
 			normalizedNatsClaimsRebuilt := normalizeClaimsForApproval(natsClaimsRebuilt)
@@ -160,28 +159,25 @@ func Test_AccountClaims_convertNatsAccountClaims_ShouldSucceed_WhenMinimal(t *te
 
 func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHash(t *testing.T) {
 	// Given
-	opSignKey, _ := nkeys.CreateOperator()
-	accKey, _ := nkeys.CreateAccount()
-	accID, _ := accKey.PublicKey()
-	accSignKey, _ := nkeys.CreateAccount()
-	accSignPubKey, _ := accSignKey.PublicKey()
-	toJWT := func(claims *jwt.AccountClaims, opSignKey nkeys.KeyPair) string {
-		signedJWT, err := claims.Encode(opSignKey)
+	opSign := testutil.CreateNatsTestOperatorKey()
+	acc := testutil.CreateNatsTestAccount()
+	toJWT := func(claims *jwt.AccountClaims, opSignKey testutil.NatsTestOperatorKey) string {
+		signedJWT, err := claims.Encode(opSignKey.Key)
 		require.NoError(t, err)
 		return signedJWT
 	}
 
-	claims0 := jwt.NewAccountClaims(accID)
+	claims0 := jwt.NewAccountClaims(acc.AccountID())
 	claims0.Name = "Test Account"
-	claims0.SigningKeys.Add(accSignPubKey)
-	jwt0 := toJWT(claims0, opSignKey)
+	claims0.SigningKeys.Add(acc.Sign.PublicKey)
+	jwt0 := toJWT(claims0, opSign)
 
 	time.Sleep(1010 * time.Millisecond) // Ensure that time-based fields would differ if not fixed
 
-	claims1 := jwt.NewAccountClaims(accID)
+	claims1 := jwt.NewAccountClaims(acc.AccountID())
 	claims1.Name = "Test Account"
-	claims1.SigningKeys.Add(accSignPubKey)
-	jwt1 := toJWT(claims1, opSignKey)
+	claims1.SigningKeys.Add(acc.Sign.PublicKey)
+	jwt1 := toJWT(claims1, opSign)
 
 	unitUnderTest := func(jwt string) string {
 		hash, err := hashSignedAccountJWTClaims(jwt)
@@ -196,12 +192,12 @@ func Test_AccountClaims_hashSignedAccountJWTClaims_ShouldGenerateDeterministicHa
 	require.Equal(t, claims0Hash, unitUnderTest(jwt0), "expected hash to be deterministic for same JWT")
 	require.Equal(t, claims0Hash, unitUnderTest(jwt1), "expected hash to be deterministic for same claims and signing key")
 
-	opSignKeyOther, _ := nkeys.CreateOperator()
+	opSignKeyOther := testutil.CreateNatsTestOperatorKey()
 	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(claims0, opSignKeyOther)), "expected hash to change when signing key changes")
 
 	claimsOther := *claims0
 	claimsOther.Description = "Claims V2"
-	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(&claimsOther, opSignKey)), "expected hash to change when claims content changes")
+	require.NotEqual(t, claims0Hash, unitUnderTest(toJWT(&claimsOther, opSign)), "expected hash to change when claims content changes")
 }
 
 func Test_AccountClaims_builder_ShouldReturnErrorWhenJetStreamEnablementConflict(t *testing.T) {

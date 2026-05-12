@@ -7,8 +7,8 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -285,23 +285,18 @@ func (t *ClusterTestSuite) newUnitUnderTest(opClusterRef *nauth.ClusterRef, opCl
 }
 
 func (t *ClusterTestSuite) generateClusterTarget() nauth.ClusterTarget {
-	opSign, _ := nkeys.CreateOperator()
+	op := testutil.CreateNatsTestOperator()
+	ac := testutil.CreateNatsTestAccount()
+	sau := testutil.CreateNatsTestUserKey()
 
-	acKey, _ := nkeys.CreateAccount()
-	acKeyPub, _ := acKey.PublicKey()
+	sauClaims := jwt.NewUserClaims(sau.PublicKey)
+	sauClaims.IssuerAccount = ac.Root.PublicKey
 
-	sauKey, _ := nkeys.CreateUser()
-	sauKeySeed, _ := sauKey.Seed()
-	sauKeyPub, _ := sauKey.PublicKey()
-
-	sauClaims := jwt.NewUserClaims(sauKeyPub)
-	sauClaims.IssuerAccount = acKeyPub
-
-	sauJwt, err := sauClaims.Encode(acKey)
+	sauJwt, err := sauClaims.Encode(ac.Root.Key)
 	if err != nil {
 		t.Failf("failed to encode SAU JWT", "error: %v", err)
 	}
-	sauCreds, err := jwt.FormatUserConfig(sauJwt, sauKeySeed)
+	sauCreds, err := jwt.FormatUserConfig(sauJwt, sau.Seed)
 	if err != nil {
 		t.Failf("failed to format SAU creds", "error: %v", err)
 	}
@@ -313,7 +308,7 @@ func (t *ClusterTestSuite) generateClusterTarget() nauth.ClusterTarget {
 	return nauth.ClusterTarget{
 		UID:                string(uuid.NewUUID()),
 		NatsURL:            "nats://my-cluster:4222",
-		OperatorSigningKey: opSign,
+		OperatorSigningKey: op.Sign.Key,
 		SystemAdminCreds:   *sauNatsUserCreds,
 	}
 }

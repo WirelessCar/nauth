@@ -7,8 +7,8 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,10 +44,7 @@ func TestUserManager_TestSuite(t *testing.T) {
 
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 	// Given
-	accountRoot, _ := nkeys.CreateAccount()
-	accountID, _ := accountRoot.PublicKey()
-	accountSign, _ := nkeys.CreateAccount()
-	accountSignPub, _ := accountSign.PublicKey()
+	accountKeys := testutil.CreateNatsTestAccount()
 
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{
@@ -64,13 +61,13 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 		func(claims *jwt.UserClaims) *SignedUserJWT {
 			t.Nil(signedUserJWT, "signedUserJWT should only be set once")
 			t.Empty(claims.IssuerAccount, "IssuerAccount should not be set before Account lookup has occurred")
-			claims.IssuerAccount = accountID
-			userJWT, err := claims.Encode(accountSign)
+			claims.IssuerAccount = accountKeys.Root.PublicKey
+			userJWT, err := claims.Encode(accountKeys.Sign.Key)
 			t.NoError(err, "claims.Encode should not return an error")
 			signedUserJWT = &SignedUserJWT{
 				UserJWT:   userJWT,
-				AccountID: accountID,
-				SignedBy:  accountSignPub,
+				AccountID: accountKeys.AccountID(),
+				SignedBy:  accountKeys.Sign.PublicKey,
 			}
 			return signedUserJWT
 		})
@@ -97,24 +94,21 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 
 	userID := user.GetLabel(v1alpha1.UserLabelUserID)
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabel(v1alpha1.UserLabelAccountID))
-	t.Equal(accountSignPub, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
+	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
+	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser() {
 	// Given
-	accountRoot, _ := nkeys.CreateAccount()
-	accountID, _ := accountRoot.PublicKey()
-	accountSign, _ := nkeys.CreateAccount()
-	accountSignPub, _ := accountSign.PublicKey()
+	accountKeys := testutil.CreateNatsTestAccount()
 
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "my-user",
 			Namespace: "my-namespace",
 			Labels: map[string]string{
-				string(v1alpha1.UserLabelAccountID): accountID,
+				string(v1alpha1.UserLabelAccountID): accountKeys.AccountID(),
 				string(v1alpha1.UserLabelUserID):    "fake-prev-user-pub-key",
 				string(v1alpha1.UserLabelSignedBy):  "fake-prev-sign-pub-key",
 			},
@@ -128,13 +122,13 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 	t.userJWTSignerMock.mockSignUserJWT(t.ctx, domain.NewNamespacedName("my-namespace", "my-account"),
 		func(claims *jwt.UserClaims) *SignedUserJWT {
 			t.Nil(signedUserJWT, "signedUserJWT should only be set once")
-			t.Equal(accountID, claims.IssuerAccount, "IssuerAccount should match previous Account ID")
-			userJWT, err := claims.Encode(accountSign)
+			t.Equal(accountKeys.AccountID(), claims.IssuerAccount, "IssuerAccount should match previous Account ID")
+			userJWT, err := claims.Encode(accountKeys.Sign.Key)
 			t.NoError(err, "claims.Encode should not return an error")
 			signedUserJWT = &SignedUserJWT{
 				UserJWT:   userJWT,
-				AccountID: accountID,
-				SignedBy:  accountSignPub,
+				AccountID: accountKeys.AccountID(),
+				SignedBy:  accountKeys.Sign.PublicKey,
 			}
 			return signedUserJWT
 		})
@@ -161,9 +155,9 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 
 	userID := user.GetLabel(v1alpha1.UserLabelUserID)
 	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountID, user.GetLabel(v1alpha1.UserLabelAccountID))
-	t.Equal(accountSignPub, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountSignPub, accountID, userID, caughtSecrets)
+	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
+	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) Test_Delete_ShouldSucceed() {

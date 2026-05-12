@@ -9,7 +9,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 	k8sv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,7 +56,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed() {
 		},
 	})
 	testData := t.generateTestSecrets()
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"user.creds": string(testData.sauCredsData)})
 
 	// When
@@ -69,7 +68,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed() {
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -85,7 +84,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenSecretsUsi
 		},
 	})
 	testData := t.generateTestSecrets()
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"default": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"default": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"default": string(testData.sauCredsData)})
 
 	// When
@@ -97,7 +96,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenSecretsUsi
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -120,7 +119,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	})
 	testData := t.generateTestSecrets()
 	t.createConfigMap(t.clusterNsN.Namespace, "url-configmap", map[string]string{"nats.url": "nats://cm-cluster:4222"})
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"user.creds": string(testData.sauCredsData)})
 
 	// When
@@ -132,7 +131,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -157,7 +156,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	})
 	testData := t.generateTestSecrets()
 	t.createConfigMap(configNamespace, "url-configmap", map[string]string{"nats.url": "nats://cm-cluster:4222"})
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"user.creds": string(testData.sauCredsData)})
 
 	// When
@@ -169,7 +168,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -192,7 +191,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	})
 	testData := t.generateTestSecrets()
 	t.createSecret(t.clusterNsN.Namespace, "url-secret", map[string]string{"nats.url": "nats://cm-cluster:4222"})
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"user.creds": string(testData.sauCredsData)})
 
 	// When
@@ -204,7 +203,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -229,7 +228,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	})
 	testData := t.generateTestSecrets()
 	t.createSecret(secretNamespace, "url-secret", map[string]string{"nats.url": "nats://cm-cluster:4222"})
-	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSignKeySeed)})
+	t.createSecret(t.clusterNsN.Namespace, "op-sign-secret", map[string]string{"seed": string(testData.opSign.Seed)})
 	t.createSecret(t.clusterNsN.Namespace, "sau-creds-secret", map[string]string{"user.creds": string(testData.sauCredsData)})
 
 	// When
@@ -241,7 +240,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -265,7 +264,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenAllDetails
 	testData := t.generateTestSecrets()
 	t.createSecret(t.clusterNsN.Namespace, "cluster-secret", map[string]string{
 		"nats-url":     "nats://cm-cluster:4222",
-		"op-sign-seed": string(testData.opSignKeySeed),
+		"op-sign-seed": string(testData.opSign.Seed),
 		"sau-creds":    string(testData.sauCredsData),
 	})
 
@@ -278,7 +277,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenAllDetails
 	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
-		OperatorSigningKey: testData.opSignKey,
+		OperatorSigningKey: testData.opSign.Key,
 	}, result)
 }
 
@@ -372,38 +371,29 @@ func (t *NatsClusterClientTestSuite) createSecret(namespace string, resourceName
 }
 
 type clusterTestSecrets struct {
-	opSignKeySeed []byte
-	opSignKey     domain.NatsOperatorSigningKey
-	sauCredsData  []byte
-	sauCreds      domain.NatsUserCreds
+	opSign       testutil.NatsTestOperatorKey
+	sauCredsData []byte
+	sauCreds     domain.NatsUserCreds
 }
 
 func (t *NatsClusterClientTestSuite) generateTestSecrets() clusterTestSecrets {
-	opSign, _ := nkeys.CreateOperator()
-	opSeed, _ := opSign.Seed()
-	opSignKey := domain.NatsOperatorSigningKey(opSign)
+	opSign := testutil.CreateNatsTestOperatorKey()
+	acRoot := testutil.CreateNatsTestAccountKey()
+	user := testutil.CreateNatsTestUserKey()
 
-	acKey, _ := nkeys.CreateAccount()
-	acKeyPub, _ := acKey.PublicKey()
+	sauClaims := jwt.NewUserClaims(user.PublicKey)
+	sauClaims.IssuerAccount = acRoot.PublicKey
 
-	sauKey, _ := nkeys.CreateUser()
-	sauKeySeed, _ := sauKey.Seed()
-	sauKeyPub, _ := sauKey.PublicKey()
-
-	sauClaims := jwt.NewUserClaims(sauKeyPub)
-	sauClaims.IssuerAccount = acKeyPub
-
-	sauJwt, err := sauClaims.Encode(acKey)
+	sauJwt, err := sauClaims.Encode(acRoot.Key)
 	t.Require().Nilf(err, "failed to encode SAU JWT: %v", err)
-	sauCredsData, err := jwt.FormatUserConfig(sauJwt, sauKeySeed)
+	sauCredsData, err := jwt.FormatUserConfig(sauJwt, user.Seed)
 	t.Require().Nilf(err, "failed to format SAU creds: %v", err)
 	sauCreds, err := domain.NewNatsUserCreds(sauCredsData)
 	t.Require().Nilf(err, "failed to create NatsUserCreds from SAU creds: %v", err)
 	return clusterTestSecrets{
-		opSignKeySeed: opSeed,
-		opSignKey:     opSignKey,
-		sauCredsData:  sauCredsData,
-		sauCreds:      *sauCreds,
+		opSign:       opSign,
+		sauCredsData: sauCredsData,
+		sauCreds:     *sauCreds,
 	}
 }
 

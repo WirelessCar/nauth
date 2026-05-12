@@ -28,7 +28,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/testutil"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
@@ -43,7 +42,6 @@ import (
 
 const (
 	accountBaseName  = "test-resource"
-	accountPublicKey = "ACSOMETHINGKEY"
 )
 
 type AccountControllerTestSuite struct {
@@ -167,7 +165,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 	)
 
 	mockResult := &nauth.AccountResult{
-		AccountID:       accountPublicKey,
+		AccountID:       testutil.AnyNatsTestAccountID(),
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
 		ClaimsHash:      "CLAIMS_HASH",
@@ -257,7 +255,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 		}),
 	)
 
@@ -285,7 +283,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 		}),
 	)
 
@@ -313,8 +311,7 @@ func createDummyClusterTarget() *nauth.ClusterTarget {
 		Creds:     []byte("FAKE_CREDENTIALS"),
 		AccountID: "FAKE_SYS_ACCOUNT_ID",
 	}
-	opSign, _ := nkeys.CreateOperator()
-	opSignKey := domain.NatsOperatorSigningKey(opSign)
+	opSignKey := domain.NatsOperatorSigningKey(testutil.CreateNatsTestOperator().Sign.Key)
 	clusterTarget, _ := nauth.NewClusterTarget(
 		"UID",
 		"nats://nats-cluster:4222",
@@ -329,7 +326,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 		}),
 	)
 
@@ -361,16 +358,17 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount() {
 	// Given
+	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 		}),
 	)
 
 	mockResult := &nauth.AccountResult{
-		AccountID:       accountPublicKey,
+		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
 	}
@@ -386,10 +384,11 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
 	// Given
+	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 		}),
 	)
 
@@ -397,7 +396,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 	t.Require().NoError(os.Setenv(envOperatorVersion, newOperatorVersion))
 
 	mockResult := &nauth.AccountResult{
-		AccountID:       accountPublicKey,
+		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
 	}
@@ -424,11 +423,11 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExportsExist() {
 	// Given
-	accountID := accountPublicKey
+	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelAccountID, accountPublicKey)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 		}),
 	)
 

@@ -6,19 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 	op := newOperator(t)
-	accExpKey, _ := nkeys.CreateAccount()
-	accExpPubKey, _ := accExpKey.PublicKey()
-	accImpKey, _ := nkeys.CreateAccount()
-	accImpPubKey, _ := accImpKey.PublicKey()
+	accExpKey := testutil.CreateNatsTestAccountKey()
+	accImpKey := testutil.CreateNatsTestAccountKey()
 
 	tcs := []struct {
 		name   string
@@ -36,7 +34,7 @@ func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 			}),
 			accImp: newAccountWithKey(t, op, accImpKey, func(accPubKey string, claims *jwt.AccountClaims) {
 				claims.Imports.Add(&jwt.Import{
-					Account: accExpPubKey,
+					Account: accExpKey.PublicKey,
 					Subject: "foo.hello",
 					Type:    jwt.Stream,
 				})
@@ -53,9 +51,9 @@ func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 			}),
 			accImp: newAccountWithKey(t, op, accImpKey, func(accPubKey string, claims *jwt.AccountClaims) {
 				claims.Imports.Add(&jwt.Import{
-					Account: accExpPubKey,
+					Account: accExpKey.PublicKey,
 					Subject: "foo.hello",
-					Token:   newActivationToken(t, accExpKey, accImpPubKey, "foo.hello", jwt.Stream),
+					Token:   newActivationToken(t, accExpKey, accImpKey.PublicKey, "foo.hello", jwt.Stream),
 					Type:    jwt.Stream,
 				})
 			}),
@@ -71,9 +69,9 @@ func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 			}),
 			accImp: newAccountWithKey(t, op, accImpKey, func(accPubKey string, claims *jwt.AccountClaims) {
 				claims.Imports.Add(&jwt.Import{
-					Account: accExpPubKey,
+					Account: accExpKey.PublicKey,
 					Subject: "foo.hello",
-					Token:   newActivationToken(t, accExpKey, accImpPubKey, "foo.*", jwt.Stream),
+					Token:   newActivationToken(t, accExpKey, accImpKey.PublicKey, "foo.*", jwt.Stream),
 					Type:    jwt.Stream,
 				})
 			}),
@@ -89,9 +87,9 @@ func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 			}),
 			accImp: newAccountWithKey(t, op, accImpKey, func(accPubKey string, claims *jwt.AccountClaims) {
 				claims.Imports.Add(&jwt.Import{
-					Account: accExpPubKey,
+					Account: accExpKey.PublicKey,
 					Subject: "foo.hello",
-					Token:   newActivationToken(t, accExpKey, accImpPubKey, "foo.*", jwt.Stream),
+					Token:   newActivationToken(t, accExpKey, accImpKey.PublicKey, "foo.*", jwt.Stream),
 					Type:    jwt.Stream,
 				})
 			}),
@@ -129,10 +127,8 @@ func TestGeneral_ExportImport_ShouldSucceed(t *testing.T) {
 
 func TestGeneral_ApplyAccount_ShouldFail(t *testing.T) {
 	op := newOperator(t)
-	accExpKey, _ := nkeys.CreateAccount()
-	accExpPubKey, _ := accExpKey.PublicKey()
-	accImpKey, _ := nkeys.CreateAccount()
-	accImpPubKey, _ := accImpKey.PublicKey()
+	accExpKey := testutil.CreateNatsTestAccountKey()
+	accImpKey := testutil.CreateNatsTestAccountKey()
 
 	tcs := []struct {
 		name      string
@@ -143,9 +139,9 @@ func TestGeneral_ApplyAccount_ShouldFail(t *testing.T) {
 			name: "ImportWildcardSubjectDoesNotMatchTokenSubject",
 			acc: newAccountWithKey(t, op, accImpKey, func(accPubKey string, claims *jwt.AccountClaims) {
 				claims.Imports.Add(&jwt.Import{
-					Account: accExpPubKey,
+					Account: accExpKey.PublicKey,
 					Subject: "foo.*",
-					Token:   newActivationToken(t, accExpKey, accImpPubKey, "foo.hello", jwt.Stream),
+					Token:   newActivationToken(t, accExpKey, accImpKey.PublicKey, "foo.hello", jwt.Stream),
 					Type:    jwt.Stream,
 				})
 			}),
@@ -168,74 +164,67 @@ func TestGeneral_ApplyAccount_ShouldFail(t *testing.T) {
 ******************************************************************/
 
 type operator struct {
-	rootKey nkeys.KeyPair
+	rootKey testutil.NatsTestOperatorKey
 	claims  *jwt.OperatorClaims
 }
 
 func newOperator(t *testing.T) operator {
 	t.Helper()
-	rootKey, _ := nkeys.CreateOperator()
-	publicKey, _ := rootKey.PublicKey()
-	claims := jwt.NewOperatorClaims(publicKey)
-	operatorJWT, err := claims.Encode(rootKey)
+	opKey := testutil.CreateNatsTestOperatorKey()
+	claims := jwt.NewOperatorClaims(opKey.PublicKey)
+	operatorJWT, err := claims.Encode(opKey.Key)
 	require.NoError(t, err)
 	decodedClaims, err := jwt.DecodeOperatorClaims(operatorJWT)
 	require.NoError(t, err)
 	return operator{
-		rootKey: rootKey,
+		rootKey: opKey,
 		claims:  decodedClaims,
 	}
 }
 
 type account struct {
-	rootKey    nkeys.KeyPair
-	rootPubKey string
-	jwt        string
+	key testutil.NatsTestAccountKey
+	jwt string
 }
 
 func newAccount(t *testing.T, operator operator, configure func(accPubKey string, claims *jwt.AccountClaims)) account {
 	t.Helper()
-	keyPair, _ := nkeys.CreateAccount()
-	return newAccountWithKey(t, operator, keyPair, configure)
+	key := testutil.CreateNatsTestAccountKey()
+	return newAccountWithKey(t, operator, key, configure)
 }
 
-func newAccountWithKey(t *testing.T, operator operator, keyPair nkeys.KeyPair, configure func(accPubKey string, claims *jwt.AccountClaims)) account {
+func newAccountWithKey(t *testing.T, operator operator, key testutil.NatsTestAccountKey, configure func(accPubKey string, claims *jwt.AccountClaims)) account {
 	t.Helper()
-	accPubKey, err := keyPair.PublicKey()
-	require.NoError(t, err)
-	claims := jwt.NewAccountClaims(accPubKey)
+	claims := jwt.NewAccountClaims(key.PublicKey)
 	if configure != nil {
-		configure(accPubKey, claims)
+		configure(key.PublicKey, claims)
 	}
-	accountJWT, err := claims.Encode(operator.rootKey)
+	accountJWT, err := claims.Encode(operator.rootKey.Key)
 	require.NoError(t, err)
 	return account{
-		rootKey:    keyPair,
-		rootPubKey: accPubKey,
-		jwt:        accountJWT,
+		key: key,
+		jwt: accountJWT,
 	}
 }
 
 func newUserCreds(t *testing.T, account account) []byte {
 	t.Helper()
-	keyPair, _ := nkeys.CreateUser()
-	pubKey, _ := keyPair.PublicKey()
-	seed, _ := keyPair.Seed()
-	claims := jwt.NewUserClaims(pubKey)
-	claims.IssuerAccount = account.rootPubKey
-	userJWT, err := claims.Encode(account.rootKey)
+	user := testutil.CreateNatsTestUserKey()
+	claims := jwt.NewUserClaims(user.PublicKey)
+	claims.IssuerAccount = account.key.PublicKey
+	userJWT, err := claims.Encode(account.key.Key)
 	require.NoError(t, err)
-	creds, err := jwt.FormatUserConfig(userJWT, seed)
+	creds, err := jwt.FormatUserConfig(userJWT, user.Seed)
 	require.NoError(t, err)
 	return creds
 }
 
-func newActivationToken(t *testing.T, exporterSignKey nkeys.KeyPair, importerPubKey string, subject string, exportType jwt.ExportType) string {
+func newActivationToken(t *testing.T, exporterSignKey testutil.NatsTestAccountKey, importerPubKey string, subject string, exportType jwt.ExportType) string {
 	t.Helper()
 	claims := jwt.NewActivationClaims(importerPubKey)
 	claims.ImportSubject = jwt.Subject(subject)
 	claims.ImportType = exportType
-	token, err := claims.Encode(exporterSignKey)
+	token, err := claims.Encode(exporterSignKey.Key)
 	require.NoError(t, err)
 	return token
 }
@@ -246,7 +235,7 @@ func runServer(t *testing.T, operator operator) (*natsserver.Server, *nats.Conn)
 	sysAcc := newAccount(t, operator, nil)
 	resolver, err := natsserver.NewDirAccResolver(t.TempDir(), 0, time.Minute, natsserver.NoDelete)
 	require.NoError(t, err)
-	require.NoError(t, resolver.Store(sysAcc.rootPubKey, sysAcc.jwt))
+	require.NoError(t, resolver.Store(sysAcc.key.PublicKey, sysAcc.jwt))
 
 	opts := &natsserver.Options{
 		Host:                  "127.0.0.1",
@@ -256,7 +245,7 @@ func runServer(t *testing.T, operator operator) (*natsserver.Server, *nats.Conn)
 		DisableShortFirstPing: true,
 		TrustedOperators:      []*jwt.OperatorClaims{operator.claims},
 		AccountResolver:       resolver,
-		SystemAccount:         sysAcc.rootPubKey,
+		SystemAccount:         sysAcc.key.PublicKey,
 	}
 
 	server, err := natsserver.NewServer(opts)
@@ -278,7 +267,7 @@ func applyAccountJWT(t *testing.T, server *natsserver.Server, sysConn *nats.Conn
 	t.Helper()
 
 	resp, err := sysConn.Request(
-		fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", account.rootPubKey),
+		fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.UPDATE", account.key.PublicKey),
 		[]byte(account.jwt),
 		2*time.Second,
 	)
@@ -300,8 +289,8 @@ func applyAccountJWT(t *testing.T, server *natsserver.Server, sysConn *nats.Conn
 	if result.Data.Code != 200 {
 		return fmt.Errorf("failed to apply account JWT: [%d] %s", result.Error.Code, result.Error.Description)
 	}
-	require.Equal(t, account.rootPubKey, result.Data.Account)
-	_, err = server.LookupAccount(account.rootPubKey)
+	require.Equal(t, account.key.PublicKey, result.Data.Account)
+	_, err = server.LookupAccount(account.key.PublicKey)
 	require.NoError(t, err)
 	return nil
 }
