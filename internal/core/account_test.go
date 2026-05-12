@@ -26,13 +26,12 @@ type AccountManagerTestSuite struct {
 	clusterRef    nauth.ClusterRef
 	clusterTarget nauth.ClusterTarget
 
-	accountIDReaderMock       *AccountIDReaderMock
-	natsSysClientMock         *NatsSysClientMock
-	natsSysConnMock           *NatsSysConnectionMock
-	natsAccClientMock         *NatsAccountClientMock
-	natsAccConnMock           *NatsAccConnectionMock
-	clusterTargetResolverMock *clusterTargetResolverMock
-	secretManagerMock         *secretManagerMock
+	accountIDReaderMock *AccountIDReaderMock
+	natsSysClientMock   *NatsSysClientMock
+	natsSysConnMock     *NatsSysConnectionMock
+	natsAccClientMock   *NatsAccountClientMock
+	natsAccConnMock     *NatsAccConnectionMock
+	secretManagerMock   *secretManagerMock
 
 	unitUnderTest *AccountManager
 }
@@ -48,12 +47,12 @@ func (t *AccountManagerTestSuite) SetupTest() {
 	t.natsURL = "nats://nats:4222"
 	t.clusterRef = "account-namespace/account-namespace-cluster"
 	t.clusterTarget = nauth.ClusterTarget{
+		UID:                "cluster-target-uid",
 		NatsURL:            t.natsURL,
 		OperatorSigningKey: t.keys.OpSign.KeyPair,
 		SystemAdminCreds:   t.sauCreds,
 	}
 
-	t.clusterTargetResolverMock = newClusterTargetResolverMock()
 	t.secretManagerMock = newSecretManagerMock()
 	t.accountIDReaderMock = NewAccountIDReaderMock()
 	t.natsSysClientMock = NewNatsSysClientMock()
@@ -66,7 +65,6 @@ func (t *AccountManagerTestSuite) SetupTest() {
 		t.natsSysClientMock,
 		t.natsAccClientMock,
 		t.accountIDReaderMock,
-		t.clusterTargetResolverMock,
 		t.secretManagerMock,
 	)
 	t.NoError(err)
@@ -82,7 +80,6 @@ func (t *AccountManagerTestSuite) assertAndResetAllMock() {
 }
 
 func (t *AccountManagerTestSuite) assertAllMocks() {
-	t.clusterTargetResolverMock.AssertExpectations(t.T())
 	t.secretManagerMock.AssertExpectations(t.T())
 	t.accountIDReaderMock.AssertExpectations(t.T())
 	t.natsSysClientMock.AssertExpectations(t.T())
@@ -92,7 +89,6 @@ func (t *AccountManagerTestSuite) assertAllMocks() {
 }
 
 func (t *AccountManagerTestSuite) resetAllMocks() {
-	t.clusterTargetResolverMock.Mock = mock.Mock{}
 	t.secretManagerMock.Mock = mock.Mock{}
 	t.accountIDReaderMock.Mock = mock.Mock{}
 	t.natsSysClientMock.Mock = mock.Mock{}
@@ -116,7 +112,6 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	var natsLimitsSubs int64 = 100
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -131,7 +126,8 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		ClusterTarget: t.clusterTarget,
 		NatsLimits: &nauth.NatsLimits{
 			Subs: &natsLimitsSubs,
 		},
@@ -159,7 +155,6 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	natsLimitsSubs := int64(100)
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, &t.clusterRef, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
 	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, func(rootKeyPair nkeys.KeyPair) {
 		caughtRootKeyPair = rootKeyPair
@@ -174,8 +169,8 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		ClusterRef: new(nauth.ClusterRef("account-namespace/account-namespace-cluster")),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		ClusterTarget: t.clusterTarget,
 		NatsLimits: &nauth.NatsLimits{
 			Subs: &natsLimitsSubs,
 		},
@@ -200,7 +195,6 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	keys := testKeys1()
 	var natsLimitsSubs int64 = 100
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, "", &Secrets{
 		Root: keys.AcRoot.KeyPair,
 		Sign: keys.AcSign.KeyPair,
@@ -211,7 +205,8 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		ClusterTarget: t.clusterTarget,
 		NatsLimits: &nauth.NatsLimits{
 			Subs: &natsLimitsSubs,
 		},
@@ -238,12 +233,11 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.Require().NoError(err)
 			var input nauth.AccountRequest
 			t.Require().NoError(yaml.UnmarshalStrict(inputData, &input))
+			input.ClusterTarget = t.clusterTarget
 			t.Require().NoError(input.Validate())
-			t.Require().Nil(input.ClusterRef, "clusterRef must be absent in input file")
 
 			keys := testKeys1()
 
-			t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 			t.secretManagerMock.mockGetSecrets(t.ctx, input.AccountRef, "", &Secrets{
 				Root: keys.AcRoot.KeyPair,
 				Sign: keys.AcSign.KeyPair,
@@ -274,30 +268,16 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 	}
 }
 
-func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenClusterNotFound() {
-	// Given
-	t.clusterTargetResolverMock.mockGetClusterTargetError(t.ctx, nil, fmt.Errorf("test cluster not found"))
-
-	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-	})
-
-	// Then
-	t.ErrorContains(err, "test cluster not found")
-	t.Nil(result)
-}
-
 func (t *AccountManagerTestSuite) Test_Create_ShouldFail_WhenExistingSecretsAreInvalid() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("root secret is malformed"))
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -314,7 +294,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountID := t.keys.AcRoot.PublicKey
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: t.keys.AcRoot.KeyPair,
 		Sign: t.keys.AcSign.KeyPair,
@@ -325,8 +304,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -341,7 +321,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountID := t.keys.AcRoot.PublicKey
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: t.keys.AcRoot.KeyPair,
 		Sign: t.keys.AcSign.KeyPair,
@@ -351,15 +330,15 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	t.natsSysConnMock.mockDisconnect()
 
 	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
 	t.Require().NotEmpty(initialResult.ClaimsHash)
 	t.assertAndResetAllMock()
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: t.keys.AcRoot.KeyPair,
 		Sign: t.keys.AcSign.KeyPair,
@@ -367,9 +346,10 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
-		ClaimsHash: initialResult.ClaimsHash,
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClaimsHash:    initialResult.ClaimsHash,
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -384,7 +364,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountID := t.keys.AcRoot.PublicKey
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: t.keys.AcRoot.KeyPair,
 		Sign: t.keys.AcSign.KeyPair,
@@ -394,8 +373,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.natsSysConnMock.mockDisconnect()
 
 	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
@@ -408,7 +388,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.Require().NoError(err)
 	t.clusterTarget.OperatorSigningKey = newOpSignKey
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: t.keys.AcRoot.KeyPair,
 		Sign: t.keys.AcSign.KeyPair,
@@ -419,9 +398,10 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
-		ClaimsHash: initialResult.ClaimsHash,
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClaimsHash:    initialResult.ClaimsHash,
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -442,13 +422,13 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMi
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
 	accountID := "ACMISSINGACCOUNTID"
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -463,7 +443,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountSignKey, _ := nkeys.CreateAccount()
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -471,8 +450,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenUpdatingSystemAccou
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -489,7 +469,6 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 	importAccountKey, _ := nkeys.CreateAccount()
 	importAccountID, _ := importAccountKey.PublicKey()
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -497,8 +476,9 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountClaimsAreInv
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 		ImportGroups: nauth.ImportGroups{
 			{
 				Ref:      "inline",
@@ -544,7 +524,6 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	existingJWT, err := existingClaims.Encode(accountSignKey)
 	t.NoError(err, "failed to encode existing account JWT")
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
 		Sign: accountSignKey,
@@ -555,8 +534,9 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 
 	// When
 	result, err := t.unitUnderTest.Import(t.ctx, nauth.AccountReference{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -577,8 +557,6 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 	accountSignKey, _ := nkeys.CreateAccount()
-
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: accountRootKey,
@@ -602,8 +580,9 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 
 	// When
 	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -634,7 +613,6 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAr
 	accountRootKey, _ := nkeys.CreateAccount()
 	accountID, _ := accountRootKey.PublicKey()
 
-	t.clusterTargetResolverMock.mockGetClusterTarget(t.ctx, nil, &t.clusterTarget)
 	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, accountID)
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
 	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt }).Once()
@@ -643,8 +621,9 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAr
 
 	// When
 	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
-		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:  nauth.AccountID(accountID),
+		AccountRef:    domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -805,32 +784,6 @@ func (t *AccountManagerTestSuite) verifyAccountResult(result *nauth.AccountResul
 
 	return accountClaims
 }
-
-/* ****************************************************
-* clusterTargetResolver Mock
-*****************************************************/
-type clusterTargetResolverMock struct {
-	mock.Mock
-}
-
-func newClusterTargetResolverMock() *clusterTargetResolverMock {
-	return &clusterTargetResolverMock{}
-}
-
-func (m *clusterTargetResolverMock) GetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef) (*nauth.ClusterTarget, error) {
-	args := m.Called(ctx, accountClusterRef)
-	return args.Get(0).(*nauth.ClusterTarget), args.Error(1)
-}
-
-func (m *clusterTargetResolverMock) mockGetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef, result *nauth.ClusterTarget) {
-	m.On("GetClusterTarget", ctx, accountClusterRef).Return(result, nil)
-}
-
-func (m *clusterTargetResolverMock) mockGetClusterTargetError(ctx context.Context, accountClusterRef *nauth.ClusterRef, err error) {
-	m.On("GetClusterTarget", ctx, accountClusterRef).Return((*nauth.ClusterTarget)(nil), err)
-}
-
-var _ clusterTargetResolver = (*clusterTargetResolverMock)(nil)
 
 /* ****************************************************
 * secretManager Mock

@@ -7,13 +7,15 @@ import (
 )
 
 type ClusterTarget struct {
+	UID                string
 	NatsURL            string
 	SystemAdminCreds   domain.NatsUserCreds
 	OperatorSigningKey domain.NatsOperatorSigningKey
 }
 
-func NewClusterTarget(natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*ClusterTarget, error) {
+func NewClusterTarget(uid string, natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*ClusterTarget, error) {
 	target := &ClusterTarget{
+		UID:                uid,
 		NatsURL:            natsURL,
 		SystemAdminCreds:   systemAdminCreds,
 		OperatorSigningKey: operatorSigningKey,
@@ -25,6 +27,9 @@ func NewClusterTarget(natsURL string, systemAdminCreds domain.NatsUserCreds, ope
 }
 
 func (c *ClusterTarget) Validate() error {
+	if c.UID == "" {
+		return fmt.Errorf("UID is required")
+	}
 	if c.NatsURL == "" {
 		return fmt.Errorf("URL is required")
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"k8s.io/apimachinery/pkg/util/uuid"
 )
 
 type ClusterTestSuite struct {
@@ -310,6 +311,7 @@ func (t *ClusterTestSuite) generateClusterTarget() nauth.ClusterTarget {
 	}
 
 	return nauth.ClusterTarget{
+		UID:                string(uuid.NewUUID()),
 		NatsURL:            "nats://my-cluster:4222",
 		OperatorSigningKey: opSign,
 		SystemAdminCreds:   *sauNatsUserCreds,

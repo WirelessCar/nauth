@@ -59,9 +59,12 @@ func (c *ClusterClient) ResolveClusterTarget(ctx context.Context, cluster *v1alp
 	if err != nil {
 		return nil, fmt.Errorf("resolve operator signing key for NatsCluster %s: %w", clusterRef, err)
 	}
-	target, err := nauth.NewClusterTarget(natsURL, *sysAdminCreds, opSigningKey)
+	target, err := nauth.NewClusterTarget(string(cluster.UID), natsURL, *sysAdminCreds, opSigningKey)
 	if err != nil {
 		return nil, fmt.Errorf("create cluster target for NatsCluster %s: %w", clusterRef, err)
+	}
+	if err = target.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid cluster target resolved for NatsCluster %s: %w", clusterRef, err)
 	}
 	return target, nil
 }

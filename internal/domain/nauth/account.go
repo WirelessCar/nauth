@@ -12,7 +12,7 @@ type AccountRequest struct {
 	AccountID        AccountID             `json:"accountId,omitempty"`
 	ClaimsHash       string                `json:"claimsHash,omitempty"`
 	DisplayName      string                `json:"displayName,omitempty"`
-	ClusterRef       *ClusterRef           `json:"clusterRef,omitempty"`
+	ClusterTarget    ClusterTarget         `json:"clusterTarget,omitempty"`
 	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
 	JetStreamEnabled *bool                 `json:"jetStreamEnabled,omitempty"`
 	JetStreamLimits  *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
@@ -26,10 +26,8 @@ func (r AccountRequest) Validate() error {
 		return fmt.Errorf("invalid account reference: %w", err)
 	}
 
-	if r.ClusterRef != nil {
-		if err := r.ClusterRef.Validate(); err != nil {
-			return fmt.Errorf("invalid cluster reference: %w", err)
-		}
+	if err := r.ClusterTarget.Validate(); err != nil {
+		return fmt.Errorf("invalid cluster target: %w", err)
 	}
 
 	exportGroupNames := make(map[Ref]struct{})
@@ -57,9 +55,20 @@ func (r AccountRequest) Validate() error {
 }
 
 type AccountReference struct {
-	AccountRef     domain.NamespacedName
-	AccountID      AccountID
-	NatsClusterRef *ClusterRef
+	AccountRef    domain.NamespacedName
+	AccountID     AccountID
+	ClusterTarget ClusterTarget
+}
+
+func (r AccountReference) Validate() error {
+	if err := r.AccountRef.Validate(); err != nil {
+		return fmt.Errorf("invalid account reference: %w", err)
+	}
+
+	if err := r.ClusterTarget.Validate(); err != nil {
+		return fmt.Errorf("invalid cluster target: %w", err)
+	}
+	return nil
 }
 
 type AccountResult struct {
