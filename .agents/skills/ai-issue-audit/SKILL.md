@@ -3,7 +3,7 @@ name: ai-issue-audit
 description: Use when auditing or triaging GitHub issues for this repository against the current codebase, especially when checking whether issues are still relevant, grouping related issues, identifying dependencies, or drafting a maintainer-facing issue audit
 ---
 
-# AI Issue Audit
+# AI issue audit
 
 ## Overview
 
@@ -11,7 +11,7 @@ Use this skill to produce a short, code-backed GitHub issue audit for this repos
 
 Core rule: treat local code as the source of truth for implementation status, and treat issue text as a claim to verify, not a fact to repeat.
 
-## When to Use
+## When to use
 
 Use this when asked to:
 - summarize or triage GitHub issues for this repo
@@ -86,7 +86,7 @@ Do not use this for:
 9. Mark the output as AI-assisted.
    - Add a clear disclaimer near the top that the audit is AI-produced and based on current code plus public GitHub issue content.
 
-## Output Template
+## Output template
 
 When producing a Markdown audit, prefer this structure.
 
@@ -98,7 +98,7 @@ If an audit file already exists for the same scope, refresh that file instead of
 - AI disclaimer
 - One short sentence about scope and date reviewed
 
-### Summary Table
+### Summary table
 
 Use these columns:
 
@@ -108,7 +108,7 @@ For `Short review`, format each cell like this:
 
 `**Pros:** ...<br>**Cons:** ...<br>**Accuracy:** ...`
 
-### Related Issue Groups
+### Related issue groups
 
 For each group include:
 - group title
@@ -119,14 +119,14 @@ For each group include:
   - `Suggested issue type: ...`
   - `Note: ...`
 
-### Closing Findings
+### Closing findings
 
 Keep this short:
 - clearest current bugs/gaps
 - stale-but-not-invalid issues
 - overlapping issue clusters that should be normalized before implementation
 
-## Common Mistakes
+## Common mistakes
 
 - Treating issue text as current truth without checking code.
 - Hardcoding code paths before reading the issue set.

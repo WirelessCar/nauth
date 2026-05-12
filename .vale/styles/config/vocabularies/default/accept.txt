@@ -111,6 +111,7 @@ pgweb
 podAnnotations
 podLabels
 Postgres
+PRs?
 publickey
 RBAC
 [Rr]ego

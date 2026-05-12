@@ -1,4 +1,4 @@
-# Open Issue Audit
+# Open issue audit
 
 > [!IMPORTANT]
 > This is an AI audit based on the current codebase and publicly available GitHub issue content reviewed on 2026-03-20. It is intended as a maintainer aid, not as authoritative project planning or final issue triage.
@@ -19,7 +19,7 @@ Key code anchors used repeatedly:
 - `internal/core/secret.go`
 - `internal/core/user.go`
 
-## Summary Table
+## Summary table
 
 | Issue | Relevance | Initial triage | Suggested issue type | Dependency | Code reality | Short review |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -41,11 +41,11 @@ Key code anchors used repeatedly:
 | [#184 replace Ginkgo test suites with Testify](https://github.com/WirelessCar/nauth/issues/184) | still relevant | accepted | `type: feature` | no hard dependency; grouped by theme | Remaining Ginkgo/Gomega suites still exist under `internal/adapter/inbound/controller` and `internal/adapter/outbound/k8s`; several files still carry TODOs for this migration. | **Pros:** improves test consistency and editor support.<br>**Cons:** broad mechanical refactor with some churn risk.<br>**Accuracy:** strong, though the existing TODOs still reference `#183` rather than `#184`. |
 | [#185 remove core/controller dependencies on adapter Kubernetes package](https://github.com/WirelessCar/nauth/issues/185) | still relevant | accepted | `type: feature` | no hard dependency; grouped by theme | `internal/core/account.go`, `internal/core/accountClaims.go`, `internal/core/cluster.go`, `internal/core/secret.go`, and `internal/adapter/inbound/controller/account.go` still import `internal/adapter/outbound/k8s` for shared constants, with TODOs acknowledging the layering problem. | **Pros:** improves Kubernetes package boundaries and architecture clarity.<br>**Cons:** mostly structural work without direct user-visible behavior.<br>**Accuracy:** strong. |
 
-## Related Issue Groups
+## Related issue groups
 
 Dependencies below are based on explicit issue references when present, otherwise on current code and design coupling.
 
-### 1. User Revocation And Signing-Key Lifecycle
+### 1. User revocation and signing-key lifecycle
 
 Theme: identity invalidation, signing-key ownership, and future-safe user authz.
 
@@ -66,7 +66,7 @@ Theme: identity invalidation, signing-key ownership, and future-safe user authz.
    Suggested issue type: `type: feature`
    Note: Rotation semantics depend on whether the repo keeps the current model, adopts `#135`, or adopts `#140`.
 
-### 2. NATS Cluster Targeting And Legacy Sunset
+### 2. NATS cluster targeting and legacy sunset
 
 Theme: make explicit `NatsCluster` usage complete, then remove implicit legacy behavior.
 
@@ -83,7 +83,7 @@ Theme: make explicit `NatsCluster` usage complete, then remove implicit legacy b
    Suggested issue type: `type: feature`
    Note: Not a concrete prerequisite on its own.
 
-### 3. Cross-Account Authorization Model
+### 3. Cross-account authorization model
 
 Theme: correctness first, then richer private-sharing semantics, then optional API redesign.
 
@@ -100,7 +100,7 @@ Theme: correctness first, then richer private-sharing semantics, then optional A
    Suggested issue type: `type: feature`
    Note: Broader API redesign, not required to fix `#43` or implement `#119`.
 
-### 4. Account Lifecycle Safety
+### 4. Account lifecycle safety
 
 Theme: prevent destructive or stale account state from violating declarative expectations.
 
@@ -117,7 +117,7 @@ Theme: prevent destructive or stale account state from violating declarative exp
    Suggested issue type: `type: feature`
    Note: Not blocked by `#59` or `#27`.
 
-### 5. External Integrations And Secret Consumption
+### 5. External integrations and secret consumption
 
 Theme: smoother integration with external controllers and GitOps consumers.
 
@@ -130,7 +130,7 @@ Theme: smoother integration with external controllers and GitOps consumers.
    Suggested issue type: `type: feature`
    Note: Operator-managed credentials for NACK and similar integrations.
 
-### 6. Test Modernization
+### 6. Test modernization
 
 Theme: standardize the remaining test surface on the repository's current non-Ginkgo style.
 
@@ -139,7 +139,7 @@ Theme: standardize the remaining test surface on the repository's current non-Gi
    Suggested issue type: `type: feature`
    Note: The migration has not happened yet; the remaining suites are still concentrated in controller and outbound-Kubernetes tests.
 
-### 7. Dependency Direction And Package Boundaries
+### 7. Dependency direction and package boundaries
 
 Theme: remove adapter leakage from core and controller layers.
 
@@ -148,7 +148,7 @@ Theme: remove adapter leakage from core and controller layers.
    Suggested issue type: `type: feature`
    Note: This is directly visible in current imports and TODO comments, so the issue is current rather than aspirational.
 
-## Notable Findings
+## Notable findings
 
 - The clearest current bugs/gaps are [#43](https://github.com/WirelessCar/nauth/issues/43), [#95](https://github.com/WirelessCar/nauth/issues/95), and [#178](https://github.com/WirelessCar/nauth/issues/178). All three are directly visible in current code.
 - [#59](https://github.com/WirelessCar/nauth/issues/59) is the best example of an issue that is not invalid, but is partly stale because `observe` mode already exists.

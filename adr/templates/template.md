@@ -1,5 +1,5 @@
-# ADR-NUMBER: TITLE
 <!-- vale off -->
+# ADR-NUMBER: TITLE
 <!-- Remove this and the above vale off command after creation, it's only to not get false vale errors from the template -->
 _Be sure to update the title to reflect he decision taken to allow for fast skimming in table of contents._
 

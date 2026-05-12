@@ -44,7 +44,7 @@ they are important to keep in mind when evaluating the options.
 - Can import/export activation tokens work with these options?
 - Must use deterministic ordering of imports/exports, so that reconciliation does not go into loop.
 
-### Out of Scope - Deferred to future ADRs
+### Out of scope - deferred to future ADRs
 
 * Cross-cluster imports/exports
 * import and export activation tokens
@@ -60,7 +60,7 @@ Imports and exports are simply moved to a separate CRD, but they are still manag
 to the account. This option is in essence the same as the current state, but with imports and exports moved to a
 separate CRD.
 
-### Option 2 - Separate AccountImport and AccountExport CRDs
+### Option 2 - separate AccountImport and AccountExport CRDs
 
 Same as Option 1 but with separate CRDs for imports and exports.
 Better for separating import and export specific fields and concerns.
@@ -71,7 +71,7 @@ Each import and export is represented as a separate CRD.
 This allows for better granularity and easier management of individual imports and exports,
 but it can lead to a large number of CRDs if there are many imports and exports.
 
-### Option 4 - Contract-based imports/exports
+### Option 4 - contract-based imports/exports
 
 `AccountExport` represents an explicit contract owned by the exporting account.
 `AccountImport` represents an import binding owned by the importing account and references a specific `AccountExport`.

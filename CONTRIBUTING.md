@@ -16,7 +16,10 @@ If you have suggestions for how this project could be improved, or want to repor
 
 PRs are welcome too. If you're thinking of a large PR, open an issue first to talk about it. Look at the links below if you're not sure how to open a PR.
 
-## Developer’s Certificate of Origin
+<!-- vale Google.Headings = NO -->
+## Developer Certificate of Origin
+<!-- vale Google.Headings = YES -->
+
 The sign-off is a simple line at the end of the explanation for the commit, which certifies that you wrote it or otherwise have the right to pass it on as open source work. The rules are pretty simple: if you can certify the [Developer Certificate of Origin](https://developercertificate.org) then just add a line saying:
 ```
 Signed-off-by: Random J Developer <random@developer.example.org>

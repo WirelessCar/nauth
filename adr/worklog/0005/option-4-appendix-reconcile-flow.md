@@ -1,4 +1,4 @@
-# Option 4 - Reconcile flow
+# Option 4 - reconcile flow
 
 `Account` remains the only resource that renders the final account JWT.
 `AccountExport` and `AccountImport` reconcile their own readiness and status, and contribute validated inputs to the
@@ -76,4 +76,3 @@ flowchart TD
 * `updatePolicy` only applies after the contract is otherwise valid. It does not weaken validation.
 * `manual` means compatible upstream export changes are detected and surfaced as drift instead of being adopted.
   Until the import is updated to accept that change, it does not contribute to the rendered account JWT.
-

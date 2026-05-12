@@ -35,7 +35,7 @@ NAuth needs to be able to create the operator key from the `Operator` custom res
 #### Operator signing keys
 The primary operator signing key is used to sign every account which is minted, so it is needed frequently. If a signing key is compromised, it can be rotated using the operator root key. The operator JWT can have multiple keys, so if an operator signing key is lost but not compromised - the accounts signed by it are still valid.
 
-#### Account Root key
+#### Account root key
 Account seed keys are the identities of accounts and these should be secured to avoid having to recreate export/imports as well as all persistent data. The root key does not need to be used for anything but provide the identity - it is not needed for minting users.
 
 #### Account signing keys

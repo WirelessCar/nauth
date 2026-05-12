@@ -1,4 +1,4 @@
-# Issue Triage Guide
+# Issue triage guide
 
 This document is for maintainers only. 
 

@@ -1,4 +1,4 @@
-# NAuth Offline Operator handler
+# NAuth offline operator handler
 
 Handling a large NATS cluster which is constantly up requires the Operator keys to be secured rigorously. This serves as
 an initial utility to solve the use case of provisioning an operator, but also to be able to **rotate keys** in a highly

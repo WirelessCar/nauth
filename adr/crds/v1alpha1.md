@@ -1,4 +1,4 @@
-# v1alpha1
+# `v1alpha1`
 
 This describes the intention of the `v1alpha1` version of the NAuth CRDs.
 The version is intended to be used by the initial release, deployed in a limited scope, but where updates can still be done in a backwards compatible way.

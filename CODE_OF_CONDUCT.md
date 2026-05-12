@@ -1,3 +1,5 @@
+<!-- vale Google.Headings = NO -->
+
 # Contributor Covenant Code of Conduct
 
 <!-- vale Google.We = NO -->

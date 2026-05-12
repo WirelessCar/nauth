@@ -1,4 +1,4 @@
-# Option 4 - Future improvements and Notes
+# Option 4 - future improvements and notes
 
 ## How updates and drift are handled
 
@@ -131,4 +131,3 @@ AccountImport:
 * If localSubject is defined, the imported subject is the localSubject.
 * If localSubjectPrefix is defined, the imported subject is localSubjectPrefix + "." + export subject.
 * Otherwise, the imported subject is the same as the export subject.
-

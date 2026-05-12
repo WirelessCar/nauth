@@ -53,7 +53,7 @@ AccountImportExport A3:
 - It's harder to present the data in a good way in `kubectl` and `k9s` as the columns might differ.
 - Needs to handle partial failures.
 
-## Option 2 - Separate AccountImport and AccountExport CRDs
+## Option 2 - separate AccountImport and AccountExport CRDs
 
 Same as Option 1 but with separate CRDs for imports and exports.
 Better for separating import and export specific fields and concerns.
@@ -119,7 +119,7 @@ AccountExport A3:
 
 - Extremely verbose, at least for import/export for JetStream stuff.
 
-## Option 4 - Contract-based imports/exports
+## Option 4 - contract-based imports/exports
 
 `AccountExport` represents an explicit contract owned by the exporting account.
 `AccountImport` represents an import binding owned by the importing account and references a specific `AccountExport`.
@@ -220,7 +220,7 @@ To identify conflicts, use the NATS JWT imports validation function.
 * More complex controller logic to handle the relationships and validation
 * Needs to handle partial failures.
 
-### Working Notes
+### Working notes
 
 These documents are working documents and notes related to the options. They might be incomplete and are not meant to be
 part of the final ADR, but they are included here for reference.
