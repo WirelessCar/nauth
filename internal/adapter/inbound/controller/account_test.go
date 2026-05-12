@@ -40,10 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-const (
-	accountBaseName  = "test-resource"
-)
-
 type AccountControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
@@ -71,7 +67,7 @@ func (t *AccountControllerTestSuite) SetupTest() {
 	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
-	t.accountName = testutil.ScopedTestName(accountBaseName, testName)
+	t.accountName = testutil.ScopedTestName("test-resource", testName)
 	t.accountNamespace = testutil.ScopedTestName("account", testName)
 	t.operatorNamespace = testutil.ScopedTestName("operator", testName)
 	t.accountNamespacedRef = ktypes.NamespacedName{

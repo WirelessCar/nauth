@@ -34,7 +34,7 @@ type TestAccountClaimsSpec struct {
 }
 
 func Test_AccountClaims(t *testing.T) {
-	opSigningKey := testutil.CreateNatsTestOperatorKeyFromSeed(testClaimsOperatorSeed)
+	opSigningKey := testutil.CreateNatsTestKeyFromSeed(testClaimsOperatorSeed)
 
 	testCases := discoverTestCases("approvals/account_claims_test.Test_AccountClaims.{TestCase}.input.yaml")
 	require.NotEmpty(t, testCases, "no test cases discovered")
