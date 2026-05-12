@@ -9,6 +9,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -41,12 +42,12 @@ func (t *AccountImportControllerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
 	testName := t.T().Name()
-	t.importName = scopedTestName("account-import", testName)
-	t.namespace = scopedTestName("namespace", testName)
+	t.importName = testutil.ScopedTestName("account-import", testName)
+	t.namespace = testutil.ScopedTestName("namespace", testName)
 	t.importNamespacedName = ktypes.NamespacedName{Name: t.importName, Namespace: t.namespace}
-	t.importAccountName = scopedTestName("import-account", testName)
-	t.exportAccountName = scopedTestName("export-account", testName)
-	t.foreignNamespace = scopedTestName("export-namespace", testName)
+	t.importAccountName = testutil.ScopedTestName("import-account", testName)
+	t.exportAccountName = testutil.ScopedTestName("export-account", testName)
+	t.foreignNamespace = testutil.ScopedTestName("export-namespace", testName)
 
 	t.accountImportManagerMock = &accountImportManagerMock{}
 

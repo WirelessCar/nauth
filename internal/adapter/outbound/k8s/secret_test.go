@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,7 +30,7 @@ func TestSecretClient_TestSuite(t *testing.T) {
 
 func (t *SecretClientTestSuite) SetupTest() {
 	t.ctx = context.Background()
-	t.secretName = sanitizeTestName(t.T().Name())
+	t.secretName = testutil.SanitizeTestName(t.T().Name())
 	t.secretMeta = metav1.ObjectMeta{
 		Name:      t.secretName,
 		Namespace: testNamespace,

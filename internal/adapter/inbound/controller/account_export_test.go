@@ -9,6 +9,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,8 +41,8 @@ func (t *AccountExportControllerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
 	testName := t.T().Name()
-	t.accountExportName = scopedTestName("test-account-export", testName)
-	t.accountExportNamespace = scopedTestName("ns", testName)
+	t.accountExportName = testutil.ScopedTestName("test-account-export", testName)
+	t.accountExportNamespace = testutil.ScopedTestName("ns", testName)
 	t.accountExportRef = ktypes.NamespacedName{
 		Name:      t.accountExportName,
 		Namespace: t.accountExportNamespace,

@@ -24,6 +24,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -57,8 +58,8 @@ func (t *NatsClusterControllerTestSuite) SetupTest() {
 	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
-	namespace := scopedTestName("natscluster", testName)
-	name := scopedTestName("test-nats-cluster", testName)
+	namespace := testutil.ScopedTestName("natscluster", testName)
+	name := testutil.ScopedTestName("test-nats-cluster", testName)
 	t.resourceName = ktypes.NamespacedName{
 		Name:      name,
 		Namespace: namespace,
@@ -277,7 +278,7 @@ func (t *NatsClusterControllerTestSuite) Test_Reconcile_ShouldSkip_WhenGeneratio
 // Helpers
 
 func (t *NatsClusterControllerTestSuite) anyClusterTarget() nauth.ClusterTarget {
-	return nauth.ClusterTarget{NatsURL: fmt.Sprintf("nats://%s.my-cluster:4222", shortHash(t.T().Name()))}
+	return nauth.ClusterTarget{NatsURL: fmt.Sprintf("nats://%s.my-cluster:4222", testutil.ShortHash(t.T().Name()))}
 }
 
 type clusterManagerMock struct {

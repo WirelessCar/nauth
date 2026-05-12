@@ -7,6 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +27,7 @@ func TestAccountClient_TestSuite(t *testing.T) {
 
 func (t *AccountClientTestSuite) SetupTest() {
 	t.ctx = context.Background()
-	t.accountRef = domain.NewNamespacedName(scopedTestName("ns", t.T().Name()), sanitizeTestName(t.T().Name()))
+	t.accountRef = domain.NewNamespacedName(testutil.ScopedTestName("ns", t.T().Name()), testutil.SanitizeTestName(t.T().Name()))
 	t.Require().NoError(t.accountRef.Validate())
 
 	t.unitUnderTest = NewAccountClient(k8sClient)

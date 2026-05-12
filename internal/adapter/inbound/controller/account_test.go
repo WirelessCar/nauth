@@ -27,6 +27,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -72,9 +73,9 @@ func (t *AccountControllerTestSuite) SetupTest() {
 	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
-	t.accountName = scopedTestName(accountBaseName, testName)
-	t.accountNamespace = scopedTestName("account", testName)
-	t.operatorNamespace = scopedTestName("operator", testName)
+	t.accountName = testutil.ScopedTestName(accountBaseName, testName)
+	t.accountNamespace = testutil.ScopedTestName("account", testName)
+	t.operatorNamespace = testutil.ScopedTestName("operator", testName)
 	t.accountNamespacedRef = ktypes.NamespacedName{
 		Name:      t.accountName,
 		Namespace: t.accountNamespace,

@@ -18,11 +18,8 @@ package controller
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -99,33 +96,6 @@ func getFirstFoundEnvTestBinaryDir() string {
 		}
 	}
 	return ""
-}
-
-func sanitizeTestName(name string) string {
-	replacer := strings.NewReplacer("/", "-", " ", "-", ":", "-", "#", "-", "_", "-")
-	return strings.ToLower(replacer.Replace(name))
-}
-
-func scopedTestName(prefix, testName string) string {
-	slug := sanitizeTestName(testName)
-	hash := shortHash(testName)
-	maxSlugLen := 63 - len(prefix) - len(hash) - 2
-	if maxSlugLen < 1 {
-		return prefix + "-" + hash
-	}
-	if len(slug) > maxSlugLen {
-		slug = slug[:maxSlugLen]
-	}
-	slug = strings.Trim(slug, "-")
-	if slug == "" {
-		return prefix + "-" + hash
-	}
-	return prefix + "-" + slug + "-" + hash
-}
-
-func shortHash(value string) string {
-	sum := md5.Sum([]byte(value))
-	return hex.EncodeToString(sum[:])[:6]
 }
 
 func ensureNamespace(ctx context.Context, namespace string) error {

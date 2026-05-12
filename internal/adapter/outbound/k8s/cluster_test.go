@@ -7,6 +7,7 @@ import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/suite"
@@ -30,8 +31,8 @@ func TestNatsClusterClient_TestSuite(t *testing.T) {
 func (t *NatsClusterClientTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
-	namespace := scopedTestName("cluster-ns", t.T().Name())
-	t.clusterNsN = domain.NewNamespacedName(namespace, sanitizeTestName(t.T().Name()))
+	namespace := testutil.ScopedTestName("cluster-ns", t.T().Name())
+	t.clusterNsN = domain.NewNamespacedName(namespace, testutil.SanitizeTestName(t.T().Name()))
 	t.Require().NoError(t.clusterNsN.Validate())
 
 	t.clusterRef = nauth.ClusterRef(t.clusterNsN.String())
@@ -137,7 +138,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 
 func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFromConfigMapWithExplicitNamespace() {
 	// Given
-	configNamespace := scopedTestName("config-ns", t.T().Name())
+	configNamespace := testutil.ScopedTestName("config-ns", t.T().Name())
 	t.createNatsCluster(v1alpha1.NatsClusterSpec{
 		URLFrom: &v1alpha1.URLFromReference{
 			Kind:      v1alpha1.URLFromKindConfigMap,
@@ -209,7 +210,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 
 func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFromSecretWithExplicitNamespace() {
 	// Given
-	secretNamespace := scopedTestName("secret-ns", t.T().Name())
+	secretNamespace := testutil.ScopedTestName("secret-ns", t.T().Name())
 	t.createNatsCluster(v1alpha1.NatsClusterSpec{
 		URLFrom: &v1alpha1.URLFromReference{
 			Kind:      v1alpha1.URLFromKindSecret,

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/suite"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -26,7 +27,7 @@ func TestConfigMapClient_TestSuite(t *testing.T) {
 
 func (t *ConfigMapClientTestSuite) SetupTest() {
 	t.ctx = context.Background()
-	t.configMapRef = domain.NewNamespacedName(testNamespace, sanitizeTestName(t.T().Name()))
+	t.configMapRef = domain.NewNamespacedName(testNamespace, testutil.SanitizeTestName(t.T().Name()))
 	t.Require().NoError(t.configMapRef.Validate())
 	t.unitUnderTest = NewConfigMapClient(k8sClient)
 	t.Require().NoError(cleanConfigMap(t.ctx, t.configMapRef))

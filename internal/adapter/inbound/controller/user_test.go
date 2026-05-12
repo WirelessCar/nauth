@@ -8,6 +8,7 @@ import (
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
@@ -41,8 +42,8 @@ func (t *UserControllerTestSuite) SetupTest() {
 	t.Require().NoError(os.Setenv(envOperatorVersion, t.operatorVersion))
 
 	testName := t.T().Name()
-	userName := scopedTestName("test-resource", testName)
-	namespace := scopedTestName("user", testName)
+	userName := testutil.ScopedTestName("test-resource", testName)
+	namespace := testutil.ScopedTestName("user", testName)
 	t.userNamespacedName = ktypes.NamespacedName{
 		Name:      userName,
 		Namespace: namespace,
