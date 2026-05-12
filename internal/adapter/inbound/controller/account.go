@@ -50,25 +50,28 @@ import (
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	manager       inbound.AccountManager
-	accountReader k8s.AccountReader
-	reporter      *statusReporter
+	Scheme         *runtime.Scheme
+	manager        inbound.AccountManager
+	clusterManager inbound.ClusterManager
+	accountReader  k8s.AccountReader
+	reporter       *statusReporter
 }
 
 func NewAccountReconciler(
 	k8sClient client.Client,
 	scheme *runtime.Scheme,
 	manager inbound.AccountManager,
+	clusterManager inbound.ClusterManager,
 	accountReader k8s.AccountReader,
 	recorder events.EventRecorder,
 ) *AccountReconciler {
 	return &AccountReconciler{
-		Client:        k8sClient,
-		Scheme:        scheme,
-		manager:       manager,
-		accountReader: accountReader,
-		reporter:      newStatusReporter(k8sClient, recorder),
+		Client:         k8sClient,
+		Scheme:         scheme,
+		manager:        manager,
+		clusterManager: clusterManager,
+		accountReader:  accountReader,
+		reporter:       newStatusReporter(k8sClient, recorder),
 	}
 }
 
@@ -101,6 +104,15 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	accountID := nauth.AccountID(natsAccount.GetLabel(v1alpha1.AccountLabelAccountID))
 	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
 
+	accountClusterRef, err := toNAuthClusterRef(natsAccount.Spec.NatsClusterRef, natsAccount.Namespace)
+	if err != nil {
+		return r.reporter.error(ctx, natsAccount, err)
+	}
+	clusterTarget, err := r.clusterManager.GetClusterTarget(ctx, accountClusterRef)
+	if err != nil {
+		return r.reporter.error(ctx, natsAccount, err)
+	}
+
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
 		// The account is being deleted
@@ -126,7 +138,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
 			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
-				if err := r.manager.Delete(ctx, toAccountReference(natsAccount)); err != nil {
+				if err := r.manager.Delete(ctx, toAccountReference(natsAccount, *clusterTarget)); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
@@ -156,31 +168,13 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// RECONCILE ACCOUNT
 
 	// Bind to NatsCluster
-
-	natsClusterRef := natsAccount.Spec.NatsClusterRef
-	// TODO: [#11] what if not set?
-	// TODO: [#11] what if set and then removed?
-	if natsClusterRef != nil {
-		natsCluster := v1alpha1.NatsCluster{}
-		err := r.Get(ctx, types.NamespacedName{Name: natsClusterRef.Name, Namespace: natsClusterRef.Namespace}, &natsCluster)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				err = fmt.Errorf("nats cluster %s/%s not found: %w", natsClusterRef.Namespace, natsClusterRef.Name, err)
-				return r.reporter.error(ctx, natsAccount, err)
-			}
-			// Error reading the object - requeue the request.
-			log.Error(err, "Failed to get resource")
-			return ctrl.Result{}, err
-		}
-
-		boundToClusterID := natsAccount.GetLabel(v1alpha1.AccountLabelNatsClusterID)
-		clusterID := natsCluster.GetUID()
-		if boundToClusterID == "" {
-			natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, string(clusterID))
-		} else if boundToClusterID != string(clusterID) {
-			err = fmt.Errorf("account already bound to cluster with id: %s", boundToClusterID)
-			return r.reporter.error(ctx, natsAccount, err)
-		}
+	boundToClusterID := natsAccount.GetLabel(v1alpha1.AccountLabelNatsClusterID)
+	clusterID := clusterTarget.UID
+	if boundToClusterID == "" {
+		natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, string(clusterID))
+	} else if boundToClusterID != clusterID {
+		err = fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
+		return r.reporter.error(ctx, natsAccount, err)
 	}
 
 	// Manage NATS resources
@@ -188,12 +182,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		var err error
-		result, err = r.manager.Import(ctx, toAccountReference(natsAccount))
+		result, err = r.manager.Import(ctx, toAccountReference(natsAccount, *clusterTarget))
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountID)
+		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountID, *clusterTarget)
 		if err != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to create account request: %w", err)
 		}
@@ -240,37 +234,22 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.reporter.status(ctx, natsAccount)
 }
 
-func toAccountReference(state *v1alpha1.Account) nauth.AccountReference {
-	natsClusterRef := state.Spec.NatsClusterRef
-	var clusterRef *nauth.ClusterRef
-	if natsClusterRef != nil {
-		namespacedName := domain.NewNamespacedName(natsClusterRef.Namespace, natsClusterRef.Name)
-		if namespacedName.Namespace == "" {
-			namespacedName.Namespace = state.Namespace
-		}
-		ref := nauth.ClusterRef(namespacedName.String())
-		clusterRef = &ref
-	}
+func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarget) nauth.AccountReference {
 	return nauth.AccountReference{
 		AccountRef: domain.NamespacedName{
 			Name:      state.Name,
 			Namespace: state.Namespace,
 		},
-		AccountID:      nauth.AccountID(state.GetLabel(v1alpha1.AccountLabelAccountID)),
-		NatsClusterRef: clusterRef,
+		AccountID:     nauth.AccountID(state.GetLabel(v1alpha1.AccountLabelAccountID)),
+		ClusterTarget: clusterTarget,
 	}
 }
 
-func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountID nauth.AccountID) (nauth.AccountRequest, accountAdoptionRefs, error) {
+func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountID nauth.AccountID, clusterTarget nauth.ClusterTarget) (nauth.AccountRequest, accountAdoptionRefs, error) {
 	var request nauth.AccountRequest
 	adoptionRefs := accountAdoptionRefs{}
 
 	namespace := domain.Namespace(state.Namespace)
-	clusterRef, err := toNAuthClusterRef(state.Spec.NatsClusterRef, state.Namespace)
-	if err != nil {
-		return request, adoptionRefs, err
-	}
-
 	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
 
 	var exportGroups nauth.ExportGroups
@@ -296,7 +275,7 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		AccountID:        accountID,
 		ClaimsHash:       state.Status.ClaimsHash,
 		DisplayName:      state.Spec.DisplayName,
-		ClusterRef:       clusterRef,
+		ClusterTarget:    clusterTarget,
 		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
 		JetStreamEnabled: state.Spec.JetStreamEnabled,
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),

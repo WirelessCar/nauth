@@ -252,7 +252,6 @@ func main() {
 		natsAccClient,
 		accountClient,
 		secretClient,
-		clusterManager,
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
@@ -263,6 +262,7 @@ func main() {
 		mgr.GetClient(),
 		mgr.GetScheme(),
 		accountManager,
+		clusterManager,
 		accountClient,
 		mgr.GetEventRecorder("account-controller"),
 	)

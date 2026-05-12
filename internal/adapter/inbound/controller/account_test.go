@@ -27,6 +27,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +50,7 @@ type AccountControllerTestSuite struct {
 	ctx context.Context
 
 	accountManagerMock *accountManagerMock
+	clusterManagerMock *clusterManagerMock
 	fakeRecorder       *events.FakeRecorder
 
 	accountNamespacedRef ktypes.NamespacedName
@@ -79,12 +81,14 @@ func (t *AccountControllerTestSuite) SetupTest() {
 	}
 
 	t.accountManagerMock = &accountManagerMock{}
+	t.clusterManagerMock = &clusterManagerMock{}
 	accountClient := k8s.NewAccountClient(k8sClient)
 	t.fakeRecorder = events.NewFakeRecorder(5)
 	t.unitUnderTest = NewAccountReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
 		t.accountManagerMock,
+		t.clusterManagerMock,
 		accountClient,
 		t.fakeRecorder,
 	)
@@ -140,6 +144,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetFinalizer() {
 	// Given
 	t.setupAccount(t.defaultAccount())
 
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
 	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
@@ -166,6 +172,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 		ClaimsHash:      "CLAIMS_HASH",
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 
 	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -194,6 +201,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 	)
 
 	accountsManagerErr := fmt.Errorf("a test error")
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockCreateOrUpdateError(t.ctx, mock.Anything, accountsManagerErr).Once()
 
 	// When (expect manager.CreateOrUpdate)
@@ -229,6 +237,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.Require().NoError(k8sClient.Delete(t.ctx, account))
 
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
 	// When (expect no manager calls, especially not manager.Delete)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
@@ -255,6 +265,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.Require().NoError(k8sClient.Delete(t.ctx, account))
 
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, nil).Once()
 
 	// When (expect manager.Delete)
@@ -266,6 +277,22 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().Error(err)
 	t.True(k8err.IsNotFound(err))
+}
+
+func createDummyClusterTarget() *nauth.ClusterTarget {
+	sauCreds := domain.NatsUserCreds{
+		Creds:     []byte("FAKE_CREDENTIALS"),
+		AccountID: "FAKE_SYS_ACCOUNT_ID",
+	}
+	opSign, _ := nkeys.CreateOperator()
+	opSignKey := domain.NatsOperatorSigningKey(opSign)
+	clusterTarget, _ := nauth.NewClusterTarget(
+		"UID",
+		"nats://nats-cluster:4222",
+		sauCreds,
+		opSignKey,
+	)
+	return clusterTarget
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
@@ -283,6 +310,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails()
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.Require().NoError(k8sClient.Delete(t.ctx, account))
 
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, deletionErr).Once()
 
 	// When (expect manager.Delete)
@@ -317,6 +345,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
 	}
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
 
 	// When (expect manager.Import)
@@ -344,6 +373,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 		Claims:          &nauth.AccountClaims{},
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 
 	// When (expect manager.CreateOrUpdate)
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
@@ -379,6 +409,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 	export3 := t.createExport(domain.Namespace(t.accountNamespace), "export-3", accountID, nil) // Not expected into manager
 	_ = t.createExport(domain.Namespace(t.accountNamespace), "export-4", "ANOTHERACCOUNT", t.anyExportClaim(40))
 	export5 := t.createExport(domain.Namespace(t.accountNamespace), "export-5", accountID, t.anyExportClaim(50))
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
 		adoptions := nauth.NewAccountAdoptions()
 		t.Require().Equalf(2, len(request.ExportGroups), "expected 2 export groups: export-1 and export-5")

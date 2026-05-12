@@ -27,5 +27,6 @@ type UserManager interface {
 }
 
 type ClusterManager interface {
+	GetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef) (*nauth.ClusterTarget, error)
 	Validate(ctx context.Context, target nauth.ClusterTarget) error
 }

@@ -16,11 +16,10 @@ import (
 )
 
 type AccountManager struct {
-	natsSysClient         outbound.NatsSysClient
-	natsAccClient         outbound.NatsAccountClient
-	accountIDReader       outbound.AccountIDReader
-	clusterTargetResolver clusterTargetResolver
-	secretManager         secretManager
+	natsSysClient   outbound.NatsSysClient
+	natsAccClient   outbound.NatsAccountClient
+	accountIDReader outbound.AccountIDReader
+	secretManager   secretManager
 }
 
 func NewAccountManager(
@@ -28,28 +27,25 @@ func NewAccountManager(
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretClient outbound.SecretClient,
-	clusterManager *ClusterManager,
 ) (*AccountManager, error) {
 	sm, err := newSecretManagerImpl(secretClient)
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, clusterManager, sm)
+	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm)
 }
 
 func newAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
-	clusterTargetResolver clusterTargetResolver,
 	secretManager secretManager,
 ) (*AccountManager, error) {
 	m := &AccountManager{
-		natsSysClient:         natsSysClient,
-		natsAccClient:         natsAccClient,
-		accountIDReader:       accountIDReader,
-		clusterTargetResolver: clusterTargetResolver,
-		secretManager:         secretManager,
+		natsSysClient:   natsSysClient,
+		natsAccClient:   natsAccClient,
+		accountIDReader: accountIDReader,
+		secretManager:   secretManager,
 	}
 	if err := m.validate(); err != nil {
 		return nil, err
@@ -58,9 +54,6 @@ func newAccountManager(
 }
 
 func (a *AccountManager) validate() error {
-	if a.clusterTargetResolver == nil {
-		return errors.New("clusterTargetResolver is required")
-	}
 	if a.accountIDReader == nil {
 		return errors.New("accountIDReader is required")
 	}
@@ -82,11 +75,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("invalid account request: %w", err)
 	}
 
-	cluster, err := a.clusterTargetResolver.GetClusterTarget(ctx, request.ClusterRef)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
-	}
-
+	cluster := request.ClusterTarget
 	fixedAccountID := string(request.AccountID)
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, request.AccountRef, fixedAccountID)
 	if fixedAccountID != "" {
@@ -254,15 +243,11 @@ func signAccountJWT(claims *jwt.AccountClaims, operatorSigningKey nkeys.KeyPair)
 }
 
 func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error) {
+	if err := reference.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference: %w", err)
+	}
 	accountRef := reference.AccountRef
-	if err := accountRef.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
-	}
-
-	cluster, err := a.clusterTargetResolver.GetClusterTarget(ctx, reference.NatsClusterRef)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve cluster target: %w", err)
-	}
+	cluster := reference.ClusterTarget
 
 	accountID := string(reference.AccountID)
 	if accountID == "" {
@@ -320,14 +305,10 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 }
 
 func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountReference) error {
-	if err := reference.AccountRef.Validate(); err != nil {
+	if err := reference.Validate(); err != nil {
 		return fmt.Errorf("invalid account reference: %w", err)
 	}
-
-	cluster, err := a.clusterTargetResolver.GetClusterTarget(ctx, reference.NatsClusterRef)
-	if err != nil {
-		return fmt.Errorf("failed to resolve cluster target: %w", err)
-	}
+	cluster := reference.ClusterTarget
 
 	operatorPublicKey, err := cluster.OperatorSigningKey.PublicKey()
 	if err != nil {
@@ -384,7 +365,7 @@ func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountRefe
 	return nil
 }
 
-func (a *AccountManager) listAccountStreams(cluster *nauth.ClusterTarget, accountSecrets *Secrets, accountID string) ([]string, error) {
+func (a *AccountManager) listAccountStreams(cluster nauth.ClusterTarget, accountSecrets *Secrets, accountID string) ([]string, error) {
 	tempUserCreds, err := createTempJetStreamCreds(accountID, accountSecrets.Root)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary account JetStream credentials: %w", err)

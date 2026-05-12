@@ -9,10 +9,6 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 )
 
-type clusterTargetResolver interface {
-	GetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef) (*nauth.ClusterTarget, error)
-}
-
 type ClusterManager struct {
 	clusterReader outbound.ClusterReader
 	natsSysClient outbound.NatsSysClient
@@ -126,5 +122,4 @@ func getEffectiveClusterRef(accClusterRef *nauth.ClusterRef, opClusterRef *nauth
 	return nil, fmt.Errorf("no cluster reference provided and no operator cluster configured")
 }
 
-var _ clusterTargetResolver = (*ClusterManager)(nil)
 var _ inbound.ClusterManager = (*ClusterManager)(nil)

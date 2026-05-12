@@ -65,7 +65,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed() {
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -93,7 +93,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenSecretsUsi
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://nats:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -128,7 +128,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -165,7 +165,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -200,7 +200,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -237,7 +237,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenNatsURLFro
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -274,7 +274,7 @@ func (t *NatsClusterClientTestSuite) Test_GetTarget_ShouldSucceed_WhenAllDetails
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Require().Equal(&nauth.ClusterTarget{
+	t.EqualClusterTarget(&nauth.ClusterTarget{
 		NatsURL:            "nats://cm-cluster:4222",
 		SystemAdminCreds:   testData.sauCreds,
 		OperatorSigningKey: testData.opSignKey,
@@ -404,4 +404,12 @@ func (t *NatsClusterClientTestSuite) generateTestSecrets() clusterTestSecrets {
 		sauCredsData:  sauCredsData,
 		sauCreds:      *sauCreds,
 	}
+}
+
+func (t *NatsClusterClientTestSuite) EqualClusterTarget(expected *nauth.ClusterTarget, result *nauth.ClusterTarget) {
+	t.Require().Equal(expected.NatsURL, result.NatsURL)
+	t.Require().Equal(expected.SystemAdminCreds.AccountID, result.SystemAdminCreds.AccountID)
+	t.Require().Equal(expected.SystemAdminCreds.Creds, result.SystemAdminCreds.Creds)
+	t.Require().Equal(expected.OperatorSigningKey, result.OperatorSigningKey)
+	t.Require().NotEmpty(result.UID)
 }

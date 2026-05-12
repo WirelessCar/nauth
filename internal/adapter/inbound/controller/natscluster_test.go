@@ -37,7 +37,7 @@ type NatsClusterControllerTestSuite struct {
 	suite.Suite
 	ctx context.Context
 
-	managerMock  *ClusterManagerMock
+	managerMock  *clusterManagerMock
 	resolverMock *ClusterResolverMock
 	fakeRecorder *events.FakeRecorder
 
@@ -64,7 +64,7 @@ func (t *NatsClusterControllerTestSuite) SetupTest() {
 		Namespace: namespace,
 	}
 
-	t.managerMock = &ClusterManagerMock{}
+	t.managerMock = &clusterManagerMock{}
 	t.resolverMock = &ClusterResolverMock{}
 	t.fakeRecorder = events.NewFakeRecorder(5)
 	t.unitUnderTest = NewNatsClusterReconciler(
@@ -280,25 +280,40 @@ func (t *NatsClusterControllerTestSuite) anyClusterTarget() nauth.ClusterTarget 
 	return nauth.ClusterTarget{NatsURL: fmt.Sprintf("nats://%s.my-cluster:4222", shortHash(t.T().Name()))}
 }
 
-type ClusterManagerMock struct {
+type clusterManagerMock struct {
 	mock.Mock
 }
 
-func (m *ClusterManagerMock) Validate(ctx context.Context, target nauth.ClusterTarget) error {
+func (m *clusterManagerMock) GetClusterTarget(ctx context.Context, accountClusterRef *nauth.ClusterRef) (*nauth.ClusterTarget, error) {
+	args := m.Called(ctx, accountClusterRef)
+	if args.Error(1) != nil {
+		return nil, args.Error(1)
+	}
+	if args.Get(0) == nil {
+		return nil, nil
+	}
+	return args.Get(0).(*nauth.ClusterTarget), nil
+}
+
+func (m *clusterManagerMock) mockGetClusterTarget(result *nauth.ClusterTarget, err error) {
+	m.On("GetClusterTarget", mock.Anything, mock.Anything).Return(result, err).Once()
+}
+
+func (m *clusterManagerMock) Validate(ctx context.Context, target nauth.ClusterTarget) error {
 	args := m.Called(ctx, target)
 	return args.Error(0)
 }
 
-func (m *ClusterManagerMock) mockValidate(err error) {
+func (m *clusterManagerMock) mockValidate(err error) {
 	m.On("Validate", mock.Anything, mock.Anything).Return(err).Once()
 }
 
-func (m *ClusterManagerMock) mockValidateSpy(spy func(target nauth.ClusterTarget) error) {
+func (m *clusterManagerMock) mockValidateSpy(spy func(target nauth.ClusterTarget) error) {
 	call := m.On("Validate", mock.Anything, mock.Anything).Once()
 	call.Run(func(args mock.Arguments) { call.Return(spy(args.Get(1).(nauth.ClusterTarget))) })
 }
 
-var _ inbound.ClusterManager = (*ClusterManagerMock)(nil)
+var _ inbound.ClusterManager = (*clusterManagerMock)(nil)
 
 type ClusterResolverMock struct {
 	mock.Mock
