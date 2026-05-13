@@ -65,8 +65,6 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	// TODO: #11 Consider adding events
-
 	state := &v1alpha1.AccountExport{}
 	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
 		if apierrors.IsNotFound(err) {

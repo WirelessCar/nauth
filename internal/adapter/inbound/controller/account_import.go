@@ -316,8 +316,6 @@ func (r *AccountImportReconciler) mapExportAccountToAccountImports(ctx context.C
 
 	imports := &v1alpha1.AccountImportList{}
 	if err := r.List(ctx, imports,
-		// TODO: [#11] handle case when Nauth is bound to single namespace
-		// search all namespaces
 		client.MatchingFields{importExportAccountRefIndexKey: accountNsn.String()},
 	); err != nil {
 		logf.FromContext(ctx).Error(err, "Failed to list AccountImports for export Account watch", "account", account.Name, "namespace", account.Namespace)
