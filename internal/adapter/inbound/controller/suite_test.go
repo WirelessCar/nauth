@@ -19,10 +19,10 @@ package controller
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/testutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,11 +54,11 @@ func TestMain(m *testing.M) {
 	}
 
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "charts", "nauth", "resources", "crds")},
+		CRDDirectoryPaths:     testutil.GetProjectCRDDirectoryPaths(),
 		ErrorIfCRDPathMissing: true,
 	}
 
-	binaryAssetsDir := getFirstFoundEnvTestBinaryDir()
+	binaryAssetsDir := testutil.GetProjectBinaryAssetsDir()
 	if binaryAssetsDir != "" {
 		testEnv.BinaryAssetsDirectory = binaryAssetsDir
 	}
@@ -81,21 +81,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
-}
-
-func getFirstFoundEnvTestBinaryDir() string {
-	basePath := filepath.Join("..", "..", "..", "..", "bin", "k8s")
-	entries, err := os.ReadDir(basePath)
-	if err != nil {
-		logf.Log.Error(err, "Failed to read directory", "path", basePath)
-		return ""
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			return filepath.Join(basePath, entry.Name())
-		}
-	}
-	return ""
 }
 
 func ensureNamespace(ctx context.Context, namespace string) error {

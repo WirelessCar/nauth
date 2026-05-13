@@ -19,9 +19,9 @@ package k8s
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/WirelessCar/nauth/internal/testutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,11 +57,11 @@ func TestMain(m *testing.M) {
 	}
 
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "charts", "nauth", "resources", "crds")},
+		CRDDirectoryPaths:     testutil.GetProjectCRDDirectoryPaths(),
 		ErrorIfCRDPathMissing: true,
 	}
 
-	binaryAssetsDir := getFirstFoundEnvTestBinaryDir()
+	binaryAssetsDir := testutil.GetProjectBinaryAssetsDir()
 	if binaryAssetsDir != "" {
 		testEnv.BinaryAssetsDirectory = binaryAssetsDir
 	}
@@ -91,29 +91,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
-}
-
-// getFirstFoundEnvTestBinaryDir locates the first binary in the specified path.
-// ENVTEST-based tests depend on specific binaries, usually located in paths set by
-// controller-runtime. When running tests directly (e.g., via an IDE) without using
-// Makefile targets, the 'BinaryAssetsDirectory' must be explicitly configured.
-//
-// This function streamlines the process by finding the required binaries, similar to
-// setting the 'KUBEBUILDER_ASSETS' environment variable. To ensure the binaries are
-// properly set up, run 'make setup-envtest' beforehand.
-func getFirstFoundEnvTestBinaryDir() string {
-	basePath := filepath.Join("..", "..", "..", "..", "bin", "k8s")
-	entries, err := os.ReadDir(basePath)
-	if err != nil {
-		logf.Log.Error(err, "Failed to read directory", "path", basePath)
-		return ""
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			return filepath.Join(basePath, entry.Name())
-		}
-	}
-	return ""
 }
 
 func ensureNamespace(ctx context.Context, namespace string) error {
