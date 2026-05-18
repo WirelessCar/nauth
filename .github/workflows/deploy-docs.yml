@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: '22.22.2'
+          node-version: '22.22.3'
       
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
