@@ -305,6 +305,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	accountSigningKeyManager := core.NewAccountSigningKeyManager(secretClient)
+	accountSigningKeyReconciler := controller.NewAccountSigningKeyReconciler(
+		mgr.GetClient(),
+		mgr.GetScheme(),
+		accountSigningKeyManager,
+	)
+	if err = accountSigningKeyReconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "AccountSigningKey")
+		os.Exit(1)
+	}
+
 	natsClusterReconciler := controller.NewNatsClusterReconciler(
 		mgr.GetClient(),
 		mgr.GetScheme(),

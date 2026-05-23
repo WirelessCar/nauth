@@ -317,7 +317,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+			account.SetLabel(v1alpha1.AccountLabel(k8s.LabelManagementPolicy), k8s.ManagementPolicyObserve)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 		}),
 	)
@@ -482,7 +482,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+			account.SetLabel(v1alpha1.AccountLabel(k8s.LabelManagementPolicy), k8s.ManagementPolicyObserve)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 		}),
 	)

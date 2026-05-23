@@ -11,6 +11,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ktypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -147,6 +148,80 @@ func (t *SecretClientTestSuite) Test_Delete_ShouldSucceed_WhenSecretExists() {
 	t.NoError(getErr)
 	t.False(found)
 	t.Nil(result)
+}
+
+func (t *SecretClientTestSuite) Test_IsOwnedBy_ShouldReturnTrue_WhenSecretOwnedByExpectedOwner() {
+	// Given
+	isController := true
+	ownerUID := ktypes.UID("test-owner-uid")
+	owner := &metav1.ObjectMeta{UID: ownerUID}
+
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.secretName,
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "v1", Kind: "ConfigMap", Name: "owner", UID: ownerUID, Controller: &isController},
+			},
+		},
+	}))
+
+	// When
+	owned, err := t.unitUnderTest.IsOwnedBy(t.ctx, t.secretRef, owner)
+
+	// Then
+	t.NoError(err)
+	t.True(owned)
+}
+
+func (t *SecretClientTestSuite) Test_IsOwnedBy_ShouldReturnFalse_WhenSecretHasNoOwner() {
+	// Given
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: t.secretName, Namespace: testNamespace},
+	}))
+	owner := &metav1.ObjectMeta{UID: "any-uid"}
+
+	// When
+	owned, err := t.unitUnderTest.IsOwnedBy(t.ctx, t.secretRef, owner)
+
+	// Then
+	t.NoError(err)
+	t.False(owned)
+}
+
+func (t *SecretClientTestSuite) Test_IsOwnedBy_ShouldReturnFalse_WhenSecretOwnedByDifferentOwner() {
+	// Given
+	isController := true
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.secretName,
+			Namespace: testNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{APIVersion: "v1", Kind: "ConfigMap", Name: "other-owner", UID: "other-uid", Controller: &isController},
+			},
+		},
+	}))
+	owner := &metav1.ObjectMeta{UID: "expected-uid"}
+
+	// When
+	owned, err := t.unitUnderTest.IsOwnedBy(t.ctx, t.secretRef, owner)
+
+	// Then
+	t.NoError(err)
+	t.False(owned)
+}
+
+func (t *SecretClientTestSuite) Test_IsOwnedBy_ShouldError_WhenSecretDoesNotExist() {
+	// Given
+	nonExistingRef := domain.NewNamespacedName(testNamespace, "non-existing-secret")
+	owner := &metav1.ObjectMeta{UID: "any-uid"}
+
+	// When
+	owned, err := t.unitUnderTest.IsOwnedBy(t.ctx, nonExistingRef, owner)
+
+	// Then
+	t.Error(err)
+	t.False(owned)
 }
 
 func cleanSecret(ctx context.Context, secretRef domain.NamespacedName) error {

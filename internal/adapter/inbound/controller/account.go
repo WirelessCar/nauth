@@ -113,7 +113,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
-	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
+	managementPolicy := natsAccount.GetLabels()[k8s.LabelManagementPolicy]
 	accountRef := toAccountReference(natsAccount, *clusterTarget)
 
 	// ACCOUNT MARKED FOR DELETION
@@ -147,7 +147,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Manage NATS resources
 	var result *nauth.AccountResult
 	var adoptions *v1alpha1.AccountAdoptions
-	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
+	if managementPolicy == k8s.ManagementPolicyObserve {
 		var err error
 		result, err = r.manager.Import(ctx, accountRef)
 		if err != nil {
@@ -247,7 +247,7 @@ func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.A
 	}
 
 	if controllerutil.ContainsFinalizer(state, finalizerAccount) {
-		if managementPolicy != v1alpha1.AccountManagementPolicyObserve && accountRef.AccountID != "" {
+		if managementPolicy != k8s.ManagementPolicyObserve && accountRef.AccountID != "" {
 			if err := r.manager.Delete(ctx, accountRef); err != nil {
 				return r.reporter.error(ctx, state, fmt.Errorf("failed to delete account: %w", err))
 			}

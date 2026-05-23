@@ -44,4 +44,13 @@ resources:
   kind: AccountExport
   path: github.com/WirelessCar/nauth/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nauth.io
+  group: nauth.io
+  kind: AccountSigningKey
+  path: github.com/WirelessCar/nauth/api/v1alpha1
+  version: v1alpha1
 version: "3"

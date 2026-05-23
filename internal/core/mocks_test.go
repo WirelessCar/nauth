@@ -152,6 +152,19 @@ func (s *SecretClientMock) mockLabelError(namespacedName domain.NamespacedName, 
 	s.On("Label", mock.Anything, namespacedName, labels).Return(err)
 }
 
+func (s *SecretClientMock) IsOwnedBy(ctx context.Context, secretRef domain.NamespacedName, expectedOwner metav1.Object) (bool, error) {
+	args := s.Called(ctx, secretRef, expectedOwner)
+	return args.Bool(0), args.Error(1)
+}
+
+func (s *SecretClientMock) mockIsOwnedBy(secretRef domain.NamespacedName, expectedOwner metav1.Object, result bool) {
+	s.On("IsOwnedBy", mock.Anything, secretRef, expectedOwner).Return(result, nil)
+}
+
+func (s *SecretClientMock) mockIsOwnedByError(secretRef domain.NamespacedName, expectedOwner metav1.Object, err error) {
+	s.On("IsOwnedBy", mock.Anything, secretRef, expectedOwner).Return(false, err)
+}
+
 var _ outbound.SecretClient = (*SecretClientMock)(nil)
 
 /* ****************************************************

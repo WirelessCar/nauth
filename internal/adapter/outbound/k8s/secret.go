@@ -204,6 +204,18 @@ func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace domain.
 	return secretList, nil
 }
 
+func (k *SecretClient) IsOwnedBy(ctx context.Context, secretRef domain.NamespacedName, expectedOwner metav1.Object) (bool, error) {
+	secret, err := k.getSecret(ctx, secretRef)
+	if err != nil {
+		return false, fmt.Errorf("failed to get secret %q: %w", secretRef, err)
+	}
+	ownerRef := metav1.GetControllerOf(secret)
+	if ownerRef == nil {
+		return false, nil
+	}
+	return ownerRef.UID == expectedOwner.GetUID(), nil
+}
+
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
 	return meta.Labels != nil && meta.Labels[LabelManaged] == LabelManagedValue
 }
