@@ -27,4 +27,7 @@ type SecretClient interface {
 	Delete(ctx context.Context, secretRef domain.NamespacedName) error
 	DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error
 	Label(ctx context.Context, secretRef domain.NamespacedName, labels map[string]string) error
+	// IsOwnedBy reports whether the Secret identified by secretRef has a controller owner reference
+	// pointing to expectedOwner. Returns false (not an error) when the Secret has no owner or a different owner.
+	IsOwnedBy(ctx context.Context, secretRef domain.NamespacedName, expectedOwner metav1.Object) (bool, error)
 }
