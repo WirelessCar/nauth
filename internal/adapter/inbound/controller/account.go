@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,6 +47,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+var (
+	// errSigningKeyRefUnavailable is returned when a referenced AccountSigningKey exists but
+	// is not yet usable (not Ready, or Ready with an empty public key).
+	errSigningKeyRefUnavailable = errors.New("account signing key reference is unavailable")
+)
+
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	client.Client
@@ -79,6 +85,7 @@ func NewAccountReconciler(
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts/finalizers,verbs=update
 // +kubebuilder:rbac:groups=nauth.io,resources=natsclusters,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nauth.io,resources=accountsigningkeys,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
@@ -178,12 +185,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// RECONCILE ACCOUNT
 
 	// Bind to NatsCluster
-	boundToClusterID := natsAccount.GetLabel(v1alpha1.AccountLabelNatsClusterID)
-	clusterID := clusterTarget.UID
-	if boundToClusterID == "" {
-		natsAccount.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
-	} else if boundToClusterID != clusterID {
-		err = fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
+	if err := bindAccountToCluster(natsAccount, clusterTarget.UID); err != nil {
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
@@ -199,6 +201,21 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	} else {
 		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountRef)
 		if err != nil {
+			if errors.Is(err, errSigningKeyRefUnavailable) {
+				meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
+					Type:    conditionTypeReady,
+					Status:  metav1.ConditionFalse,
+					Reason:  conditionReasonReconciling,
+					Message: err.Error(),
+				})
+				natsAccount.Status.ObservedGeneration = natsAccount.Generation
+				natsAccount.Status.ReconcileTimestamp = metav1.Now()
+				natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
+				if updateErr := r.Status().Update(ctx, natsAccount); updateErr != nil {
+					return ctrl.Result{}, updateErr
+				}
+				return ctrl.Result{RequeueAfter: requeueDependencyNotReady}, nil
+			}
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
 		}
 		result, err = r.manager.CreateOrUpdate(ctx, request)
@@ -244,6 +261,18 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return r.reporter.status(ctx, natsAccount)
 }
 
+func bindAccountToCluster(account *v1alpha1.Account, clusterID string) error {
+	boundToClusterID := account.GetLabel(v1alpha1.AccountLabelNatsClusterID)
+	if boundToClusterID == "" {
+		account.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
+		return nil
+	}
+	if boundToClusterID != clusterID {
+		return fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
+	}
+	return nil
+}
+
 func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarget) nauth.AccountReference {
 	return nauth.AccountReference{
 		AccountRef: domain.NamespacedName{
@@ -280,6 +309,11 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		importGroups = nauth.ImportGroups{inlineImportGroup}
 	}
 
+	signingKeys, err := r.resolveSigningKeyRefs(ctx, state.Namespace, state.Spec.SigningKeyRefs)
+	if err != nil {
+		return request, adoptionRefs, err
+	}
+
 	request = nauth.AccountRequest{
 		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
 		AccountID:        accountReference.AccountID,
@@ -292,6 +326,7 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
 		ExportGroups:     exportGroups,
 		ImportGroups:     importGroups,
+		SigningKeys:      signingKeys,
 	}
 
 	if accountReference.AccountID == "" {
@@ -369,6 +404,30 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 	return imports, nil
 }
 
+// resolveSigningKeyRefs fetches each AccountSigningKey in refs and returns the slice of
+// public keys. Returns errSigningKeyRefUnavailable if any key is not yet Ready or has an
+// empty public key. Missing keys return a plain error (user config mistake).
+func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []string) ([]string, error) {
+	if len(refs) == 0 {
+		return []string{}, nil
+	}
+	publicKeys := make([]string, 0, len(refs))
+	for _, refName := range refs {
+		ask := &v1alpha1.AccountSigningKey{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: refName}, ask); err != nil {
+			return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", refName, err)
+		}
+		if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
+			return nil, fmt.Errorf("%w: AccountSigningKey %q is not ready", errSigningKeyRefUnavailable, refName)
+		}
+		if ask.Status.PublicKey == "" {
+			return nil, fmt.Errorf("%w: AccountSigningKey %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, refName)
+		}
+		publicKeys = append(publicKeys, ask.Status.PublicKey)
+	}
+	return publicKeys, nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -387,7 +446,61 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
 			builder.WithPredicates(accountImportWatchPredicateForAccounts()),
 		).
+		Watches(
+			&v1alpha1.AccountSigningKey{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountSigningKeyToAccounts),
+			builder.WithPredicates(accountSigningKeyWatchPredicateForAccounts()),
+		).
 		Complete(r)
+}
+
+func (r *AccountReconciler) mapAccountSigningKeyToAccounts(ctx context.Context, obj client.Object) []reconcile.Request {
+	ask, ok := obj.(*v1alpha1.AccountSigningKey)
+	if !ok {
+		return nil
+	}
+	accounts := &v1alpha1.AccountList{}
+	if err := r.List(ctx, accounts, client.InNamespace(ask.Namespace)); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountSigningKey watch", "namespace", ask.Namespace)
+		return nil
+	}
+	var requests []reconcile.Request
+	for i := range accounts.Items {
+		account := &accounts.Items[i]
+		for _, ref := range account.Spec.SigningKeyRefs {
+			if ref == ask.Name {
+				requests = append(requests, reconcile.Request{
+					NamespacedName: client.ObjectKeyFromObject(account),
+				})
+				break
+			}
+		}
+	}
+	return requests
+}
+
+func accountSigningKeyWatchPredicateForAccounts() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return true
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldASK, oldOK := e.ObjectOld.(*v1alpha1.AccountSigningKey)
+			newASK, newOK := e.ObjectNew.(*v1alpha1.AccountSigningKey)
+			if !oldOK || !newOK {
+				return false
+			}
+			oldReady := meta.IsStatusConditionTrue(oldASK.Status.Conditions, conditionTypeReady)
+			newReady := meta.IsStatusConditionTrue(newASK.Status.Conditions, conditionTypeReady)
+			return oldReady != newReady || oldASK.Status.PublicKey != newASK.Status.PublicKey
+		},
+		GenericFunc: func(event.GenericEvent) bool {
+			return false
+		},
+	}
 }
 
 func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj client.Object) []reconcile.Request {

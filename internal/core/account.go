@@ -77,9 +77,9 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 
 	cluster := request.ClusterTarget
 	fixedAccountID := string(request.AccountID)
+
 	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, request.AccountRef, fixedAccountID)
 	if fixedAccountID != "" {
-		// Update
 		if !found {
 			return nil, fmt.Errorf("account secrets not found for account %s", fixedAccountID)
 		}
@@ -90,13 +90,13 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 			return nil, fmt.Errorf("reconciling system account is not supported")
 		}
 	} else if found && err != nil {
-		// Create
 		return nil, fmt.Errorf("existing account secrets are invalid; account creation requires manual intervention: %w", err)
 	}
 
 	var accountKeyPair nkeys.KeyPair
 	var accountPublicKey string
 	var accountSigningKeyPair nkeys.KeyPair
+
 	if found {
 		accountKeyPair = accountSecrets.Root
 		accountPublicKey, err = accountKeyPair.PublicKey()
@@ -127,7 +127,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		}
 	}
 
-	accountSigningPublicKey, err := accountSigningKeyPair.PublicKey()
+	implicitSignPublicKey, err := accountSigningKeyPair.PublicKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract account signing public key: %w", err)
 	}
@@ -139,10 +139,14 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 
 	claimsBuilder := newAccountClaimsBuilder(accountPublicKey, request.JetStreamEnabled).
 		displayName(getDisplayName(request)).
-		signingKey(accountSigningPublicKey).
+		signingKey(implicitSignPublicKey).
 		accountLimits(request.AccountLimits).
 		jetStreamLimits(request.JetStreamLimits).
 		natsLimits(request.NatsLimits)
+
+	for _, key := range request.SigningKeys {
+		claimsBuilder.signingKey(key)
+	}
 
 	adoptions := nauth.NewAccountAdoptions()
 	if err = adoptExportGroups(request.ExportGroups, claimsBuilder, adoptions); err != nil {

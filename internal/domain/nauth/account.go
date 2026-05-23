@@ -19,6 +19,7 @@ type AccountRequest struct {
 	NatsLimits       *NatsLimits           `json:"natsLimits,omitempty"`
 	ExportGroups     ExportGroups          `json:"exportGroups,omitempty"`
 	ImportGroups     ImportGroups          `json:"importGroups,omitempty"`
+	SigningKeys      []string              `json:"signingKeys,omitempty"`
 }
 
 func (r AccountRequest) Validate() error {

@@ -63,4 +63,7 @@ const ( // Environment Variables
 const ( // "requeue after" durations
 	// Allow some time to avoid reading stale data
 	requeueImmediately = time.Millisecond * 250
+
+	// Poll interval when a required dependency exists but is not yet ready.
+	requeueDependencyNotReady = 5 * time.Second
 )

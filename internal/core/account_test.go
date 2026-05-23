@@ -410,6 +410,145 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	t.Equal(newOpSignKey.PublicKey, parsedClaims.Issuer)
 }
 
+func (t *AccountManagerTestSuite) Test_CreateOrUpdate_WithSigningKeys_NewAccount_ShouldIncludeImplicitAndExplicitKeys() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	explicitKey1 := testutil.CreateNatsTestAccountKey().PublicKey
+	explicitKey2 := testutil.CreateNatsTestAccountKey().PublicKey
+
+	var capturedSignKP nkeys.KeyPair
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
+	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, nil)
+	t.secretManagerMock.mockApplySignSecretUnknown(t.ctx, accountRef, func(_ string, kp nkeys.KeyPair) {
+		capturedSignKP = kp
+	})
+	var capturedJWT string
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		ClusterTarget: t.clusterTarget,
+		SigningKeys:   []string{explicitKey1, explicitKey2},
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+
+	signPub, _ := capturedSignKP.PublicKey()
+	claims, decodeErr := jwt.DecodeAccountClaims(capturedJWT)
+	t.Require().NoError(decodeErr)
+	t.ElementsMatch([]string{signPub, explicitKey1, explicitKey2}, claims.SigningKeys.Keys(),
+		"JWT must contain implicit signing key plus all explicit signing keys")
+}
+
+func (t *AccountManagerTestSuite) Test_CreateOrUpdate_AddSigningKeys_ShouldIncludeImplicitAndExplicitKeysInJWT() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := testutil.NatsTestAccountA.AccountID()
+	explicitKey := testutil.CreateNatsTestAccountKey().PublicKey
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	var capturedJWT string
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
+		SigningKeys:   []string{explicitKey},
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.secretManagerMock.AssertNotCalled(t.T(), "ApplyRootSecret", mock.Anything, mock.Anything, mock.Anything)
+	t.secretManagerMock.AssertNotCalled(t.T(), "ApplySignSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	claims, decodeErr := jwt.DecodeAccountClaims(capturedJWT)
+	t.Require().NoError(decodeErr)
+	t.ElementsMatch(
+		[]string{testutil.NatsTestAccountA.Sign.PublicKey, explicitKey},
+		claims.SigningKeys.Keys(),
+		"JWT must contain implicit signing key plus the explicit signing key",
+	)
+}
+
+func (t *AccountManagerTestSuite) Test_Create_ImplicitMode_ShouldCreateRootAndSignSecret() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+
+	var capturedSignKP nkeys.KeyPair
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
+	t.secretManagerMock.mockApplyRootSecretUnknown(t.ctx, accountRef, nil)
+	t.secretManagerMock.mockApplySignSecretUnknown(t.ctx, accountRef, func(_ string, kp nkeys.KeyPair) {
+		capturedSignKP = kp
+	})
+	var capturedJWT string
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		ClusterTarget: t.clusterTarget,
+		SigningKeys:   nil, // implicit mode
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+
+	signPub, _ := capturedSignKP.PublicKey()
+	claims, decodeErr := jwt.DecodeAccountClaims(capturedJWT)
+	t.Require().NoError(decodeErr)
+	t.Equal([]string{signPub}, claims.SigningKeys.Keys(), "JWT must contain only the implicit signing key")
+}
+
+func (t *AccountManagerTestSuite) Test_CreateOrUpdate_RemoveSigningKeys_OnlyImplicitKeyRemainsInJWT() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := testutil.NatsTestAccountA.AccountID()
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	var capturedJWT string
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
+		SigningKeys:   nil,
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Require().NotNil(result)
+	t.secretManagerMock.AssertNotCalled(t.T(), "ApplyRootSecret", mock.Anything, mock.Anything, mock.Anything)
+	t.secretManagerMock.AssertNotCalled(t.T(), "ApplySignSecret", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	claims, decodeErr := jwt.DecodeAccountClaims(capturedJWT)
+	t.Require().NoError(decodeErr)
+	t.Equal([]string{testutil.NatsTestAccountA.Sign.PublicKey}, claims.SigningKeys.Keys(),
+		"JWT must contain only the implicit signing key when signingKeyRefs is removed")
+}
+
 func (t *AccountManagerTestSuite) Test_Update_ShouldFail_WhenAccountSecretsAreMissing() {
 	// Given
 	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
