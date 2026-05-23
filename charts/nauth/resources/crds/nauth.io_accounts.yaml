@@ -245,6 +245,19 @@ spec:
                     format: int64
                     type: integer
                 type: object
+              signingKeyRefs:
+                description: |-
+                  SigningKeyRefs lists AccountSigningKey resource names in the same namespace
+                  whose public keys are trusted as additional signing keys for this account.
+                  The implicit default signing key is always present and is not listed here.
+                items:
+                  maxLength: 253
+                  minLength: 1
+                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                  type: string
+                maxItems: 64
+                type: array
+                x-kubernetes-list-type: set
             type: object
           status:
             description: AccountStatus defines the observed state of Account.
