@@ -18,10 +18,12 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"os"
 
+	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -84,31 +86,14 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// USER MARKED FOR DELETION
 	if !user.DeletionTimestamp.IsZero() {
-		// The user is being deleted
-		meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
-			Type:    conditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  conditionReasonReconciling,
-			Message: "Deleting user",
-		})
+		// TODO: r.manager.Revoke(UserRevocationRequest) to revoke the user from the Account, see
+		//  - https://github.com/WirelessCar/nauth/issues/95
+		//  - https://docs.nats.io/using-nats/nats-tools/nsc/revocation
 
-		if err := r.Status().Update(ctx, user); err != nil {
-			log.Info("Failed to update the user status", "name", user.Name, "error", err)
+		controllerutil.RemoveFinalizer(user, finalizerUser)
+		if err := r.Update(ctx, user); err != nil {
+			log.Info("failed to remove finalizer", "name", user.Name, "error", err)
 			return ctrl.Result{}, err
-		}
-
-		// The user is being deleted
-		if controllerutil.ContainsFinalizer(user, finalizerUser) {
-			if err := r.manager.Delete(ctx, user); err != nil {
-				return r.reporter.error(ctx, user, fmt.Errorf("failed to delete user: %w", err))
-			}
-
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(user, finalizerUser)
-			if err := r.Update(ctx, user); err != nil {
-				log.Info("failed to remove finalizer", "name", user.Name, "error", err)
-				return ctrl.Result{}, err
-			}
 		}
 		// Stop reconciliation as the item is being deleted
 		return ctrl.Result{}, nil
@@ -116,8 +101,17 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	operatorVersion := os.Getenv(envOperatorVersion)
 
+	// Missing secret means credentials are gone — force reconciling to recreate them regardless of generation.
+	secretMissing := false
+	if err := r.Get(ctx, client.ObjectKey{Name: user.GetUserSecretName(), Namespace: user.Namespace}, &corev1.Secret{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		secretMissing = true
+	}
+
 	// Nothing has changed
-	if user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
+	if !secretMissing && user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
@@ -142,11 +136,20 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	if err := r.manager.CreateOrUpdate(ctx, user); err != nil {
+	result, err := r.manager.CreateOrUpdate(ctx, toUserRequest(user))
+	if err != nil {
 		return r.reporter.error(ctx, user, err)
 	}
 
+	// Apply result to User resource labels
+	user.SetLabel(v1alpha1.UserLabelUserID, result.UserPublicKey)
+	user.SetLabel(v1alpha1.UserLabelAccountID, result.AccountID)
+	user.SetLabel(v1alpha1.UserLabelSignedBy, result.SignedBy)
+
 	// UPDATE USER STATUS
+	user.Status.Claims = specToClaims(user.Spec)
+	user.Status.ObservedGeneration = user.Generation
+	user.Status.ReconcileTimestamp = metav1.Now()
 
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := user.Status.DeepCopy()
@@ -171,10 +174,62 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.User{}).
+		Owns(&corev1.Secret{}).
 		Named("user").
 		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
+}
+
+func toUserRequest(user *v1alpha1.User) nauth.UserRequest {
+	return nauth.UserRequest{
+		UserRef:     domain.NewNamespacedName(user.Namespace, user.Name),
+		AccountRef:  domain.NewNamespacedName(user.Namespace, user.Spec.AccountName),
+		AccountID:   nauth.AccountID(user.GetLabel(v1alpha1.UserLabelAccountID)),
+		DisplayName: user.Spec.DisplayName,
+		Permissions: toNAuthUserPermissions(user.Spec.Permissions),
+		Limits:      toNAuthUserLimits(user.Spec.UserLimits),
+		NatsLimits:  toNAuthNatsLimits(user.Spec.NatsLimits),
+		Owner:       user,
+	}
+}
+
+func toNAuthUserPermissions(p *v1alpha1.Permissions) *nauth.UserPermissions {
+	if p == nil {
+		return nil
+	}
+	up := &nauth.UserPermissions{
+		Pub: nauth.UserSubjectPermission{Allow: p.Pub.Allow, Deny: p.Pub.Deny},
+		Sub: nauth.UserSubjectPermission{Allow: p.Sub.Allow, Deny: p.Sub.Deny},
+	}
+	if p.Resp != nil {
+		up.Resp = &nauth.UserResponsePermission{MaxMsgs: p.Resp.MaxMsgs, Expires: p.Resp.Expires}
+	}
+	return up
+}
+
+func toNAuthUserLimits(l *v1alpha1.UserLimits) *nauth.UserLimits {
+	if l == nil {
+		return nil
+	}
+	ul := &nauth.UserLimits{
+		Src:    []string(l.Src),
+		Locale: l.Locale,
+	}
+	for _, t := range l.Times {
+		ul.Times = append(ul.Times, nauth.UserTimeRange{Start: t.Start, End: t.End})
+	}
+	return ul
+}
+
+func specToClaims(spec v1alpha1.UserSpec) v1alpha1.UserClaims {
+	return v1alpha1.UserClaims{
+		AccountName: spec.AccountName,
+		DisplayName: spec.DisplayName,
+		Permissions: spec.Permissions,
+		UserLimits:  spec.UserLimits,
+		NatsLimits:  spec.NatsLimits,
+	}
 }

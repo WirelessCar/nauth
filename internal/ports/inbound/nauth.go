@@ -3,7 +3,6 @@ package inbound
 import (
 	"context"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 )
@@ -29,8 +28,7 @@ type AccountSigningKeyManager interface {
 }
 
 type UserManager interface {
-	CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error
-	Delete(ctx context.Context, desired *v1alpha1.User) error
+	CreateOrUpdate(ctx context.Context, request nauth.UserRequest) (*nauth.UserResult, error)
 }
 
 type ClusterManager interface {

@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type SignedUserJWT struct {
@@ -37,43 +36,50 @@ func NewUserManager(userJWTSigner UserJWTSigner, secretClient outbound.SecretCli
 	}
 }
 
-func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
-	userRef := domain.NewNamespacedName(state.Namespace, state.Name)
-	accountRef := domain.NewNamespacedName(state.Namespace, state.Spec.AccountName)
-	if err := accountRef.Validate(); err != nil {
-		return fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequest) (*nauth.UserResult, error) {
+	if err := request.AccountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", request.AccountRef, err)
 	}
-
-	existingUserAccountID := state.GetLabel(v1alpha1.UserLabelAccountID)
 
 	userKeyPair, err := nkeys.CreateUser()
 	if err != nil {
-		return fmt.Errorf("failed to create user key pair: %w", err)
+		return nil, fmt.Errorf("failed to create user key pair: %w", err)
 	}
 	userPublicKey, err := userKeyPair.PublicKey()
 	if err != nil {
-		return fmt.Errorf("failed to get user public key: %w", err)
+		return nil, fmt.Errorf("failed to get user public key: %w", err)
 	}
 	userSeed, err := userKeyPair.Seed()
 	if err != nil {
-		return fmt.Errorf("failed to get user seed: %w", err)
+		return nil, fmt.Errorf("failed to get user seed: %w", err)
 	}
 
-	natsClaims := newUserClaimsBuilder(u.getUserDisplayName(state), state.Spec, userPublicKey, existingUserAccountID).
+	displayName := request.DisplayName
+	if displayName == "" {
+		displayName = fmt.Sprintf("%s/%s", request.UserRef.Namespace, request.UserRef.Name)
+	}
+
+	natsClaims := newUserClaimsBuilder(userPublicKey).
+		displayName(displayName).
+		permissions(request.Permissions).
+		userLimits(request.Limits).
+		natsLimits(request.NatsLimits).
+		issuerAccountID(string(request.AccountID)).
 		build()
-	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, accountRef, natsClaims)
+	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, request.AccountRef, natsClaims)
 	if err != nil {
-		return fmt.Errorf("failed to sign user jwt for %s: %w", userRef, err)
+		return nil, fmt.Errorf("failed to sign user jwt for %s/%s: %w", request.UserRef.Namespace, request.UserRef.Name, err)
 	}
 
 	userCreds, err := jwt.FormatUserConfig(signedUserJWT.UserJWT, userSeed)
 	if err != nil {
-		return fmt.Errorf("failed to format user credentials: %w", err)
+		return nil, fmt.Errorf("failed to format user credentials: %w", err)
 	}
 
+	secretName := fmt.Sprintf("%s-nats-user-creds", request.UserRef.Name)
 	secretMeta := metav1.ObjectMeta{
-		Name:      state.GetUserSecretName(),
-		Namespace: state.GetNamespace(),
+		Name:      secretName,
+		Namespace: request.UserRef.Namespace,
 		Labels: map[string]string{
 			k8s.LabelSecretType: k8s.SecretTypeUserCredentials,
 			k8s.LabelManaged:    k8s.LabelManagedValue,
@@ -82,43 +88,15 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) 
 	secretValue := map[string]string{
 		k8s.UserCredentialSecretKeyName: string(userCreds),
 	}
-	err = u.secretClient.Apply(ctx, state, secretMeta, secretValue)
-	if err != nil {
-		return err
+	if err := u.secretClient.Apply(ctx, request.Owner, secretMeta, secretValue); err != nil {
+		return nil, err
 	}
 
-	state.Status.Claims = toNAuthUserClaims(natsClaims)
-	state.SetLabel(v1alpha1.UserLabelUserID, userPublicKey)
-	state.SetLabel(v1alpha1.UserLabelAccountID, signedUserJWT.AccountID)
-	state.SetLabel(v1alpha1.UserLabelSignedBy, signedUserJWT.SignedBy)
-
-	state.Status.ObservedGeneration = state.Generation
-	state.Status.ReconcileTimestamp = metav1.Now()
-
-	return nil
-}
-
-func (u *UserManager) Delete(ctx context.Context, state *v1alpha1.User) error {
-	log := logf.FromContext(ctx)
-	log.Info("Delete user", "userName", state.GetName())
-
-	secretRef := domain.NewNamespacedName(state.Namespace, state.GetUserSecretName())
-	if err := secretRef.Validate(); err != nil {
-		return fmt.Errorf("invalid secret reference %q: %w", secretRef, err)
-	}
-	err := u.secretClient.Delete(ctx, secretRef)
-	if err != nil {
-		return fmt.Errorf("failed to delete user secret %s: %w", secretRef, err)
-	}
-
-	return nil
-}
-
-func (u *UserManager) getUserDisplayName(user *v1alpha1.User) string {
-	if user.Spec.DisplayName != "" {
-		return user.Spec.DisplayName
-	}
-	return fmt.Sprintf("%s/%s", user.GetNamespace(), user.GetName())
+	return &nauth.UserResult{
+		UserPublicKey: userPublicKey,
+		AccountID:     signedUserJWT.AccountID,
+		SignedBy:      signedUserJWT.SignedBy,
+	}, nil
 }
 
 var _ inbound.UserManager = (*UserManager)(nil)
