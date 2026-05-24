@@ -1,0 +1,7 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: rotation-user
+spec:
+  accountName: rotation-account
+  signingKeyRef: external-auth-v2

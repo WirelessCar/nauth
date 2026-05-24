@@ -1,0 +1,27 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: rotation-user
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth-v2
+    ref: ask_v2
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: rotation-user
+    ref: user
+assertAll:
+  - celExpr: user.metadata.labels["user.nauth.io/signed-by"] == ask_v2.status.publicKey
+commands:
+  - command: 'e2e-ctl assert user-creds-secret --user rotation-user --secret rotation-user-nats-user-creds'

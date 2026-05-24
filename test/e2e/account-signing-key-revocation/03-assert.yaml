@@ -1,0 +1,27 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: revocation-user
+  finalizers:
+    - user.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth
+    ref: ask
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: revocation-user
+    ref: user
+assertAll:
+  - celExpr: user.metadata.labels["user.nauth.io/signed-by"] == ask.status.publicKey

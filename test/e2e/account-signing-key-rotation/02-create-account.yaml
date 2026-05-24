@@ -1,0 +1,10 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: rotation-account
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  signingKeyRefs:
+    - external-auth-v1
