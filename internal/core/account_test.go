@@ -848,7 +848,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldSucceed() {
 	claims := jwt.NewUserClaims(user.PublicKey)
 
 	// When
-	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, UserSigningRequest{AccountRef: accountRef, Claims: claims})
 
 	// Then
 	t.NoError(err)
@@ -873,7 +873,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenAccountIsNotRea
 	claims := jwt.NewUserClaims(user.PublicKey)
 
 	// When
-	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, UserSigningRequest{AccountRef: accountRef, Claims: claims})
 
 	// Then
 	t.Nil(result)
@@ -892,7 +892,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsIssuerAcc
 	claims.IssuerAccount = "some-other-account-id"
 
 	// When
-	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, UserSigningRequest{AccountRef: accountRef, Claims: claims})
 
 	// Then
 	t.Nil(result)
@@ -912,7 +912,7 @@ func (t *AccountManagerTestSuite) Test_SignUserJWT_ShouldFailWhenClaimsValidatio
 	claims.Locale = "funky-BUSINESS"
 
 	// When
-	result, err := t.unitUnderTest.SignUserJWT(t.ctx, accountRef, claims)
+	result, err := t.unitUnderTest.SignUserJWT(t.ctx, UserSigningRequest{AccountRef: accountRef, Claims: claims})
 
 	// Then
 	t.Nil(result)
