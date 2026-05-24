@@ -2,12 +2,12 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/mock"
@@ -58,6 +58,13 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 			ExpiresAt:   &expiresAt,
 		},
 	}
+	expiresAtTime := expiresAt.Time
+	request := nauth.UserRequest{
+		UserRef:    domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef: domain.NewNamespacedName("my-namespace", "my-account"),
+		ExpiresAt:  &expiresAtTime,
+		Owner:      user,
+	}
 
 	var signedUserJWT *SignedUserJWT = nil
 	t.userJWTSignerMock.mockSignUserJWT(t.ctx, domain.NewNamespacedName("my-namespace", "my-account"),
@@ -76,7 +83,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 		})
 	var caughtSecrets map[string]string = nil
 	t.secretClientMock.mockApplyWithCatch(t.ctx,
-		mock.MatchedBy(func(owner *v1alpha1.User) bool {
+		mock.MatchedBy(func(owner v1.Object) bool {
 			return owner == user
 		}),
 		mock.MatchedBy(func(s v1.ObjectMeta) bool {
@@ -88,18 +95,18 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 		})
 
 	// When
-	err := t.unitUnderTest.CreateOrUpdate(t.ctx, user)
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
 
 	// Then
 	t.NoError(err)
+	t.NotNil(result)
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabel(v1alpha1.UserLabelUserID)
-	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
-	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, &expiresAt, caughtSecrets)
+	t.NotEmpty(result.UserPublicKey, "UserPublicKey should not be empty")
+	t.Equal(accountKeys.AccountID(), result.AccountID)
+	t.Equal(accountKeys.Sign.PublicKey, result.SignedBy)
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), result.UserPublicKey, &expiresAt, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser() {
@@ -120,6 +127,12 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 			AccountName: "my-account",
 		},
 	}
+	request := nauth.UserRequest{
+		UserRef:    domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef: domain.NewNamespacedName("my-namespace", "my-account"),
+		AccountID:  nauth.AccountID(accountKeys.AccountID()),
+		Owner:      user,
+	}
 
 	var signedUserJWT *SignedUserJWT = nil
 	t.userJWTSignerMock.mockSignUserJWT(t.ctx, domain.NewNamespacedName("my-namespace", "my-account"),
@@ -137,7 +150,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 		})
 	var caughtSecrets map[string]string = nil
 	t.secretClientMock.mockApplyWithCatch(t.ctx,
-		mock.MatchedBy(func(owner *v1alpha1.User) bool {
+		mock.MatchedBy(func(owner v1.Object) bool {
 			return owner == user
 		}),
 		mock.MatchedBy(func(s v1.ObjectMeta) bool {
@@ -149,64 +162,24 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 		})
 
 	// When
-	err := t.unitUnderTest.CreateOrUpdate(t.ctx, user)
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
 
 	// Then
 	t.NoError(err)
+	t.NotNil(result)
 	t.NotNil(signedUserJWT, "signedUserJWT not set")
 	t.NotNil(caughtSecrets, "caughtSecrets not set")
 
-	userID := user.GetLabel(v1alpha1.UserLabelUserID)
-	t.NotEmpty(userID, "UserID label should not be empty")
-	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
-	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, nil, caughtSecrets)
-}
-
-func (t *UserManagerTestSuite) Test_Delete_ShouldSucceed() {
-	// Given
-	user := &v1alpha1.User{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "my-user",
-			Namespace: "my-namespace",
-		},
-		Spec: v1alpha1.UserSpec{
-			AccountName: "my-account",
-		},
-	}
-	t.secretClientMock.mockDelete(t.ctx, domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"))
-
-	// When
-	err := t.unitUnderTest.Delete(t.ctx, user)
-
-	// Then
-	t.NoError(err)
-}
-
-func (t *UserManagerTestSuite) Test_Delete_ShouldFail_WhenDeleteSecretFails() {
-	// Given
-	user := &v1alpha1.User{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "my-user",
-			Namespace: "my-namespace",
-		},
-		Spec: v1alpha1.UserSpec{
-			AccountName: "my-account",
-		},
-	}
-	t.secretClientMock.mockDeleteError(t.ctx, domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"), fmt.Errorf("wops"))
-
-	// When
-	err := t.unitUnderTest.Delete(t.ctx, user)
-
-	// Then
-	t.ErrorContains(err, "wops")
+	t.NotEmpty(result.UserPublicKey, "UserPublicKey should not be empty")
+	t.Equal(accountKeys.AccountID(), result.AccountID)
+	t.Equal(accountKeys.Sign.PublicKey, result.SignedBy)
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), result.UserPublicKey, nil, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) verifySecret(accountSignPub string, accountID string, userID string, expectedExpiresAt *v1.Time, secretData map[string]string) {
 	t.Contains(secretData, "user.creds")
 	userCreds := secretData["user.creds"]
-	t.NotEmpty(userCreds, fmt.Sprintf("user.creds in secret data should not be empty. Found: %v", secretData))
+	t.NotEmpty(userCreds, "user.creds in secret data should not be empty")
 	userJWT, err := jwt.ParseDecoratedJWT([]byte(userCreds))
 	t.NoError(err, "userCreds should be decorated JWT")
 	userClaims, err := jwt.DecodeUserClaims(userJWT)

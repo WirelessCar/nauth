@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	approvals "github.com/approvals/go-approval-tests"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
@@ -36,10 +37,17 @@ func TestClaims(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build NATS JWT UserClaims from UserSpec
-			builder := newUserClaimsBuilder(userClaimsTestDisplayName, *spec, userClaimsTestUserPubKey, userClaimsTestAccountPubKey)
+			natsClaims := newUserClaimsBuilder(userClaimsTestUserPubKey).
+				displayName(userClaimsTestDisplayName).
+				expires(toTimePtr(spec.ExpiresAt)).
+				permissions(toNAuthUserPermissions(spec.Permissions)).
+				userLimits(toNAuthUserLimits(spec.UserLimits)).
+				natsLimits(toNAuthNatsLimits(spec.NatsLimits)).
+				issuerAccountID(userClaimsTestAccountPubKey).
+				build()
 
-			natsClaims := builder.build()
 			require.NotNil(t, natsClaims)
+
 			// Ensure that the NATS JWT can be encoded
 			natsJwt, err := natsClaims.Encode(acSigningKey)
 			require.NoError(t, err)
@@ -60,18 +68,17 @@ func TestClaims(t *testing.T) {
 				ForFile().WithExtension(".yaml"))
 
 			// Verify that the resulting NAuth UserClaim generates the same NATS JWT when encoded
-			rebuiltNatsClaims := &v1alpha1.UserSpec{
-				AccountName: nauthClaims.AccountName,
-				ExpiresAt:   nauthClaims.ExpiresAt,
-				Permissions: nauthClaims.Permissions,
-				UserLimits:  nauthClaims.UserLimits,
-				NatsLimits:  nauthClaims.NatsLimits,
-			}
-			rebuilder := newUserClaimsBuilder(userClaimsTestDisplayName, *rebuiltNatsClaims, userClaimsTestUserPubKey, userClaimsTestAccountPubKey)
+			natsClaimsRebuilt := newUserClaimsBuilder(userClaimsTestUserPubKey).
+				displayName(userClaimsTestDisplayName).
+				expires(toTimePtr(nauthClaims.ExpiresAt)).
+				permissions(toNAuthUserPermissions(nauthClaims.Permissions)).
+				userLimits(toNAuthUserLimits(nauthClaims.UserLimits)).
+				natsLimits(toNAuthNatsLimits(nauthClaims.NatsLimits)).
+				issuerAccountID(userClaimsTestAccountPubKey).
+				build()
 
-			natsClaimsRebuilt := rebuilder.build()
-			require.NoError(t, err)
 			require.NotNil(t, natsClaimsRebuilt)
+
 			// Sign the JWT to ensure matching issuer details
 			_, err = natsClaimsRebuilt.Encode(acSigningKey)
 			require.NoError(t, err)
@@ -96,12 +103,12 @@ func TestUserClaimsBuilder_ExpiresAt(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			spec := v1alpha1.UserSpec{
-				AccountName: "test-account",
-				ExpiresAt:   &tc.expiresAt,
-			}
-
-			claims := newUserClaimsBuilder(userClaimsTestDisplayName, spec, userClaimsTestUserPubKey, userClaimsTestAccountPubKey).build()
+			expiresAt := tc.expiresAt.Time
+			claims := newUserClaimsBuilder(userClaimsTestUserPubKey).
+				displayName(userClaimsTestDisplayName).
+				expires(&expiresAt).
+				issuerAccountID(userClaimsTestAccountPubKey).
+				build()
 			require.Equal(t, tc.expiresAt.Unix(), claims.Expires)
 
 			nauthClaims := toNAuthUserClaims(claims)
@@ -109,6 +116,14 @@ func TestUserClaimsBuilder_ExpiresAt(t *testing.T) {
 			require.Equal(t, tc.expiresAt.Unix(), nauthClaims.ExpiresAt.Unix())
 		})
 	}
+}
+
+// toTimePtr converts a *metav1.Time to *time.Time, returning nil when the input is nil.
+func toTimePtr(t *metav1.Time) *time.Time {
+	if t == nil {
+		return nil
+	}
+	return &t.Time
 }
 
 func loadUserSpec(filePath string) (*v1alpha1.UserSpec, error) {
@@ -123,6 +138,64 @@ func loadUserSpec(filePath string) (*v1alpha1.UserSpec, error) {
 	}
 
 	return &spec, nil
+}
+
+func toNAuthUserPermissions(permissions *v1alpha1.Permissions) *nauth.UserPermissions {
+	if permissions == nil {
+		return nil
+	}
+
+	result := &nauth.UserPermissions{
+		Pub: nauth.UserSubjectPermission{
+			Allow: permissions.Pub.Allow,
+			Deny:  permissions.Pub.Deny,
+		},
+		Sub: nauth.UserSubjectPermission{
+			Allow: permissions.Sub.Allow,
+			Deny:  permissions.Sub.Deny,
+		},
+	}
+
+	if permissions.Resp != nil {
+		result.Resp = &nauth.UserResponsePermission{
+			MaxMsgs: permissions.Resp.MaxMsgs,
+			Expires: permissions.Resp.Expires,
+		}
+	}
+
+	return result
+}
+
+func toNAuthUserLimits(limits *v1alpha1.UserLimits) *nauth.UserLimits {
+	if limits == nil {
+		return nil
+	}
+
+	result := &nauth.UserLimits{
+		Src:    limits.Src,
+		Locale: limits.Locale,
+	}
+
+	for _, t := range limits.Times {
+		result.Times = append(result.Times, nauth.UserTimeRange{
+			Start: t.Start,
+			End:   t.End,
+		})
+	}
+
+	return result
+}
+
+func toNAuthNatsLimits(limits *v1alpha1.NatsLimits) *nauth.NatsLimits {
+	if limits == nil {
+		return nil
+	}
+
+	return &nauth.NatsLimits{
+		Subs:    limits.Subs,
+		Data:    limits.Data,
+		Payload: limits.Payload,
+	}
 }
 
 func normalizeUserClaimsForApproval(claims *jwt.UserClaims) map[string]interface{} {

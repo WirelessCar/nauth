@@ -2,20 +2,20 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	corev1 "k8s.io/api/core/v1"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -118,91 +118,65 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFa
 	t.Contains(<-t.fakeRecorder.Events, errAccountNotFound.Error())
 }
 
-func (t *UserControllerTestSuite) Test_Reconcile_ShouldDeleteUserMarkedForDeletion() {
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenUserIsDeleted() {
 	// Given
 	// Note: Expect manager.CreateOrUpdate during setup only
 	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
-	user := &v1alpha1.User{}
-
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 	t.Require().NoError(err)
 
+	user := &v1alpha1.User{}
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(user, finalizerUser))
+	t.Contains(user.Finalizers, finalizerUser, "User must have the finalizer after first reconcile")
 
 	err = k8sClient.Delete(t.ctx, user)
 	t.Require().NoError(err)
 
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	t.False(user.DeletionTimestamp.IsZero())
+	t.NotNil(user.DeletionTimestamp, "User should be in terminating state, held by finalizer")
 
-	// Note: assert mock calls during setup and reset for test case
-	t.userManagerMock.AssertExpectations(t.T())
-	t.userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(nil)
-
-	// When (expect manager.Delete)
+	// When
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
 
 	// Then
-	t.NoError(err)
-
-	for _, c := range user.Status.Conditions {
-		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(conditionReasonReconciled, c.Reason)
-	}
-
 	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
-	t.Error(err)
-	t.True(k8err.IsNotFound(err))
+	t.True(k8err.IsNotFound(err), "User should be gone after finalizer is removed")
 	t.Empty(t.fakeRecorder.Events)
 }
 
-func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenDeleteFails() {
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldRecreateSecret_WhenSecretIsDeleted() {
 	// Given
-	userDeleteError := fmt.Errorf("unable to remove the user")
-	// Note: Expect manager.CreateOrUpdate during setup only
 	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
-	user := &v1alpha1.User{}
-
 	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 	t.Require().NoError(err)
 
-	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      user.GetUserSecretName(),
+			Namespace: user.Namespace,
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, secret))
+
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 	t.Require().NoError(err)
-	t.True(controllerutil.ContainsFinalizer(user, finalizerUser))
+	t.userManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate")
 
-	err = k8sClient.Delete(t.ctx, user)
-	t.Require().NoError(err)
+	// When
+	t.Require().NoError(k8sClient.Delete(t.ctx, secret))
 
-	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
-	t.Require().NoError(err)
-	t.False(user.DeletionTimestamp.IsZero())
-
-	// Note: assert mock calls during setup and reset for test case
-	t.userManagerMock.AssertExpectations(t.T())
-	t.userManagerMock.On("Delete", mock.Anything, mock.Anything).Return(userDeleteError).Once()
-
-	// When (expect manager.Delete)
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).Return(nil).Once()
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 
 	// Then
-	t.Error(err)
-	t.Contains(err.Error(), userDeleteError.Error())
-
-	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
 	t.Require().NoError(err)
-	for _, c := range user.Status.Conditions {
-		t.Equal(metav1.ConditionFalse, c.Status)
-		t.Equal(conditionReasonErrored, c.Reason)
-	}
-
-	t.Len(t.fakeRecorder.Events, 1)
-	t.Contains(<-t.fakeRecorder.Events, userDeleteError.Error())
-
-	err = k8sClient.Get(t.ctx, t.userNamespacedName, user)
-	t.NoError(err)
+	t.Empty(t.fakeRecorder.Events)
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
@@ -241,13 +215,10 @@ type UserManagerMock struct {
 	mock.Mock
 }
 
-func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, state *v1alpha1.User) error {
-	state.Status.ObservedGeneration = state.Generation
-	args := u.Called(state)
-	return args.Error(0)
-}
-
-func (u *UserManagerMock) Delete(ctx context.Context, desired *v1alpha1.User) error {
-	args := u.Called(desired)
-	return args.Error(0)
+func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, request nauth.UserRequest) (*nauth.UserResult, error) {
+	args := u.Called(ctx, request)
+	if err := args.Error(0); err != nil {
+		return nil, err
+	}
+	return &nauth.UserResult{}, nil
 }
