@@ -1,0 +1,7 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: revocation-user
+spec:
+  accountName: revocation-account
+  signingKeyRef: external-auth

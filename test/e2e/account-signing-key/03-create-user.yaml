@@ -1,0 +1,7 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: signing-key-user
+spec:
+  accountName: signing-key-account
+  signingKeyRef: external-auth

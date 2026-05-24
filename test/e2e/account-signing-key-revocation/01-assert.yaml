@@ -1,0 +1,22 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountSigningKey
+metadata:
+  name: external-auth
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+  secretName: external-auth-secret
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth
+    ref: ask
+assertAll:
+  - celExpr: matches(ask.status.publicKey, "^A.{55}$")

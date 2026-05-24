@@ -1,0 +1,46 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: rotation-account
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: rotation-user
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: rotation-account
+    ref: account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth-v1
+    ref: ask_v1
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth-v2
+    ref: ask_v2
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: rotation-user
+    ref: user
+assertAll:
+  - celExpr: "!account.status.claims.signingKeys.exists(sk, sk.key == ask_v1.status.publicKey)"
+  - celExpr: account.status.claims.signingKeys.exists(sk, sk.key == ask_v2.status.publicKey)
+  - celExpr: user.metadata.labels["user.nauth.io/signed-by"] == ask_v2.status.publicKey

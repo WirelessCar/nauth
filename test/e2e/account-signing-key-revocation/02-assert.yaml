@@ -1,0 +1,27 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: revocation-account
+  finalizers:
+    - account.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: revocation-account
+    ref: account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth
+    ref: ask
+assertAll:
+  - celExpr: account.status.claims.signingKeys.exists(sk, sk.key == ask.status.publicKey)

@@ -1,0 +1,29 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: signing-key-user
+  finalizers:
+    - user.nauth.io/finalizer
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: Reconciled
+
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountSigningKey
+    name: external-auth
+    ref: ask
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: signing-key-user
+    ref: user
+assertAll:
+  - celExpr: user.metadata.labels["user.nauth.io/signed-by"] == ask.status.publicKey
+commands:
+  - command: 'e2e-ctl assert user-creds-secret --user signing-key-user --secret signing-key-user-nats-user-creds'
