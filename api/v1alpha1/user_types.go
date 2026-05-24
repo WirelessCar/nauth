@@ -44,6 +44,14 @@ type UserSpec struct {
 	UserLimits *UserLimits `json:"userLimits,omitempty"`
 	// +optional
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
+	// SigningKeyRef optionally names an AccountSigningKey in the same namespace
+	// whose seed is used to sign this User's JWT. When absent, the Account's
+	// implicit signing key is used. The referenced AccountSigningKey's public key
+	// must appear in Account.status.claims.signingKeys at reconciliation time.
+	// +optional
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	SigningKeyRef string `json:"signingKeyRef,omitempty"`
 }
 
 type UserClaims struct {

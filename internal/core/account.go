@@ -442,39 +442,50 @@ func createTempJetStreamCreds(accountID string, accountKeyPair nkeys.KeyPair) (*
 	return natsUserCreds, nil
 }
 
-func (a *AccountManager) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
-	if err := accountRef.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid account reference %q: %w", accountRef, err)
+func (a *AccountManager) SignUserJWT(ctx context.Context, req UserSigningRequest) (*SignedUserJWT, error) {
+	if err := req.AccountRef.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid account reference %q: %w", req.AccountRef, err)
 	}
-	accountID, err := a.accountIDReader.GetAccountID(ctx, accountRef)
+	accountID, err := a.accountIDReader.GetAccountID(ctx, req.AccountRef)
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup Account ID for %q during user JWT signing: %w", accountRef, err)
+		return nil, fmt.Errorf("failed to lookup Account ID for %q during user JWT signing: %w", req.AccountRef, err)
 	}
-	if claims.IssuerAccount != "" && claims.IssuerAccount != string(accountID) {
-		return nil, fmt.Errorf("claims issuer account ID %s does not match %s bound to account %q during user JWT signing", claims.IssuerAccount, accountID, accountRef)
+	if req.Claims.IssuerAccount != "" && req.Claims.IssuerAccount != string(accountID) {
+		return nil, fmt.Errorf("claims issuer account ID %s does not match %s bound to account %q during user JWT signing", req.Claims.IssuerAccount, accountID, req.AccountRef)
 	}
-	if claims.IssuerAccount == "" {
-		claims.IssuerAccount = string(accountID)
+	if req.Claims.IssuerAccount == "" {
+		req.Claims.IssuerAccount = string(accountID)
 	}
 	claimsVal := &jwt.ValidationResults{}
-	claims.Validate(claimsVal)
+	req.Claims.Validate(claimsVal)
 	if errs := claimsVal.Errors(); len(errs) > 0 {
 		return nil, fmt.Errorf("claims validation failed during user JWT signing: %v", claimsVal.Errors())
 	}
-	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, accountRef, string(accountID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get account secrets for user JWT signing: %w", err)
+
+	var signingPair nkeys.KeyPair
+	if req.Seed != nil {
+		signingPair, err = nkeys.FromSeed(req.Seed)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load signing key from seed: %w", err)
+		}
+	} else {
+		accountSecrets, found, err := a.secretManager.GetSecrets(ctx, req.AccountRef, string(accountID))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get account secrets for user JWT signing: %w", err)
+		}
+		if !found {
+			return nil, fmt.Errorf("account secrets not found for user JWT signing")
+		}
+		signingPair = accountSecrets.Sign
 	}
-	if !found {
-		return nil, fmt.Errorf("account secrets not found for user JWT signing")
-	}
-	signPubKey, err := accountSecrets.Sign.PublicKey()
+
+	signPubKey, err := signingPair.PublicKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get account signing public key for user JWT signing: %w", err)
 	}
-	userJWT, err := claims.Encode(accountSecrets.Sign)
+	userJWT, err := req.Claims.Encode(signingPair)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign user JWT using %s for account %s (%q): %w", signPubKey, accountID, accountRef, err)
+		return nil, fmt.Errorf("failed to sign user JWT using %s for account %s (%q): %w", signPubKey, accountID, req.AccountRef, err)
 	}
 	return &SignedUserJWT{
 		UserJWT:   userJWT,

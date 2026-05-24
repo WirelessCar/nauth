@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	k8s "github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
@@ -169,6 +170,93 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 	t.Equal(accountKeys.AccountID(), result.AccountID)
 	t.Equal(accountKeys.Sign.PublicKey, result.SignedBy)
 	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), result.UserPublicKey, caughtSecrets)
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecretRefSetWithoutSigningPublicKey() {
+	// Given
+	user := &v1alpha1.User{
+		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+	}
+	request := nauth.UserRequest{
+		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef:                 domain.NewNamespacedName("my-namespace", "my-account"),
+		Owner:                      user,
+		SigningPrivateKeySecretRef: new(domain.NewNamespacedName("my-namespace", "external-auth-secret")),
+		// SigningPublicKey deliberately left empty.
+	}
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
+
+	// Then
+	t.Require().Error(err)
+	t.Nil(result)
+	t.Contains(err.Error(), "signing public key is required")
+	t.secretClientMock.AssertNotCalled(t.T(), "Get", mock.Anything, mock.Anything)
+	t.userJWTSignerMock.AssertNotCalled(t.T(), "SignUserJWT", mock.Anything, mock.Anything)
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecretDriftedFromTrustedPublicKey() {
+	// Given: the controller validated that "trustedKey" is trusted by the Account,
+	// but the Secret at the supplied ref now holds a seed for a different account key
+	// (drift between trust check and seed read).
+	trustedKey := testutil.CreateNatsTestAccountKey()
+	driftedKey := testutil.CreateNatsTestAccountKey()
+	signingSecretRef := domain.NewNamespacedName("my-namespace", "external-auth-secret")
+
+	user := &v1alpha1.User{
+		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+	}
+	request := nauth.UserRequest{
+		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef:                 domain.NewNamespacedName("my-namespace", "my-account"),
+		Owner:                      user,
+		SigningPrivateKeySecretRef: &signingSecretRef,
+		SigningPublicKey:           trustedKey.PublicKey,
+	}
+
+	t.secretClientMock.mockGet(t.ctx, signingSecretRef, map[string]string{
+		k8s.DefaultSecretKeyName: string(driftedKey.Seed),
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
+
+	// Then
+	t.Require().Error(err)
+	t.Nil(result)
+	t.Contains(err.Error(), trustedKey.PublicKey, "error must name the trusted public key")
+	t.Contains(err.Error(), driftedKey.PublicKey, "error must name the drifted public key")
+	t.secretClientMock.AssertNotCalled(t.T(), "Apply", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	t.userJWTSignerMock.AssertNotCalled(t.T(), "SignUserJWT", mock.Anything, mock.Anything)
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecretRefHasNoTrustedPublicKey() {
+	// Given
+	signingSecretRef := domain.NewNamespacedName("my-namespace", "external-auth-secret")
+	user := &v1alpha1.User{
+		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+	}
+	request := nauth.UserRequest{
+		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef:                 domain.NewNamespacedName("my-namespace", "my-account"),
+		Owner:                      user,
+		SigningPrivateKeySecretRef: &signingSecretRef,
+	}
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
+
+	// Then
+	t.Require().Error(err)
+	t.Nil(result)
+	t.Contains(err.Error(), "signing public key is required")
+	t.secretClientMock.AssertNotCalled(t.T(), "Get", mock.Anything, mock.Anything)
+	t.secretClientMock.AssertNotCalled(t.T(), "Apply", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	t.userJWTSignerMock.AssertNotCalled(t.T(), "SignUserJWT", mock.Anything, mock.Anything)
 }
 
 func (t *UserManagerTestSuite) verifySecret(accountSignPub string, accountID string, userID string, secretData map[string]string) {

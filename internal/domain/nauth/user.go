@@ -28,6 +28,15 @@ type UserRequest struct {
 	// Owner is the controlling owner for resources created during reconciliation.
 	// When set, created resources are garbage-collected when the owner is deleted.
 	Owner metav1.Object
+	// SigningPrivateKeySecretRef is the namespaced name of the Kubernetes Secret that
+	// holds the seed (private key) used to sign this user's JWT.
+	// When nil, the Account's implicit signing key is used.
+	SigningPrivateKeySecretRef *domain.NamespacedName
+	// SigningPublicKey is the public key the caller has verified as currently trusted
+	// by the Account. When set alongside SigningPrivateKeySecretRef, the seed read
+	// from the Secret must derive to this exact public key; otherwise reconciliation
+	// fails before any user credential is issued.
+	SigningPublicKey string
 }
 
 // UserResult is returned by UserManager.CreateOrUpdate upon success.

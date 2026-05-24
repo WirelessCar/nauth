@@ -20,8 +20,17 @@ type SignedUserJWT struct {
 	SignedBy  string
 }
 
+// UserSigningRequest is the parameter to UserJWTSigner.SignUserJWT.
+type UserSigningRequest struct {
+	AccountRef domain.NamespacedName
+	Claims     *jwt.UserClaims
+	// Seed is the raw nkeys seed to use for signing. When nil the Account's
+	// implicit signing key is used.
+	Seed []byte
+}
+
 type UserJWTSigner interface {
-	SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error)
+	SignUserJWT(ctx context.Context, req UserSigningRequest) (*SignedUserJWT, error)
 }
 
 type UserManager struct {
@@ -66,7 +75,43 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequ
 		natsLimits(request.NatsLimits).
 		issuerAccountID(string(request.AccountID)).
 		build()
-	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, request.AccountRef, natsClaims)
+
+	var signingSeed []byte
+	if request.SigningPrivateKeySecretRef != nil {
+		if request.SigningPublicKey == "" {
+			return nil, fmt.Errorf("signing public key is required when signing private key secret ref is set")
+		}
+		secretRef := *request.SigningPrivateKeySecretRef
+		secretData, found, err := u.secretClient.Get(ctx, secretRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get signing key secret %q: %w", secretRef, err)
+		}
+		if !found {
+			return nil, fmt.Errorf("signing key secret %q not found", secretRef)
+		}
+		seedStr, ok := secretData[k8s.DefaultSecretKeyName]
+		if !ok {
+			return nil, fmt.Errorf("signing key secret %q missing key %q", secretRef, k8s.DefaultSecretKeyName)
+		}
+		signingSeed = []byte(seedStr)
+
+		// Re-verify the seed still derives to the public key the caller validated as trusted.
+		// Closes the TOCTOU window between the controller's trust check and reading the Secret here.
+		seedPubKey, err := signingKeyFromSeed(signingSeed)
+		if err != nil {
+			return nil, fmt.Errorf("signing key secret %q holds an invalid seed: %w", secretRef, err)
+		}
+		if seedPubKey != request.SigningPublicKey {
+			return nil, fmt.Errorf("signing key secret %q derives to %s; caller expected trusted public key %s",
+				secretRef, seedPubKey, request.SigningPublicKey)
+		}
+	}
+
+	signedUserJWT, err := u.userJWTSigner.SignUserJWT(ctx, UserSigningRequest{
+		AccountRef: request.AccountRef,
+		Claims:     natsClaims,
+		Seed:       signingSeed,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign user jwt for %s/%s: %w", request.UserRef.Namespace, request.UserRef.Name, err)
 	}

@@ -32,6 +32,16 @@ rules:
   - patch
   - watch
 - apiGroups:
+  - nauth.io
+  resources:
+  - accountsigningkeys
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
     - nauth.io
   resources:
     - accountimports
@@ -63,6 +73,7 @@ rules:
   - accounts/status
   - accountexports/status
   - accountimports/status
+  - accountsigningkeys/status
   - natsclusters/status
   - users/status
   verbs:

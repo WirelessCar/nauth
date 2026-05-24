@@ -18,8 +18,13 @@ package controller
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"reflect"
+	"sort"
 
+	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
@@ -28,17 +33,21 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/WirelessCar/nauth/api/v1alpha1"
 )
+
+var errDependencyNotReady = errors.New("dependency not ready")
 
 // UserReconciler reconciles a User object
 type UserReconciler struct {
@@ -61,6 +70,8 @@ func NewUserReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager 
 // +kubebuilder:rbac:groups=nauth.io,resources=users/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=users/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=nauth.io,resources=accounts,verbs=get;list;watch
+// +kubebuilder:rbac:groups=nauth.io,resources=accountsigningkeys,verbs=get;list;watch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -110,8 +121,16 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		secretMissing = true
 	}
 
+	signingKeyStale, err := r.isSigningKeyStale(ctx, user)
+	if err != nil {
+		return r.reporter.error(ctx, user, err)
+	}
+
 	// Nothing has changed
-	if !secretMissing && user.Status.ObservedGeneration == user.Generation && user.Status.OperatorVersion == operatorVersion {
+	if !secretMissing &&
+		!signingKeyStale &&
+		user.Status.ObservedGeneration == user.Generation &&
+		user.Status.OperatorVersion == operatorVersion {
 		return ctrl.Result{}, nil
 	}
 
@@ -136,7 +155,24 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, err
 	}
 
-	result, err := r.manager.CreateOrUpdate(ctx, toUserRequest(user))
+	signingSecretRef, signingPublicKey, err := r.resolveSigningKeyRef(ctx, user)
+	if err != nil {
+		if errors.Is(err, errDependencyNotReady) {
+			meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
+				Type:    conditionTypeReady,
+				Status:  metav1.ConditionFalse,
+				Reason:  conditionReasonNotReady,
+				Message: err.Error(),
+			})
+			if updateErr := r.Status().Update(ctx, user); updateErr != nil {
+				return ctrl.Result{}, updateErr
+			}
+			return ctrl.Result{RequeueAfter: requeueDependencyNotReady}, nil
+		}
+		return r.reporter.error(ctx, user, err)
+	}
+
+	result, err := r.manager.CreateOrUpdate(ctx, toUserRequest(user, signingSecretRef, signingPublicKey))
 	if err != nil {
 		return r.reporter.error(ctx, user, err)
 	}
@@ -173,27 +209,213 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.User{}).
+		For(&v1alpha1.User{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&corev1.Secret{}).
 		Named("user").
-		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).
+		// Account watch: re-enqueue Users whose signing-key trust set may have changed so
+		// the stale check can bypass the early-return even when the User spec is unchanged.
+		Watches(
+			&v1alpha1.Account{},
+			handler.EnqueueRequestsFromMapFunc(r.mapAccountToUsers),
+			builder.WithPredicates(accountWatchPredicateForUsers()),
+		).
 		Complete(r)
 }
 
-func toUserRequest(user *v1alpha1.User) nauth.UserRequest {
+func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName, signingPublicKey string) nauth.UserRequest {
 	return nauth.UserRequest{
-		UserRef:     domain.NewNamespacedName(user.Namespace, user.Name),
-		AccountRef:  domain.NewNamespacedName(user.Namespace, user.Spec.AccountName),
-		AccountID:   nauth.AccountID(user.GetLabel(v1alpha1.UserLabelAccountID)),
-		DisplayName: user.Spec.DisplayName,
-		Permissions: toNAuthUserPermissions(user.Spec.Permissions),
-		Limits:      toNAuthUserLimits(user.Spec.UserLimits),
-		NatsLimits:  toNAuthNatsLimits(user.Spec.NatsLimits),
-		Owner:       user,
+		UserRef:                    domain.NewNamespacedName(user.Namespace, user.Name),
+		AccountRef:                 domain.NewNamespacedName(user.Namespace, user.Spec.AccountName),
+		AccountID:                  nauth.AccountID(user.GetLabel(v1alpha1.UserLabelAccountID)),
+		DisplayName:                user.Spec.DisplayName,
+		Permissions:                toNAuthUserPermissions(user.Spec.Permissions),
+		Limits:                     toNAuthUserLimits(user.Spec.UserLimits),
+		NatsLimits:                 toNAuthNatsLimits(user.Spec.NatsLimits),
+		Owner:                      user,
+		SigningPrivateKeySecretRef: signingSecretRef,
+		SigningPublicKey:           signingPublicKey,
 	}
+}
+
+// resolveTrustedSigningKey walks the Account -> AccountSigningKey trust chain that
+// User reconciliation depends on, returning the resolved AccountSigningKey when
+// every link is in place.
+// Returns nil when user.Spec.SigningKeyRef is empty (the User signs with the
+// Account's implicit signing key). Returns errDependencyNotReady wrapped with context
+// when any of the following hold: Account or AccountSigningKey not found,
+// AccountSigningKey not Ready, AccountSigningKey status.publicKey empty, ref absent
+// from Account.spec.signingKeyRefs, or the public key not yet published in
+// Account.status.claims.signingKeys.
+func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1alpha1.User) (*v1alpha1.AccountSigningKey, error) {
+	if user.Spec.SigningKeyRef == "" {
+		return nil, nil
+	}
+
+	account := &v1alpha1.Account{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: user.Spec.AccountName}, account); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("account %q not found: %w", user.Spec.AccountName, errDependencyNotReady)
+		}
+		return nil, fmt.Errorf("failed to get account %q: %w", user.Spec.AccountName, err)
+	}
+
+	ask := &v1alpha1.AccountSigningKey{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: user.Spec.SigningKeyRef}, ask); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("AccountSigningKey %q not found: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+		}
+		return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", user.Spec.SigningKeyRef, err)
+	}
+
+	if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
+		return nil, fmt.Errorf("AccountSigningKey %q is not ready: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+	}
+
+	refInSpec := false
+	for _, ref := range account.Spec.SigningKeyRefs {
+		if ref == user.Spec.SigningKeyRef {
+			refInSpec = true
+			break
+		}
+	}
+	if !refInSpec {
+		return nil, fmt.Errorf("signing key ref %q is not listed in Account %q spec.signingKeyRefs: %w",
+			user.Spec.SigningKeyRef, user.Spec.AccountName, errDependencyNotReady)
+	}
+
+	pubKey := ask.Status.PublicKey
+	if pubKey == "" {
+		return nil, fmt.Errorf("AccountSigningKey %q has no public key in status: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+	}
+	if !signingKeyInAccountClaims(account, pubKey) {
+		return nil, fmt.Errorf("AccountSigningKey %q (public key %s) not yet in Account %q signing keys: %w",
+			user.Spec.SigningKeyRef, pubKey, user.Spec.AccountName, errDependencyNotReady)
+	}
+
+	return ask, nil
+}
+
+// resolveSigningKeyRef resolves the signing-key Secret reference and the trusted
+// public key for user.Spec.SigningKeyRef.
+// Returns nil when SigningKeyRef is empty (implicit Account signing key).
+// Returns errDependencyNotReady when the AccountSigningKey or Account is not yet
+// ready or the public key is not in Account claims.
+func (r *UserReconciler) resolveSigningKeyRef(ctx context.Context, user *v1alpha1.User) (*domain.NamespacedName, string, error) {
+	ask, err := r.resolveTrustedSigningKey(ctx, user)
+	if err != nil {
+		return nil, "", err
+	}
+	if ask == nil {
+		return nil, "", nil
+	}
+
+	secretName := ask.Status.SecretName
+	if secretName == "" {
+		return nil, "", fmt.Errorf("AccountSigningKey %q has no secret name in status: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+	}
+	return new(domain.NewNamespacedName(user.Namespace, secretName)), ask.Status.PublicKey, nil
+}
+
+func signingKeyInAccountClaims(account *v1alpha1.Account, pubKey string) bool {
+	if account.Status.Claims == nil {
+		return false
+	}
+	for _, sk := range account.Status.Claims.SigningKeys {
+		if sk != nil && sk.Key == pubKey {
+			return true
+		}
+	}
+	return false
+}
+
+// isSigningKeyStale returns true when user.Spec.SigningKeyRef is set and the
+// current signing-key/account trust state differs from what was last reconciled.
+// Transient unavailability (missing resources, not-ready) also returns true so the
+// full reconcile path can surface the condition; hard API errors return (false, err).
+func (r *UserReconciler) isSigningKeyStale(ctx context.Context, user *v1alpha1.User) (bool, error) {
+	ask, err := r.resolveTrustedSigningKey(ctx, user)
+	if err != nil {
+		if errors.Is(err, errDependencyNotReady) {
+			return true, nil
+		}
+		return false, err
+	}
+	if ask == nil {
+		return false, nil
+	}
+	return ask.Status.PublicKey != user.GetLabel(v1alpha1.UserLabelSignedBy), nil
+}
+
+func (r *UserReconciler) mapAccountToUsers(ctx context.Context, obj client.Object) []reconcile.Request {
+	account, ok := obj.(*v1alpha1.Account)
+	if !ok {
+		return nil
+	}
+	users := &v1alpha1.UserList{}
+	if err := r.List(ctx, users, client.InNamespace(account.Namespace)); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Users for Account watch", "account", account.Name)
+		return nil
+	}
+	var requests []reconcile.Request
+	for i := range users.Items {
+		u := &users.Items[i]
+		if u.Spec.AccountName == account.Name && u.Spec.SigningKeyRef != "" {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(u),
+			})
+		}
+	}
+	return requests
+}
+
+func accountWatchPredicateForUsers() predicate.Funcs {
+	return predicate.Funcs{
+		CreateFunc: func(event.CreateEvent) bool { return false },
+		DeleteFunc: func(event.DeleteEvent) bool { return true },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldAcc, oldOK := e.ObjectOld.(*v1alpha1.Account)
+			newAcc, newOK := e.ObjectNew.(*v1alpha1.Account)
+			if !oldOK || !newOK {
+				return false
+			}
+			return accountUpdateAffectsUsers(oldAcc, newAcc)
+		},
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
+}
+
+func accountUpdateAffectsUsers(oldAcc, newAcc *v1alpha1.Account) bool {
+	if !reflect.DeepEqual(signingKeyRefSet(oldAcc.Spec.SigningKeyRefs), signingKeyRefSet(newAcc.Spec.SigningKeyRefs)) {
+		return true
+	}
+	return !reflect.DeepEqual(accountSigningKeySet(oldAcc.Status.Claims), accountSigningKeySet(newAcc.Status.Claims))
+}
+
+func signingKeyRefSet(refs []string) []string {
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]string, len(refs))
+	copy(out, refs)
+	sort.Strings(out)
+	return out
+}
+
+func accountSigningKeySet(claims *v1alpha1.AccountClaims) []string {
+	if claims == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(claims.SigningKeys))
+	for _, sk := range claims.SigningKeys {
+		if sk != nil {
+			keys = append(keys, sk.Key)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func toNAuthUserPermissions(p *v1alpha1.Permissions) *nauth.UserPermissions {

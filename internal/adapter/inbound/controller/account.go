@@ -409,7 +409,7 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 // empty public key. Missing keys return a plain error (user config mistake).
 func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []string) ([]string, error) {
 	if len(refs) == 0 {
-		return []string{}, nil
+		return nil, nil
 	}
 	publicKeys := make([]string, 0, len(refs))
 	for _, refName := range refs {
