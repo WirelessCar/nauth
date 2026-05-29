@@ -1,0 +1,142 @@
+---
+title: Account Lifecycle
+description: Account lifecycle policy fields for NATS Account JWTs and Kubernetes Secrets
+---
+
+NAuth exposes scoped lifecycle policy fields on `Account` resources. The fields describe which parts of an account lifecycle NAuth owns.
+
+> **Since v0.7.0:** Account lifecycle policy fields are available under `spec.lifecycle`.
+
+Only the default lifecycle is implemented today. Non-default values are accepted by the CRD schema but fail reconciliation with `Ready=False` and a not-implemented message.
+
+## Model
+
+An `Account` spans two different lifecycle surfaces:
+
+- The NATS Account JWT in the NATS cluster.
+- The Kubernetes Secrets that hold account root and signing material.
+
+Lifecycle policy fields are scoped to each surface:
+
+- `spec.lifecycle.natsAccount` controls the NATS Account JWT.
+- `spec.lifecycle.secrets` controls the Kubernetes Secrets.
+
+## Default lifecycle
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: my-acc
+spec:
+  lifecycle:
+    natsAccount:
+      managementPolicy: Manage
+      deletionPolicy: Delete
+    secrets:
+      managementPolicy: GenerateIfMissing
+      deletionPolicy: Delete
+```
+
+When `spec.lifecycle` is omitted, NAuth uses this default behavior.
+
+## Policy fields
+
+| Field | Values |
+| --- | --- |
+| `spec.lifecycle.natsAccount.managementPolicy` | `Manage`, `Observe*` |
+| `spec.lifecycle.natsAccount.deletionPolicy` | `Delete`, `Retain*` |
+| `spec.lifecycle.secrets.managementPolicy` | `GenerateIfMissing`, `RequireExisting*` |
+| `spec.lifecycle.secrets.deletionPolicy` | `Delete`, `Retain*` |
+
+`*` Not implemented yet.
+
+## Policy meanings
+
+`natsAccount.managementPolicy: Manage` means NAuth creates or updates the NATS Account JWT from the `Account` spec.
+
+`natsAccount.managementPolicy: Observe` means NAuth reads the NATS Account JWT and status, but does not push changes to the NATS cluster. This is intended to become the lifecycle-policy form of [observe mode](./observe-existing-accounts/).
+
+`natsAccount.deletionPolicy: Delete` means deleting the Kubernetes `Account` resource also deletes the NATS Account JWT.
+
+`natsAccount.deletionPolicy: Retain` means deleting the Kubernetes `Account` resource leaves the NATS Account JWT in place.
+
+`secrets.managementPolicy: GenerateIfMissing` means NAuth can generate missing account root and signing Secrets.
+
+`secrets.managementPolicy: RequireExisting` means NAuth requires account root and signing Secrets to exist before reconciliation continues. This is intended for disaster recovery flows where Secrets are restored before NAuth reconciles the `Account`.
+
+`secrets.deletionPolicy: Delete` means deleting the Kubernetes `Account` resource also deletes the account root and signing Secrets.
+
+`secrets.deletionPolicy: Retain` means deleting the Kubernetes `Account` resource leaves the account root and signing Secrets in place.
+
+## Policy compatibility
+
+Some policy values imply other lifecycle choices:
+
+- `natsAccount.managementPolicy: Observe` requires `natsAccount.deletionPolicy: Retain`.
+- `natsAccount.managementPolicy: Observe` requires `secrets.managementPolicy: RequireExisting`.
+- `natsAccount.managementPolicy: Observe` requires `secrets.deletionPolicy: Retain`.
+
+These compatibility rules are not enforced yet because non-default lifecycle policies are not implemented yet.
+
+## Examples
+
+The following examples show the intended lifecycle policy combinations.
+
+### Default
+
+```yaml
+spec:
+  lifecycle:
+    natsAccount:
+      managementPolicy: Manage
+      deletionPolicy: Delete
+    secrets:
+      managementPolicy: GenerateIfMissing
+      deletionPolicy: Delete
+```
+
+### Disaster recovery restore
+
+Use this when account root and signing Secrets are restored before NAuth reconciles the `Account`, but NAuth should still manage the NATS Account JWT.
+
+```yaml
+spec:
+  lifecycle:
+    natsAccount:
+      managementPolicy: Manage
+      deletionPolicy: Delete
+    secrets:
+      managementPolicy: RequireExisting
+      deletionPolicy: Retain
+```
+
+### Observe existing account
+
+Use this when the NATS Account JWT already exists and NAuth should read it without pushing changes.
+
+```yaml
+spec:
+  lifecycle:
+    natsAccount:
+      managementPolicy: Observe
+      deletionPolicy: Retain
+    secrets:
+      managementPolicy: RequireExisting
+      deletionPolicy: Retain
+```
+
+### Retain on account deletion
+
+Use this when deleting the Kubernetes `Account` resource should leave the NATS Account JWT and account Secrets in place.
+
+```yaml
+spec:
+  lifecycle:
+    natsAccount:
+      managementPolicy: Manage
+      deletionPolicy: Retain
+    secrets:
+      managementPolicy: GenerateIfMissing
+      deletionPolicy: Retain
+```

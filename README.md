@@ -56,10 +56,10 @@ it's important to have an understanding of how the basics work.
 
 [![NATS decentralized JWT Auth](https://i3.ytimg.com/vi/5pQVjN0ym5w/hqdefault.jpg)](https://youtu.be/5pQVjN0ym5w)
 
-## Observe existing NATS accounts
-NAuth can observe an existing NATS account without taking ownership of its JWT. Use this when migrating accounts into NAuth or recovering desired state from an existing cluster.
+## Account lifecycle
+NAuth exposes Account lifecycle policy fields for describing how it manages NATS Account JWTs and supporting Kubernetes Secrets. Observe mode is part of this lifecycle area and can be used when migrating accounts into NAuth or recovering desired state from an existing cluster.
 
-See the [observe existing accounts guide](https://nauth.io/guides/observe-existing-accounts/) for the required Secret labels and `Account` resource example.
+See the [account lifecycle guide](https://nauth.io/guides/account-lifecycle/) for policy status and related lifecycle workflows.
 
 ## Contributing
 Contributions are welcome. Open an issue for bugs, ideas, or larger changes, and read the [CONTRIBUTING](./CONTRIBUTING.md) guide for local setup and PR guidance.

@@ -43,7 +43,13 @@ export default defineConfig({
 					label: "Guides",
 					items: [
 						{ label: "Getting Started", slug: "guides/getting-started" },
-						{ label: "Observe Existing Accounts", slug: "guides/observe-existing-accounts" },
+						{
+							label: "Account Lifecycle",
+							items: [
+								{ label: "Overview", slug: "guides/account-lifecycle" },
+								{ label: "Observe Existing Accounts", slug: "guides/observe-existing-accounts" },
+							],
+						},
 						{ label: "Observability", slug: "guides/observability" },
 					],
 				},
