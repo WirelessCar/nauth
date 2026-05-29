@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -103,6 +104,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	accountID := nauth.AccountID(natsAccount.GetLabel(v1alpha1.AccountLabelAccountID))
 	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
+
+	if err := validateAccountLifecycle(natsAccount); err != nil {
+		return r.reporter.error(ctx, natsAccount, err)
+	}
 
 	accountClusterRef, err := toNAuthClusterRef(natsAccount.Spec.NatsClusterRef, natsAccount.Namespace)
 	if err != nil {
@@ -494,6 +499,53 @@ func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj 
 	}
 
 	return requests
+}
+
+func validateAccountLifecycle(account *v1alpha1.Account) error {
+	if account.Spec.Lifecycle == nil {
+		return nil
+	}
+
+	if account.GetLabel(v1alpha1.AccountLabelManagementPolicy) == v1alpha1.AccountManagementPolicyObserve {
+		return fmt.Errorf("legacy label %q=%q cannot be combined with spec.lifecycle",
+			v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+	}
+
+	var unsupported []string
+	lifecycle := account.Spec.Lifecycle
+	if lifecycle.NatsAccount != nil {
+		// TODO: [#59] Remove check once spec.lifecycle.natsAccount.managementPolicy=Observe is implemented.
+		if policy := lifecycle.NatsAccount.ManagementPolicy; policy != "" && policy != v1alpha1.NatsAccountManagementPolicyManage {
+			unsupported = append(unsupported, fmt.Sprintf("spec.lifecycle.natsAccount.managementPolicy=%q", policy))
+		}
+		// TODO: [#59] Remove check once spec.lifecycle.natsAccount.deletionPolicy=Retain is implemented.
+		if policy := lifecycle.NatsAccount.DeletionPolicy; policy != "" && policy != v1alpha1.AccountLifecycleDeletionPolicyDelete {
+			unsupported = append(unsupported, fmt.Sprintf("spec.lifecycle.natsAccount.deletionPolicy=%q", policy))
+		}
+	}
+	if lifecycle.Secrets != nil {
+		// TODO: [#59] Remove check once spec.lifecycle.secrets.managementPolicy=RequireExisting is implemented.
+		if policy := lifecycle.Secrets.ManagementPolicy; policy != "" && policy != v1alpha1.AccountSecretsManagementPolicyGenerateIfMissing {
+			unsupported = append(unsupported, fmt.Sprintf("spec.lifecycle.secrets.managementPolicy=%q", policy))
+		}
+		// TODO: [#59] Remove check once spec.lifecycle.secrets.deletionPolicy=Retain is implemented.
+		if policy := lifecycle.Secrets.DeletionPolicy; policy != "" && policy != v1alpha1.AccountLifecycleDeletionPolicyDelete {
+			unsupported = append(unsupported, fmt.Sprintf("spec.lifecycle.secrets.deletionPolicy=%q", policy))
+		}
+	}
+
+	if len(unsupported) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"account lifecycle policy is not implemented yet for %s; only the default lifecycle is supported: spec.lifecycle.natsAccount.managementPolicy=%q, spec.lifecycle.natsAccount.deletionPolicy=%q, spec.lifecycle.secrets.managementPolicy=%q, spec.lifecycle.secrets.deletionPolicy=%q",
+		strings.Join(unsupported, ", "),
+		v1alpha1.NatsAccountManagementPolicyManage,
+		v1alpha1.AccountLifecycleDeletionPolicyDelete,
+		v1alpha1.AccountSecretsManagementPolicyGenerateIfMissing,
+		v1alpha1.AccountLifecycleDeletionPolicyDelete,
+	)
 }
 
 func (r *AccountReconciler) validateAccountDeletion(ctx context.Context, accountID nauth.AccountID, namespace domain.Namespace) error {

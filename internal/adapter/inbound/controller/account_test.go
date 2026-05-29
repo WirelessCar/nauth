@@ -187,6 +187,92 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAc
 	t.Empty(t.fakeRecorder.Events)
 }
 
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenDefaultLifecycleIsExplicit() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.Spec.Lifecycle = &v1alpha1.AccountLifecycle{
+				NatsAccount: &v1alpha1.NatsAccountLifecycle{
+					ManagementPolicy: v1alpha1.NatsAccountManagementPolicyManage,
+					DeletionPolicy:   v1alpha1.AccountLifecycleDeletionPolicyDelete,
+				},
+				Secrets: &v1alpha1.AccountSecretsLifecycle{
+					ManagementPolicy: v1alpha1.AccountSecretsManagementPolicyGenerateIfMissing,
+					DeletionPolicy:   v1alpha1.AccountLifecycleDeletionPolicyDelete,
+				},
+			}
+		}),
+	)
+
+	mockResult := &nauth.AccountResult{
+		AccountID:       testutil.AnyNatsTestAccountID(),
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		Claims:          &nauth.AccountClaims{},
+		ClaimsHash:      "CLAIMS_HASH",
+	}
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFailFast_WhenLifecyclePolicyIsNotImplemented() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Spec.Lifecycle = &v1alpha1.AccountLifecycle{
+				Secrets: &v1alpha1.AccountSecretsLifecycle{
+					ManagementPolicy: v1alpha1.AccountSecretsManagementPolicyRequireExisting,
+					DeletionPolicy:   v1alpha1.AccountLifecycleDeletionPolicyDelete,
+				},
+			}
+		}),
+	)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().Error(err)
+	t.Contains(err.Error(), "account lifecycle policy is not implemented yet")
+	t.Contains(err.Error(), "spec.lifecycle.secrets.managementPolicy=\"RequireExisting\"")
+	t.clusterManagerMock.AssertNotCalled(t.T(), "GetClusterTarget", mock.Anything, mock.Anything)
+	t.accountManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionFalse, condition.Status)
+	t.Equal(conditionReasonErrored, condition.Reason)
+	t.Contains(condition.Message, "account lifecycle policy is not implemented yet")
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFailFast_WhenLifecycleIsCombinedWithDeprecatedObserveLabel() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+			account.Spec.Lifecycle = &v1alpha1.AccountLifecycle{}
+		}),
+	)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().Error(err)
+	t.Contains(err.Error(), "legacy label")
+	t.Contains(err.Error(), "cannot be combined with spec.lifecycle")
+	t.clusterManagerMock.AssertNotCalled(t.T(), "GetClusterTarget", mock.Anything, mock.Anything)
+	t.accountManagerMock.AssertNotCalled(t.T(), "Import", mock.Anything, mock.Anything)
+}
+
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFails() {
 	// Given
 	t.setupAccount(
