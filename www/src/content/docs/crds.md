@@ -3,7 +3,6 @@ title: API Reference
 description: API reference for nauth CRDs
 ---
 
-
 ## Packages
 - [nauth.io/v1alpha1](#nauthiov1alpha1)
 
@@ -397,6 +396,41 @@ _Appears in:_
 
 
 
+#### AccountLifecycle
+
+
+
+AccountLifecycle defines how NAuth manages external and supporting resources for an Account.
+
+
+
+_Appears in:_
+- [AccountSpec](#accountspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `natsAccount` _[NatsAccountLifecycle](#natsaccountlifecycle)_ | NatsAccount controls lifecycle behavior for the NATS Account JWT. |  | Optional: \{\} <br /> |
+| `secrets` _[AccountSecretsLifecycle](#accountsecretslifecycle)_ | Secrets controls lifecycle behavior for the Kubernetes Secrets that hold Account root and signing material. |  | Optional: \{\} <br /> |
+
+
+#### AccountLifecycleDeletionPolicy
+
+_Underlying type:_ _string_
+
+
+
+
+
+_Appears in:_
+- [AccountSecretsLifecycle](#accountsecretslifecycle)
+- [NatsAccountLifecycle](#natsaccountlifecycle)
+
+| Field | Description |
+| --- | --- |
+| `Delete` |  |
+| `Retain` |  |
+
+
 #### AccountLimits
 
 
@@ -456,6 +490,40 @@ _Appears in:_
 | `namespace` _string_ |  |  |  |
 
 
+#### AccountSecretsLifecycle
+
+
+
+AccountSecretsLifecycle controls lifecycle behavior for Kubernetes Secrets that hold Account root and signing material.
+
+
+
+_Appears in:_
+- [AccountLifecycle](#accountlifecycle)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementPolicy` _[AccountSecretsManagementPolicy](#accountsecretsmanagementpolicy)_ | ManagementPolicy controls whether NAuth may generate missing Account root and signing Secrets. | GenerateIfMissing | Enum: [GenerateIfMissing RequireExisting] <br />Optional: \{\} <br /> |
+| `deletionPolicy` _[AccountLifecycleDeletionPolicy](#accountlifecycledeletionpolicy)_ | DeletionPolicy controls whether NAuth deletes Account root and signing Secrets when the Account resource is deleted. | Delete | Enum: [Delete Retain] <br />Optional: \{\} <br /> |
+
+
+#### AccountSecretsManagementPolicy
+
+_Underlying type:_ _string_
+
+
+
+
+
+_Appears in:_
+- [AccountSecretsLifecycle](#accountsecretslifecycle)
+
+| Field | Description |
+| --- | --- |
+| `GenerateIfMissing` |  |
+| `RequireExisting` |  |
+
+
 #### AccountSpec
 
 
@@ -469,6 +537,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `lifecycle` _[AccountLifecycle](#accountlifecycle)_ | Lifecycle controls how NAuth manages the NATS Account JWT and supporting Kubernetes Secrets. |  | Optional: \{\} <br /> |
 | `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account.<br />If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.<br />Otherwise, reconciliation fails because the target NatsCluster cannot be resolved. |  | Optional: \{\} <br /> |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the account. May be derived if absent. |  | Optional: \{\} <br /> |
 | `jetStreamEnabled` _boolean_ | JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.<br />If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits. |  | Optional: \{\} <br /> |
@@ -660,6 +729,40 @@ _Appears in:_
 | `memMaxStreamBytes` _integer_ |  | -1 | Optional: \{\} <br /> |
 | `diskMaxStreamBytes` _integer_ |  | -1 | Optional: \{\} <br /> |
 | `maxBytesRequired` _boolean_ |  | false | Optional: \{\} <br /> |
+
+
+#### NatsAccountLifecycle
+
+
+
+NatsAccountLifecycle controls lifecycle behavior for the NATS Account JWT.
+
+
+
+_Appears in:_
+- [AccountLifecycle](#accountlifecycle)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `managementPolicy` _[NatsAccountManagementPolicy](#natsaccountmanagementpolicy)_ | ManagementPolicy controls whether NAuth manages or only observes the NATS Account JWT. | Manage | Enum: [Manage Observe] <br />Optional: \{\} <br /> |
+| `deletionPolicy` _[AccountLifecycleDeletionPolicy](#accountlifecycledeletionpolicy)_ | DeletionPolicy controls whether NAuth deletes the NATS Account JWT when the Account resource is deleted. | Delete | Enum: [Delete Retain] <br />Optional: \{\} <br /> |
+
+
+#### NatsAccountManagementPolicy
+
+_Underlying type:_ _string_
+
+
+
+
+
+_Appears in:_
+- [NatsAccountLifecycle](#natsaccountlifecycle)
+
+| Field | Description |
+| --- | --- |
+| `Manage` |  |
+| `Observe` |  |
 
 
 #### NatsCluster
