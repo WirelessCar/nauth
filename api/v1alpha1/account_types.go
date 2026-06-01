@@ -45,9 +45,6 @@ type NatsClusterRef struct {
 
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
-	// Lifecycle controls how NAuth manages the NATS Account JWT and supporting Kubernetes Secrets.
-	// +optional
-	Lifecycle *AccountLifecycle `json:"lifecycle,omitempty"`
 	// NatsClusterRef references the NatsCluster to use for this account.
 	// If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.
 	// Otherwise, reconciliation fails because the target NatsCluster cannot be resolved.

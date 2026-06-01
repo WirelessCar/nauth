@@ -215,54 +215,6 @@ spec:
                     format: int64
                     type: integer
                 type: object
-              lifecycle:
-                description: Lifecycle controls how NAuth manages the NATS Account
-                  JWT and supporting Kubernetes Secrets.
-                properties:
-                  natsAccount:
-                    description: NatsAccount controls lifecycle behavior for the NATS
-                      Account JWT.
-                    properties:
-                      deletionPolicy:
-                        default: Delete
-                        description: DeletionPolicy controls whether NAuth deletes
-                          the NATS Account JWT when the Account resource is deleted.
-                        enum:
-                        - Delete
-                        - Retain
-                        type: string
-                      managementPolicy:
-                        default: Manage
-                        description: ManagementPolicy controls whether NAuth manages
-                          or only observes the NATS Account JWT.
-                        enum:
-                        - Manage
-                        - Observe
-                        type: string
-                    type: object
-                  secrets:
-                    description: Secrets controls lifecycle behavior for the Kubernetes
-                      Secrets that hold Account root and signing material.
-                    properties:
-                      deletionPolicy:
-                        default: Delete
-                        description: DeletionPolicy controls whether NAuth deletes
-                          Account root and signing Secrets when the Account resource
-                          is deleted.
-                        enum:
-                        - Delete
-                        - Retain
-                        type: string
-                      managementPolicy:
-                        default: GenerateIfMissing
-                        description: ManagementPolicy controls whether NAuth may generate
-                          missing Account root and signing Secrets.
-                        enum:
-                        - GenerateIfMissing
-                        - RequireExisting
-                        type: string
-                    type: object
-                type: object
               natsClusterRef:
                 description: |-
                   NatsClusterRef references the NatsCluster to use for this account.
