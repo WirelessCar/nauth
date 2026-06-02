@@ -189,7 +189,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	} else {
 		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountID, *clusterTarget)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to create account request: %w", err)
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
 		}
 		result, err = r.manager.CreateOrUpdate(ctx, request)
 		if err != nil {
