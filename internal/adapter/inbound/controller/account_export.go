@@ -61,6 +61,7 @@ func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme,
 // +kubebuilder:rbac:groups=nauth.io,resources=accountexports,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=accountexports/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)

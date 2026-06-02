@@ -1,4 +1,4 @@
-suite: manager role NatsCluster permissions
+suite: manager role permissions
 templates:
   - templates/rbac_manager_role.yaml
 tests:
@@ -31,3 +31,15 @@ tests:
             verbs:
               - update
 
+  - it: grants write access to events.k8s.io events
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - events.k8s.io
+            resources:
+              - events
+            verbs:
+              - create
+              - patch

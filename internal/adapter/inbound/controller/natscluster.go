@@ -75,6 +75,7 @@ func NewNatsClusterReconciler(
 // +kubebuilder:rbac:groups=nauth.io,resources=natsclusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=nauth.io,resources=natsclusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
 func (r *NatsClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
