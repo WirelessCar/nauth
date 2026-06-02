@@ -102,9 +102,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	accountID := nauth.AccountID(natsAccount.GetLabel(v1alpha1.AccountLabelAccountID))
-	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
-
 	accountClusterRef, err := toNAuthClusterRef(natsAccount.Spec.NatsClusterRef, natsAccount.Namespace)
 	if err != nil {
 		return r.reporter.error(ctx, natsAccount, err)
@@ -113,6 +110,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return r.reporter.error(ctx, natsAccount, err)
 	}
+
+	managementPolicy := natsAccount.GetLabel(v1alpha1.AccountLabelManagementPolicy)
+	accountRef := toAccountReference(natsAccount, *clusterTarget)
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
@@ -129,8 +129,17 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return ctrl.Result{}, err
 		}
 
-		err := r.validateAccountDeletion(ctx, accountID, domain.Namespace(natsAccount.Namespace))
-		if err != nil {
+		if accountRef.AccountID == "" {
+			foundAccountID, found, err := r.manager.FindAccountID(ctx, accountRef)
+			if err != nil {
+				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to find account ID for deletion: %w", err))
+			}
+			if found {
+				accountRef.AccountID = foundAccountID
+			}
+		}
+
+		if err = r.validateAccountDeletion(ctx, accountRef.AccountID, domain.Namespace(natsAccount.Namespace)); err != nil {
 			if errors.Is(err, domain.ErrUnknownError) {
 				return ctrl.Result{}, err
 			}
@@ -138,8 +147,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
-			if managementPolicy != v1alpha1.AccountManagementPolicyObserve {
-				if err := r.manager.Delete(ctx, toAccountReference(natsAccount, *clusterTarget)); err != nil {
+			if managementPolicy != v1alpha1.AccountManagementPolicyObserve && accountRef.AccountID != "" {
+				if err := r.manager.Delete(ctx, accountRef); err != nil {
 					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
 				}
 			}
@@ -183,12 +192,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var adoptions *v1alpha1.AccountAdoptions
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		var err error
-		result, err = r.manager.Import(ctx, toAccountReference(natsAccount, *clusterTarget))
+		result, err = r.manager.Import(ctx, accountRef)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
-		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountID, *clusterTarget)
+		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountRef)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
 		}
@@ -246,7 +255,7 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 	}
 }
 
-func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountID nauth.AccountID, clusterTarget nauth.ClusterTarget) (nauth.AccountRequest, accountAdoptionRefs, error) {
+func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {
 	var request nauth.AccountRequest
 	adoptionRefs := accountAdoptionRefs{}
 
@@ -273,10 +282,10 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 
 	request = nauth.AccountRequest{
 		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
-		AccountID:        accountID,
+		AccountID:        accountReference.AccountID,
 		ClaimsHash:       state.Status.ClaimsHash,
 		DisplayName:      state.Spec.DisplayName,
-		ClusterTarget:    clusterTarget,
+		ClusterTarget:    accountReference.ClusterTarget,
 		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
 		JetStreamEnabled: state.Spec.JetStreamEnabled,
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
@@ -285,11 +294,11 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		ImportGroups:     importGroups,
 	}
 
-	if accountID == "" {
+	if accountReference.AccountID == "" {
 		return request, adoptionRefs, nil
 	}
 
-	exports, err := r.findExportsByAccountID(ctx, namespace, accountID)
+	exports, err := r.findExportsByAccountID(ctx, namespace, accountReference.AccountID)
 	if err != nil {
 		return request, adoptionRefs, err
 	}
@@ -300,7 +309,7 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	request.ExportGroups = append(request.ExportGroups, newExportGroups...)
 	adoptionRefs.exports = append(adoptionRefs.exports, newExportRefs...)
 
-	imports, err := r.findImportsByAccountID(ctx, namespace, accountID)
+	imports, err := r.findImportsByAccountID(ctx, namespace, accountReference.AccountID)
 	if err != nil {
 		return request, adoptionRefs, err
 	}
@@ -499,6 +508,9 @@ func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj 
 
 func (r *AccountReconciler) validateAccountDeletion(ctx context.Context, accountID nauth.AccountID, namespace domain.Namespace) error {
 	log := logf.FromContext(ctx)
+	if accountID == "" {
+		return nil
+	}
 
 	// Check for bound users
 	userList := &v1alpha1.UserList{}

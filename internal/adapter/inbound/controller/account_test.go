@@ -302,6 +302,63 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	t.True(k8err.IsNotFound(err))
 }
 
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedForDeletion_WhenAccountIDCanBeFound() {
+	// Given
+	accountID := nauth.AccountID(testutil.AnyNatsTestAccountID())
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+		}),
+	)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Require().NoError(k8sClient.Delete(t.ctx, account))
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockFindAccountID(t.ctx, mock.Anything, accountID, true, nil).Once()
+	t.accountManagerMock.On("Delete", t.ctx, mock.MatchedBy(func(reference nauth.AccountReference) bool {
+		return reference.AccountID == accountID
+	})).Return(nil).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+
+	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
+	t.Require().Error(err)
+	t.True(k8err.IsNotFound(err))
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRemoveFinalizer_WhenDeletingAccountWithoutManagedState() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+		}),
+	)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Require().NoError(k8sClient.Delete(t.ctx, account))
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockFindAccountID(t.ctx, mock.Anything, "", false, nil).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	t.accountManagerMock.AssertNotCalled(t.T(), "Delete", mock.Anything, mock.Anything)
+
+	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
+	t.Require().Error(err)
+	t.True(k8err.IsNotFound(err))
+}
+
 func createDummyClusterTarget() *nauth.ClusterTarget {
 	sauCreds := domain.NatsUserCreds{
 		Creds:     []byte("FAKE_CREDENTIALS"),
@@ -610,6 +667,17 @@ func (o *accountManagerMock) Import(ctx context.Context, reference nauth.Account
 		return nil, nil
 	}
 	return args.Get(0).(*nauth.AccountResult), nil
+}
+
+func (o *accountManagerMock) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {
+	args := o.Called(ctx, reference)
+	return args.Get(0).(nauth.AccountID), args.Bool(1), args.Error(2)
+}
+
+func (o *accountManagerMock) mockFindAccountID(ctx interface{}, state interface{}, result nauth.AccountID, found bool, err error) *mock.Call {
+	call := o.On("FindAccountID", ctx, state)
+	call.Return(result, found, err)
+	return call
 }
 
 func (o *accountManagerMock) Delete(ctx context.Context, reference nauth.AccountReference) error {

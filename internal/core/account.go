@@ -197,6 +197,27 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 	}, nil
 }
 
+func (a *AccountManager) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {
+	if err := reference.AccountRef.Validate(); err != nil {
+		return "", false, fmt.Errorf("invalid account reference: %w", err)
+	}
+
+	// TODO: [#196] Only lookup account root secret.
+	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, reference.AccountRef, string(reference.AccountID))
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get account secrets for account ID lookup: %w", err)
+	}
+	if !found {
+		return "", false, nil
+	}
+
+	accountPublicKey, err := accountSecrets.Root.PublicKey()
+	if err != nil {
+		return "", false, fmt.Errorf("failed to extract account root public key from existing secret: %w", err)
+	}
+	return nauth.AccountID(accountPublicKey), true, nil
+}
+
 func adoptExportGroups(groups nauth.ExportGroups, claimsBuilder *accountClaimsBuilder, adoptions *nauth.AccountAdoptions) error {
 	for _, exp := range groups {
 		adoptionResult := nauth.AdoptionResult{Ref: exp.Ref}

@@ -533,6 +533,58 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	t.Equal(existingNatsLimitsSubs, *result.Claims.NatsLimits.Subs)
 }
 
+func (t *AccountManagerTestSuite) Test_FindAccountID_ShouldReturnIDFromAccountSecrets() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	account := testutil.CreateNatsTestAccount()
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, "", &Secrets{
+		Root: account.Root.Key,
+		Sign: account.Sign.Key,
+	}).Once()
+
+	// When
+	result, found, err := t.unitUnderTest.FindAccountID(t.ctx, nauth.AccountReference{
+		AccountRef: accountRef,
+	})
+
+	// Then
+	t.NoError(err)
+	t.True(found)
+	t.Equal(nauth.AccountID(account.AccountID()), result)
+}
+
+func (t *AccountManagerTestSuite) Test_FindAccountID_ShouldReturnNotFoundWhenAccountSecretsAreMissing() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	t.secretManagerMock.mockGetSecretsMissing(t.ctx, accountRef, "")
+
+	// When
+	result, found, err := t.unitUnderTest.FindAccountID(t.ctx, nauth.AccountReference{
+		AccountRef: accountRef,
+	})
+
+	// Then
+	t.NoError(err)
+	t.False(found)
+	t.Empty(result)
+}
+
+func (t *AccountManagerTestSuite) Test_FindAccountID_ShouldFailWhenAccountSecretsAreInvalid() {
+	// Given
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	t.secretManagerMock.mockGetSecretsFoundError(t.ctx, accountRef, "", fmt.Errorf("invalid account secrets"))
+
+	// When
+	result, found, err := t.unitUnderTest.FindAccountID(t.ctx, nauth.AccountReference{
+		AccountRef: accountRef,
+	})
+
+	// Then
+	t.ErrorContains(err, "failed to get account secrets for account ID lookup: invalid account secrets")
+	t.False(found)
+	t.Empty(result)
+}
+
 func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	// Given
 	var (

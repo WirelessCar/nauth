@@ -10,6 +10,7 @@ import (
 type AccountManager interface {
 	CreateOrUpdate(ctx context.Context, request nauth.AccountRequest) (*nauth.AccountResult, error)
 	Import(ctx context.Context, reference nauth.AccountReference) (*nauth.AccountResult, error)
+	FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error)
 	Delete(ctx context.Context, reference nauth.AccountReference) error
 }
 
