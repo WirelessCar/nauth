@@ -152,38 +152,105 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetFinalizer() {
 	t.Contains(account.Finalizers, finalizerAccount)
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingAccount() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBootstrap_WhenCreatingAccount() {
 	// Given
+	importLimit := int64(3)
+	streamLimit := int64(5)
+	subLimit := int64(7)
+	unlimited := int64(-1)
+	wildcardExports := true
+	maxBytesRequired := false
+	accountID := testutil.AnyNatsTestAccountID()
+
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.Spec.AccountLimits = &v1alpha1.AccountLimits{
+				Imports:         &importLimit,
+				Exports:         &unlimited,
+				WildcardExports: &wildcardExports,
+				Conn:            &unlimited,
+				LeafNodeConn:    &unlimited,
+			}
+			account.Spec.JetStreamLimits = &v1alpha1.JetStreamLimits{
+				MemoryStorage:        &unlimited,
+				DiskStorage:          &unlimited,
+				Streams:              &streamLimit,
+				Consumer:             &unlimited,
+				MaxAckPending:        &unlimited,
+				MemoryMaxStreamBytes: &unlimited,
+				DiskMaxStreamBytes:   &unlimited,
+				MaxBytesRequired:     &maxBytesRequired,
+			}
+			account.Spec.NatsLimits = &v1alpha1.NatsLimits{
+				Subs:    &subLimit,
+				Data:    &unlimited,
+				Payload: &unlimited,
+			}
+			account.Spec.Imports = v1alpha1.Imports{
+				{
+					AccountRef: v1alpha1.AccountRef{
+						Name:      "export-account",
+						Namespace: t.accountNamespace,
+					},
+					Name:    "stream-import",
+					Subject: "foo.>",
+					Type:    v1alpha1.Stream,
+				},
+			}
 		}),
 	)
 
-	mockResult := &nauth.AccountResult{
-		AccountID:       testutil.AnyNatsTestAccountID(),
-		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		Claims:          &nauth.AccountClaims{},
-		ClaimsHash:      "CLAIMS_HASH",
-	}
-	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Empty(request.ExportGroups)
+		t.Empty(request.ImportGroups)
+		t.Equal(&nauth.AccountLimits{
+			Imports:         &importLimit,
+			Exports:         &unlimited,
+			WildcardExports: &wildcardExports,
+			Conn:            &unlimited,
+			LeafNodeConn:    &unlimited,
+		}, request.AccountLimits)
+		t.Equal(&nauth.JetStreamLimits{
+			MemoryStorage:        &unlimited,
+			DiskStorage:          &unlimited,
+			Streams:              &streamLimit,
+			Consumer:             &unlimited,
+			MaxAckPending:        &unlimited,
+			MemoryMaxStreamBytes: &unlimited,
+			DiskMaxStreamBytes:   &unlimited,
+			MaxBytesRequired:     &maxBytesRequired,
+		}, request.JetStreamLimits)
+		t.Equal(&nauth.NatsLimits{
+			Subs:    &subLimit,
+			Data:    &unlimited,
+			Payload: &unlimited,
+		}, request.NatsLimits)
 
-	// When (expect manager.CreateOrUpdate)
-	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+		return &nauth.AccountResult{
+			AccountID:       accountID,
+			AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		}, nil
+	}).Once()
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
 	t.Require().NoError(err)
+	t.Equal(requeueImmediately, result.RequeueAfter)
+
 	account := &v1alpha1.Account{}
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().NoError(err)
 
-	for _, c := range account.Status.Conditions {
-		t.Equal(metav1.ConditionTrue, c.Status)
-		t.Equal(conditionReasonReconciled, c.Reason)
-	}
-	t.Equal("CLAIMS_HASH", account.Status.ClaimsHash)
-	t.Equal(t.operatorVersion, account.Status.OperatorVersion)
+	t.Equal(accountID, account.GetLabel(v1alpha1.AccountLabelAccountID))
+	t.Equal("OPERATOR_SIGNING_KEY", account.GetLabel(v1alpha1.AccountLabelSignedBy))
+	t.Equal(createDummyClusterTarget().UID, account.GetLabel(v1alpha1.AccountLabelNatsClusterID))
+	t.Empty(account.Status.ClaimsHash)
+	t.Empty(account.Status.OperatorVersion)
+	t.Nil(meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady))
 	t.Empty(t.fakeRecorder.Events)
 }
 
@@ -214,7 +281,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdat
 		t.Equal(conditionReasonErrored, c.Reason)
 	}
 	t.Len(t.fakeRecorder.Events, 1)
-	t.Contains(<-t.fakeRecorder.Events, "failed to apply account: a test error")
+	t.Contains(<-t.fakeRecorder.Events, "failed to bootstrap account: a test error")
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenChangingNatsCluster() {

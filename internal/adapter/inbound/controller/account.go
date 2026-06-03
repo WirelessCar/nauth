@@ -154,6 +154,22 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to import the observed account: %w", err))
 		}
 	} else {
+		if accountRef.AccountID == "" {
+			// Bootstrap the account
+			result, err = r.manager.CreateOrUpdate(ctx, toBootstrapAccountRequest(natsAccount, accountRef))
+			if err != nil {
+				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to bootstrap account: %w", err))
+			}
+			natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
+			natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
+			if err := r.kubernetes.PatchLabels(ctx, natsAccount); err != nil {
+				log.Info("Failed to patch account labels", "name", natsAccount.Name, "error", err)
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: requeueImmediately}, nil
+		}
+
+		// Full manage
 		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountRef)
 		if err != nil {
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
@@ -258,32 +274,8 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 	}
 }
 
-func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {
-	var request nauth.AccountRequest
-	adoptionRefs := accountAdoptionRefs{}
-
-	namespace := domain.Namespace(state.Namespace)
-	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
-
-	var exportGroups nauth.ExportGroups
-	inlineExportGroup, err := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
-	if err != nil {
-		return request, adoptionRefs, fmt.Errorf("failed to convert inline exports: %w", err)
-	}
-	if inlineExportGroup != nil {
-		exportGroups = nauth.ExportGroups{inlineExportGroup}
-	}
-
-	var importGroups nauth.ImportGroups
-	inlineImportGroup, err := toNAuthImportGroup(GroupNameInline, true, state.Spec.Imports, cachedAccountIDReader)
-	if err != nil {
-		return request, adoptionRefs, fmt.Errorf("failed to convert inline imports: %w", err)
-	}
-	if inlineImportGroup != nil {
-		importGroups = nauth.ImportGroups{inlineImportGroup}
-	}
-
-	request = nauth.AccountRequest{
+func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.AccountReference) nauth.AccountRequest {
+	return nauth.AccountRequest{
 		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
 		AccountID:        accountReference.AccountID,
 		ClaimsHash:       state.Status.ClaimsHash,
@@ -293,8 +285,30 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		JetStreamEnabled: state.Spec.JetStreamEnabled,
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
 		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
-		ExportGroups:     exportGroups,
-		ImportGroups:     importGroups,
+	}
+}
+
+func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {
+	request := toBootstrapAccountRequest(state, accountReference)
+	adoptionRefs := accountAdoptionRefs{}
+
+	namespace := domain.Namespace(state.Namespace)
+	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
+
+	inlineExportGroup, err := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline exports: %w", err)
+	}
+	if inlineExportGroup != nil {
+		request.ExportGroups = nauth.ExportGroups{inlineExportGroup}
+	}
+
+	inlineImportGroup, err := toNAuthImportGroup(GroupNameInline, true, state.Spec.Imports, cachedAccountIDReader)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline imports: %w", err)
+	}
+	if inlineImportGroup != nil {
+		request.ImportGroups = nauth.ImportGroups{inlineImportGroup}
 	}
 
 	if accountReference.AccountID == "" {
