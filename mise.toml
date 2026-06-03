@@ -37,7 +37,7 @@ alias = "nld"
 run = "vale README.md www/src/content/docs/index.mdx www/src/content/docs/guides"
 
 [tasks."nauth:e2e-test"]
-silent = true
+silent = false
 description = "Run end-to-end tests"
 run = """
 make build-e2e-ctl
