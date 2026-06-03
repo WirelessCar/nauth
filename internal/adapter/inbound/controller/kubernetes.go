@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -40,4 +42,21 @@ func (c *kubernetesClient) PatchLabels(ctx context.Context, resource client.Obje
 		return fmt.Errorf("failed to patch labels: %w", err)
 	}
 	return nil
+}
+
+func (c *kubernetesClient) UpdateReadyStatus(ctx context.Context, resource Object, status metav1.ConditionStatus, reason string, message string) error {
+	meta.SetStatusCondition(resource.GetConditions(), metav1.Condition{
+		Type:    conditionTypeReady,
+		Status:  status,
+		Reason:  reason,
+		Message: message,
+	})
+	if err := c.Status().Update(ctx, resource); err != nil {
+		return fmt.Errorf("failed to update ready status: %w", err)
+	}
+	return nil
+}
+
+func (c *kubernetesClient) UpdateReadyStatusReconciled(ctx context.Context, resource Object) error {
+	return c.UpdateReadyStatus(ctx, resource, metav1.ConditionTrue, conditionReasonReconciled, "Successfully reconciled")
 }

@@ -20,8 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"os"
 	"reflect"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -230,12 +232,15 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 	natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
-	if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
+
+	if err := r.kubernetes.UpdateReadyStatusReconciled(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
 	}
 
-	return r.reporter.status(ctx, natsAccount)
+	return ctrl.Result{
+		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
+	}, nil
 }
 
 func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarget) nauth.AccountReference {
