@@ -118,52 +118,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
-		// The account is being deleted
-		meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-			Type:    conditionTypeReady,
-			Status:  metav1.ConditionFalse,
-			Reason:  conditionReasonReconciling,
-			Message: "Deleting account",
-		})
-
-		if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
-			log.Info("Failed to update the account status", "name", natsAccount.Name, "error", err)
-			return ctrl.Result{}, err
-		}
-
-		if accountRef.AccountID == "" {
-			foundAccountID, found, err := r.manager.FindAccountID(ctx, accountRef)
-			if err != nil {
-				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to find account ID for deletion: %w", err))
-			}
-			if found {
-				accountRef.AccountID = foundAccountID
-			}
-		}
-
-		if err = r.validateAccountDeletion(ctx, accountRef.AccountID, domain.Namespace(natsAccount.Namespace)); err != nil {
-			if errors.Is(err, domain.ErrUnknownError) {
-				return ctrl.Result{}, err
-			}
-			return r.reporter.error(ctx, natsAccount, err)
-		}
-
-		if controllerutil.ContainsFinalizer(natsAccount, finalizerAccount) {
-			if managementPolicy != v1alpha1.AccountManagementPolicyObserve && accountRef.AccountID != "" {
-				if err := r.manager.Delete(ctx, accountRef); err != nil {
-					return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to delete account: %w", err))
-				}
-			}
-
-			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(natsAccount, finalizerAccount)
-			if err := r.kubernetes.Update(ctx, natsAccount); err != nil {
-				log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
-				return ctrl.Result{}, err
-			}
-		}
-		// Stop reconciliation as the item is being deleted
-		return ctrl.Result{}, nil
+		return r.deleteAccount(ctx, natsAccount, accountRef, managementPolicy)
 	}
 
 	// RECONCILE ACCOUNT - Set status & base properties
@@ -241,6 +196,55 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{
 		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
 	}, nil
+}
+
+func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.Account, accountRef nauth.AccountReference, managementPolicy string) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	meta.SetStatusCondition(&state.Status.Conditions, metav1.Condition{
+		Type:    conditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  conditionReasonReconciling,
+		Message: "Deleting account",
+	})
+
+	if err := r.kubernetes.Status().Update(ctx, state); err != nil {
+		log.Info("Failed to update the account status", "name", state.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
+	if accountRef.AccountID == "" {
+		foundAccountID, found, err := r.manager.FindAccountID(ctx, accountRef)
+		if err != nil {
+			return r.reporter.error(ctx, state, fmt.Errorf("failed to find account ID for deletion: %w", err))
+		}
+		if found {
+			accountRef.AccountID = foundAccountID
+		}
+	}
+
+	if err := r.validateAccountDeletion(ctx, accountRef.AccountID, domain.Namespace(state.Namespace)); err != nil {
+		if errors.Is(err, domain.ErrUnknownError) {
+			return ctrl.Result{}, err
+		}
+		return r.reporter.error(ctx, state, err)
+	}
+
+	if controllerutil.ContainsFinalizer(state, finalizerAccount) {
+		if managementPolicy != v1alpha1.AccountManagementPolicyObserve && accountRef.AccountID != "" {
+			if err := r.manager.Delete(ctx, accountRef); err != nil {
+				return r.reporter.error(ctx, state, fmt.Errorf("failed to delete account: %w", err))
+			}
+		}
+
+		controllerutil.RemoveFinalizer(state, finalizerAccount)
+		if err := r.kubernetes.Update(ctx, state); err != nil {
+			log.Info("failed to remove finalizer", "name", state.Name, "error", err)
+			return ctrl.Result{}, err
+		}
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarget) nauth.AccountReference {
