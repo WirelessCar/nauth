@@ -190,6 +190,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Manage NATS resources
 	var result *nauth.AccountResult
 	var adoptions *v1alpha1.AccountAdoptions
+	var bootstrapReason error
 	if managementPolicy == v1alpha1.AccountManagementPolicyObserve {
 		var err error
 		result, err = r.manager.Import(ctx, accountRef)
@@ -199,7 +200,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	} else {
 		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountRef)
 		if err != nil {
-			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
+			if accountRef.AccountID != "" {
+				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
+			}
+			bootstrapReason = fmt.Errorf("failed to create account request: %w", err)
+			request = toBootstrapAccountRequest(natsAccount, accountRef)
 		}
 		result, err = r.manager.CreateOrUpdate(ctx, request)
 		if err != nil {
@@ -224,6 +229,14 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
+	if bootstrapReason != nil {
+		meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
+			Type:    conditionTypeReady,
+			Status:  metav1.ConditionFalse,
+			Reason:  conditionReasonNotReady,
+			Message: fmt.Sprintf("Account bootstrapped with limits only. Full reconciliation is not ready: %s", bootstrapReason),
+		})
+	}
 
 	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
 	status := natsAccount.Status.DeepCopy()
@@ -241,6 +254,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if bootstrapReason != nil {
+		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
+	}
+
 	return r.reporter.status(ctx, natsAccount)
 }
 
@@ -255,32 +272,8 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 	}
 }
 
-func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {
-	var request nauth.AccountRequest
-	adoptionRefs := accountAdoptionRefs{}
-
-	namespace := domain.Namespace(state.Namespace)
-	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
-
-	var exportGroups nauth.ExportGroups
-	inlineExportGroup, err := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
-	if err != nil {
-		return request, adoptionRefs, fmt.Errorf("failed to convert inline exports: %w", err)
-	}
-	if inlineExportGroup != nil {
-		exportGroups = nauth.ExportGroups{inlineExportGroup}
-	}
-
-	var importGroups nauth.ImportGroups
-	inlineImportGroup, err := toNAuthImportGroup(GroupNameInline, true, state.Spec.Imports, cachedAccountIDReader)
-	if err != nil {
-		return request, adoptionRefs, fmt.Errorf("failed to convert inline imports: %w", err)
-	}
-	if inlineImportGroup != nil {
-		importGroups = nauth.ImportGroups{inlineImportGroup}
-	}
-
-	request = nauth.AccountRequest{
+func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.AccountReference) nauth.AccountRequest {
+	return nauth.AccountRequest{
 		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
 		AccountID:        accountReference.AccountID,
 		ClaimsHash:       state.Status.ClaimsHash,
@@ -290,8 +283,30 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 		JetStreamEnabled: state.Spec.JetStreamEnabled,
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
 		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
-		ExportGroups:     exportGroups,
-		ImportGroups:     importGroups,
+	}
+}
+
+func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {
+	request := toBootstrapAccountRequest(state, accountReference)
+	adoptionRefs := accountAdoptionRefs{}
+
+	namespace := domain.Namespace(state.Namespace)
+	cachedAccountIDReader := newCachedAccountIDReader(ctx, r.accountReader)
+
+	inlineExportGroup, err := toNAuthExportGroup(GroupNameInline, true, state.Spec.Exports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline exports: %w", err)
+	}
+	if inlineExportGroup != nil {
+		request.ExportGroups = nauth.ExportGroups{inlineExportGroup}
+	}
+
+	inlineImportGroup, err := toNAuthImportGroup(GroupNameInline, true, state.Spec.Imports, cachedAccountIDReader)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to convert inline imports: %w", err)
+	}
+	if inlineImportGroup != nil {
+		request.ImportGroups = nauth.ImportGroups{inlineImportGroup}
 	}
 
 	if accountReference.AccountID == "" {
