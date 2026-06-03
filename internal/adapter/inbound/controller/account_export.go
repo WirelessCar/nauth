@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -45,16 +44,16 @@ const exportAccountNameIndexKey string = "export.spec.accountName"
 
 // AccountExportReconciler reconciles an AccountExport object.
 type AccountExportReconciler struct {
-	client.Client
-	Scheme  *runtime.Scheme
-	manager inbound.AccountExportManager
+	kubernetes *kubernetesClient
+	Scheme     *runtime.Scheme
+	manager    inbound.AccountExportManager
 }
 
 func NewAccountExportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountExportManager) *AccountExportReconciler {
 	return &AccountExportReconciler{
-		Client:  k8sClient,
-		Scheme:  scheme,
-		manager: manager,
+		kubernetes: newKubernetesClient(k8sClient),
+		Scheme:     scheme,
+		manager:    manager,
 	}
 }
 
@@ -67,7 +66,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := logf.FromContext(ctx)
 
 	state := &v1alpha1.AccountExport{}
-	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
+	if err := r.kubernetes.Get(ctx, req.NamespacedName, state); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -104,7 +103,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	patchLabels := false
 
 	account := &v1alpha1.Account{}
-	accountErr := r.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account)
+	accountErr := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: state.Namespace, Name: state.Spec.AccountName}, account)
 	if accountErr != nil {
 		if !apierrors.IsNotFound(err) {
 			log.Error(err, "Failed to read account", "accountName", state.Spec.AccountName)
@@ -165,9 +164,9 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if patchLabels {
-		err = r.patchLabels(ctx, state)
+		err = r.kubernetes.PatchLabels(ctx, state)
 		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to patch labels: %w", err)
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: requeueImmediately}, nil
 	}
@@ -175,7 +174,7 @@ func (r *AccountExportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// sort conditions before save (to keep consistent order)
 	sortConditions(state.Status.Conditions)
 
-	if updateErr := r.Status().Update(ctx, state); updateErr != nil {
+	if updateErr := r.kubernetes.Status().Update(ctx, state); updateErr != nil {
 		log.Error(updateErr, "Failed to update status: %w", updateErr)
 		return ctrl.Result{}, updateErr
 	}
@@ -263,7 +262,7 @@ func (r *AccountExportReconciler) mapAccountToAccountExports(ctx context.Context
 	}
 
 	exports := &v1alpha1.AccountExportList{}
-	if err := r.List(ctx, exports,
+	if err := r.kubernetes.List(ctx, exports,
 		client.InNamespace(account.Namespace),
 		client.MatchingFields{exportAccountNameIndexKey: account.Name},
 	); err != nil {
@@ -328,21 +327,6 @@ func accountExportAdoptionSnapshot(account *v1alpha1.Account) map[string]adoptio
 		}
 	}
 	return adoptions
-}
-
-func (r *AccountExportReconciler) patchLabels(ctx context.Context, resource *v1alpha1.AccountExport) error {
-	patchData, err := json.Marshal(map[string]map[string]map[string]string{
-		"metadata": {
-			"labels": resource.GetLabels(),
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to generate patch for label: %w", err)
-	}
-	if err = r.Patch(ctx, resource, client.RawPatch(types.MergePatchType, patchData)); err != nil {
-		return fmt.Errorf("failed to patch label: %w", err)
-	}
-	return nil
 }
 
 func isAccountExportReady(state *v1alpha1.AccountExport) bool {

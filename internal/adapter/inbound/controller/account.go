@@ -49,7 +49,7 @@ import (
 
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
-	client.Client
+	kubernetes     *kubernetesClient
 	Scheme         *runtime.Scheme
 	manager        inbound.AccountManager
 	clusterManager inbound.ClusterManager
@@ -66,7 +66,7 @@ func NewAccountReconciler(
 	recorder events.EventRecorder,
 ) *AccountReconciler {
 	return &AccountReconciler{
-		Client:         k8sClient,
+		kubernetes:     newKubernetesClient(k8sClient),
 		Scheme:         scheme,
 		manager:        manager,
 		clusterManager: clusterManager,
@@ -92,7 +92,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	log := logf.FromContext(ctx)
 
 	natsAccount := &v1alpha1.Account{}
-	if err := r.Get(ctx, req.NamespacedName, natsAccount); err != nil {
+	if err := r.kubernetes.Get(ctx, req.NamespacedName, natsAccount); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -124,7 +124,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			Message: "Deleting account",
 		})
 
-		if err := r.Status().Update(ctx, natsAccount); err != nil {
+		if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
 			log.Info("Failed to update the account status", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
 		}
@@ -155,7 +155,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 			// remove our finalizer from the list and update it.
 			controllerutil.RemoveFinalizer(natsAccount, finalizerAccount)
-			if err := r.Update(ctx, natsAccount); err != nil {
+			if err := r.kubernetes.Update(ctx, natsAccount); err != nil {
 				log.Info("failed to remove finalizer", "name", natsAccount.Name, "error", err)
 				return ctrl.Result{}, err
 			}
@@ -168,7 +168,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Add finalizer if not present
 	if added := controllerutil.AddFinalizer(natsAccount, finalizerAccount); added {
-		if err := r.Update(ctx, natsAccount); err != nil {
+		if err := r.kubernetes.Update(ctx, natsAccount); err != nil {
 			log.Info("Failed to add finalizer", "name", natsAccount.Name, "error", err)
 			return ctrl.Result{}, err
 		}
@@ -212,6 +212,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
 	natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
 
+	if err := r.kubernetes.PatchLabels(ctx, natsAccount); err != nil {
+		log.Info("Failed to patch account labels", "name", natsAccount.Name, "error", err)
+		return ctrl.Result{}, err
+	}
+
 	// UPDATE ACCOUNT STATUS
 	if result.Claims != nil {
 		claims, err := toAPIAccountClaims(result.Claims)
@@ -224,19 +229,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
-
-	// Need to copy the status - otherwise overwritten by status from kubernetes api response during spec update
-	status := natsAccount.Status.DeepCopy()
-	status.OperatorVersion = os.Getenv(envOperatorVersion)
-
-	if err := r.Update(ctx, natsAccount); err != nil {
-		log.Info("Failed to update the account", "name", natsAccount.Name, "error", err)
-		return ctrl.Result{}, err
-	}
-
-	// Get the updated status back before updating the kubernetes api
-	natsAccount.Status = *status
-	if err := r.Status().Update(ctx, natsAccount); err != nil {
+	natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
+	if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
 	}
@@ -346,7 +340,7 @@ func (r *AccountReconciler) findExportsByAccountID(ctx context.Context, namespac
 		return nil, fmt.Errorf("account ID required")
 	}
 	exports := &v1alpha1.AccountExportList{}
-	err := r.List(ctx, exports, client.InNamespace(namespace), client.MatchingLabels{
+	err := r.kubernetes.List(ctx, exports, client.InNamespace(namespace), client.MatchingLabels{
 		string(v1alpha1.AccountExportLabelAccountID): string(accountID),
 	})
 	if err != nil {
@@ -360,7 +354,7 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 		return nil, fmt.Errorf("account ID required")
 	}
 	imports := &v1alpha1.AccountImportList{}
-	err := r.List(ctx, imports, client.InNamespace(namespace), client.MatchingLabels{
+	err := r.kubernetes.List(ctx, imports, client.InNamespace(namespace), client.MatchingLabels{
 		string(v1alpha1.AccountImportLabelAccountID): string(accountID),
 	})
 	if err != nil {
@@ -402,7 +396,7 @@ func (r *AccountReconciler) mapAccountExportToAccounts(ctx context.Context, obj 
 	}
 
 	accounts := &v1alpha1.AccountList{}
-	if err := r.List(ctx, accounts,
+	if err := r.kubernetes.List(ctx, accounts,
 		client.InNamespace(export.Namespace),
 		client.MatchingLabels{string(v1alpha1.AccountLabelAccountID): accountID},
 	); err != nil {
@@ -488,7 +482,7 @@ func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj 
 	}
 
 	accounts := &v1alpha1.AccountList{}
-	if err := r.List(ctx, accounts,
+	if err := r.kubernetes.List(ctx, accounts,
 		client.InNamespace(imp.Namespace),
 		client.MatchingLabels{string(v1alpha1.AccountLabelAccountID): accountID},
 	); err != nil {
@@ -514,7 +508,7 @@ func (r *AccountReconciler) validateAccountDeletion(ctx context.Context, account
 
 	// Check for bound users
 	userList := &v1alpha1.UserList{}
-	err := r.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): string(accountID)}, client.InNamespace(namespace))
+	err := r.kubernetes.List(ctx, userList, client.MatchingLabels{string(v1alpha1.UserLabelAccountID): string(accountID)}, client.InNamespace(namespace))
 	if err != nil {
 		log.Error(err, "Failed to list users bound to account")
 		return domain.ErrUnknownError.WithCause(err)

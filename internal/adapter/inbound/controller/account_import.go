@@ -30,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/json"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,16 +46,16 @@ const importExportAccountRefIndexKey string = "import.spec.exportAccountRef"
 
 // AccountImportReconciler reconciles an AccountImport object.
 type AccountImportReconciler struct {
-	client.Client
-	Scheme  *runtime.Scheme
-	manager inbound.AccountImportManager
+	kubernetes *kubernetesClient
+	Scheme     *runtime.Scheme
+	manager    inbound.AccountImportManager
 }
 
 func NewAccountImportReconciler(k8sClient client.Client, scheme *runtime.Scheme, manager inbound.AccountImportManager) *AccountImportReconciler {
 	return &AccountImportReconciler{
-		Client:  k8sClient,
-		Scheme:  scheme,
-		manager: manager,
+		kubernetes: newKubernetesClient(k8sClient),
+		Scheme:     scheme,
+		manager:    manager,
 	}
 }
 
@@ -67,7 +66,7 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := logf.FromContext(ctx)
 
 	state := &v1alpha1.AccountImport{}
-	if err := r.Get(ctx, req.NamespacedName, state); err != nil {
+	if err := r.kubernetes.Get(ctx, req.NamespacedName, state); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Info("resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
@@ -162,7 +161,7 @@ func (r *AccountImportReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// sort conditions before save (to keep consistent order)
 	sortConditions(state.Status.Conditions)
 
-	if err := r.Status().Update(ctx, state); err != nil {
+	if err := r.kubernetes.Status().Update(ctx, state); err != nil {
 		log.Error(err, "Failed to update status", "namespace", state.Namespace, "name", state.GetName())
 		return ctrl.Result{}, err
 	}
@@ -282,7 +281,7 @@ func (r *AccountImportReconciler) mapAccountToAccountImports(ctx context.Context
 	}
 
 	imports := &v1alpha1.AccountImportList{}
-	if err := r.List(ctx, imports,
+	if err := r.kubernetes.List(ctx, imports,
 		client.InNamespace(account.Namespace),
 		client.MatchingFields{importAccountNameIndexKey: account.Name},
 	); err != nil {
@@ -315,7 +314,7 @@ func (r *AccountImportReconciler) mapExportAccountToAccountImports(ctx context.C
 	}
 
 	imports := &v1alpha1.AccountImportList{}
-	if err := r.List(ctx, imports,
+	if err := r.kubernetes.List(ctx, imports,
 		client.MatchingFields{importExportAccountRefIndexKey: accountNsn.String()},
 	); err != nil {
 		logf.FromContext(ctx).Error(err, "Failed to list AccountImports for export Account watch", "account", account.Name, "namespace", account.Namespace)
@@ -399,7 +398,7 @@ func (r *AccountImportReconciler) getConditionedAccount(ctx context.Context, acc
 	}
 
 	result := &v1alpha1.Account{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}, result); err != nil {
+	if err := r.kubernetes.Get(ctx, client.ObjectKey{Namespace: accountRef.Namespace, Name: accountRef.Name}, result); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, metav1.Condition{
 				Status:  metav1.ConditionFalse,
@@ -450,16 +449,8 @@ func (r *AccountImportReconciler) upsertLabels(ctx context.Context, resource *v1
 	}
 
 	if patch {
-		patchData, err := json.Marshal(map[string]map[string]map[string]string{
-			"metadata": {
-				"labels": resource.GetLabels(),
-			},
-		})
-		if err != nil {
-			return false, fmt.Errorf("failed to generate patch for labels: %w", err)
-		}
-		if err = r.Patch(ctx, resource, client.RawPatch(types.MergePatchType, patchData)); err != nil {
-			return false, fmt.Errorf("failed to patch labels: %w", err)
+		if err := r.kubernetes.PatchLabels(ctx, resource); err != nil {
+			return false, err
 		}
 		return true, nil
 	}

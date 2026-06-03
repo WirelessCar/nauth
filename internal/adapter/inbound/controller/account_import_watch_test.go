@@ -169,7 +169,7 @@ func TestAccountImportReconciler_MapExportAccountToImports(t *testing.T) {
 		WithObjects(exportAccount, matchingExplicitNamespace, matchingImplicitNamespace, nonMatchingImport).
 		Build()
 
-	reconciler := &AccountImportReconciler{Client: fakeClient}
+	reconciler := &AccountImportReconciler{kubernetes: newKubernetesClient(fakeClient)}
 
 	requests := reconciler.mapExportAccountToAccountImports(context.Background(), exportAccount)
 	require.Len(t, requests, 2)
