@@ -145,3 +145,5 @@ crds:
   install: true
   # -- Indicates if Custom Resource Definitions should be kept when a release is uninstalled.
   keep: true
+
+extraResources: []
