@@ -114,12 +114,18 @@ Release tags must use one of these formats:
 
 Do not use `v0.7.0-rc-1`; use `v0.7.0-rc.1`.
 
-1. Create and push a new release tag:
+1. If this release changes NAuth CRDs, regenerate them and update the external CRDs catalog:
+   ```bash
+   make manifests
+   mise nauth:update-crds-catalog ../CRDs-catalog
+   ```
+   See [Updating CRDs-catalog](./docs/crds-catalog.md). Open the catalog PR from that checkout; do not commit generated catalog files to this repository.
+2. Create and push a new release tag:
    ```bash
    git tag v0.7.0-rc.1
    git push origin v0.7.0-rc.1
    ```
-2. Create and publish the GitHub release from the GitHub UI.
+3. Create and publish the GitHub release from the GitHub UI.
 
 The `Operator Release` workflow derives the release version from the tag (without the `v`) and uses it for:
 - operator image tags/labels
