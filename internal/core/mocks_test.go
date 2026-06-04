@@ -122,14 +122,6 @@ func (s *SecretClientMock) Delete(ctx context.Context, namespacedName domain.Nam
 	return args.Error(0)
 }
 
-func (s *SecretClientMock) mockDelete(ctx context.Context, namespacedName domain.NamespacedName) {
-	s.On("Delete", ctx, namespacedName).Return(nil)
-}
-
-func (s *SecretClientMock) mockDeleteError(ctx context.Context, namespacedName domain.NamespacedName, err error) {
-	s.On("Delete", ctx, namespacedName).Return(err)
-}
-
 func (s *SecretClientMock) DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error {
 	args := s.Called(ctx, namespace, labels)
 	return args.Error(0)
@@ -152,6 +144,15 @@ func (s *SecretClientMock) mockLabelError(namespacedName domain.NamespacedName, 
 	s.On("Label", mock.Anything, namespacedName, labels).Return(err)
 }
 
+func (s *SecretClientMock) IsOwnedBy(ctx context.Context, secretRef domain.NamespacedName, expectedOwner metav1.Object) (bool, error) {
+	args := s.Called(ctx, secretRef, expectedOwner)
+	return args.Bool(0), args.Error(1)
+}
+
+func (s *SecretClientMock) mockIsOwnedBy(secretRef domain.NamespacedName, expectedOwner metav1.Object, result bool) {
+	s.On("IsOwnedBy", mock.Anything, secretRef, expectedOwner).Return(result, nil)
+}
+
 var _ outbound.SecretClient = (*SecretClientMock)(nil)
 
 /* ****************************************************
@@ -166,16 +167,18 @@ type UserJWTSignerMock struct {
 	mock.Mock
 }
 
-func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, accountRef domain.NamespacedName, claims *jwt.UserClaims) (*SignedUserJWT, error) {
-	args := m.Called(ctx, accountRef, claims)
+func (m *UserJWTSignerMock) SignUserJWT(ctx context.Context, req UserSigningRequest) (*SignedUserJWT, error) {
+	args := m.Called(ctx, req)
 	return args.Get(0).(*SignedUserJWT), args.Error(1)
 }
 
 func (m *UserJWTSignerMock) mockSignUserJWT(ctx context.Context, accountRef domain.NamespacedName, callback func(claims *jwt.UserClaims) *SignedUserJWT) {
-	call := m.On("SignUserJWT", ctx, accountRef, mock.Anything)
+	call := m.On("SignUserJWT", ctx, mock.MatchedBy(func(req UserSigningRequest) bool {
+		return req.AccountRef == accountRef
+	}))
 	call.RunFn = func(args mock.Arguments) {
-		claims := args.Get(2).(*jwt.UserClaims)
-		call.Return(callback(claims), nil)
+		req := args.Get(1).(UserSigningRequest)
+		call.Return(callback(req.Claims), nil)
 	}
 }
 

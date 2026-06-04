@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,12 +26,9 @@ import (
 type AccountLabel string
 
 const (
-	AccountLabelAccountID        AccountLabel = "account.nauth.io/id"
-	AccountLabelSignedBy         AccountLabel = "account.nauth.io/signed-by"
-	AccountLabelNatsClusterID    AccountLabel = "account.nauth.io/nats-cluster-id"
-	AccountLabelManagementPolicy AccountLabel = "nauth.io/management-policy"
-
-	AccountManagementPolicyObserve = "observe"
+	AccountLabelAccountID     AccountLabel = "account.nauth.io/id"
+	AccountLabelSignedBy      AccountLabel = "account.nauth.io/signed-by"
+	AccountLabelNatsClusterID AccountLabel = "account.nauth.io/nats-cluster-id"
 )
 
 // NatsClusterRef references a NatsCluster resource
@@ -67,6 +64,16 @@ type AccountSpec struct {
 	JetStreamLimits *JetStreamLimits `json:"jetStreamLimits,omitempty"`
 	// +optional
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
+	// SigningKeyRefs lists AccountSigningKey resource names in the same namespace
+	// whose public keys are trusted as additional signing keys for this account.
+	// The implicit default signing key is always present and is not listed here.
+	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MaxItems=64
+	// +kubebuilder:validation:items:MinLength=1
+	// +kubebuilder:validation:items:MaxLength=253
+	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	SigningKeyRefs []string `json:"signingKeyRefs,omitempty"`
 }
 
 type AccountClaims struct {

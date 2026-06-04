@@ -1,0 +1,4 @@
+apiVersion: nauth.io/v1alpha1
+kind: AccountSigningKey
+metadata:
+  name: external-auth-v2

@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -9,70 +10,75 @@ type userClaimsBuilder struct {
 	claim *jwt.UserClaims
 }
 
-func newUserClaimsBuilder(
-	displayName string,
-	spec v1alpha1.UserSpec,
-	userPublicKey string,
-	issuerAccountId string,
-) *userClaimsBuilder {
-	claim := jwt.NewUserClaims(userPublicKey)
-	claim.Name = displayName
-
-	// Permissions
-	if spec.Permissions != nil {
-		claim.Pub = jwt.Permission{
-			Allow: jwt.StringList(spec.Permissions.Pub.Allow),
-			Deny:  jwt.StringList(spec.Permissions.Pub.Deny),
-		}
-		claim.Sub = jwt.Permission{
-			Allow: jwt.StringList(spec.Permissions.Sub.Allow),
-			Deny:  jwt.StringList(spec.Permissions.Sub.Deny),
-		}
-		if spec.Permissions.Resp != nil {
-			claim.Resp = &jwt.ResponsePermission{
-				MaxMsgs: spec.Permissions.Resp.MaxMsgs,
-				Expires: spec.Permissions.Resp.Expires,
-			}
-		}
-	}
-
-	// User Limits
-	if spec.UserLimits != nil {
-		for _, src := range spec.UserLimits.Src {
-			claim.Src = append(claim.Src, src)
-		}
-		for _, times := range spec.UserLimits.Times {
-			time := jwt.TimeRange{
-				Start: times.Start,
-				End:   times.End,
-			}
-			claim.Times = append(claim.Times, time)
-		}
-		claim.Locale = spec.UserLimits.Locale
-	}
-
-	// NATS Limits
-	if spec.NatsLimits != nil {
-		if spec.NatsLimits.Subs != nil {
-			claim.Subs = *spec.NatsLimits.Subs
-		}
-		if spec.NatsLimits.Data != nil {
-			claim.Data = *spec.NatsLimits.Data
-		}
-		if spec.NatsLimits.Payload != nil {
-			claim.NatsLimits.Payload = *spec.NatsLimits.Payload
-		}
-	}
-
-	claim.IssuerAccount = issuerAccountId
-
+func newUserClaimsBuilder(userPublicKey string) *userClaimsBuilder {
 	return &userClaimsBuilder{
-		claim: claim,
+		claim: jwt.NewUserClaims(userPublicKey),
 	}
 }
 
-func (u *userClaimsBuilder) build() *jwt.UserClaims {
-	return u.claim
+func (b *userClaimsBuilder) displayName(name string) *userClaimsBuilder {
+	b.claim.Name = name
+	return b
+}
+
+func (b *userClaimsBuilder) permissions(permissions *nauth.UserPermissions) *userClaimsBuilder {
+	if permissions != nil {
+		b.claim.Pub = jwt.Permission{
+			Allow: permissions.Pub.Allow,
+			Deny:  permissions.Pub.Deny,
+		}
+		b.claim.Sub = jwt.Permission{
+			Allow: permissions.Sub.Allow,
+			Deny:  permissions.Sub.Deny,
+		}
+		if permissions.Resp != nil {
+			b.claim.Resp = &jwt.ResponsePermission{
+				MaxMsgs: permissions.Resp.MaxMsgs,
+				Expires: permissions.Resp.Expires,
+			}
+		}
+	}
+	return b
+}
+
+func (b *userClaimsBuilder) userLimits(limits *nauth.UserLimits) *userClaimsBuilder {
+	if limits != nil {
+		for _, src := range limits.Src {
+			b.claim.Src = append(b.claim.Src, src)
+		}
+		for _, times := range limits.Times {
+			b.claim.Times = append(b.claim.Times, jwt.TimeRange{
+				Start: times.Start,
+				End:   times.End,
+			})
+		}
+		b.claim.Locale = limits.Locale
+	}
+	return b
+}
+
+func (b *userClaimsBuilder) natsLimits(limits *nauth.NatsLimits) *userClaimsBuilder {
+	if limits != nil {
+		if limits.Subs != nil {
+			b.claim.Subs = *limits.Subs
+		}
+		if limits.Data != nil {
+			b.claim.Data = *limits.Data
+		}
+		if limits.Payload != nil {
+			b.claim.NatsLimits.Payload = *limits.Payload
+		}
+	}
+	return b
+}
+
+func (b *userClaimsBuilder) issuerAccountID(issuerAccountID string) *userClaimsBuilder {
+	b.claim.IssuerAccount = issuerAccountID
+	return b
+}
+
+func (b *userClaimsBuilder) build() *jwt.UserClaims {
+	return b.claim
 }
 
 func toNAuthUserClaims(claims *jwt.UserClaims) v1alpha1.UserClaims {

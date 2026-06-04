@@ -250,7 +250,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccou
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+			account.SetLabel(v1alpha1.AccountLabel(k8s.LabelManagementPolicy), k8s.ManagementPolicyObserve)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 		}),
 	)
@@ -415,7 +415,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.setupAccount(
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
-			account.SetLabel(v1alpha1.AccountLabelManagementPolicy, v1alpha1.AccountManagementPolicyObserve)
+			account.SetLabel(v1alpha1.AccountLabel(k8s.LabelManagementPolicy), k8s.ManagementPolicyObserve)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 		}),
 	)
@@ -619,6 +619,231 @@ func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, na
 	t.Require().Equal(status, result.Status)
 
 	return result
+}
+
+// ---- AccountSigningKey tests ----
+
+func (t *AccountControllerTestSuite) createReadySigningKey(name, publicKey string) *v1alpha1.AccountSigningKey {
+	ask := &v1alpha1.AccountSigningKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: t.accountNamespace,
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, ask))
+
+	created := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), created))
+	created.Status = v1alpha1.AccountSigningKeyStatus{
+		PublicKey: publicKey,
+		Conditions: []metav1.Condition{
+			{Type: conditionTypeReady, Status: metav1.ConditionTrue, Reason: conditionReasonOK, LastTransitionTime: metav1.Now()},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	result := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), result))
+	return result
+}
+
+func (t *AccountControllerTestSuite) createNotReadySigningKey(name string) *v1alpha1.AccountSigningKey {
+	ask := &v1alpha1.AccountSigningKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: t.accountNamespace,
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, ask))
+
+	created := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), created))
+	created.Status = v1alpha1.AccountSigningKeyStatus{
+		Conditions: []metav1.Condition{
+			{Type: conditionTypeReady, Status: metav1.ConditionFalse, Reason: conditionReasonReconciling, LastTransitionTime: metav1.Now()},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	result := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), result))
+	return result
+}
+
+func (t *AccountControllerTestSuite) accountWithSigningKeyRefs(refs ...string) accountOption {
+	return func(account *v1alpha1.Account) {
+		account.Spec.SigningKeyRefs = refs
+	}
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPassNilSigningKeys_WhenSigningKeyRefsIsNilOrEmpty() {
+	// Given — no signingKeyRefs set. An empty slice is identical to nil after k8s API serialisation
+	// (the field has omitempty), so a single test covers both cases.
+	t.setupAccount(
+		t.defaultAccount(func(a *v1alpha1.Account) {
+			a.Finalizers = append(a.Finalizers, finalizerAccount)
+			// Spec.SigningKeyRefs is nil (zero value)
+		}),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(req nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Require().Empty(req.SigningKeys, "implicit mode: SigningKeys must be nil/empty")
+		return &nauth.AccountResult{AccountID: testutil.AnyNatsTestAccountID(), Claims: &nauth.AccountClaims{}}, nil
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPassSigningKeysToRequest_WhenSingleRefReady() {
+	// Given
+	signingKey := testutil.CreateNatsTestAccountKey()
+	t.createReadySigningKey("signing-key-1", signingKey.PublicKey)
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) { a.Finalizers = append(a.Finalizers, finalizerAccount) },
+			t.accountWithSigningKeyRefs("signing-key-1"),
+		),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(req nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Require().Equal([]string{signingKey.PublicKey}, req.SigningKeys)
+		return &nauth.AccountResult{AccountID: testutil.AnyNatsTestAccountID(), Claims: &nauth.AccountClaims{}}, nil
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPassSigningKeysToRequest_WhenMultipleRefsReady() {
+	// Given
+	key1 := testutil.CreateNatsTestAccountKey()
+	key2 := testutil.CreateNatsTestAccountKey()
+	t.createReadySigningKey("signing-key-a", key1.PublicKey)
+	t.createReadySigningKey("signing-key-b", key2.PublicKey)
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) { a.Finalizers = append(a.Finalizers, finalizerAccount) },
+			t.accountWithSigningKeyRefs("signing-key-a", "signing-key-b"),
+		),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(req nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Require().Equal([]string{key1.PublicKey, key2.PublicKey}, req.SigningKeys)
+		return &nauth.AccountResult{AccountID: testutil.AnyNatsTestAccountID(), Claims: &nauth.AccountClaims{}}, nil
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldReportError_WhenSigningKeyRefMissing() {
+	// Given — no AccountSigningKey resource created
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) { a.Finalizers = append(a.Finalizers, finalizerAccount) },
+			t.accountWithSigningKeyRefs("missing-key"),
+		),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then — reporter.error path: error propagated, condition set to Errored
+	t.Require().Error(err)
+	t.accountManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	c := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(c)
+	t.Equal(metav1.ConditionFalse, c.Status)
+	t.Equal(conditionReasonErrored, c.Reason)
+	t.Len(t.fakeRecorder.Events, 1)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetReconciling_WhenSigningKeyRefNotReady() {
+	// Given — signing key exists but Ready=False
+	t.createNotReadySigningKey("not-ready-key")
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) { a.Finalizers = append(a.Finalizers, finalizerAccount) },
+			t.accountWithSigningKeyRefs("not-ready-key"),
+		),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then — no error, Reconciling condition, requeue for safety net
+	t.Require().NoError(err)
+	t.Equal(requeueDependencyNotReady, result.RequeueAfter)
+	t.accountManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+	t.Empty(t.fakeRecorder.Events)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	c := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(c)
+	t.Equal(metav1.ConditionFalse, c.Status)
+	t.Equal(conditionReasonReconciling, c.Reason)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetReconciling_WhenSigningKeyReadyButEmptyPublicKey() {
+	// Given — signing key Ready=True but PublicKey=""
+	ask := &v1alpha1.AccountSigningKey{
+		ObjectMeta: metav1.ObjectMeta{Name: "empty-pubkey", Namespace: t.accountNamespace},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, ask))
+	created := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), created))
+	created.Status = v1alpha1.AccountSigningKeyStatus{
+		PublicKey: "",
+		Conditions: []metav1.Condition{
+			{Type: conditionTypeReady, Status: metav1.ConditionTrue, Reason: conditionReasonOK, LastTransitionTime: metav1.Now()},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) { a.Finalizers = append(a.Finalizers, finalizerAccount) },
+			t.accountWithSigningKeyRefs("empty-pubkey"),
+		),
+	)
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then — same as not-ready: Reconciling, requeued, no event
+	t.Require().NoError(err)
+	t.Equal(requeueDependencyNotReady, result.RequeueAfter)
+	t.accountManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+	t.Empty(t.fakeRecorder.Events)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	c := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(c)
+	t.Equal(metav1.ConditionFalse, c.Status)
+	t.Equal(conditionReasonReconciling, c.Reason)
 }
 
 /* ****************************************************

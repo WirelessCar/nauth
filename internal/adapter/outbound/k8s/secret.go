@@ -10,7 +10,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -56,49 +55,16 @@ func (k *SecretClient) Apply(ctx context.Context, owner metav1.Object, meta meta
 		maps.Insert(currentSecret.Labels, maps.All(meta.Labels))
 
 		currentSecret.StringData = valueMap
-		if err := addOwnerReferenceIfNotExists(currentSecret, owner); err != nil {
-			return err
+		if owner != nil {
+			if err := controllerutil.SetControllerReference(owner, currentSecret, k.client.Scheme()); err != nil {
+				return fmt.Errorf("failed to set controller reference on existing secret: %w", err)
+			}
 		}
 
 		err = k.client.Update(ctx, currentSecret)
 		if err != nil {
 			return fmt.Errorf("failed to update secret: %w", err)
 		}
-	}
-
-	return nil
-}
-
-func addOwnerReferenceIfNotExists(secret *v1.Secret, owner metav1.Object) error {
-	if owner == nil {
-		return nil
-	}
-
-	rtObj, ok := owner.(runtime.Object)
-
-	if !ok {
-		return fmt.Errorf("owner does not implement runtime.Object")
-	}
-
-	ownerGVK := rtObj.GetObjectKind().GroupVersionKind()
-	ownerRef := metav1.OwnerReference{
-		APIVersion: ownerGVK.GroupVersion().String(),
-		Kind:       ownerGVK.Kind,
-		Name:       owner.GetName(),
-		UID:        owner.GetUID(),
-	}
-
-	alreadyExists := false
-
-	for _, ref := range secret.OwnerReferences {
-		if ref.UID == ownerRef.UID && ref.Kind == ownerRef.Kind && ref.APIVersion == ownerRef.APIVersion && ref.Name == ownerRef.Name {
-			alreadyExists = true
-			break
-		}
-	}
-
-	if !alreadyExists {
-		secret.OwnerReferences = append(secret.OwnerReferences, ownerRef)
 	}
 
 	return nil
@@ -202,6 +168,18 @@ func (k *SecretClient) getSecretsByLabels(ctx context.Context, namespace domain.
 		return nil, err
 	}
 	return secretList, nil
+}
+
+func (k *SecretClient) IsOwnedBy(ctx context.Context, secretRef domain.NamespacedName, expectedOwner metav1.Object) (bool, error) {
+	secret, err := k.getSecret(ctx, secretRef)
+	if err != nil {
+		return false, fmt.Errorf("failed to get secret %q: %w", secretRef, err)
+	}
+	ownerRef := metav1.GetControllerOf(secret)
+	if ownerRef == nil {
+		return false, nil
+	}
+	return ownerRef.UID == expectedOwner.GetUID(), nil
 }
 
 func isManagedSecret(meta *metav1.ObjectMeta) bool {
