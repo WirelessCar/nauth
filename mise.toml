@@ -6,7 +6,7 @@ NATS_RELOADER_VERSION = "0.22.4"
 NATS_BOX_VERSION = "0.19.5"
 
 [tools]
-go = "1.26.3"
+go = "1.26.4"
 python = "3.14.5"
 uv = "0.11.16"
 ginkgo = "2.28.3"
