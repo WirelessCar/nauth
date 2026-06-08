@@ -22,6 +22,8 @@
   "vulnerabilityAlerts": {
     "enabled": true,
     "addLabels": ["security"],
+    "groupName": "security vulnerability updates",
+    "groupSlug": "security-vulnerability-updates",
     "vulnerabilityFixStrategy": "lowest"
   },
   "packageRules": [
