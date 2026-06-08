@@ -12,12 +12,17 @@
   "labels": ["dependencies"],
   "schedule": ["before 6am on monday"],
   "rangeStrategy": "bump",
+  "osvVulnerabilityAlerts": true,
   "asdf": {
     "enabled": false
   },
   "lockFileMaintenance": {
+    "enabled": false
+  },
+  "vulnerabilityAlerts": {
     "enabled": true,
-    "schedule": ["before 6am on monday"]
+    "addLabels": ["security"],
+    "vulnerabilityFixStrategy": "lowest"
   },
   "packageRules": [
     {
@@ -26,16 +31,16 @@
       "addLabels": ["major"]
     },
     {
-      "description": "Group remaining non-major dependency updates",
-      "matchUpdateTypes": ["minor", "patch"],
-      "matchPackageNames": ["*"],
-      "groupName": "misc dependency updates",
-      "groupSlug": "misc-dependencies"
+      "description": "Skip routine patch updates; vulnerability fixes are handled separately.",
+      "matchUpdateTypes": ["patch"],
+      "enabled": false
     },
     {
-      "matchManagers": ["gomod"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Go dependencies"
+      "description": "Group routine minor dependency updates into one weekly PR",
+      "matchUpdateTypes": ["minor"],
+      "matchPackageNames": ["*"],
+      "groupName": "minor dependency updates",
+      "groupSlug": "minor-dependencies"
     },
     {
       "description": "Keep go.mod's Go directive as the minimum compatibility version",
@@ -43,54 +48,6 @@
       "matchDepNames": ["go"],
       "matchDepTypes": ["golang"],
       "rangeStrategy": "replace"
-    },
-    {
-      "matchFileNames": ["www/**"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "www dependencies"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "GitHub Actions"
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["/^actions\\//"],
-      "matchUpdateTypes": ["major"],
-      "groupName": "GitHub Actions major updates",
-      "groupSlug": "github-actions-major"
-    },
-    {
-      "matchManagers": ["helmv3"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Helm chart dependencies"
-    },
-    {
-      "matchManagers": ["mise"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "local development tools",
-      "groupSlug": "local-development-tools"
-    },
-    {
-      "matchFileNames": [".tool-versions"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "local development tools",
-      "groupSlug": "local-development-tools"
-    },
-    {
-      "description": "Group preferred Go toolchain updates across local and container builds",
-      "matchManagers": ["dockerfile", "mise"],
-      "matchDepNames": ["go", "golang"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "Go toolchain",
-      "groupSlug": "go-toolchain"
-    },
-    {
-      "matchFileNames": ["mise.toml"],
-      "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "local NATS image versions"
     }
   ],
   "customManagers": [
