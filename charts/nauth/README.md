@@ -7,6 +7,7 @@
 | affinity | object | `{}` |  |
 | crds.install | bool | `true` | Indicates if Custom Resource Definitions should be installed and upgraded as part of the release. |
 | crds.keep | bool | `true` | Indicates if Custom Resource Definitions should be kept when a release is uninstalled. |
+| extraResources | list | `[]` | Deploy extra resources along the chart. Supports templating |
 | fullnameOverride | string | `""` | Override the chart fullName (Release.name + Chart.name) |
 | global.labels | object | `{}` | Custom labels to apply to all resources. |
 | image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |

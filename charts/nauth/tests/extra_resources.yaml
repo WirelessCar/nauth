@@ -1,0 +1,17 @@
+suite: extra resources
+templates:
+  - extra_resources.yaml
+release:
+  name: nauth-test
+tests:
+  - it: renders extra resources
+    set:
+      extraResources:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: "{{ .Release.Name }}"
+    asserts:
+      - equal:
+          path: metadata.name
+          value: nauth-test

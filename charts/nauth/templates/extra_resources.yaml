@@ -1,4 +1,4 @@
 {{- range .Values.extraResources }}
 ---
-{{ toYaml . }}
+{{ tpl (toYaml .) $ }}
 {{- end }}

@@ -146,4 +146,5 @@ crds:
   # -- Indicates if Custom Resource Definitions should be kept when a release is uninstalled.
   keep: true
 
+# -- Deploy extra resources along the chart. Supports templating
 extraResources: []
