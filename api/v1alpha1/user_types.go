@@ -38,6 +38,9 @@ type UserSpec struct {
 	// DisplayName is an optional name for the NATS resource representing the user. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
+	// ExpiresAt is an optional absolute time when the generated user JWT expires.
+	// +optional
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 	// +optional
 	Permissions *Permissions `json:"permissions,omitempty"`
 	// +optional
@@ -53,6 +56,9 @@ type UserClaims struct {
 	// DisplayName is an optional name for the NATS resource representing the user.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
+	// ExpiresAt is the absolute time when the generated user JWT expires.
+	// +optional
+	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
 	// +optional
 	Permissions *Permissions `json:"permissions,omitempty"`
 	// +optional

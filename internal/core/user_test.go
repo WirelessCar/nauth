@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -45,6 +46,7 @@ func TestUserManager_TestSuite(t *testing.T) {
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 	// Given
 	accountKeys := testutil.CreateNatsTestAccount()
+	expiresAt := futureUserExpiresAt()
 
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{
@@ -53,6 +55,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 		},
 		Spec: v1alpha1.UserSpec{
 			AccountName: "my-account",
+			ExpiresAt:   &expiresAt,
 		},
 	}
 
@@ -96,7 +99,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 	t.NotEmpty(userID, "UserID label should not be empty")
 	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
 	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, caughtSecrets)
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, &expiresAt, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser() {
@@ -157,7 +160,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenUpdatedUser
 	t.NotEmpty(userID, "UserID label should not be empty")
 	t.Equal(accountKeys.AccountID(), user.GetLabel(v1alpha1.UserLabelAccountID))
 	t.Equal(accountKeys.Sign.PublicKey, user.GetLabel(v1alpha1.UserLabelSignedBy))
-	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, caughtSecrets)
+	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), userID, nil, caughtSecrets)
 }
 
 func (t *UserManagerTestSuite) Test_Delete_ShouldSucceed() {
@@ -200,7 +203,7 @@ func (t *UserManagerTestSuite) Test_Delete_ShouldFail_WhenDeleteSecretFails() {
 	t.ErrorContains(err, "wops")
 }
 
-func (t *UserManagerTestSuite) verifySecret(accountSignPub string, accountID string, userID string, secretData map[string]string) {
+func (t *UserManagerTestSuite) verifySecret(accountSignPub string, accountID string, userID string, expectedExpiresAt *v1.Time, secretData map[string]string) {
 	t.Contains(secretData, "user.creds")
 	userCreds := secretData["user.creds"]
 	t.NotEmpty(userCreds, fmt.Sprintf("user.creds in secret data should not be empty. Found: %v", secretData))
@@ -212,4 +215,18 @@ func (t *UserManagerTestSuite) verifySecret(accountSignPub string, accountID str
 	t.Equal(accountID, userClaims.IssuerAccount)
 	t.Equal("my-namespace/my-user", userClaims.Name)
 	t.Equal(userID, userClaims.Subject)
+	if expectedExpiresAt == nil {
+		t.Zero(userClaims.Expires)
+	} else {
+		t.Equal(expectedExpiresAt.Unix(), userClaims.Expires)
+	}
+}
+
+func futureUserExpiresAt() v1.Time {
+	now := time.Now().UTC()
+	expiresAt := time.Date(now.Year(), time.December, 31, 23, 59, 59, 0, time.UTC)
+	if !expiresAt.After(now) {
+		expiresAt = time.Date(now.Year()+1, time.December, 31, 23, 59, 59, 0, time.UTC)
+	}
+	return v1.NewTime(expiresAt)
 }

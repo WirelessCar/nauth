@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	approvals "github.com/approvals/go-approval-tests"
@@ -12,6 +13,7 @@ import (
 	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 )
 
@@ -60,6 +62,7 @@ func TestClaims(t *testing.T) {
 			// Verify that the resulting NAuth UserClaim generates the same NATS JWT when encoded
 			rebuiltNatsClaims := &v1alpha1.UserSpec{
 				AccountName: nauthClaims.AccountName,
+				ExpiresAt:   nauthClaims.ExpiresAt,
 				Permissions: nauthClaims.Permissions,
 				UserLimits:  nauthClaims.UserLimits,
 				NatsLimits:  nauthClaims.NatsLimits,
@@ -75,6 +78,35 @@ func TestClaims(t *testing.T) {
 
 			normalizedNatsClaimsRebuilt := normalizeUserClaimsForApproval(natsClaimsRebuilt)
 			assert.Equal(t, normalizedNatsClaims, normalizedNatsClaimsRebuilt)
+		})
+	}
+}
+
+func TestUserClaimsBuilder_ExpiresAt(t *testing.T) {
+	pastExpiresAt := metav1.NewTime(time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC))
+	futureExpiresAt := metav1.NewTime(time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second))
+
+	testCases := []struct {
+		name      string
+		expiresAt metav1.Time
+	}{
+		{name: "future_expiration", expiresAt: futureExpiresAt},
+		{name: "past_expiration", expiresAt: pastExpiresAt},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := v1alpha1.UserSpec{
+				AccountName: "test-account",
+				ExpiresAt:   &tc.expiresAt,
+			}
+
+			claims := newUserClaimsBuilder(userClaimsTestDisplayName, spec, userClaimsTestUserPubKey, userClaimsTestAccountPubKey).build()
+			require.Equal(t, tc.expiresAt.Unix(), claims.Expires)
+
+			nauthClaims := toNAuthUserClaims(claims)
+			require.NotNil(t, nauthClaims.ExpiresAt)
+			require.Equal(t, tc.expiresAt.Unix(), nauthClaims.ExpiresAt.Unix())
 		})
 	}
 }

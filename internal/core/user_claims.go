@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/nats-io/jwt/v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type userClaimsBuilder struct {
@@ -17,6 +18,9 @@ func newUserClaimsBuilder(
 ) *userClaimsBuilder {
 	claim := jwt.NewUserClaims(userPublicKey)
 	claim.Name = displayName
+	if spec.ExpiresAt != nil {
+		claim.Expires = spec.ExpiresAt.Unix()
+	}
 
 	// Permissions
 	if spec.Permissions != nil {
@@ -83,6 +87,9 @@ func toNAuthUserClaims(claims *jwt.UserClaims) v1alpha1.UserClaims {
 	}
 
 	result.DisplayName = claims.Name
+	if claims.Expires != 0 {
+		result.ExpiresAt = new(metav1.Unix(claims.Expires, 0))
+	}
 
 	// Permissions
 	{

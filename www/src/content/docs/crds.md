@@ -1094,6 +1094,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountName` _string_ | Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102 |  | Optional: \{\} <br /> |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. |  | Optional: \{\} <br /> |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is the absolute time when the generated user JWT expires. |  | Optional: \{\} <br /> |
 | `permissions` _[Permissions](#permissions)_ |  |  | Optional: \{\} <br /> |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  | Optional: \{\} <br /> |
@@ -1155,6 +1156,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountName` _string_ | AccountName references the account used to create the user. |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  | Optional: \{\} <br /> |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  | Optional: \{\} <br /> |
 | `permissions` _[Permissions](#permissions)_ |  |  | Optional: \{\} <br /> |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  | Optional: \{\} <br /> |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |

@@ -54,6 +54,11 @@ spec:
                 description: DisplayName is an optional name for the NATS resource
                   representing the user. May be derived if absent.
                 type: string
+              expiresAt:
+                description: ExpiresAt is an optional absolute time when the generated
+                  user JWT expires.
+                format: date-time
+                type: string
               natsLimits:
                 properties:
                   data:
@@ -153,6 +158,11 @@ spec:
                   displayName:
                     description: DisplayName is an optional name for the NATS resource
                       representing the user.
+                    type: string
+                  expiresAt:
+                    description: ExpiresAt is the absolute time when the generated
+                      user JWT expires.
+                    format: date-time
                     type: string
                   natsLimits:
                     properties:
