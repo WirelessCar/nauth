@@ -6,9 +6,9 @@ dependencies:
   - repository: https://nats-io.github.io/k8s/helm/charts/
     name: nats
     alias: nats
-    version: "2.12.6"
+    version: "2.14.2"
 
   - repository: https://nats-io.github.io/k8s/helm/charts/
     name: nack
     alias: nack
-    version: "0.33.2"
+    version: "0.34.0"
