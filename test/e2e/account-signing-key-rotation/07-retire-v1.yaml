@@ -7,4 +7,4 @@ spec:
     namespace: nats
     name: local-nats
   signingKeyRefs:
-    - external-auth-v2
+    - name: external-auth-v2

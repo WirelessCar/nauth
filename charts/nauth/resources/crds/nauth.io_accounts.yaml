@@ -247,17 +247,36 @@ spec:
                 type: object
               signingKeyRefs:
                 description: |-
-                  SigningKeyRefs lists AccountSigningKey resource names in the same namespace
-                  whose public keys are trusted as additional signing keys for this account.
-                  The implicit default signing key is always present and is not listed here.
+                  SigningKeyRefs lists references whose public keys are trusted as additional
+                  signing keys for this account. The implicit default signing key is always
+                  present and is not listed here.
                 items:
-                  maxLength: 253
-                  minLength: 1
-                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                  type: string
+                  description: |-
+                    AccountSigningKeyRef references a signing-key resource in the same namespace
+                    whose public key is trusted by the Account (and may be used to sign Users).
+                    Only AccountSigningKey is supported; Kind is reserved for future kinds
+                    (e.g. issuers) and cross-namespace references.
+                  properties:
+                    kind:
+                      default: AccountSigningKey
+                      description: Kind of the referenced resource. Defaults to AccountSigningKey.
+                      enum:
+                      - AccountSigningKey
+                      type: string
+                    name:
+                      description: Name of the referenced resource.
+                      maxLength: 253
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                  required:
+                  - name
+                  type: object
                 maxItems: 64
                 type: array
-                x-kubernetes-list-type: set
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             type: object
           status:
             description: AccountStatus defines the observed state of Account.

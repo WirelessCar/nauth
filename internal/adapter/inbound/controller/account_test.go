@@ -739,7 +739,11 @@ func (t *AccountControllerTestSuite) createNotReadySigningKey(name string) *v1al
 
 func (t *AccountControllerTestSuite) accountWithSigningKeyRefs(refs ...string) accountOption {
 	return func(account *v1alpha1.Account) {
-		account.Spec.SigningKeyRefs = refs
+		out := make([]v1alpha1.AccountSigningKeyRef, 0, len(refs))
+		for _, r := range refs {
+			out = append(out, v1alpha1.AccountSigningKeyRef{Kind: v1alpha1.AccountSigningKeyRefKindAccountSigningKey, Name: r})
+		}
+		account.Spec.SigningKeyRefs = out
 		account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
 	}
 }

@@ -249,16 +249,17 @@ func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName,
 // resolveTrustedSigningKey walks the Account -> AccountSigningKey trust chain that
 // User reconciliation depends on, returning the resolved AccountSigningKey when
 // every link is in place.
-// Returns nil when user.Spec.SigningKeyRef is empty (the User signs with the
+// Returns nil when user.Spec.SigningKeyRef is unset (the User signs with the
 // Account's implicit signing key). Returns errDependencyNotReady wrapped with context
 // when any of the following hold: Account or AccountSigningKey not found,
 // AccountSigningKey not Ready, AccountSigningKey status.publicKey empty, ref absent
 // from Account.spec.signingKeyRefs, or the public key not yet published in
 // Account.status.claims.signingKeys.
 func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1alpha1.User) (*v1alpha1.AccountSigningKey, error) {
-	if user.Spec.SigningKeyRef == "" {
+	if user.Spec.SigningKeyRef == nil {
 		return nil, nil
 	}
+	refName := user.Spec.SigningKeyRef.Name
 
 	account := &v1alpha1.Account{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: user.Spec.AccountName}, account); err != nil {
@@ -269,36 +270,36 @@ func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1a
 	}
 
 	ask := &v1alpha1.AccountSigningKey{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: user.Spec.SigningKeyRef}, ask); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: refName}, ask); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("AccountSigningKey %q not found: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+			return nil, fmt.Errorf("AccountSigningKey %q not found: %w", refName, errDependencyNotReady)
 		}
-		return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", user.Spec.SigningKeyRef, err)
+		return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", refName, err)
 	}
 
 	if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
-		return nil, fmt.Errorf("AccountSigningKey %q is not ready: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+		return nil, fmt.Errorf("AccountSigningKey %q is not ready: %w", refName, errDependencyNotReady)
 	}
 
 	refInSpec := false
 	for _, ref := range account.Spec.SigningKeyRefs {
-		if ref == user.Spec.SigningKeyRef {
+		if ref.Name == refName {
 			refInSpec = true
 			break
 		}
 	}
 	if !refInSpec {
 		return nil, fmt.Errorf("signing key ref %q is not listed in Account %q spec.signingKeyRefs: %w",
-			user.Spec.SigningKeyRef, user.Spec.AccountName, errDependencyNotReady)
+			refName, user.Spec.AccountName, errDependencyNotReady)
 	}
 
 	pubKey := ask.Status.PublicKey
 	if pubKey == "" {
-		return nil, fmt.Errorf("AccountSigningKey %q has no public key in status: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+		return nil, fmt.Errorf("AccountSigningKey %q has no public key in status: %w", refName, errDependencyNotReady)
 	}
 	if !signingKeyInAccountClaims(account, pubKey) {
 		return nil, fmt.Errorf("AccountSigningKey %q (public key %s) not yet in Account %q signing keys: %w",
-			user.Spec.SigningKeyRef, pubKey, user.Spec.AccountName, errDependencyNotReady)
+			refName, pubKey, user.Spec.AccountName, errDependencyNotReady)
 	}
 
 	return ask, nil
@@ -306,7 +307,7 @@ func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1a
 
 // resolveSigningKeyRef resolves the signing-key Secret reference and the trusted
 // public key for user.Spec.SigningKeyRef.
-// Returns nil when SigningKeyRef is empty (implicit Account signing key).
+// Returns nil when SigningKeyRef is unset (implicit Account signing key).
 // Returns errDependencyNotReady when the AccountSigningKey or Account is not yet
 // ready or the public key is not in Account claims.
 func (r *UserReconciler) resolveSigningKeyRef(ctx context.Context, user *v1alpha1.User) (*domain.NamespacedName, string, error) {
@@ -320,7 +321,7 @@ func (r *UserReconciler) resolveSigningKeyRef(ctx context.Context, user *v1alpha
 
 	secretName := ask.Status.SecretName
 	if secretName == "" {
-		return nil, "", fmt.Errorf("AccountSigningKey %q has no secret name in status: %w", user.Spec.SigningKeyRef, errDependencyNotReady)
+		return nil, "", fmt.Errorf("AccountSigningKey %q has no secret name in status: %w", user.Spec.SigningKeyRef.Name, errDependencyNotReady)
 	}
 	return new(domain.NewNamespacedName(user.Namespace, secretName)), ask.Status.PublicKey, nil
 }
@@ -368,7 +369,7 @@ func (r *UserReconciler) mapAccountToUsers(ctx context.Context, obj client.Objec
 	var requests []reconcile.Request
 	for i := range users.Items {
 		u := &users.Items[i]
-		if u.Spec.AccountName == account.Name && u.Spec.SigningKeyRef != "" {
+		if u.Spec.AccountName == account.Name && u.Spec.SigningKeyRef != nil {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: client.ObjectKeyFromObject(u),
 			})
@@ -400,12 +401,14 @@ func accountUpdateAffectsUsers(oldAcc, newAcc *v1alpha1.Account) bool {
 	return !reflect.DeepEqual(accountSigningKeySet(oldAcc.Status.Claims), accountSigningKeySet(newAcc.Status.Claims))
 }
 
-func signingKeyRefSet(refs []string) []string {
+func signingKeyRefSet(refs []v1alpha1.AccountSigningKeyRef) []string {
 	if len(refs) == 0 {
 		return nil
 	}
 	out := make([]string, len(refs))
-	copy(out, refs)
+	for i, ref := range refs {
+		out[i] = ref.Name
+	}
 	sort.Strings(out)
 	return out
 }

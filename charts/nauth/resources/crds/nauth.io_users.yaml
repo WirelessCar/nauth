@@ -124,13 +124,26 @@ spec:
                 type: object
               signingKeyRef:
                 description: |-
-                  SigningKeyRef optionally names an AccountSigningKey in the same namespace
-                  whose seed is used to sign this User's JWT. When absent, the Account's
-                  implicit signing key is used. The referenced AccountSigningKey's public key
-                  must appear in Account.status.claims.signingKeys at reconciliation time.
-                maxLength: 253
-                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                type: string
+                  SigningKeyRef optionally references the signing key used to sign this User's
+                  JWT. When absent, the Account's implicit signing key is used. The referenced
+                  AccountSigningKey's public key must appear in Account.status.claims.signingKeys
+                  at reconciliation time.
+                properties:
+                  kind:
+                    default: AccountSigningKey
+                    description: Kind of the referenced resource. Defaults to AccountSigningKey.
+                    enum:
+                    - AccountSigningKey
+                    type: string
+                  name:
+                    description: Name of the referenced resource.
+                    maxLength: 253
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - name
+                type: object
               userLimits:
                 properties:
                   src:

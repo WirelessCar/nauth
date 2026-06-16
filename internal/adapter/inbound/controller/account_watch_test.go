@@ -184,12 +184,12 @@ func TestAccountReconciler_MapAccountSigningKeyToAccounts(t *testing.T) {
 	// references sk-1
 	accountReferencing := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: "account-a", Namespace: "ns-a"},
-		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []string{"sk-1"}},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "sk-1"}}},
 	}
 	// references a different key
 	accountOtherKey := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: "account-b", Namespace: "ns-a"},
-		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []string{"sk-other"}},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "sk-other"}}},
 	}
 	// no signing key refs
 	accountNoRefs := &v1alpha1.Account{
@@ -198,7 +198,7 @@ func TestAccountReconciler_MapAccountSigningKeyToAccounts(t *testing.T) {
 	// different namespace — should be excluded by the in-namespace list
 	accountOtherNS := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: "account-d", Namespace: "ns-b"},
-		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []string{"sk-1"}},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "sk-1"}}},
 	}
 
 	fakeClient := fake.NewClientBuilder().

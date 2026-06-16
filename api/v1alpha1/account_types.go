@@ -64,16 +64,41 @@ type AccountSpec struct {
 	JetStreamLimits *JetStreamLimits `json:"jetStreamLimits,omitempty"`
 	// +optional
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
-	// SigningKeyRefs lists AccountSigningKey resource names in the same namespace
-	// whose public keys are trusted as additional signing keys for this account.
-	// The implicit default signing key is always present and is not listed here.
+	// SigningKeyRefs lists references whose public keys are trusted as additional
+	// signing keys for this account. The implicit default signing key is always
+	// present and is not listed here.
 	// +optional
-	// +listType=set
+	// +listType=map
+	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=64
-	// +kubebuilder:validation:items:MinLength=1
-	// +kubebuilder:validation:items:MaxLength=253
-	// +kubebuilder:validation:items:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	SigningKeyRefs []string `json:"signingKeyRefs,omitempty"`
+	SigningKeyRefs []AccountSigningKeyRef `json:"signingKeyRefs,omitempty"`
+}
+
+// AccountSigningKeyRefKind is the kind of resource referenced as an account
+// signing key.
+// +kubebuilder:validation:Enum=AccountSigningKey
+type AccountSigningKeyRefKind string
+
+const (
+	AccountSigningKeyRefKindAccountSigningKey AccountSigningKeyRefKind = "AccountSigningKey"
+)
+
+// AccountSigningKeyRef references a signing-key resource in the same namespace
+// whose public key is trusted by the Account (and may be used to sign Users).
+// Only AccountSigningKey is supported; Kind is reserved for future kinds
+// (e.g. issuers) and cross-namespace references.
+type AccountSigningKeyRef struct {
+	// Kind of the referenced resource. Defaults to AccountSigningKey.
+	// +optional
+	// +kubebuilder:default=AccountSigningKey
+	Kind AccountSigningKeyRefKind `json:"kind,omitempty"`
+
+	// Name of the referenced resource.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	Name string `json:"name"`
 }
 
 type AccountClaims struct {

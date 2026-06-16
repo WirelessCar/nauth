@@ -4,4 +4,5 @@ metadata:
   name: signing-key-user
 spec:
   accountName: signing-key-account
-  signingKeyRef: external-auth
+  signingKeyRef:
+    name: external-auth

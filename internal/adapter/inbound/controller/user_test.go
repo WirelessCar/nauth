@@ -224,7 +224,7 @@ func (t *UserControllerTestSuite) createUserWithSigningKeyRef(name, accountName,
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: t.namespace()},
 		Spec: v1alpha1.UserSpec{
 			AccountName:   accountName,
-			SigningKeyRef: signingKeyRef,
+			SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: signingKeyRef},
 		},
 	}))
 	return nn
@@ -261,9 +261,13 @@ func (t *UserControllerTestSuite) createSecret(nn ktypes.NamespacedName) {
 
 // createReadyAccount creates an Account with the given signing keys in spec and status.
 func (t *UserControllerTestSuite) createReadyAccount(name string, signingKeyRefs []string, claimsSigningKeys []string) {
+	refs := make([]v1alpha1.AccountSigningKeyRef, 0, len(signingKeyRefs))
+	for _, r := range signingKeyRefs {
+		refs = append(refs, v1alpha1.AccountSigningKeyRef{Name: r})
+	}
 	account := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: t.namespace()},
-		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: signingKeyRefs},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: refs},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, account))
 
@@ -370,7 +374,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_SigningKeyRef_MarksNotReady_Whe
 
 	account := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: accountName, Namespace: t.namespace()},
-		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []string{askName}},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: askName}}},
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, account))
 	// status.claims intentionally left nil

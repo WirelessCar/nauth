@@ -424,21 +424,21 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 // resolveSigningKeyRefs fetches each AccountSigningKey in refs and returns the slice of
 // public keys. Returns errSigningKeyRefUnavailable if any key is not yet Ready or has an
 // empty public key. Missing keys return a plain error (user config mistake).
-func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []string) ([]string, error) {
+func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []v1alpha1.AccountSigningKeyRef) ([]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
 	publicKeys := make([]string, 0, len(refs))
-	for _, refName := range refs {
+	for _, ref := range refs {
 		ask := &v1alpha1.AccountSigningKey{}
-		if err := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: namespace, Name: refName}, ask); err != nil {
-			return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", refName, err)
+		if err := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, ask); err != nil {
+			return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", ref.Name, err)
 		}
 		if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q is not ready", errSigningKeyRefUnavailable, refName)
+			return nil, fmt.Errorf("%w: AccountSigningKey %q is not ready", errSigningKeyRefUnavailable, ref.Name)
 		}
 		if ask.Status.PublicKey == "" {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, refName)
+			return nil, fmt.Errorf("%w: AccountSigningKey %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, ref.Name)
 		}
 		publicKeys = append(publicKeys, ask.Status.PublicKey)
 	}
@@ -485,7 +485,7 @@ func (r *AccountReconciler) mapAccountSigningKeyToAccounts(ctx context.Context, 
 	for i := range accounts.Items {
 		account := &accounts.Items[i]
 		for _, ref := range account.Spec.SigningKeyRefs {
-			if ref == ask.Name {
+			if ref.Name == ask.Name {
 				requests = append(requests, reconcile.Request{
 					NamespacedName: client.ObjectKeyFromObject(account),
 				})

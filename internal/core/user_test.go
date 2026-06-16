@@ -181,7 +181,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecr
 	// Given
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
-		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "external-auth"}},
 	}
 	request := nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),
@@ -212,7 +212,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecr
 
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
-		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "external-auth"}},
 	}
 	request := nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),
@@ -243,7 +243,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenSigningKeySecr
 	signingSecretRef := domain.NewNamespacedName("my-namespace", "external-auth-secret")
 	user := &v1alpha1.User{
 		ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"},
-		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: "external-auth"},
+		Spec:       v1alpha1.UserSpec{AccountName: "my-account", SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "external-auth"}},
 	}
 	request := nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName("my-namespace", "my-user"),

@@ -24,7 +24,7 @@ func TestAccountWatchPredicateForUsers_UpdateFunc(t *testing.T) {
 		return &v1alpha1.Account{
 			ObjectMeta: metav1.ObjectMeta{Name: "acc", Namespace: "ns"},
 			Spec: v1alpha1.AccountSpec{
-				SigningKeyRefs: []string{"key-a"},
+				SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "key-a"}},
 			},
 			Status: v1alpha1.AccountStatus{
 				Claims: &v1alpha1.AccountClaims{
@@ -44,7 +44,7 @@ func TestAccountWatchPredicateForUsers_UpdateFunc(t *testing.T) {
 		{
 			name: "spec.signingKeyRefs_changed",
 			mutate: func(a *v1alpha1.Account) {
-				a.Spec.SigningKeyRefs = append(a.Spec.SigningKeyRefs, "key-b")
+				a.Spec.SigningKeyRefs = append(a.Spec.SigningKeyRefs, v1alpha1.AccountSigningKeyRef{Name: "key-b"})
 			},
 			expectTrigger: true,
 		},
@@ -140,7 +140,7 @@ func TestMapAccountToUsers_EnqueuesOnlyUsersWithSigningKeyRef(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "user-with-ref", Namespace: "ns"},
 		Spec: v1alpha1.UserSpec{
 			AccountName:   "my-account",
-			SigningKeyRef: "my-ask",
+			SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "my-ask"},
 		},
 	}
 	// user with matching accountName but no signingKeyRef — must not be enqueued
@@ -155,7 +155,7 @@ func TestMapAccountToUsers_EnqueuesOnlyUsersWithSigningKeyRef(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "user-diff-account", Namespace: "ns"},
 		Spec: v1alpha1.UserSpec{
 			AccountName:   "other-account",
-			SigningKeyRef: "my-ask",
+			SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "my-ask"},
 		},
 	}
 	// user in a different namespace — must not be enqueued
@@ -163,7 +163,7 @@ func TestMapAccountToUsers_EnqueuesOnlyUsersWithSigningKeyRef(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "user-diff-ns", Namespace: "other-ns"},
 		Spec: v1alpha1.UserSpec{
 			AccountName:   "my-account",
-			SigningKeyRef: "my-ask",
+			SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: "my-ask"},
 		},
 	}
 

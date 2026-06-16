@@ -4,4 +4,5 @@ metadata:
   name: rotation-user
 spec:
   accountName: rotation-account
-  signingKeyRef: external-auth-v1
+  signingKeyRef:
+    name: external-auth-v1
