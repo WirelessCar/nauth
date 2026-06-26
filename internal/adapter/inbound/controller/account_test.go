@@ -690,6 +690,31 @@ func (t *AccountControllerTestSuite) createExport(namespace domain.Namespace, na
 
 // ---- AccountSigningKey tests ----
 
+func (t *AccountControllerTestSuite) createReadySigningKeyInNamespace(namespace, name, publicKey string) *v1alpha1.AccountSigningKey {
+	t.Require().NoError(ensureNamespace(t.ctx, namespace))
+	ask := &v1alpha1.AccountSigningKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, ask))
+
+	created := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), created))
+	created.Status = v1alpha1.AccountSigningKeyStatus{
+		PublicKey: publicKey,
+		Conditions: []metav1.Condition{
+			{Type: conditionTypeReady, Status: metav1.ConditionTrue, Reason: conditionReasonOK, LastTransitionTime: metav1.Now()},
+		},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	result := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(ask), result))
+	return result
+}
+
 func (t *AccountControllerTestSuite) createReadySigningKey(name, publicKey string) *v1alpha1.AccountSigningKey {
 	ask := &v1alpha1.AccountSigningKey{
 		ObjectMeta: metav1.ObjectMeta{
@@ -811,6 +836,37 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPassSigningKeysToReque
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(req nauth.AccountRequest) (*nauth.AccountResult, error) {
 		t.Require().Equal([]string{key1.PublicKey, key2.PublicKey}, req.SigningKeys)
+		return &nauth.AccountResult{AccountID: testutil.AnyNatsTestAccountID(), Claims: &nauth.AccountClaims{}}, nil
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldResolveCrossNamespaceSigningKeyRef() {
+	// Given an AccountSigningKey in a different namespace referenced explicitly via ref.namespace.
+	sharedNamespace := testutil.ScopedTestName("shared", t.T().Name())
+	signingKey := testutil.CreateNatsTestAccountKey()
+	t.createReadySigningKeyInNamespace(sharedNamespace, "shared-key", signingKey.PublicKey)
+
+	t.setupAccount(
+		t.defaultAccount(
+			func(a *v1alpha1.Account) {
+				a.Finalizers = append(a.Finalizers, finalizerAccount)
+				a.Spec.SigningKeyRefs = []v1alpha1.AccountSigningKeyRef{
+					{Kind: v1alpha1.AccountSigningKeyRefKindAccountSigningKey, Name: "shared-key", Namespace: sharedNamespace},
+				}
+				a.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
+			},
+		),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(req nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Require().Equal([]string{signingKey.PublicKey}, req.SigningKeys)
 		return &nauth.AccountResult{AccountID: testutil.AnyNatsTestAccountID(), Claims: &nauth.AccountClaims{}}, nil
 	}).Once()
 

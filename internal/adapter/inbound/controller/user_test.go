@@ -418,6 +418,69 @@ func (t *UserControllerTestSuite) Test_Reconcile_SigningKeyRef_MarksNotReady_Whe
 	t.Equal(metav1.ConditionFalse, cond.Status)
 }
 
+func (t *UserControllerTestSuite) Test_Reconcile_SigningKeyRef_ResolvesAcrossNamespaces() {
+	// Given: ASK lives in a shared namespace; both Account and User reference it cross-ns.
+	const askName = "ask-shared"
+	const askPubKey = "APUBKEYSHARED"
+	const accountName = "acct-cross-ns"
+	sharedNamespace := testutil.ScopedTestName("shared", t.T().Name())
+	t.Require().NoError(ensureNamespace(t.ctx, sharedNamespace))
+
+	ask := &v1alpha1.AccountSigningKey{
+		ObjectMeta: metav1.ObjectMeta{Name: askName, Namespace: sharedNamespace},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, ask))
+	created := &v1alpha1.AccountSigningKey{}
+	t.Require().NoError(k8sClient.Get(t.ctx, ktypes.NamespacedName{Name: askName, Namespace: sharedNamespace}, created))
+	created.Status.PublicKey = askPubKey
+	created.Status.SecretName = askName + "-secret"
+	created.Status.Conditions = []metav1.Condition{
+		{Type: conditionTypeReady, Status: metav1.ConditionTrue, Reason: conditionReasonOK, LastTransitionTime: metav1.Now()},
+	}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, created))
+
+	account := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: accountName, Namespace: t.namespace()},
+		Spec: v1alpha1.AccountSpec{
+			SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{
+				{Name: askName, Namespace: sharedNamespace},
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, account))
+	updated := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, ktypes.NamespacedName{Name: accountName, Namespace: t.namespace()}, updated))
+	updated.Status.Claims = &v1alpha1.AccountClaims{SigningKeys: v1alpha1.SigningKeys{{Key: askPubKey}}}
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, updated))
+
+	userNN := ktypes.NamespacedName{Name: "user-cross-ns", Namespace: t.namespace()}
+	t.Require().NoError(k8sClient.Create(t.ctx, &v1alpha1.User{
+		ObjectMeta: metav1.ObjectMeta{Name: userNN.Name, Namespace: userNN.Namespace},
+		Spec: v1alpha1.UserSpec{
+			AccountName:   accountName,
+			SigningKeyRef: &v1alpha1.AccountSigningKeyRef{Name: askName, Namespace: sharedNamespace},
+		},
+	}))
+
+	// Capture the request so we can assert the secret ref lives in the shared namespace.
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.MatchedBy(func(req nauth.UserRequest) bool {
+		if req.SigningPublicKey != askPubKey {
+			return false
+		}
+		if req.SigningPrivateKeySecretRef == nil {
+			return false
+		}
+		return req.SigningPrivateKeySecretRef.Namespace == sharedNamespace &&
+			req.SigningPrivateKeySecretRef.Name == askName+"-secret"
+	})).Return(nil).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: userNN})
+
+	// Then
+	t.Require().NoError(err)
+}
+
 func (t *UserControllerTestSuite) Test_Reconcile_SigningKeyRef_IsStale_WhenSignedByLabelDiffersFromASKPublicKey() {
 	// Given: User was reconciled with an old public key; ASK now has a different key.
 	// The creds secret exists and the generation/version match — only the stale check differs.

@@ -260,6 +260,10 @@ func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1a
 		return nil, nil
 	}
 	refName := user.Spec.SigningKeyRef.Name
+	refNamespace := user.Spec.SigningKeyRef.Namespace
+	if refNamespace == "" {
+		refNamespace = user.Namespace
+	}
 
 	account := &v1alpha1.Account{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: user.Spec.AccountName}, account); err != nil {
@@ -270,36 +274,40 @@ func (r *UserReconciler) resolveTrustedSigningKey(ctx context.Context, user *v1a
 	}
 
 	ask := &v1alpha1.AccountSigningKey{}
-	if err := r.Get(ctx, client.ObjectKey{Namespace: user.Namespace, Name: refName}, ask); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Namespace: refNamespace, Name: refName}, ask); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, fmt.Errorf("AccountSigningKey %q not found: %w", refName, errDependencyNotReady)
+			return nil, fmt.Errorf("AccountSigningKey %q in namespace %q not found: %w", refName, refNamespace, errDependencyNotReady)
 		}
-		return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", refName, err)
+		return nil, fmt.Errorf("failed to get AccountSigningKey %q in namespace %q: %w", refName, refNamespace, err)
 	}
 
 	if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
-		return nil, fmt.Errorf("AccountSigningKey %q is not ready: %w", refName, errDependencyNotReady)
+		return nil, fmt.Errorf("AccountSigningKey %q in namespace %q is not ready: %w", refName, refNamespace, errDependencyNotReady)
 	}
 
 	refInSpec := false
 	for _, ref := range account.Spec.SigningKeyRefs {
-		if ref.Name == refName {
+		ns := ref.Namespace
+		if ns == "" {
+			ns = account.Namespace
+		}
+		if ref.Name == refName && ns == refNamespace {
 			refInSpec = true
 			break
 		}
 	}
 	if !refInSpec {
-		return nil, fmt.Errorf("signing key ref %q is not listed in Account %q spec.signingKeyRefs: %w",
-			refName, user.Spec.AccountName, errDependencyNotReady)
+		return nil, fmt.Errorf("signing key ref %q in namespace %q is not listed in Account %q spec.signingKeyRefs: %w",
+			refName, refNamespace, user.Spec.AccountName, errDependencyNotReady)
 	}
 
 	pubKey := ask.Status.PublicKey
 	if pubKey == "" {
-		return nil, fmt.Errorf("AccountSigningKey %q has no public key in status: %w", refName, errDependencyNotReady)
+		return nil, fmt.Errorf("AccountSigningKey %q in namespace %q has no public key in status: %w", refName, refNamespace, errDependencyNotReady)
 	}
 	if !signingKeyInAccountClaims(account, pubKey) {
-		return nil, fmt.Errorf("AccountSigningKey %q (public key %s) not yet in Account %q signing keys: %w",
-			refName, pubKey, user.Spec.AccountName, errDependencyNotReady)
+		return nil, fmt.Errorf("AccountSigningKey %q in namespace %q (public key %s) not yet in Account %q signing keys: %w",
+			refName, refNamespace, pubKey, user.Spec.AccountName, errDependencyNotReady)
 	}
 
 	return ask, nil
@@ -323,7 +331,7 @@ func (r *UserReconciler) resolveSigningKeyRef(ctx context.Context, user *v1alpha
 	if secretName == "" {
 		return nil, "", fmt.Errorf("AccountSigningKey %q has no secret name in status: %w", user.Spec.SigningKeyRef.Name, errDependencyNotReady)
 	}
-	return new(domain.NewNamespacedName(user.Namespace, secretName)), ask.Status.PublicKey, nil
+	return new(domain.NewNamespacedName(ask.Namespace, secretName)), ask.Status.PublicKey, nil
 }
 
 func signingKeyInAccountClaims(account *v1alpha1.Account, pubKey string) bool {
@@ -407,7 +415,7 @@ func signingKeyRefSet(refs []v1alpha1.AccountSigningKeyRef) []string {
 	}
 	out := make([]string, len(refs))
 	for i, ref := range refs {
-		out[i] = ref.Name
+		out[i] = ref.Namespace + "/" + ref.Name
 	}
 	sort.Strings(out)
 	return out

@@ -252,10 +252,9 @@ spec:
                   present and is not listed here.
                 items:
                   description: |-
-                    AccountSigningKeyRef references a signing-key resource in the same namespace
-                    whose public key is trusted by the Account (and may be used to sign Users).
-                    Only AccountSigningKey is supported; Kind is reserved for future kinds
-                    (e.g. issuers) and cross-namespace references.
+                    AccountSigningKeyRef references a signing-key resource whose public key is
+                    trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+                    is supported; Kind is reserved for future kinds (e.g. issuers).
                   properties:
                     kind:
                       default: AccountSigningKey
@@ -269,12 +268,23 @@ spec:
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                       type: string
+                    namespace:
+                      default: ""
+                      description: |-
+                        Namespace of the referenced resource. When empty, defaults to the
+                        referrer's namespace. Cross-namespace references let multiple Accounts
+                        trust a shared signing key (e.g. a cluster-wide Auth Callout service).
+                      maxLength: 253
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$
+                      type: string
                   required:
                   - name
                   type: object
                 maxItems: 64
                 type: array
                 x-kubernetes-list-map-keys:
+                - kind
+                - namespace
                 - name
                 x-kubernetes-list-type: map
             type: object

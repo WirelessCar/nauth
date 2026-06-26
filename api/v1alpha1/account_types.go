@@ -69,6 +69,8 @@ type AccountSpec struct {
 	// present and is not listed here.
 	// +optional
 	// +listType=map
+	// +listMapKey=kind
+	// +listMapKey=namespace
 	// +listMapKey=name
 	// +kubebuilder:validation:MaxItems=64
 	SigningKeyRefs []AccountSigningKeyRef `json:"signingKeyRefs,omitempty"`
@@ -83,10 +85,9 @@ const (
 	AccountSigningKeyRefKindAccountSigningKey AccountSigningKeyRefKind = "AccountSigningKey"
 )
 
-// AccountSigningKeyRef references a signing-key resource in the same namespace
-// whose public key is trusted by the Account (and may be used to sign Users).
-// Only AccountSigningKey is supported; Kind is reserved for future kinds
-// (e.g. issuers) and cross-namespace references.
+// AccountSigningKeyRef references a signing-key resource whose public key is
+// trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+// is supported; Kind is reserved for future kinds (e.g. issuers).
 type AccountSigningKeyRef struct {
 	// Kind of the referenced resource. Defaults to AccountSigningKey.
 	// +optional
@@ -99,6 +100,15 @@ type AccountSigningKeyRef struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Name string `json:"name"`
+
+	// Namespace of the referenced resource. When empty, defaults to the
+	// referrer's namespace. Cross-namespace references let multiple Accounts
+	// trust a shared signing key (e.g. a cluster-wide Auth Callout service).
+	// +optional
+	// +kubebuilder:default=""
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 type AccountClaims struct {

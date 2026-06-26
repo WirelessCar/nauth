@@ -422,23 +422,28 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 }
 
 // resolveSigningKeyRefs fetches each AccountSigningKey in refs and returns the slice of
-// public keys. Returns errSigningKeyRefUnavailable if any key is not yet Ready or has an
-// empty public key. Missing keys return a plain error (user config mistake).
+// public keys. References without a namespace resolve in the Account's namespace.
+// Returns errSigningKeyRefUnavailable if any key is not yet Ready or has an empty
+// public key. Missing keys return a plain error (user config mistake).
 func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []v1alpha1.AccountSigningKeyRef) ([]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
 	publicKeys := make([]string, 0, len(refs))
 	for _, ref := range refs {
+		askNamespace := ref.Namespace
+		if askNamespace == "" {
+			askNamespace = namespace
+		}
 		ask := &v1alpha1.AccountSigningKey{}
-		if err := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, ask); err != nil {
-			return nil, fmt.Errorf("failed to get AccountSigningKey %q: %w", ref.Name, err)
+		if err := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: askNamespace, Name: ref.Name}, ask); err != nil {
+			return nil, fmt.Errorf("failed to get AccountSigningKey %q in namespace %q: %w", ref.Name, askNamespace, err)
 		}
 		if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q is not ready", errSigningKeyRefUnavailable, ref.Name)
+			return nil, fmt.Errorf("%w: AccountSigningKey %q in namespace %q is not ready", errSigningKeyRefUnavailable, ref.Name, askNamespace)
 		}
 		if ask.Status.PublicKey == "" {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, ref.Name)
+			return nil, fmt.Errorf("%w: AccountSigningKey %q in namespace %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, ref.Name, askNamespace)
 		}
 		publicKeys = append(publicKeys, ask.Status.PublicKey)
 	}
@@ -476,16 +481,22 @@ func (r *AccountReconciler) mapAccountSigningKeyToAccounts(ctx context.Context, 
 	if !ok {
 		return nil
 	}
+	// Accounts may reference an AccountSigningKey in a different namespace, so
+	// list cluster-wide and match on the resolved (namespace, name) tuple.
 	accounts := &v1alpha1.AccountList{}
-	if err := r.kubernetes.List(ctx, accounts, client.InNamespace(ask.Namespace)); err != nil {
-		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountSigningKey watch", "namespace", ask.Namespace)
+	if err := r.kubernetes.List(ctx, accounts); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Accounts for AccountSigningKey watch", "namespace", ask.Namespace, "name", ask.Name)
 		return nil
 	}
 	var requests []reconcile.Request
 	for i := range accounts.Items {
 		account := &accounts.Items[i]
 		for _, ref := range account.Spec.SigningKeyRefs {
-			if ref.Name == ask.Name {
+			refNamespace := ref.Namespace
+			if refNamespace == "" {
+				refNamespace = account.Namespace
+			}
+			if ref.Name == ask.Name && refNamespace == ask.Namespace {
 				requests = append(requests, reconcile.Request{
 					NamespacedName: client.ObjectKeyFromObject(account),
 				})

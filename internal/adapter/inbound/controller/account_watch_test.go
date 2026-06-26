@@ -195,22 +195,33 @@ func TestAccountReconciler_MapAccountSigningKeyToAccounts(t *testing.T) {
 	accountNoRefs := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: "account-c", Namespace: "ns-a"},
 	}
-	// different namespace — should be excluded by the in-namespace list
-	accountOtherNS := &v1alpha1.Account{
+	// different namespace, ref defaults to account's own namespace — excluded
+	accountOtherNSDefault := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{Name: "account-d", Namespace: "ns-b"},
 		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "sk-1"}}},
+	}
+	// different namespace, ref explicitly points at ns-a/sk-1 — must match
+	accountOtherNSCross := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "account-e", Namespace: "ns-b"},
+		Spec:       v1alpha1.AccountSpec{SigningKeyRefs: []v1alpha1.AccountSigningKeyRef{{Name: "sk-1", Namespace: "ns-a"}}},
 	}
 
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(testScheme).
-		WithObjects(signingKey, accountReferencing, accountOtherKey, accountNoRefs, accountOtherNS).
+		WithObjects(signingKey, accountReferencing, accountOtherKey, accountNoRefs, accountOtherNSDefault, accountOtherNSCross).
 		Build()
 
 	reconciler := &AccountReconciler{kubernetes: newKubernetesClient(fakeClient)}
 	requests := reconciler.mapAccountSigningKeyToAccounts(context.Background(), signingKey)
 
-	require.Len(t, requests, 1)
-	assert.Equal(t, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(accountReferencing)}, requests[0])
+	require.Len(t, requests, 2)
+	assert.ElementsMatch(t,
+		[]reconcile.Request{
+			{NamespacedName: client.ObjectKeyFromObject(accountReferencing)},
+			{NamespacedName: client.ObjectKeyFromObject(accountOtherNSCross)},
+		},
+		requests,
+	)
 }
 
 func TestAccountReconciler_ShouldReconcileForAccountSigningKeyUpdate(t *testing.T) {
