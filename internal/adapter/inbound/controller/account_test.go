@@ -925,6 +925,17 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSkipNotReadySigningKey
 	t.Require().NoError(err)
 }
 
+func (t *AccountControllerTestSuite) Test_ResolveSigningKeyRefs_ShouldRejectUnsupportedKind() {
+	// Defense in depth: the CRD enum already rejects unknown kinds at admission, but the
+	// controller validates again so a stale/handwritten spec can never silently fetch the
+	// wrong resource type. The unit-level call here bypasses admission to exercise it.
+	_, err := t.unitUnderTest.resolveSigningKeyRefs(t.ctx, t.accountNamespace, []v1alpha1.AccountSigningKeyRef{
+		{Kind: "AccountSigningKeyProvider", Name: "irrelevant"},
+	})
+	t.Require().Error(err)
+	t.ErrorIs(err, errInvalidSigningKeyRefKind)
+}
+
 /* ****************************************************
 * inbound.AccountManager Mock
 *****************************************************/

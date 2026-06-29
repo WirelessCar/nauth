@@ -49,6 +49,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+var (
+	// errInvalidSigningKeyRefKind is returned when AccountSigningKeyRef.Kind is
+	// set to anything other than the empty string or AccountSigningKey.
+	errInvalidSigningKeyRefKind = errors.New("invalid AccountSigningKeyRef kind")
+)
+
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	kubernetes     *kubernetesClient
@@ -405,7 +411,7 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 // References whose target is missing or not yet Ready are skipped silently, mirroring
 // how AccountImport/AccountExport sub-resources are treated when their DesiredClaim is
 // not yet published; the AccountSigningKey watch re-enqueues this Account once the key
-// becomes Ready.
+// becomes Ready. Returns errInvalidSigningKeyRefKind for refs with an unsupported Kind.
 func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []v1alpha1.AccountSigningKeyRef) ([]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
@@ -413,6 +419,9 @@ func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace
 	log := logf.FromContext(ctx)
 	publicKeys := make([]string, 0, len(refs))
 	for _, ref := range refs {
+		if ref.Kind != "" && ref.Kind != v1alpha1.AccountSigningKeyRefKindAccountSigningKey {
+			return nil, fmt.Errorf("%w: %q (supported: %q)", errInvalidSigningKeyRefKind, ref.Kind, v1alpha1.AccountSigningKeyRefKindAccountSigningKey)
+		}
 		askNamespace := ref.Namespace
 		if askNamespace == "" {
 			askNamespace = namespace
