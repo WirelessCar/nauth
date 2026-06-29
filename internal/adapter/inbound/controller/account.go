@@ -49,12 +49,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-var (
-	// errSigningKeyRefUnavailable is returned when a referenced AccountSigningKey exists but
-	// is not yet usable (not Ready, or Ready with an empty public key).
-	errSigningKeyRefUnavailable = errors.New("account signing key reference is unavailable")
-)
-
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	kubernetes     *kubernetesClient
@@ -174,21 +168,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		// Full manage
 		request, adoptionRefs, err := r.toAccountRequest(ctx, natsAccount, accountRef)
 		if err != nil {
-			if errors.Is(err, errSigningKeyRefUnavailable) {
-				meta.SetStatusCondition(&natsAccount.Status.Conditions, metav1.Condition{
-					Type:    conditionTypeReady,
-					Status:  metav1.ConditionFalse,
-					Reason:  conditionReasonReconciling,
-					Message: err.Error(),
-				})
-				natsAccount.Status.ObservedGeneration = natsAccount.Generation
-				natsAccount.Status.ReconcileTimestamp = metav1.Now()
-				natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
-				if updateErr := r.kubernetes.Status().Update(ctx, natsAccount); updateErr != nil {
-					return ctrl.Result{}, updateErr
-				}
-				return ctrl.Result{RequeueAfter: requeueDependencyNotReady}, nil
-			}
 			return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to create account request: %w", err))
 		}
 		result, err = r.manager.CreateOrUpdate(ctx, request)
@@ -423,12 +402,15 @@ func (r *AccountReconciler) findImportsByAccountID(ctx context.Context, namespac
 
 // resolveSigningKeyRefs fetches each AccountSigningKey in refs and returns the slice of
 // public keys. References without a namespace resolve in the Account's namespace.
-// Returns errSigningKeyRefUnavailable if any key is not yet Ready or has an empty
-// public key. Missing keys return a plain error (user config mistake).
+// References whose target is missing or not yet Ready are skipped silently, mirroring
+// how AccountImport/AccountExport sub-resources are treated when their DesiredClaim is
+// not yet published; the AccountSigningKey watch re-enqueues this Account once the key
+// becomes Ready.
 func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace string, refs []v1alpha1.AccountSigningKeyRef) ([]string, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
+	log := logf.FromContext(ctx)
 	publicKeys := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		askNamespace := ref.Namespace
@@ -437,13 +419,15 @@ func (r *AccountReconciler) resolveSigningKeyRefs(ctx context.Context, namespace
 		}
 		ask := &v1alpha1.AccountSigningKey{}
 		if err := r.kubernetes.Get(ctx, types.NamespacedName{Namespace: askNamespace, Name: ref.Name}, ask); err != nil {
+			if apierrors.IsNotFound(err) {
+				log.Info("AccountSigningKey not found; skipping ref until the resource exists", "namespace", askNamespace, "name", ref.Name)
+				continue
+			}
 			return nil, fmt.Errorf("failed to get AccountSigningKey %q in namespace %q: %w", ref.Name, askNamespace, err)
 		}
 		if !meta.IsStatusConditionTrue(ask.Status.Conditions, conditionTypeReady) {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q in namespace %q is not ready", errSigningKeyRefUnavailable, ref.Name, askNamespace)
-		}
-		if ask.Status.PublicKey == "" {
-			return nil, fmt.Errorf("%w: AccountSigningKey %q in namespace %q is Ready but has empty publicKey", errSigningKeyRefUnavailable, ref.Name, askNamespace)
+			log.Info("AccountSigningKey is not Ready; skipping ref until it becomes Ready", "namespace", askNamespace, "name", ref.Name)
+			continue
 		}
 		publicKeys = append(publicKeys, ask.Status.PublicKey)
 	}
