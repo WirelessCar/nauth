@@ -1,0 +1,38 @@
+suite: deployment logging args
+templates:
+  - deployment.yaml
+tests:
+  - it: keeps existing operator logging defaults by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=json
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=info
+
+  - it: configures structured logging when requested
+    set:
+      logging:
+        format: json
+        level: info
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=json
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=info
+
+  - it: allows readable debug logging for local chart installs
+    set:
+      logging:
+        format: text
+        level: debug
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-format=text
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --log-level=debug

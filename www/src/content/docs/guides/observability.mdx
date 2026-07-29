@@ -1,11 +1,33 @@
 ---
 title: Observability
-description: Observe NAuth reconciliation metrics
+description: Configure NAuth logs and reconciliation metrics
 ---
 
-NAuth exposes controller-runtime metrics on `/metrics` when chart monitoring is enabled. These are Prometheus metrics and can be scraped by Prometheus directly or by the OpenTelemetry Collector Prometheus receiver.
+## Logs
 
-Enable the metrics endpoint:
+NAuth uses readable text logs by default. Enable JSON when your log pipeline expects structured records.
+
+Helm:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --set logging.format=json \
+  --set logging.level=info
+```
+
+Binary:
+
+```bash
+manager --log-format=json --log-level=info
+```
+
+Formats: `text`, `json`. Levels: `debug`, `info`, `warn`, `error`.
+
+## Metrics
+
+Enable the controller-runtime `/metrics` endpoint:
 
 ```bash
 helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
@@ -14,13 +36,13 @@ helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
   --set monitoring.enabled=true
 ```
 
-The reconciliation count metric is:
+Core reconcile metric:
 
 ```text
 controller_runtime_reconcile_total{controller="<controller>",result="<result>"}
 ```
 
-Current controller labels:
+Controller labels:
 
 | Resource | Controller label | Availability |
 | --- | --- | --- |
@@ -30,7 +52,7 @@ Current controller labels:
 | `User` | `user` | Since v0.1.0 |
 | `NatsCluster` | `natscluster` | Since v0.6.1 |
 
-Useful Grafana queries:
+Grafana queries:
 
 ```text
 sum by (controller, result) (rate(controller_runtime_reconcile_total{service="nauth-metrics-service"}[5m]))

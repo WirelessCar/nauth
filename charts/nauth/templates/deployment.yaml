@@ -37,6 +37,12 @@ spec:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --metrics-secure=false
+            {{- if .Values.logging.format }}
+            - --log-format={{ .Values.logging.format }}
+            {{- end }}
+            {{- if .Values.logging.level }}
+            - --log-level={{ .Values.logging.level }}
+            {{- end }}
             {{- if .Values.namespaced }}
             - --namespace={{ include "nauth.namespaceName" . }}
             {{- end }}

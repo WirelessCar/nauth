@@ -1,0 +1,19 @@
+suite: values validation
+templates:
+  - verify.yaml
+tests:
+  - it: rejects invalid logging format
+    set:
+      logging:
+        format: console
+    asserts:
+      - failedTemplate:
+          errorMessage: logging.format must be empty, text, or json
+
+  - it: rejects invalid logging level
+    set:
+      logging:
+        level: trace
+    asserts:
+      - failedTemplate:
+          errorMessage: logging.level must be empty, debug, info, warn, or error

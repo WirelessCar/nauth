@@ -15,6 +15,8 @@
 | image.repository | string | `"nauth-operator"` | Sets the operator repository |
 | image.tag | string | appVersion | Overrides the image tag |
 | livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/ |
+| logging.format | string | `""` | Operator log output format. Leave empty to keep the operator default text output. Set to `json` for structured log ingestion. |
+| logging.level | string | `""` | Operator log level. Supported values: `debug`, `info`, `warn`, `error`. |
 | monitoring.enabled | bool | `false` | Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver. |
 | monitoring.serviceMonitor | object | `{"enabled":false}` | Enables serviceMonitor feature. Requires CRD to be installed beforehand. |
 | nameOverride | string | `""` | Override the chart name |
