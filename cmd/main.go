@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
+	"github.com/go-logr/logr"
+	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -35,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -55,6 +58,16 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+const (
+	logFormatText = "text"
+	logFormatJSON = "json"
+
+	logLevelDebug = "debug"
+	logLevelInfo  = "info"
+	logLevelWarn  = "warn"
+	logLevelError = "error"
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -66,6 +79,8 @@ func main() {
 	var namespace string
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
+	var logFormat string
+	var logLevel string
 	var enableLeaderElection bool
 	var probeAddr string
 	var secureMetrics bool
@@ -87,13 +102,20 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics server")
+	flag.StringVar(&logFormat, "log-format", "",
+		"Log output format. Supported values: text, json. Defaults to existing text output.")
+	flag.StringVar(&logLevel, "log-level", "",
+		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	if _, err := initLogger(&opts, logFormat, logLevel); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid logging configuration: %s\n", err.Error())
+		os.Exit(1)
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -349,6 +371,41 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func initLogger(opts *zap.Options, format string, level string) (logr.Logger, error) {
+	switch strings.ToLower(format) {
+	case "":
+	case logFormatText:
+		zap.ConsoleEncoder()(opts)
+	case logFormatJSON:
+		zap.JSONEncoder()(opts)
+	default:
+		return logr.Logger{}, fmt.Errorf("unsupported log format %q", format)
+	}
+
+	switch strings.ToLower(level) {
+	case "":
+	case logLevelDebug:
+		opts.Level = zapcore.DebugLevel
+	case logLevelInfo:
+		opts.Level = zapcore.InfoLevel
+	case logLevelWarn:
+		opts.Level = zapcore.WarnLevel
+	case logLevelError:
+		opts.Level = zapcore.ErrorLevel
+	default:
+		return logr.Logger{}, fmt.Errorf("unsupported log level %q", level)
+	}
+
+	logger := zap.New(zap.UseFlagOptions(opts))
+	ctrl.SetLogger(logger)
+	if strings.EqualFold(format, logFormatJSON) {
+		// Route Kubernetes/client-go klog entries through the configured structured logger.
+		klog.SetLogger(logger.WithName("klog"))
+	}
+
+	return logger, nil
 }
 
 func parseNatsClusterRef(refStr string) (*nauth.ClusterRef, error) {
