@@ -3,95 +3,87 @@
 # Declare variables to be passed into your templates.
 
 global:
-  # -- Custom labels to apply to all resources.
+  # -- Additional labels to add to templated NAuth chart resources.
   labels: {}
   # custom.label.environment: dev
   # custom.label.team: team-potato
 
 nats:
-  # Set `clusterRef.name` to bind the operator to one NATS cluster.
-  # Default (`clusterRef.optional=false`) is strict single-cluster mode:
-  # account-level refs must be absent or match this operator cluster.
-  # `clusterRef.optional=true` is explicit opt-in default mode:
-  # accounts without spec.natsClusterRef use this ref, but accounts may override.
-  # Recommended migration path:
-  # 1) Set `clusterRef` and keep `optional=false`.
-  # 2) Add the same spec.natsClusterRef to all existing Accounts.
-  # 3) Remove `clusterRef` when fully migrated to explicit per-Account refs.
-  # -- Operator NatsCluster reference object. Set `name` to enable operator-level binding.
+  # To move from one operator-level NatsCluster binding to explicit per-Account
+  # bindings, first set this reference in strict mode, then add matching
+  # `spec.natsClusterRef` values to existing Accounts, and finally remove the
+  # operator-level reference once all Accounts declare their target cluster.
+  #
+  # With `optional=false`, account-level refs must either be unset or match this cluster.
+  # With `optional=true`, accounts without `spec.natsClusterRef` use this cluster, and accounts may override it.
+  # -- Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster.
   clusterRef:
-    # NatsCluster name used to compose NATS_CLUSTER_REF as `<namespace>/<name>`.
     # -- NatsCluster resource name. Leave empty to disable operator-level binding.
     name: ""
 
-    # NatsCluster namespace used to compose NATS_CLUSTER_REF.
-    # -- NatsCluster resource namespace. When empty and `name` is set, defaults to the chart namespace.
+    # -- NatsCluster resource namespace. When empty and `name` is set, the chart namespace is used.
     namespace: ""
 
-    # Controls whether account-level refs may deviate from this operator cluster.
-    # false (default): strict mode, account refs must be absent or match.
-    # true: default mode, account refs may override.
-    # -- Override flag when `name` is set (`false` = strict mode, `true` = accounts may override).
+    # -- Whether account-level `spec.natsClusterRef` values may override this operator-level cluster.
     optional: false
 
-# -- Sets the replicaset count
+# -- Number of NAuth operator replicas.
 replicaCount: 1
 
 image:
-  # -- Sets the operator image registry
+  # -- Container image registry for the NAuth operator.
   registry: ghcr.io/wirelesscar
-  # -- Sets the operator repository
+  # -- Container image repository for the NAuth operator.
   repository: nauth-operator
-  # -- Sets the pull policy for images.
+  # -- Kubernetes image pull policy for the NAuth operator container.
   pullPolicy: IfNotPresent
-  # -- Overrides the image tag
+  # -- Override the container image tag. Defaults to the chart app version when empty.
   # @default -- appVersion
   tag: ""
 
-# -- Override the chart name
+# -- Override the chart name used in generated resource names.
 nameOverride: ""
 
-# -- Override the chart fullName (Release.name + Chart.name)
+# -- Override the full generated resource name. Defaults to `<Release.Name>-<Chart.Name>`.
 fullnameOverride: ""
 
-# -- Override the namespace
 namespace:
+  # -- Override the namespace rendered into namespaced resources. Defaults to the Helm release namespace.
   nameOverride: ""
 
-# -- If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched.
+# -- Limit the operator to the configured namespace instead of watching all namespaces.
 namespaced: false
 
 logging:
-  # -- Operator log output format. Leave empty to keep the operator default text output. Set to `json` for structured log ingestion.
+  # -- Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`.
   format: ""
   # -- Operator log level. Supported values: `debug`, `info`, `warn`, `error`.
   level: ""
 
-# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
-  # -- Specifies whether a service account should be created
+  # -- Create a ServiceAccount for the NAuth operator.
   create: true
-  # -- Automatically mount a ServiceAccount's API credentials?
+  # TODO(#345): Decide whether to render this value or remove it from the public values API.
+  # -- Reserved value for ServiceAccount token automounting. This value is not currently rendered by the chart.
   automount: true
-  # -- Annotations to add to the service account
+  # -- Annotations to add to the ServiceAccount.
   annotations: {}
-  # -- The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
+  # -- Override the ServiceAccount name. Defaults to the generated full name when empty.
   nameOverride: ""
 
-# -- This is for setting Kubernetes Annotations to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+# -- Annotations to add to the NAuth operator Pod.
 podAnnotations: {}
-# -- This is for setting Kubernetes Labels to a Pod.
-# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+
+# TODO(#345): Decide whether to render this value or remove it from the public values API.
+# -- Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart.
 podLabels: {}
 
-# -- Pod security context
+# -- Pod security context for the NAuth operator Pod.
 podSecurityContext:
   runAsNonRoot: true
   # fsGroup: 2000
 
-# -- SecurityContext of the container
+# -- Container security context for the NAuth operator container.
 securityContext:
   # This is defined by the distroless nonroot user
   runAsUser: 65532
@@ -105,13 +97,13 @@ securityContext:
     type: RuntimeDefault
 
 monitoring:
-  # -- Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver.
+  # -- Expose controller-runtime Prometheus metrics on `/metrics` for direct scraping or collection through a Prometheus receiver.
   enabled: false
-  # -- Enables serviceMonitor feature. Requires CRD to be installed beforehand.
   serviceMonitor:
+    # -- Create Prometheus Operator ServiceMonitor and PrometheusRule resources. Requires the ServiceMonitor and PrometheusRule CRDs.
     enabled: false
 
-# -- Setting resources is up to the user. Follows PodSpec.
+# -- Resource requests and limits for the NAuth operator container.
 resources: {}
 # limits:
 #   cpu: 100m
@@ -120,13 +112,15 @@ resources: {}
 #   cpu: 100m
 #   memory: 128Mi
 
-# -- This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+# -- Liveness probe for the NAuth operator container.
 livenessProbe:
   httpGet:
     path: /healthz
     port: 8081
   initialDelaySeconds: 15
   periodSeconds: 20
+
+# -- Readiness probe for the NAuth operator container.
 readinessProbe:
   httpGet:
     path: /readyz
@@ -134,23 +128,29 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 10
 
+# -- Additional volumes for the NAuth operator Pod.
 volumes: []
 
+# -- Additional volume mounts for the NAuth operator container.
 volumeMounts: []
 
+# -- Termination grace period for the NAuth operator Pod, in seconds.
 terminationGracePeriodSeconds: 10
 
+# -- Node selector for scheduling the NAuth operator Pod.
 nodeSelector: {}
 
+# -- Tolerations for scheduling the NAuth operator Pod.
 tolerations: []
 
+# -- Affinity rules for scheduling the NAuth operator Pod.
 affinity: {}
 
 crds:
-  # -- Indicates if Custom Resource Definitions should be installed and upgraded as part of the release.
+  # -- Install and upgrade NAuth CustomResourceDefinitions as part of this chart release.
   install: true
-  # -- Indicates if Custom Resource Definitions should be kept when a release is uninstalled.
+  # -- Keep NAuth CustomResourceDefinitions when this chart release is uninstalled.
   keep: true
 
-# -- Deploy extra resources along the chart. Supports templating
+# -- Additional Kubernetes resources to render with the chart. Values are templated before rendering.
 extraResources: []

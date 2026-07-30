@@ -4,44 +4,41 @@
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| affinity | object | `{}` |  |
-| crds.install | bool | `true` | Indicates if Custom Resource Definitions should be installed and upgraded as part of the release. |
-| crds.keep | bool | `true` | Indicates if Custom Resource Definitions should be kept when a release is uninstalled. |
-| extraResources | list | `[]` | Deploy extra resources along the chart. Supports templating |
-| fullnameOverride | string | `""` | Override the chart fullName (Release.name + Chart.name) |
-| global.labels | object | `{}` | Custom labels to apply to all resources. |
-| image.pullPolicy | string | `"IfNotPresent"` | Sets the pull policy for images. |
-| image.registry | string | `"ghcr.io/wirelesscar"` | Sets the operator image registry |
-| image.repository | string | `"nauth-operator"` | Sets the operator repository |
-| image.tag | string | appVersion | Overrides the image tag |
-| livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/ |
-| logging.format | string | `""` | Operator log output format. Leave empty to keep the operator default text output. Set to `json` for structured log ingestion. |
+| affinity | object | `{}` | Affinity rules for scheduling the NAuth operator Pod. |
+| crds.install | bool | `true` | Install and upgrade NAuth CustomResourceDefinitions as part of this chart release. |
+| crds.keep | bool | `true` | Keep NAuth CustomResourceDefinitions when this chart release is uninstalled. |
+| extraResources | list | `[]` | Additional Kubernetes resources to render with the chart. Values are templated before rendering. |
+| fullnameOverride | string | `""` | Override the full generated resource name. Defaults to `<Release.Name>-<Chart.Name>`. |
+| global.labels | object | `{}` | Additional labels to add to templated NAuth chart resources. |
+| image.pullPolicy | string | `"IfNotPresent"` | Kubernetes image pull policy for the NAuth operator container. |
+| image.registry | string | `"ghcr.io/wirelesscar"` | Container image registry for the NAuth operator. |
+| image.repository | string | `"nauth-operator"` | Container image repository for the NAuth operator. |
+| image.tag | string | appVersion | Override the container image tag. Defaults to the chart app version when empty. |
+| livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the NAuth operator container. |
+| logging.format | string | `""` | Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`. |
 | logging.level | string | `""` | Operator log level. Supported values: `debug`, `info`, `warn`, `error`. |
-| monitoring.enabled | bool | `false` | Exposes controller-runtime Prometheus metrics on `/metrics`. Use this endpoint directly from Prometheus or scrape it with the OpenTelemetry Collector Prometheus receiver. |
-| monitoring.serviceMonitor | object | `{"enabled":false}` | Enables serviceMonitor feature. Requires CRD to be installed beforehand. |
-| nameOverride | string | `""` | Override the chart name |
-| namespace | object | `{"nameOverride":""}` | Override the namespace |
-| namespaced | bool | `false` | If true, limits the scope of nauth to a single namespace. Otherwise, all namespaces will be watched. |
-| nats.clusterRef | object | `{"name":"","namespace":"","optional":false}` | Operator NatsCluster reference object. Set `name` to enable operator-level binding. |
+| monitoring.enabled | bool | `false` | Expose controller-runtime Prometheus metrics on `/metrics` for direct scraping or collection through a Prometheus receiver. |
+| monitoring.serviceMonitor.enabled | bool | `false` | Create Prometheus Operator ServiceMonitor and PrometheusRule resources. Requires the ServiceMonitor and PrometheusRule CRDs. |
+| nameOverride | string | `""` | Override the chart name used in generated resource names. |
+| namespace.nameOverride | string | `""` | Override the namespace rendered into namespaced resources. Defaults to the Helm release namespace. |
+| namespaced | bool | `false` | Limit the operator to the configured namespace instead of watching all namespaces. |
+| nats.clusterRef | object | `{"name":"","namespace":"","optional":false}` | Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster. |
 | nats.clusterRef.name | string | `""` | NatsCluster resource name. Leave empty to disable operator-level binding. |
-| nats.clusterRef.namespace | string | `""` | NatsCluster resource namespace. When empty and `name` is set, defaults to the chart namespace. |
-| nats.clusterRef.optional | bool | `false` | Override flag when `name` is set (`false` = strict mode, `true` = accounts may override). |
-| nodeSelector | object | `{}` |  |
-| podAnnotations | object | `{}` | This is for setting Kubernetes Annotations to a Pod. For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/ |
-| podLabels | object | `{}` | This is for setting Kubernetes Labels to a Pod. For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ |
-| podSecurityContext | object | `{"runAsNonRoot":true}` | Pod security context |
-| readinessProbe.httpGet.path | string | `"/readyz"` |  |
-| readinessProbe.httpGet.port | int | `8081` |  |
-| readinessProbe.initialDelaySeconds | int | `5` |  |
-| readinessProbe.periodSeconds | int | `10` |  |
-| replicaCount | int | `1` | Sets the replicaset count |
-| resources | object | `{}` | Setting resources is up to the user. Follows PodSpec. |
-| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":65532,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` | SecurityContext of the container |
-| serviceAccount.annotations | object | `{}` | Annotations to add to the service account |
-| serviceAccount.automount | bool | `true` | Automatically mount a ServiceAccount's API credentials? |
-| serviceAccount.create | bool | `true` | Specifies whether a service account should be created |
-| serviceAccount.nameOverride | string | `""` | The name of the service account to use. If not set and create is true, a name is generated using the fullname template |
-| terminationGracePeriodSeconds | int | `10` |  |
-| tolerations | list | `[]` |  |
-| volumeMounts | list | `[]` |  |
-| volumes | list | `[]` |  |
+| nats.clusterRef.namespace | string | `""` | NatsCluster resource namespace. When empty and `name` is set, the chart namespace is used. |
+| nats.clusterRef.optional | bool | `false` | Whether account-level `spec.natsClusterRef` values may override this operator-level cluster. |
+| nodeSelector | object | `{}` | Node selector for scheduling the NAuth operator Pod. |
+| podAnnotations | object | `{}` | Annotations to add to the NAuth operator Pod. |
+| podLabels | object | `{}` | Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart. |
+| podSecurityContext | object | `{"runAsNonRoot":true}` | Pod security context for the NAuth operator Pod. |
+| readinessProbe | object | `{"httpGet":{"path":"/readyz","port":8081},"initialDelaySeconds":5,"periodSeconds":10}` | Readiness probe for the NAuth operator container. |
+| replicaCount | int | `1` | Number of NAuth operator replicas. |
+| resources | object | `{}` | Resource requests and limits for the NAuth operator container. |
+| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":65532,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` | Container security context for the NAuth operator container. |
+| serviceAccount.annotations | object | `{}` | Annotations to add to the ServiceAccount. |
+| serviceAccount.automount | bool | `true` | Reserved value for ServiceAccount token automounting. This value is not currently rendered by the chart. |
+| serviceAccount.create | bool | `true` | Create a ServiceAccount for the NAuth operator. |
+| serviceAccount.nameOverride | string | `""` | Override the ServiceAccount name. Defaults to the generated full name when empty. |
+| terminationGracePeriodSeconds | int | `10` | Termination grace period for the NAuth operator Pod, in seconds. |
+| tolerations | list | `[]` | Tolerations for scheduling the NAuth operator Pod. |
+| volumeMounts | list | `[]` | Additional volume mounts for the NAuth operator container. |
+| volumes | list | `[]` | Additional volumes for the NAuth operator Pod. |
