@@ -19,6 +19,8 @@ Package v1alpha1 contains API schema definitions for the nauth.io v1alpha1 API g
 - [AccountImport](#accountimport)
 - [AccountImportList](#accountimportlist)
 - [AccountList](#accountlist)
+- [AccountSigningKey](#accountsigningkey)
+- [AccountSigningKeyList](#accountsigningkeylist)
 - [NatsCluster](#natscluster)
 - [NatsClusterList](#natsclusterlist)
 - [User](#user)
@@ -456,6 +458,134 @@ _Appears in:_
 | `namespace` _string_ |  |  |  |
 
 
+#### AccountSigningKey
+
+
+
+AccountSigningKey manages one NATS account signing-key seed in a Kubernetes Secret.
+By default NAuth manages the signing key seed: it generates a new key and stores it in
+a Secret named spec.secretName (defaulting to <resourceName>-ac-sign). The Secret is
+owned by this resource and garbage-collected when the resource is deleted.
+
+In observe mode (label nauth.io/management-policy=observe), NAuth only reads an existing
+Secret with the resolved name and derives the public key. Observed Secrets are not
+modified, owned, or deleted by the operator.
+
+An Account trusts the public key by listing this resource in Account.spec.signingKeyRefs.
+
+
+
+_Appears in:_
+- [AccountSigningKeyList](#accountsigningkeylist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
+| `kind` _string_ | `AccountSigningKey` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[AccountSigningKeySpec](#accountsigningkeyspec)_ |  |  |  |
+| `status` _[AccountSigningKeyStatus](#accountsigningkeystatus)_ |  |  |  |
+
+
+#### AccountSigningKeyList
+
+
+
+AccountSigningKeyList contains a list of AccountSigningKey.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
+| `kind` _string_ | `AccountSigningKeyList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[AccountSigningKey](#accountsigningkey) array_ |  |  |  |
+
+
+#### AccountSigningKeyRef
+
+
+
+AccountSigningKeyRef references a signing-key resource whose public key is
+trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+is supported; Kind is reserved for future kinds (e.g. issuers).
+
+
+
+_Appears in:_
+- [AccountSpec](#accountspec)
+- [UserSpec](#userspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `kind` _[AccountSigningKeyRefKind](#accountsigningkeyrefkind)_ | Kind of the referenced resource. Defaults to AccountSigningKey. | AccountSigningKey | Enum: [AccountSigningKey] <br />Optional: \{\} <br /> |
+| `name` _string_ | Name of the referenced resource. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
+| `namespace` _string_ | Namespace of the referenced resource. When empty, defaults to the<br />referrer's namespace. Cross-namespace references let multiple Accounts<br />trust a shared signing key (e.g. a cluster-wide Auth Callout service). |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br />Optional: \{\} <br /> |
+
+
+#### AccountSigningKeyRefKind
+
+_Underlying type:_ _string_
+
+AccountSigningKeyRefKind is the kind of resource referenced as an account
+signing key.
+
+_Validation:_
+- Enum: [AccountSigningKey]
+
+_Appears in:_
+- [AccountSigningKeyRef](#accountsigningkeyref)
+
+| Field | Description |
+| --- | --- |
+| `AccountSigningKey` |  |
+
+
+#### AccountSigningKeySpec
+
+
+
+AccountSigningKeySpec defines the desired state of AccountSigningKey.
+
+
+
+_Appears in:_
+- [AccountSigningKey](#accountsigningkey)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `secretName` _string_ | SecretName names the Kubernetes Secret that holds the account signing-key seed.<br />In managed mode (default), SecretName is optional and defaults to<br /><resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.<br />In observe mode (label nauth.io/management-policy=observe), SecretName is<br />required and identifies the existing Secret to read; the operator never falls<br />back to the managed default name and never modifies the Secret.<br />Immutable. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Optional: \{\} <br /> |
+
+
+#### AccountSigningKeyStatus
+
+
+
+AccountSigningKeyStatus defines the observed state of AccountSigningKey.
+
+
+
+_Appears in:_
+- [AccountSigningKey](#accountsigningkey)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `publicKey` _string_ | PublicKey is the resolved NATS public key (A-prefixed nkey) for this signing key. |  | Optional: \{\} <br /> |
+| `secretName` _string_ | SecretName is the resolved name of the Secret holding the seed. |  | Optional: \{\} <br /> |
+| `managementPolicy` _string_ | ManagementPolicy reflects the effective management policy for this resource.<br />Empty means managed (default); "observe" means the Secret is only read. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
+| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+
+
 #### AccountSpec
 
 
@@ -477,6 +607,7 @@ _Appears in:_
 | `imports` _[Imports](#imports)_ |  |  | Optional: \{\} <br /> |
 | `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  | Optional: \{\} <br /> |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
+| `signingKeyRefs` _[AccountSigningKeyRef](#accountsigningkeyref) array_ | SigningKeyRefs lists references whose public keys are trusted as additional<br />signing keys for this account. The implicit default signing key is always<br />present and is not listed here. |  | MaxItems: 64 <br />Optional: \{\} <br /> |
 
 
 #### AccountStatus
@@ -1160,6 +1291,7 @@ _Appears in:_
 | `permissions` _[Permissions](#permissions)_ |  |  | Optional: \{\} <br /> |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  | Optional: \{\} <br /> |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
+| `signingKeyRef` _[AccountSigningKeyRef](#accountsigningkeyref)_ | SigningKeyRef optionally references the signing key used to sign this User's<br />JWT. When absent, the Account's implicit signing key is used. The referenced<br />AccountSigningKey's public key must appear in Account.status.claims.signingKeys<br />at reconciliation time. |  | Optional: \{\} <br /> |
 
 
 #### UserStatus
