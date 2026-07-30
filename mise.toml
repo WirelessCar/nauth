@@ -4,6 +4,7 @@ NATS_VERSION = "2.14.0-alpine"
 NACK_VERSION = "0.23.0"
 NATS_RELOADER_VERSION = "0.23.0"
 NATS_BOX_VERSION = "0.19.5"
+HELM_VALUES_SCHEMA_JSON_VERSION = "v2.5.0"
 
 [tools]
 go = "1.26.3"
@@ -35,6 +36,34 @@ run = "go test ./..."
 description = "Lint public documentation with Vale"
 alias = "nld"
 run = "vale README.md www/src/content/docs/index.mdx www/src/content/docs/guides"
+
+[tasks."nauth:generate-values-schema"]
+description = "Generate Helm values schema from charts/nauth/values.yaml"
+run = """
+if ! helm plugin list | awk 'NR > 1 { print $1 }' | grep -qx schema; then
+  helm plugin install https://github.com/losisin/helm-values-schema-json.git --version="${HELM_VALUES_SCHEMA_JSON_VERSION}" --verify=false
+fi
+
+expected_version="helm schema version ${HELM_VALUES_SCHEMA_JSON_VERSION}"
+actual_version="$(helm schema version)"
+if [ "${actual_version}" != "${expected_version}" ]; then
+  echo "helm-values-schema-json ${HELM_VALUES_SCHEMA_JSON_VERSION} is required, got: ${actual_version}" >&2
+  echo "Run: helm plugin install https://github.com/losisin/helm-values-schema-json.git --version=${HELM_VALUES_SCHEMA_JSON_VERSION} --verify=false" >&2
+  exit 1
+fi
+
+cd charts/nauth
+helm schema lint --strict
+helm schema
+"""
+
+[tasks."nauth:check-values-schema"]
+description = "Verify generated Helm values schema is up to date"
+run = """
+mise run nauth:generate-values-schema
+git ls-files --error-unmatch charts/nauth/values.schema.json >/dev/null 2>&1
+git diff --exit-code -- charts/nauth/values.schema.json
+"""
 
 [tasks."nauth:e2e-test"]
 silent = false

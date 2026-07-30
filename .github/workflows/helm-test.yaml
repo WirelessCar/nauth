@@ -18,8 +18,28 @@ on:
   pull_request:
     paths:
       - 'charts/**'
+      - 'mise.toml'
+      - '.github/workflows/helm-test.yaml'
 
 jobs:
+  helm-schema:
+    name: Schema
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup mise tools
+        uses: jdx/mise-action@v4
+        with:
+          install: true
+          install_args: "helm"
+          experimental: true
+
+      - name: Verify Helm Values Schema
+        run: |
+          mise run nauth:check-values-schema
+
   helm-test:
     name: Test
     runs-on: ubuntu-latest
@@ -27,8 +47,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Setup Helm
-        uses: azure/setup-helm@v5
+      - name: Setup mise tools
+        uses: jdx/mise-action@v4
+        with:
+          install: true
+          install_args: "helm"
+          experimental: true
+
+      - name: Run Helm Lint
+        run: |
+          helm lint charts/nauth
 
       - name: Setup Helm Unittest
         # TODO: re-add verification when https://github.com/helm-unittest/helm-unittest/issues/777 is resolved

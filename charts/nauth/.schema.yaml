@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://github.com/losisin/helm-values-schema-json/raw/refs/heads/main/config.schema.json
+values:
+  - values.yaml
+
+draft: 7
+indent: 2
+output: values.schema.json
+useHelmDocs: true
+noDefaultGlobal: true
+
+schemaRoot:
+  title: NAuth Helm chart values
+  description: Schema for NAuth Helm chart values.
+  additionalProperties: false

@@ -2,12 +2,15 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# @schema additionalProperties: true
 global:
+  # @schema type: [object, null]; additionalProperties: {type: string}
   # -- Additional labels to add to templated NAuth chart resources.
   labels: {}
   # custom.label.environment: dev
   # custom.label.team: team-potato
 
+# @schema additionalProperties: false
 nats:
   # To move from one operator-level NatsCluster binding to explicit per-Account
   # bindings, first set this reference in strict mode, then add matching
@@ -16,6 +19,7 @@ nats:
   #
   # With `optional=false`, account-level refs must either be unset or match this cluster.
   # With `optional=true`, accounts without `spec.natsClusterRef` use this cluster, and accounts may override it.
+  # @schema additionalProperties: false
   # -- Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster.
   clusterRef:
     # -- NatsCluster resource name. Leave empty to disable operator-level binding.
@@ -27,14 +31,17 @@ nats:
     # -- Whether account-level `spec.natsClusterRef` values may override this operator-level cluster.
     optional: false
 
+# @schema minimum: 0
 # -- Number of NAuth operator replicas.
 replicaCount: 1
 
+# @schema additionalProperties: false
 image:
   # -- Container image registry for the NAuth operator.
   registry: ghcr.io/wirelesscar
   # -- Container image repository for the NAuth operator.
   repository: nauth-operator
+  # @schema enum: [Always, IfNotPresent, Never]
   # -- Kubernetes image pull policy for the NAuth operator container.
   pullPolicy: IfNotPresent
   # -- Override the container image tag. Defaults to the chart app version when empty.
@@ -47,6 +54,7 @@ nameOverride: ""
 # -- Override the full generated resource name. Defaults to `<Release.Name>-<Chart.Name>`.
 fullnameOverride: ""
 
+# @schema additionalProperties: false
 namespace:
   # -- Override the namespace rendered into namespaced resources. Defaults to the Helm release namespace.
   nameOverride: ""
@@ -54,35 +62,44 @@ namespace:
 # -- Limit the operator to the configured namespace instead of watching all namespaces.
 namespaced: false
 
+# @schema additionalProperties: false
 logging:
+  # @schema enum: ["", text, json]
   # -- Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`.
   format: ""
+  # @schema enum: ["", debug, info, warn, error]
   # -- Operator log level. Supported values: `debug`, `info`, `warn`, `error`.
   level: ""
 
+# @schema additionalProperties: false
 serviceAccount:
   # -- Create a ServiceAccount for the NAuth operator.
   create: true
   # TODO(#345): Decide whether to render this value or remove it from the public values API.
   # -- Reserved value for ServiceAccount token automounting. This value is not currently rendered by the chart.
   automount: true
+  # @schema type: [object, null]; additionalProperties: {type: string}
   # -- Annotations to add to the ServiceAccount.
   annotations: {}
   # -- Override the ServiceAccount name. Defaults to the generated full name when empty.
   nameOverride: ""
 
+# @schema type: [object, null]; additionalProperties: {type: string}
 # -- Annotations to add to the NAuth operator Pod.
 podAnnotations: {}
 
 # TODO(#345): Decide whether to render this value or remove it from the public values API.
+# @schema type: [object, null]; additionalProperties: {type: string}
 # -- Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart.
 podLabels: {}
 
+# @schema type: [object, null]; skipProperties: true
 # -- Pod security context for the NAuth operator Pod.
 podSecurityContext:
   runAsNonRoot: true
   # fsGroup: 2000
 
+# @schema type: [object, null]; skipProperties: true
 # -- Container security context for the NAuth operator container.
 securityContext:
   # This is defined by the distroless nonroot user
@@ -96,13 +113,16 @@ securityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# @schema additionalProperties: false
 monitoring:
   # -- Expose controller-runtime Prometheus metrics on `/metrics` for direct scraping or collection through a Prometheus receiver.
   enabled: false
+  # @schema additionalProperties: false
   serviceMonitor:
     # -- Create Prometheus Operator ServiceMonitor and PrometheusRule resources. Requires the ServiceMonitor and PrometheusRule CRDs.
     enabled: false
 
+# @schema type: [object, null]; skipProperties: true
 # -- Resource requests and limits for the NAuth operator container.
 resources: {}
 # limits:
@@ -112,6 +132,7 @@ resources: {}
 #   cpu: 100m
 #   memory: 128Mi
 
+# @schema type: [object, null]; skipProperties: true
 # -- Liveness probe for the NAuth operator container.
 livenessProbe:
   httpGet:
@@ -120,6 +141,7 @@ livenessProbe:
   initialDelaySeconds: 15
   periodSeconds: 20
 
+# @schema type: [object, null]; skipProperties: true
 # -- Readiness probe for the NAuth operator container.
 readinessProbe:
   httpGet:
@@ -128,29 +150,37 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 10
 
+# @schema type: [array, null]; item: object
 # -- Additional volumes for the NAuth operator Pod.
 volumes: []
 
+# @schema type: [array, null]; item: object
 # -- Additional volume mounts for the NAuth operator container.
 volumeMounts: []
 
+# @schema minimum: 0
 # -- Termination grace period for the NAuth operator Pod, in seconds.
 terminationGracePeriodSeconds: 10
 
+# @schema type: [object, null]; additionalProperties: {type: string}
 # -- Node selector for scheduling the NAuth operator Pod.
 nodeSelector: {}
 
+# @schema type: [array, null]; item: object
 # -- Tolerations for scheduling the NAuth operator Pod.
 tolerations: []
 
+# @schema type: [object, null]; skipProperties: true
 # -- Affinity rules for scheduling the NAuth operator Pod.
 affinity: {}
 
+# @schema additionalProperties: false
 crds:
   # -- Install and upgrade NAuth CustomResourceDefinitions as part of this chart release.
   install: true
   # -- Keep NAuth CustomResourceDefinitions when this chart release is uninstalled.
   keep: true
 
+# @schema type: [array, null]; item: object
 # -- Additional Kubernetes resources to render with the chart. Values are templated before rendering.
 extraResources: []

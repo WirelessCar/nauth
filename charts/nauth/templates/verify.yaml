@@ -1,6 +1,0 @@
-{{- if and .Values.logging.format (not (mustHas .Values.logging.format (list "text" "json"))) }}
-{{- fail "logging.format must be empty, text, or json" }}
-{{- end }}
-{{- if and .Values.logging.level (not (mustHas .Values.logging.level (list "debug" "info" "warn" "error"))) }}
-{{- fail "logging.level must be empty, debug, info, warn, or error" }}
-{{- end }}

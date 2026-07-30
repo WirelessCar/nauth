@@ -1,0 +1,309 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "NAuth Helm chart values",
+  "description": "Schema for NAuth Helm chart values.",
+  "type": "object",
+  "properties": {
+    "affinity": {
+      "description": "Affinity rules for scheduling the NAuth operator Pod.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "crds": {
+      "type": "object",
+      "properties": {
+        "install": {
+          "description": "Install and upgrade NAuth CustomResourceDefinitions as part of this chart release.",
+          "type": "boolean"
+        },
+        "keep": {
+          "description": "Keep NAuth CustomResourceDefinitions when this chart release is uninstalled.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "extraResources": {
+      "description": "Additional Kubernetes resources to render with the chart. Values are templated before rendering.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "fullnameOverride": {
+      "description": "Override the full generated resource name. Defaults to `\u003cRelease.Name\u003e-\u003cChart.Name\u003e`.",
+      "type": "string"
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "description": "Additional labels to add to templated NAuth chart resources.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "pullPolicy": {
+          "description": "Kubernetes image pull policy for the NAuth operator container.",
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        },
+        "registry": {
+          "description": "Container image registry for the NAuth operator.",
+          "type": "string"
+        },
+        "repository": {
+          "description": "Container image repository for the NAuth operator.",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Override the container image tag. Defaults to the chart app version when empty.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "livenessProbe": {
+      "description": "Liveness probe for the NAuth operator container.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`.",
+          "type": "string",
+          "enum": [
+            "",
+            "text",
+            "json"
+          ]
+        },
+        "level": {
+          "description": "Operator log level. Supported values: `debug`, `info`, `warn`, `error`.",
+          "type": "string",
+          "enum": [
+            "",
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "monitoring": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Expose controller-runtime Prometheus metrics on `/metrics` for direct scraping or collection through a Prometheus receiver.",
+          "type": "boolean"
+        },
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "Create Prometheus Operator ServiceMonitor and PrometheusRule resources. Requires the ServiceMonitor and PrometheusRule CRDs.",
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "nameOverride": {
+      "description": "Override the chart name used in generated resource names.",
+      "type": "string"
+    },
+    "namespace": {
+      "type": "object",
+      "properties": {
+        "nameOverride": {
+          "description": "Override the namespace rendered into namespaced resources. Defaults to the Helm release namespace.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "namespaced": {
+      "description": "Limit the operator to the configured namespace instead of watching all namespaces.",
+      "type": "boolean"
+    },
+    "nats": {
+      "type": "object",
+      "properties": {
+        "clusterRef": {
+          "description": "Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster.",
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "NatsCluster resource name. Leave empty to disable operator-level binding.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "NatsCluster resource namespace. When empty and `name` is set, the chart namespace is used.",
+              "type": "string"
+            },
+            "optional": {
+              "description": "Whether account-level `spec.natsClusterRef` values may override this operator-level cluster.",
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "nodeSelector": {
+      "description": "Node selector for scheduling the NAuth operator Pod.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "podAnnotations": {
+      "description": "Annotations to add to the NAuth operator Pod.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "podLabels": {
+      "description": "Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "podSecurityContext": {
+      "description": "Pod security context for the NAuth operator Pod.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "readinessProbe": {
+      "description": "Readiness probe for the NAuth operator container.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "replicaCount": {
+      "description": "Number of NAuth operator replicas.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "resources": {
+      "description": "Resource requests and limits for the NAuth operator container.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "securityContext": {
+      "description": "Container security context for the NAuth operator container.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "description": "Annotations to add to the ServiceAccount.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "automount": {
+          "description": "Reserved value for ServiceAccount token automounting. This value is not currently rendered by the chart.",
+          "type": "boolean"
+        },
+        "create": {
+          "description": "Create a ServiceAccount for the NAuth operator.",
+          "type": "boolean"
+        },
+        "nameOverride": {
+          "description": "Override the ServiceAccount name. Defaults to the generated full name when empty.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "terminationGracePeriodSeconds": {
+      "description": "Termination grace period for the NAuth operator Pod, in seconds.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "tolerations": {
+      "description": "Tolerations for scheduling the NAuth operator Pod.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "volumeMounts": {
+      "description": "Additional volume mounts for the NAuth operator container.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "volumes": {
+      "description": "Additional volumes for the NAuth operator Pod.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": false
+}
