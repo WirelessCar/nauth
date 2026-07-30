@@ -61,10 +61,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name the child resource name |  | MinLength: 1 <br />Required: \{\} <br />Required: \{\} <br /> |
-| `uid` _[UID](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#uid-types-pkg)_ | UID of the child resource UID |  | Required: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration refers to the observed generation of the child resource. |  | Minimum: 0 <br />Required: \{\} <br /> |
-| `status` _[AccountAdoptionStatus](#accountadoptionstatus)_ | Status of the adoption |  | Required: \{\} <br /> |
+| `name` _string_ | Name the child resource name |  | MinLength: 1 <br />Required <br /> |
+| `uid` _[UID](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#uid-types-pkg)_ | UID of the child resource UID |  | Required <br /> |
+| `observedGeneration` _integer_ | ObservedGeneration refers to the observed generation of the child resource. |  | Minimum: 0 <br />Required <br /> |
+| `status` _[AccountAdoptionStatus](#accountadoptionstatus)_ | Status of the adoption |  | Required <br /> |
 
 
 #### AccountAdoptionStatus
@@ -80,10 +80,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `status` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#conditionstatus-v1-meta)_ | Status of the adoption, one of True, False, Unknown. |  | Enum: [True False Unknown] <br />Required: \{\} <br />Required: \{\} <br /> |
-| `desiredClaimObservedGeneration` _integer_ | DesiredClaimObservedGeneration refers to the observed generation of the child resource desired claim. |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `reason` _string_ | Reason contains a programmatic identifier indicating the reason for the adoption's last transition.<br />The value should be a CamelCase string.<br />This field may not be empty. |  | MaxLength: 1024 <br />MinLength: 1 <br />Pattern: `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$` <br />Required: \{\} <br />Required: \{\} <br /> |
-| `message` _string_ | Message is a human-readable message indicating details about the adoption. |  | MaxLength: 32768 <br />Optional: \{\} <br /> |
+| `status` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#conditionstatus-v1-meta)_ | Status of the adoption, one of True, False, Unknown. |  | Enum: [True False Unknown] <br />Required <br /> |
+| `desiredClaimObservedGeneration` _integer_ | DesiredClaimObservedGeneration refers to the observed generation of the child resource desired claim. |  | Minimum: 0 <br /> |
+| `reason` _string_ | Reason contains a programmatic identifier indicating the reason for the adoption's last transition.<br />The value should be a CamelCase string.<br />This field may not be empty. |  | MaxLength: 1024 <br />MinLength: 1 <br />Pattern: `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$` <br />Required <br /> |
+| `message` _string_ | Message is a human-readable message indicating details about the adoption. |  | MaxLength: 32768 <br /> |
 
 
 #### AccountAdoptions
@@ -99,8 +99,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `exports` _[AccountAdoption](#accountadoption) array_ | Exports defines adoptions of type `AccountExport` that are bound to the account. |  | Optional: \{\} <br /> |
-| `imports` _[AccountAdoption](#accountadoption) array_ | Imports defines adoptions of type `AccountImport` that are bound to the account. |  | Optional: \{\} <br /> |
+| `exports` _[AccountAdoption](#accountadoption) array_ | Exports defines adoptions of type `AccountExport` that are bound to the account. |  |  |
+| `imports` _[AccountAdoption](#accountadoption) array_ | Imports defines adoptions of type `AccountImport` that are bound to the account. |  |  |
 
 
 #### AccountClaims
@@ -116,14 +116,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountLimits` _[AccountLimits](#accountlimits)_ |  |  | Optional: \{\} <br /> |
-| `displayName` _string_ |  |  | Optional: \{\} <br /> |
-| `signingKeys` _[SigningKeys](#signingkeys)_ |  |  | Optional: \{\} <br /> |
-| `exports` _[Exports](#exports)_ |  |  | Optional: \{\} <br /> |
-| `imports` _[Imports](#imports)_ |  |  | Optional: \{\} <br /> |
-| `jetStreamEnabled` _boolean_ |  |  | Optional: \{\} <br /> |
-| `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  | Optional: \{\} <br /> |
-| `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
+| `accountLimits` _[AccountLimits](#accountlimits)_ |  |  |  |
+| `displayName` _string_ |  |  |  |
+| `signingKeys` _[SigningKeys](#signingkeys)_ |  |  |  |
+| `exports` _[Exports](#exports)_ |  |  |  |
+| `imports` _[Imports](#imports)_ |  |  |  |
+| `jetStreamEnabled` _boolean_ |  |  |  |
+| `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  |  |
+| `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
 
 
 #### AccountExport
@@ -159,8 +159,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `rules` _[AccountExportRule](#accountexportrule) array_ | Rules contains export rules that have been validated and are ready to be used by Account |  | MinItems: 1 <br />Required: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Required: \{\} <br /> |
+| `rules` _[AccountExportRule](#accountexportrule) array_ | Rules contains export rules that have been validated and are ready to be used by Account |  | MinItems: 1 <br />Required <br /> |
+| `observedGeneration` _integer_ |  |  | Required <br /> |
 
 
 
@@ -197,15 +197,15 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ |  |  | Optional: \{\} <br /> |
-| `subject` _[Subject](#subject)_ |  |  | Required: \{\} <br /> |
-| `type` _[ExportType](#exporttype)_ |  |  | Enum: [stream service] <br />Required: \{\} <br /> |
-| `responseType` _[ResponseType](#responsetype)_ |  |  | Enum: [Singleton Stream Chunked] <br />Optional: \{\} <br /> |
-| `responseThreshold` _[Duration](#duration)_ |  |  | Optional: \{\} <br /> |
-| `serviceLatency` _[ServiceLatency](#servicelatency)_ |  |  | Optional: \{\} <br /> |
-| `accountTokenPosition` _integer_ |  |  | Optional: \{\} <br /> |
-| `advertise` _boolean_ |  |  | Optional: \{\} <br /> |
-| `allowTrace` _boolean_ |  |  | Optional: \{\} <br /> |
+| `name` _string_ |  |  |  |
+| `subject` _[Subject](#subject)_ |  |  | Required <br /> |
+| `type` _[ExportType](#exporttype)_ |  |  | Enum: [stream service] <br />Required <br /> |
+| `responseType` _[ResponseType](#responsetype)_ |  |  | Enum: [Singleton Stream Chunked] <br /> |
+| `responseThreshold` _[Duration](#duration)_ |  |  |  |
+| `serviceLatency` _[ServiceLatency](#servicelatency)_ |  |  |  |
+| `accountTokenPosition` _integer_ |  |  |  |
+| `advertise` _boolean_ |  |  |  |
+| `allowTrace` _boolean_ |  |  |  |
 
 
 #### AccountExportSpec
@@ -221,8 +221,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountName` _string_ | AccountName refers to the Account in the same namespace to which this export applies. |  | Required: \{\} <br /> |
-| `rules` _[AccountExportRule](#accountexportrule) array_ | Rules defines the export rules for this account export. Must have at least one rule. |  | MinItems: 1 <br />Required: \{\} <br /> |
+| `accountName` _string_ | AccountName refers to the Account in the same namespace to which this export applies. |  | Required <br /> |
+| `rules` _[AccountExportRule](#accountexportrule) array_ | Rules defines the export rules for this account export. Must have at least one rule. |  | MinItems: 1 <br />Required <br /> |
 
 
 #### AccountExportStatus
@@ -238,12 +238,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountID` _string_ | AccountID is the ID of the account that this export is bound to. |  | Optional: \{\} <br /> |
-| `desiredClaim` _[AccountExportClaim](#accountexportclaim)_ | Normalized claim for account to use |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `accountID` _string_ | AccountID is the ID of the account that this export is bound to. |  |  |
+| `desiredClaim` _[AccountExportClaim](#accountexportclaim)_ | Normalized claim for account to use |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |
 
 
 #### AccountImport
@@ -279,8 +279,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `rules` _[AccountImportRuleDerived](#accountimportrulederived) array_ | Rules contains import rules that have been validated and are ready to be used by Account. |  | MinItems: 1 <br />Required: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Required: \{\} <br /> |
+| `rules` _[AccountImportRuleDerived](#accountimportrulederived) array_ | Rules contains import rules that have been validated and are ready to be used by Account. |  | MinItems: 1 <br />Required <br /> |
+| `observedGeneration` _integer_ |  |  | Required <br /> |
 
 
 
@@ -317,12 +317,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ |  |  | Optional: \{\} <br /> |
-| `subject` _[Subject](#subject)_ | Subject is the exported subject to import.<br />It must be identical to or a subset of the exported subject. |  | Required: \{\} <br /> |
-| `localSubject` _[RenamingSubject](#renamingsubject)_ | LocalSubject remaps the imported subject locally in the importing account. |  | Optional: \{\} <br /> |
-| `type` _[ExportType](#exporttype)_ | Type defines whether the import is a stream or service import. |  | Enum: [stream service] <br />Required: \{\} <br /> |
-| `share` _boolean_ |  |  | Optional: \{\} <br /> |
-| `allowTrace` _boolean_ |  |  | Optional: \{\} <br /> |
+| `name` _string_ |  |  |  |
+| `subject` _[Subject](#subject)_ | Subject is the exported subject to import.<br />It must be identical to or a subset of the exported subject. |  | Required <br /> |
+| `localSubject` _[RenamingSubject](#renamingsubject)_ | LocalSubject remaps the imported subject locally in the importing account. |  |  |
+| `type` _[ExportType](#exporttype)_ | Type defines whether the import is a stream or service import. |  | Enum: [stream service] <br />Required <br /> |
+| `share` _boolean_ |  |  |  |
+| `allowTrace` _boolean_ |  |  |  |
 
 
 #### AccountImportRuleDerived
@@ -338,13 +338,13 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ |  |  | Optional: \{\} <br /> |
-| `subject` _[Subject](#subject)_ | Subject is the exported subject to import.<br />It must be identical to or a subset of the exported subject. |  | Required: \{\} <br /> |
-| `localSubject` _[RenamingSubject](#renamingsubject)_ | LocalSubject remaps the imported subject locally in the importing account. |  | Optional: \{\} <br /> |
-| `type` _[ExportType](#exporttype)_ | Type defines whether the import is a stream or service import. |  | Enum: [stream service] <br />Required: \{\} <br /> |
-| `share` _boolean_ |  |  | Optional: \{\} <br /> |
-| `allowTrace` _boolean_ |  |  | Optional: \{\} <br /> |
-| `account` _string_ | Account is the resolved export account ID used for this import rule. |  | Required: \{\} <br /> |
+| `name` _string_ |  |  |  |
+| `subject` _[Subject](#subject)_ | Subject is the exported subject to import.<br />It must be identical to or a subset of the exported subject. |  | Required <br /> |
+| `localSubject` _[RenamingSubject](#renamingsubject)_ | LocalSubject remaps the imported subject locally in the importing account. |  |  |
+| `type` _[ExportType](#exporttype)_ | Type defines whether the import is a stream or service import. |  | Enum: [stream service] <br />Required <br /> |
+| `share` _boolean_ |  |  |  |
+| `allowTrace` _boolean_ |  |  |  |
+| `account` _string_ | Account is the resolved export account ID used for this import rule. |  | Required <br /> |
 
 
 #### AccountImportSpec
@@ -360,9 +360,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountName` _string_ | AccountName refers to the Account in the same namespace to which this import applies. |  | Required: \{\} <br /> |
-| `exportAccountRef` _[AccountRef](#accountref)_ | ExportAccountRef refers to the Account from which the exports are imported.<br />This reference may point to an Account in another namespace. |  | Required: \{\} <br /> |
-| `rules` _[AccountImportRule](#accountimportrule) array_ | Rules defines the import rules for this AccountImport. |  | MinItems: 1 <br />Required: \{\} <br /> |
+| `accountName` _string_ | AccountName refers to the Account in the same namespace to which this import applies. |  | Required <br /> |
+| `exportAccountRef` _[AccountRef](#accountref)_ | ExportAccountRef refers to the Account from which the exports are imported.<br />This reference may point to an Account in another namespace. |  | Required <br /> |
+| `rules` _[AccountImportRule](#accountimportrule) array_ | Rules defines the import rules for this AccountImport. |  | MinItems: 1 <br />Required <br /> |
 
 
 #### AccountImportStatus
@@ -378,13 +378,13 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountID` _string_ | AccountID is the resolved ID of the Account referenced by spec.accountName. |  | Optional: \{\} <br /> |
-| `exportAccountID` _string_ | ExportAccountID is the resolved ID of the Account referenced by spec.exportAccountRef. |  | Optional: \{\} <br /> |
-| `desiredClaim` _[AccountImportClaim](#accountimportclaim)_ | DesiredClaim is the normalized claim for Account to use. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `accountID` _string_ | AccountID is the resolved ID of the Account referenced by spec.accountName. |  |  |
+| `exportAccountID` _string_ | ExportAccountID is the resolved ID of the Account referenced by spec.exportAccountRef. |  |  |
+| `desiredClaim` _[AccountImportClaim](#accountimportclaim)_ | DesiredClaim is the normalized claim for Account to use. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |
 
 
 
@@ -403,11 +403,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `imports` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `exports` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `wildcards` _boolean_ |  | true | Optional: \{\} <br /> |
-| `conn` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `leaf` _integer_ |  | -1 | Optional: \{\} <br /> |
+| `imports` _integer_ |  | -1 |  |
+| `exports` _integer_ |  | -1 |  |
+| `wildcards` _boolean_ |  | true |  |
+| `conn` _integer_ |  | -1 |  |
+| `leaf` _integer_ |  | -1 |  |
 
 
 #### AccountList
@@ -509,9 +509,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kind` _[AccountSigningKeyRefKind](#accountsigningkeyrefkind)_ | Kind of the referenced resource. Defaults to AccountSigningKey. | AccountSigningKey | Enum: [AccountSigningKey] <br />Optional: \{\} <br /> |
-| `name` _string_ | Name of the referenced resource. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required: \{\} <br /> |
-| `namespace` _string_ | Namespace of the referenced resource. When empty, defaults to the<br />referrer's namespace. Cross-namespace references let multiple Accounts<br />trust a shared signing key (e.g. a cluster-wide Auth Callout service). |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br />Optional: \{\} <br /> |
+| `kind` _[AccountSigningKeyRefKind](#accountsigningkeyrefkind)_ | Kind of the referenced resource. Defaults to AccountSigningKey. | AccountSigningKey | Enum: [AccountSigningKey] <br /> |
+| `name` _string_ | Name of the referenced resource. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required <br /> |
+| `namespace` _string_ | Namespace of the referenced resource. When empty, defaults to the<br />referrer's namespace. Cross-namespace references let multiple Accounts<br />trust a shared signing key (e.g. a cluster-wide Auth Callout service). |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
 
 #### AccountSigningKeyRefKind
@@ -545,7 +545,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `secretName` _string_ | SecretName names the Kubernetes Secret that holds the account signing-key seed.<br />In managed mode (default), SecretName is optional and defaults to<br /><resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.<br />In observe mode (label nauth.io/management-policy=observe), SecretName is<br />required and identifies the existing Secret to read; the operator never falls<br />back to the managed default name and never modifies the Secret.<br />Immutable. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Optional: \{\} <br /> |
+| `secretName` _string_ | SecretName names the Kubernetes Secret that holds the account signing-key seed.<br />In managed mode (default), SecretName is optional and defaults to<br /><resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.<br />In observe mode (label nauth.io/management-policy=observe), SecretName is<br />required and identifies the existing Secret to read; the operator never falls<br />back to the managed default name and never modifies the Secret.<br />Immutable. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 
 
 #### AccountSigningKeyStatus
@@ -561,13 +561,13 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `publicKey` _string_ | PublicKey is the resolved NATS public key (A-prefixed nkey) for this signing key. |  | Optional: \{\} <br /> |
-| `secretName` _string_ | SecretName is the resolved name of the Secret holding the seed. |  | Optional: \{\} <br /> |
-| `managementPolicy` _string_ | ManagementPolicy reflects the effective management policy for this resource.<br />Empty means managed (default); "observe" means the Secret is only read. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `publicKey` _string_ | PublicKey is the resolved NATS public key (A-prefixed nkey) for this signing key. |  |  |
+| `secretName` _string_ | SecretName is the resolved name of the Secret holding the seed. |  |  |
+| `managementPolicy` _string_ | ManagementPolicy reflects the effective management policy for this resource.<br />Empty means managed (default); "observe" means the Secret is only read. |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |
 
 
 #### AccountSpec
@@ -583,15 +583,15 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account.<br />If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.<br />Otherwise, reconciliation fails because the target NatsCluster cannot be resolved. |  | Optional: \{\} <br /> |
-| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the account. May be derived if absent. |  | Optional: \{\} <br /> |
-| `jetStreamEnabled` _boolean_ | JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.<br />If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits. |  | Optional: \{\} <br /> |
-| `accountLimits` _[AccountLimits](#accountlimits)_ |  |  | Optional: \{\} <br /> |
-| `exports` _[Exports](#exports)_ |  |  | Optional: \{\} <br /> |
-| `imports` _[Imports](#imports)_ |  |  | Optional: \{\} <br /> |
-| `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  | Optional: \{\} <br /> |
-| `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
-| `signingKeyRefs` _[AccountSigningKeyRef](#accountsigningkeyref) array_ | SigningKeyRefs lists references whose public keys are trusted as additional<br />signing keys for this account. The implicit default signing key is always<br />present and is not listed here. |  | MaxItems: 64 <br />Optional: \{\} <br /> |
+| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account.<br />If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.<br />Otherwise, reconciliation fails because the target NatsCluster cannot be resolved. |  |  |
+| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the account. May be derived if absent. |  |  |
+| `jetStreamEnabled` _boolean_ | JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.<br />If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits. |  |  |
+| `accountLimits` _[AccountLimits](#accountlimits)_ |  |  |  |
+| `exports` _[Exports](#exports)_ |  |  |  |
+| `imports` _[Imports](#imports)_ |  |  |  |
+| `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  |  |
+| `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
+| `signingKeyRefs` _[AccountSigningKeyRef](#accountsigningkeyref) array_ | SigningKeyRefs lists references whose public keys are trusted as additional<br />signing keys for this account. The implicit default signing key is always<br />present and is not listed here. |  | MaxItems: 64 <br /> |
 
 
 #### AccountStatus
@@ -607,13 +607,13 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `claims` _[AccountClaims](#accountclaims)_ |  |  | Optional: \{\} <br /> |
-| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated. |  | Optional: \{\} <br /> |
-| `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
+| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated. |  |  |
+| `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |
 
 
 #### CIDRList
@@ -767,14 +767,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `memStorage` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `diskStorage` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `streams` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `consumer` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `maxAckPending` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `memMaxStreamBytes` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `diskMaxStreamBytes` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `maxBytesRequired` _boolean_ |  | false | Optional: \{\} <br /> |
+| `memStorage` _integer_ |  | -1 |  |
+| `diskStorage` _integer_ |  | -1 |  |
+| `streams` _integer_ |  | -1 |  |
+| `consumer` _integer_ |  | -1 |  |
+| `maxAckPending` _integer_ |  | -1 |  |
+| `memMaxStreamBytes` _integer_ |  | -1 |  |
+| `diskMaxStreamBytes` _integer_ |  | -1 |  |
+| `maxBytesRequired` _boolean_ |  | false |  |
 
 
 #### NatsCluster
@@ -829,7 +829,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name of the NatsCluster |  |  |
-| `namespace` _string_ | Namespace of the NatsCluster |  | Optional: \{\} <br /> |
+| `namespace` _string_ | Namespace of the NatsCluster |  |  |
 
 
 #### NatsClusterSpec
@@ -845,8 +845,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ | URL is the NATS server URL for this cluster. Mutually exclusive with urlFrom. |  | Optional: \{\} <br /> |
-| `urlFrom` _[URLFromReference](#urlfromreference)_ | URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with url. |  | Optional: \{\} <br /> |
+| `url` _string_ | URL is the NATS server URL for this cluster. Mutually exclusive with urlFrom. |  |  |
+| `urlFrom` _[URLFromReference](#urlfromreference)_ | URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with url. |  |  |
 | `operatorSigningKeySecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
 | `systemAccountUserCredsSecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
 
@@ -864,10 +864,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |
 
 
 #### NatsLimits
@@ -886,9 +886,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `subs` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `data` _integer_ |  | -1 | Optional: \{\} <br /> |
-| `payload` _integer_ |  | -1 | Optional: \{\} <br /> |
+| `subs` _integer_ |  | -1 |  |
+| `data` _integer_ |  | -1 |  |
+| `payload` _integer_ |  | -1 |  |
 
 
 #### Permission
@@ -904,8 +904,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `allow` _[StringList](#stringlist)_ |  |  | Optional: \{\} <br /> |
-| `deny` _[StringList](#stringlist)_ |  |  | Optional: \{\} <br /> |
+| `allow` _[StringList](#stringlist)_ |  |  |  |
+| `deny` _[StringList](#stringlist)_ |  |  |  |
 
 
 #### Permissions
@@ -922,9 +922,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `pub` _[Permission](#permission)_ |  |  | Optional: \{\} <br /> |
-| `sub` _[Permission](#permission)_ |  |  | Optional: \{\} <br /> |
-| `resp` _[ResponsePermission](#responsepermission)_ |  |  | Optional: \{\} <br /> |
+| `pub` _[Permission](#permission)_ |  |  |  |
+| `sub` _[Permission](#permission)_ |  |  |  |
+| `resp` _[ResponsePermission](#responsepermission)_ |  |  |  |
 
 
 #### RenamingSubject
@@ -956,8 +956,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `max` _integer_ |  |  | Optional: \{\} <br /> |
-| `ttl` _[Duration](#duration)_ |  |  | Optional: \{\} <br /> |
+| `max` _integer_ |  |  |  |
+| `ttl` _[Duration](#duration)_ |  |  |  |
 
 
 #### ResponseType
@@ -1014,8 +1014,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name of the Secret. |  | Required: \{\} <br /> |
-| `key` _string_ | Key in the Secret, when not specified an implementation-specific default key is used. |  | Optional: \{\} <br /> |
+| `name` _string_ | Name of the Secret. |  | Required <br /> |
+| `key` _string_ | Key in the Secret, when not specified an implementation-specific default key is used. |  |  |
 
 
 #### ServiceLatency
@@ -1162,10 +1162,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kind` _[URLFromKind](#urlfromkind)_ | Kind is the type of resource to load from: ConfigMap or Secret. |  | Enum: [ConfigMap Secret] <br />Required: \{\} <br /> |
-| `name` _string_ | Name of the ConfigMap or Secret. |  | Required: \{\} <br /> |
-| `namespace` _string_ | Namespace of the resource. When empty, defaults to the NatsCluster's namespace. |  | Optional: \{\} <br /> |
-| `key` _string_ | Key in the ConfigMap or Secret whose value is the NATS URL. |  | Required: \{\} <br /> |
+| `kind` _[URLFromKind](#urlfromkind)_ | Kind is the type of resource to load from: ConfigMap or Secret. |  | Enum: [ConfigMap Secret] <br />Required <br /> |
+| `name` _string_ | Name of the ConfigMap or Secret. |  | Required <br /> |
+| `namespace` _string_ | Namespace of the resource. When empty, defaults to the NatsCluster's namespace. |  |  |
+| `key` _string_ | Key in the ConfigMap or Secret whose value is the NATS URL. |  | Required <br /> |
 
 
 #### User
@@ -1201,12 +1201,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountName` _string_ | Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102 |  | Optional: \{\} <br /> |
-| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. |  | Optional: \{\} <br /> |
-| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is the absolute time when the generated user JWT expires. |  | Optional: \{\} <br /> |
-| `permissions` _[Permissions](#permissions)_ |  |  | Optional: \{\} <br /> |
-| `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
-| `userLimits` _[UserLimits](#userlimits)_ |  |  | Optional: \{\} <br /> |
+| `accountName` _string_ | Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102 |  |  |
+| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is the absolute time when the generated user JWT expires. |  |  |
+| `permissions` _[Permissions](#permissions)_ |  |  |  |
+| `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
+| `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
 
 
 
@@ -1225,9 +1225,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `src` _[CIDRList](#cidrlist)_ | Src is a comma separated list of CIDR specifications |  | Optional: \{\} <br /> |
-| `times` _[TimeRange](#timerange) array_ |  |  | Optional: \{\} <br /> |
-| `timesLocation` _string_ |  |  | Optional: \{\} <br /> |
+| `src` _[CIDRList](#cidrlist)_ | Src is a comma separated list of CIDR specifications |  |  |
+| `times` _[TimeRange](#timerange) array_ |  |  |  |
+| `timesLocation` _string_ |  |  |  |
 
 
 #### UserList
@@ -1262,12 +1262,12 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `accountName` _string_ | AccountName references the account used to create the user. |  |  |
-| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  | Optional: \{\} <br /> |
-| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  | Optional: \{\} <br /> |
-| `permissions` _[Permissions](#permissions)_ |  |  | Optional: \{\} <br /> |
-| `userLimits` _[UserLimits](#userlimits)_ |  |  | Optional: \{\} <br /> |
-| `natsLimits` _[NatsLimits](#natslimits)_ |  |  | Optional: \{\} <br /> |
-| `signingKeyRef` _[AccountSigningKeyRef](#accountsigningkeyref)_ | SigningKeyRef optionally references the signing key used to sign this User's<br />JWT. When absent, the Account's implicit signing key is used. The referenced<br />AccountSigningKey's public key must appear in Account.status.claims.signingKeys<br />at reconciliation time. |  | Optional: \{\} <br /> |
+| `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  |  |
+| `permissions` _[Permissions](#permissions)_ |  |  |  |
+| `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
+| `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
+| `signingKeyRef` _[AccountSigningKeyRef](#accountsigningkeyref)_ | SigningKeyRef optionally references the signing key used to sign this User's<br />JWT. When absent, the Account's implicit signing key is used. The referenced<br />AccountSigningKey's public key must appear in Account.status.claims.signingKeys<br />at reconciliation time. |  |  |
 
 
 #### UserStatus
@@ -1283,8 +1283,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
-| `claims` _[UserClaims](#userclaims)_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `operatorVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `claims` _[UserClaims](#userclaims)_ |  |  |  |
+| `observedGeneration` _integer_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `operatorVersion` _string_ |  |  |  |

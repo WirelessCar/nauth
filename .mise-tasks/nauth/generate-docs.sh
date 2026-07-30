@@ -12,6 +12,7 @@ crd-ref-docs \
     --source-path="$MISE_PROJECT_ROOT/api" \
     --config="$MISE_PROJECT_ROOT/api/config.yaml" \
     --renderer=markdown \
+    --templates-dir="$MISE_PROJECT_ROOT/api/templates/markdown" \
     --output-path="$crd_docs"
 
 # Add the required frontmatter for Starlight
