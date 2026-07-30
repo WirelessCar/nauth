@@ -1,3 +1,7 @@
+processor:
+  ignoreFields:
+    - "TypeMeta$"
+
 render:
   kubernetesVersion: 1.36
   knownTypes:
