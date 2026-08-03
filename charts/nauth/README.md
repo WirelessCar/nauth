@@ -35,7 +35,6 @@
 | resources | object | `{}` | Resource requests and limits for the NAuth operator container. |
 | securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsGroup":65532,"runAsUser":65532,"seccompProfile":{"type":"RuntimeDefault"}}` | Container security context for the NAuth operator container. |
 | serviceAccount.annotations | object | `{}` | Annotations to add to the ServiceAccount. |
-| serviceAccount.automount | bool | `true` | Reserved value for ServiceAccount token automounting. This value is not currently rendered by the chart. |
 | serviceAccount.create | bool | `true` | Create a ServiceAccount for the NAuth operator. |
 | serviceAccount.nameOverride | string | `""` | Override the ServiceAccount name. Defaults to the generated full name when empty. |
 | terminationGracePeriodSeconds | int | `10` | Termination grace period for the NAuth operator Pod, in seconds. |
