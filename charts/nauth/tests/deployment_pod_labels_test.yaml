@@ -1,0 +1,39 @@
+suite: .Values.podLabels on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: propagates podLabels to the operator Pod
+    set:
+      podLabels:
+        custom.label/team: platform
+        custom.label/tier: control-plane
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["custom.label/team"]
+          value: platform
+      - equal:
+          path: spec.template.metadata.labels["custom.label/tier"]
+          value: control-plane
+      - notExists:
+          path: metadata.labels["custom.label/team"]
+
+  - it: preserves labels used by the Deployment selector
+    set:
+      podLabels:
+        control-plane: overridden
+        app.kubernetes.io/name: overridden
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["control-plane"]
+          value: controller-manager
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/name"]
+          value: nauth
+
+  - it: handles nil podLabels
+    set:
+      podLabels: ~
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["control-plane"]
+          value: controller-manager

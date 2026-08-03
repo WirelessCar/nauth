@@ -28,7 +28,7 @@
 | nats.clusterRef.optional | bool | `false` | Whether account-level `spec.natsClusterRef` values may override this operator-level cluster. |
 | nodeSelector | object | `{}` | Node selector for scheduling the NAuth operator Pod. |
 | podAnnotations | object | `{}` | Annotations to add to the NAuth operator Pod. |
-| podLabels | object | `{}` | Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart. |
+| podLabels | object | `{}` | Additional labels to add to the NAuth operator Pod. |
 | podSecurityContext | object | `{"runAsNonRoot":true}` | Pod security context for the NAuth operator Pod. |
 | readinessProbe | object | `{"httpGet":{"path":"/readyz","port":8081},"initialDelaySeconds":5,"periodSeconds":10}` | Readiness probe for the NAuth operator container. |
 | replicaCount | int | `1` | Number of NAuth operator replicas. |

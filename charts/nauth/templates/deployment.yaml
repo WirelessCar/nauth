@@ -21,8 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        control-plane: controller-manager
-        {{- include "nauth.labels" . | nindent 8 }}
+        {{- include "nauth.podLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "nauth.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}

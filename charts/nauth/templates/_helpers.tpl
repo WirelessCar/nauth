@@ -66,3 +66,13 @@ Selector labels
 app.kubernetes.io/name: {{ include "nauth.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Create labels for the NAuth operator Pod.
+*/}}
+{{- define "nauth.podLabels" -}}
+{{- $labels := dict "control-plane" "controller-manager" -}}
+{{- $_ := merge $labels (include "nauth.labels" . | fromYaml) -}}
+{{- $_ := merge $labels (.Values.podLabels | default dict) -}}
+{{- toYaml $labels -}}
+{{- end }}

@@ -85,9 +85,8 @@ serviceAccount:
 # -- Annotations to add to the NAuth operator Pod.
 podAnnotations: {}
 
-# TODO(#345): Decide whether to render this value or remove it from the public values API.
 # @schema type: [object, null]; additionalProperties: {type: string}
-# -- Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart.
+# -- Additional labels to add to the NAuth operator Pod.
 podLabels: {}
 
 # @schema type: [object, null]; skipProperties: true

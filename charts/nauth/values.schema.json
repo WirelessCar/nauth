@@ -199,7 +199,7 @@
       }
     },
     "podLabels": {
-      "description": "Reserved value for labels on the NAuth operator Pod. This value is not currently rendered by the chart.",
+      "description": "Additional labels to add to the NAuth operator Pod.",
       "type": [
         "object",
         "null"
