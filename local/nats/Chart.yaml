@@ -11,4 +11,4 @@ dependencies:
   - repository: https://nats-io.github.io/k8s/helm/charts/
     name: nack
     alias: nack
-    version: "0.34.0"
+    version: "0.35.0"
