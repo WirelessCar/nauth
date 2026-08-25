@@ -77,19 +77,24 @@ func (t *AccountControllerTestSuite) SetupTest() {
 
 	t.accountManagerMock = &accountManagerMock{}
 	t.clusterManagerMock = &clusterManagerMock{}
-	accountClient := k8s.NewAccountClient(k8sClient)
 	t.fakeRecorder = events.NewFakeRecorder(5)
-	t.unitUnderTest = NewAccountReconciler(
+	t.unitUnderTest = t.newAccountReconciler(false)
+
+	t.Require().NoError(ensureNamespace(t.ctx, t.operatorNamespace))
+	t.Require().NoError(ensureNamespace(t.ctx, t.accountNamespace))
+}
+
+func (t *AccountControllerTestSuite) newAccountReconciler(allowAccountNatsClusterRebind bool) *AccountReconciler {
+	accountClient := k8s.NewAccountClient(k8sClient)
+	return NewAccountReconciler(
 		k8sClient,
 		k8sClient.Scheme(),
 		t.accountManagerMock,
 		t.clusterManagerMock,
 		accountClient,
 		t.fakeRecorder,
+		allowAccountNatsClusterRebind,
 	)
-
-	t.Require().NoError(ensureNamespace(t.ctx, t.operatorNamespace))
-	t.Require().NoError(ensureNamespace(t.ctx, t.accountNamespace))
 }
 
 func (t *AccountControllerTestSuite) TearDownTest() {
@@ -310,6 +315,35 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldFail_WhenChangingNatsC
 	c := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
 	t.Equal(metav1.ConditionFalse, c.Status)
 	t.Equal(conditionReasonErrored, c.Reason)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldAllowChangingNatsCluster_WhenConfigured() {
+	// Given
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelNatsClusterID, "natscluster1")
+		}),
+	)
+	t.unitUnderTest = t.newAccountReconciler(true)
+
+	target := createDummyClusterTarget()
+	target.UID = "natscluster2"
+	t.clusterManagerMock.mockGetClusterTarget(target, nil)
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, &nauth.AccountResult{
+		AccountID:       "account-id",
+		AccountSignedBy: "operator-signing-key",
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Equal("natscluster2", account.GetLabel(v1alpha1.AccountLabelNatsClusterID))
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteObservedAccount() {

@@ -53,6 +53,8 @@ spec:
             - name: NATS_CLUSTER_REF_OPTIONAL
               value: {{ .Values.nats.clusterRef.optional | quote }}
             {{- end }}
+            - name: ALLOW_ACCOUNT_NATS_CLUSTER_REBIND
+              value: {{ .Values.nats.allowAccountNatsClusterRebind | quote }}
             - name: OPERATOR_VERSION
               value: {{ .Chart.AppVersion | quote }}
           {{- with .Values.securityContext }}

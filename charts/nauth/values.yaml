@@ -12,6 +12,9 @@ global:
 
 # @schema additionalProperties: false
 nats:
+  # -- Allow existing Accounts to change their NatsCluster binding. Disabled by default.
+  allowAccountNatsClusterRebind: false
+
   # To move from one operator-level NatsCluster binding to explicit per-Account
   # bindings, first set this reference in strict mode, then add matching
   # `spec.natsClusterRef` values to existing Accounts, and finally remove the

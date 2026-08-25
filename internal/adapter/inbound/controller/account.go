@@ -57,12 +57,13 @@ var (
 
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
-	kubernetes     *kubernetesClient
-	Scheme         *runtime.Scheme
-	manager        inbound.AccountManager
-	clusterManager inbound.ClusterManager
-	accountReader  k8s.AccountReader
-	reporter       *statusReporter
+	kubernetes                    *kubernetesClient
+	Scheme                        *runtime.Scheme
+	manager                       inbound.AccountManager
+	clusterManager                inbound.ClusterManager
+	accountReader                 k8s.AccountReader
+	reporter                      *statusReporter
+	allowAccountNatsClusterRebind bool
 }
 
 func NewAccountReconciler(
@@ -72,14 +73,16 @@ func NewAccountReconciler(
 	clusterManager inbound.ClusterManager,
 	accountReader k8s.AccountReader,
 	recorder events.EventRecorder,
+	allowAccountNatsClusterRebind bool,
 ) *AccountReconciler {
 	return &AccountReconciler{
-		kubernetes:     newKubernetesClient(k8sClient),
-		Scheme:         scheme,
-		manager:        manager,
-		clusterManager: clusterManager,
-		accountReader:  accountReader,
-		reporter:       newStatusReporter(k8sClient, recorder),
+		kubernetes:                    newKubernetesClient(k8sClient),
+		Scheme:                        scheme,
+		manager:                       manager,
+		clusterManager:                clusterManager,
+		accountReader:                 accountReader,
+		reporter:                      newStatusReporter(k8sClient, recorder),
+		allowAccountNatsClusterRebind: allowAccountNatsClusterRebind,
 	}
 }
 
@@ -142,7 +145,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// RECONCILE ACCOUNT
 
 	// Bind to NatsCluster
-	if err := bindAccountToCluster(natsAccount, clusterTarget.UID); err != nil {
+	if err := bindAccountToCluster(natsAccount, clusterTarget.UID, r.allowAccountNatsClusterRebind); err != nil {
 		return r.reporter.error(ctx, natsAccount, err)
 	}
 
@@ -265,15 +268,12 @@ func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.A
 	return ctrl.Result{}, nil
 }
 
-func bindAccountToCluster(account *v1alpha1.Account, clusterID string) error {
+func bindAccountToCluster(account *v1alpha1.Account, clusterID string, allowRebind bool) error {
 	boundToClusterID := account.GetLabel(v1alpha1.AccountLabelNatsClusterID)
-	if boundToClusterID == "" {
-		account.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
-		return nil
-	}
-	if boundToClusterID != clusterID {
+	if boundToClusterID != "" && boundToClusterID != clusterID && !allowRebind {
 		return fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
 	}
+	account.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
 	return nil
 }
 

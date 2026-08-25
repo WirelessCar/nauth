@@ -12,6 +12,11 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: NATS_CLUSTER_REF_OPTIONAL
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOW_ACCOUNT_NATS_CLUSTER_REBIND
+            value: "false"
 
   - it: includes NATS_CLUSTER_REF using nauth.namespaceName when nats.clusterRef.namespace is not set
     release:
@@ -152,3 +157,14 @@ tests:
           content:
             name: NATS_CLUSTER_REF_OPTIONAL
             value: "false"
+
+  - it: includes ALLOW_ACCOUNT_NATS_CLUSTER_REBIND when enabled
+    set:
+      nats:
+        allowAccountNatsClusterRebind: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ALLOW_ACCOUNT_NATS_CLUSTER_REBIND
+            value: "true"

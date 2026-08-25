@@ -213,6 +213,7 @@ func main() {
 	var operatorNatsCluster *core.OperatorNatsCluster
 	natsClusterRef := strings.TrimSpace(os.Getenv("NATS_CLUSTER_REF"))
 	natsClusterRefOptional := false
+	allowAccountNatsClusterRebind := false
 	if rawOptional, ok := os.LookupEnv("NATS_CLUSTER_REF_OPTIONAL"); ok {
 		natsClusterRefOptional, err = strconv.ParseBool(strings.TrimSpace(rawOptional))
 		if err != nil {
@@ -220,9 +221,23 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if rawAllowRebind, ok := os.LookupEnv("ALLOW_ACCOUNT_NATS_CLUSTER_REBIND"); ok {
+		allowAccountNatsClusterRebind, err = strconv.ParseBool(strings.TrimSpace(rawAllowRebind))
+		if err != nil {
+			setupLog.Error(
+				err,
+				"invalid ALLOW_ACCOUNT_NATS_CLUSTER_REBIND value",
+				"ALLOW_ACCOUNT_NATS_CLUSTER_REBIND",
+				rawAllowRebind,
+			)
+			os.Exit(1)
+		}
+	}
 	if natsClusterRef != "" {
 		setupLog.Info("manager configured with operator NATS cluster",
-			"natsClusterRef", natsClusterRef, "natsClusterRefOptional", natsClusterRefOptional)
+			"natsClusterRef", natsClusterRef,
+			"natsClusterRefOptional", natsClusterRefOptional,
+			"allowAccountNatsClusterRebind", allowAccountNatsClusterRebind)
 		operatorClusterRef, err := parseNatsClusterRef(natsClusterRef)
 		if err != nil {
 			setupLog.Error(err, "invalid NATS_CLUSTER_REF value", "NATS_CLUSTER_REF", natsClusterRef)
@@ -287,6 +302,7 @@ func main() {
 		clusterManager,
 		accountClient,
 		mgr.GetEventRecorder("account-controller"),
+		allowAccountNatsClusterRebind,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Account")

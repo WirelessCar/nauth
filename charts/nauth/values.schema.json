@@ -156,6 +156,10 @@
     "nats": {
       "type": "object",
       "properties": {
+        "allowAccountNatsClusterRebind": {
+          "description": "Allow existing Accounts to change their NatsCluster binding. Disabled by default.",
+          "type": "boolean"
+        },
         "clusterRef": {
           "description": "Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster.",
           "type": "object",
