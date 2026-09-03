@@ -1,4 +1,4 @@
 bun 1.4.0
-go:sigs.k8s.io/controller-tools/cmd/controller-gen 0.21.0
+go:sigs.k8s.io/controller-tools/cmd/controller-gen 0.22.0
 golangci-lint 2.13.1
 kustomize 5.8.1
