@@ -32,9 +32,58 @@ NAuth requires these credentials as Kubernetes Secrets:
 - system account user credentials
 - [operator signing key NKey seed](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/nkey_auth)
 
+The examples below use placeholder values. Replace the credentials and NATS
+URL with values from your own environment; never use example credentials in
+production.
+
 > **Since v0.6.0:** NAuth resolves NATS connection and credential references through the `NatsCluster` resource.
 
 Define a `NatsCluster` resource with either `spec.url` or `spec.urlFrom`, plus `spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`.
+
+For a first deployment, create the referenced Secrets in the operator
+namespace and define a `NatsCluster` using a direct URL:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: example-operator-signing-key
+  namespace: nauth
+type: Opaque
+stringData:
+  seed: REPLACE_WITH_OPERATOR_SIGNING_KEY_SEED
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: example-system-account-creds
+  namespace: nauth
+type: Opaque
+stringData:
+  user.creds: |
+    REPLACE_WITH_SYSTEM_ACCOUNT_USER_CREDENTIALS
+---
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: example-nats-cluster
+  namespace: nauth
+spec:
+  url: nats://nats.example.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: example-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: example-system-account-creds
+    key: user.creds
+```
+
+Apply this after installing the chart:
+
+```bash
+kubectl apply -f nats-cluster.yaml
+kubectl create namespace my-team
+```
 
 Then choose how accounts target that cluster:
 
@@ -67,8 +116,8 @@ metadata:
   namespace: my-team
 spec:
   natsClusterRef:
-    namespace: nats
-    name: my-nats-cluster
+    namespace: nauth
+    name: example-nats-cluster
   accountLimits:
     conn: 100
     imports: 10
@@ -97,6 +146,17 @@ spec:
 ```
 
 NAuth writes the resulting user credentials to a Kubernetes Secret named `<user>-nats-user-creds` in the same namespace. For the full API surface, see the [API reference](/crds/).
+
+Verify the setup:
+
+```bash
+kubectl apply -f account.yaml
+kubectl apply -f user.yaml
+kubectl get natscluster -n nauth example-nats-cluster
+kubectl get account -n my-team example-account
+kubectl get user -n my-team example-user
+kubectl get secret -n my-team example-user-nats-user-creds
+```
 
 Already have NATS accounts you do not want NAuth to manage yet? Use [observe mode](/guides/observe-existing-accounts/) to read existing account claims into status before migrating them into `spec`.
 
