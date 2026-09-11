@@ -1,0 +1,164 @@
+---
+title: Account Imports and Exports
+description: Share NATS subjects between NAuth accounts
+---
+
+> **Since v0.7.0:** `AccountExport` and `AccountImport` are released NAuth
+> APIs for declaring account-to-account subject sharing.
+
+An `AccountExport` declares subjects offered by an exporting `Account`. An
+`AccountImport` declares the subjects consumed by an importing `Account` and
+references the exporting `Account`. NAuth validates both resources and adds
+their normalized claims to the corresponding account JWTs.
+
+## Prerequisites
+
+Install NAuth and create a ready `NatsCluster` first. The manifests below use
+the `NatsCluster` from the [Getting Started guide](/guides/getting-started/):
+`nauth/example-nats-cluster`. Replace that reference with the cluster used by
+your installation if it differs.
+
+The complete runnable scenario is available in the repository's
+[account-import-export example](https://github.com/WirelessCar/nauth/tree/main/examples/nauth/manifests/scenarios/account-import-export).
+
+## Create the accounts
+
+Create one account that exports a subject and one account that imports it:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-team
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: export-account
+  namespace: my-team
+spec:
+  natsClusterRef:
+    namespace: nauth
+    name: example-nats-cluster
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: import-account
+  namespace: my-team
+spec:
+  natsClusterRef:
+    namespace: nauth
+    name: example-nats-cluster
+```
+
+Save the manifest as `accounts.yaml` and apply it:
+
+```bash
+kubectl apply -f accounts.yaml
+kubectl wait --for=condition=Ready account/export-account account/import-account \
+  --namespace my-team --timeout=120s
+```
+
+## Declare the export
+
+An `AccountExport` belongs to the exporting account through
+`spec.accountName`. Each export must contain at least one rule with a subject
+and an export `type`, either `stream` or `service`.
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: AccountExport
+metadata:
+  name: shared-subjects
+  namespace: my-team
+spec:
+  accountName: export-account
+  rules:
+    - name: shared-stream
+      subject: shared.>
+      type: stream
+```
+
+Save this as `account-export.yaml` and apply it:
+
+```bash
+kubectl apply -f account-export.yaml
+kubectl wait --for=condition=Ready accountexport/shared-subjects \
+  --namespace my-team --timeout=120s
+```
+
+## Declare the import
+
+An `AccountImport` belongs to the importing account through
+`spec.accountName`. `spec.exportAccountRef` points to the exporting
+`Account`, not to an `AccountExport`. The namespace defaults to the importing
+account's namespace; set it explicitly for a cross-namespace export account.
+
+The imported subject must be identical to or a subset of the exported
+subject. The `type` must also match the intended NATS stream or service
+workflow.
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: shared-subjects
+  namespace: my-team
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: my-team
+  rules:
+    - name: shared-stream
+      subject: shared.>
+      type: stream
+```
+
+Save this as `account-import.yaml` and apply it:
+
+```bash
+kubectl apply -f account-import.yaml
+kubectl wait --for=condition=Ready accountimport/shared-subjects \
+  --namespace my-team --timeout=120s
+```
+
+## Verify the resulting claims
+
+Inspect the resource conditions when troubleshooting validation or account
+binding:
+
+```bash
+kubectl get account,accountexport,accountimport -n my-team
+kubectl get accountexport shared-subjects -n my-team -o jsonpath='{.status.conditions}'
+kubectl get accountimport shared-subjects -n my-team -o jsonpath='{.status.conditions}'
+```
+
+`AccountExport` reports `ValidRules`, `BoundToAccount`,
+`AdoptedByAccount`, and `Ready` conditions. `AccountImport` reports
+`BoundToAccount`, `BoundToExportAccount`, `ValidRules`, `AdoptedByAccount`,
+and `Ready` conditions. The normalized claims are available under
+`status.desiredClaim` on each child resource and under the corresponding
+account's `status.claims` after account reconciliation:
+
+```bash
+kubectl get account export-account -n my-team \
+  -o jsonpath='{.status.claims.exports}'
+kubectl get account import-account -n my-team \
+  -o jsonpath='{.status.claims.imports}'
+```
+
+If either referenced account is missing or not ready, or a rule is invalid,
+the child resource remains not ready and its conditions explain what NAuth is
+waiting for. Keep the export and import subjects aligned manually: the
+current `AccountImport` implementation validates the referenced accounts and
+import rules, but does not compare an import with a specific `AccountExport`
+resource or enforce exporter-side policy.
+
+## Current limitations
+
+The `AccountExport` and `AccountImport` child CRDs do not currently expose
+NATS activation-token fields. This walkthrough therefore covers public
+stream and service exports only; activation-token issuance and distribution
+are not implemented in this workflow.
