@@ -115,7 +115,7 @@ spec:
             properties:
               accountID:
                 description: AccountID is the resolved ID of the Account referenced
-                  by spec.accountName.
+                  by `spec.accountName`.
                 type: string
               conditions:
                 items:
@@ -226,7 +226,7 @@ spec:
                 type: object
               exportAccountID:
                 description: ExportAccountID is the resolved ID of the Account referenced
-                  by spec.exportAccountRef.
+                  by `spec.exportAccountRef`.
                 type: string
               observedGeneration:
                 format: int64

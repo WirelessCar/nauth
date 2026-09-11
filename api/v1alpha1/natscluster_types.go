@@ -59,14 +59,14 @@ type URLFromReference struct {
 	Key string `json:"key"`
 }
 
-// NatsClusterSpec defines the desired state of NatsCluster
+// NatsClusterSpec defines the desired state of `NatsCluster`.
 // +kubebuilder:validation:XValidation:rule="has(self.url) != has(self.urlFrom)",message="exactly one of url or urlFrom must be specified"
 type NatsClusterSpec struct {
-	// URL is the NATS server URL for this cluster. Mutually exclusive with urlFrom.
+	// URL is the NATS server URL for this cluster. Mutually exclusive with `urlFrom`.
 	// +optional
 	URL string `json:"url,omitempty"`
 
-	// URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with url.
+	// URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with `url`.
 	// +optional
 	URLFrom *URLFromReference `json:"urlFrom,omitempty"`
 

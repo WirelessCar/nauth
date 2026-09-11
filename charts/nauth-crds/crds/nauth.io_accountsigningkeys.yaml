@@ -28,16 +28,16 @@ spec:
     schema:
       openAPIV3Schema:
         description: |-
-          AccountSigningKey manages one NATS account signing-key seed in a Kubernetes Secret.
+          `AccountSigningKey` manages one NATS account signing-key seed in a Kubernetes Secret.
           By default NAuth manages the signing key seed: it generates a new key and stores it in
-          a Secret named spec.secretName (defaulting to <resourceName>-ac-sign). The Secret is
+          a Secret named `spec.secretName` (defaulting to `<resourceName>-ac-sign`). The Secret is
           owned by this resource and garbage-collected when the resource is deleted.
 
-          In observe mode (label nauth.io/management-policy=observe), NAuth only reads an existing
+          In observe mode (label `nauth.io/management-policy=observe`), NAuth only reads an existing
           Secret with the resolved name and derives the public key. Observed Secrets are not
           modified, owned, or deleted by the operator.
 
-          An Account trusts the public key by listing this resource in Account.spec.signingKeyRefs.
+          An Account trusts the public key by listing this resource in `Account.spec.signingKeyRefs`.
         properties:
           apiVersion:
             description: |-
@@ -61,11 +61,11 @@ spec:
             properties:
               secretName:
                 description: |-
-                  SecretName names the Kubernetes Secret that holds the account signing-key seed.
+                  `SecretName` names the Kubernetes Secret that holds the account signing-key seed.
 
-                  In managed mode (default), SecretName is optional and defaults to
-                  <resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.
-                  In observe mode (label nauth.io/management-policy=observe), SecretName is
+                  In managed mode (default), `SecretName` is optional and defaults to
+                  `<resourceName>-ac-sign`; the Secret is created and owned by this AccountSigningKey.
+                  In observe mode (label `nauth.io/management-policy=observe`), `SecretName` is
                   required and identifies the existing Secret to read; the operator never falls
                   back to the managed default name and never modifies the Secret.
 
@@ -141,8 +141,8 @@ spec:
                 x-kubernetes-list-type: map
               managementPolicy:
                 description: |-
-                  ManagementPolicy reflects the effective management policy for this resource.
-                  Empty means managed (default); "observe" means the Secret is only read.
+                  `ManagementPolicy` reflects the effective management policy for this resource.
+                  Empty means managed (default); `observe` means the Secret is only read.
                 type: string
               observedGeneration:
                 format: int64
@@ -150,15 +150,15 @@ spec:
               operatorVersion:
                 type: string
               publicKey:
-                description: PublicKey is the resolved NATS public key (A-prefixed
-                  nkey) for this signing key.
+                description: '`PublicKey` is the resolved NATS public key (A-prefixed
+                  nkey) for this signing key.'
                 type: string
               reconcileTimestamp:
                 format: date-time
                 type: string
               secretName:
-                description: SecretName is the resolved name of the Secret holding
-                  the seed.
+                description: '`SecretName` is the resolved name of the Secret holding
+                  the seed.'
                 type: string
             type: object
         type: object

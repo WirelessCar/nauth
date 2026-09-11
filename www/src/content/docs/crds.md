@@ -378,8 +378,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `accountID` _string_ | AccountID is the resolved ID of the Account referenced by spec.accountName. |  |  |
-| `exportAccountID` _string_ | ExportAccountID is the resolved ID of the Account referenced by spec.exportAccountRef. |  |  |
+| `accountID` _string_ | AccountID is the resolved ID of the Account referenced by `spec.accountName`. |  |  |
+| `exportAccountID` _string_ | ExportAccountID is the resolved ID of the Account referenced by `spec.exportAccountRef`. |  |  |
 | `desiredClaim` _[AccountImportClaim](#accountimportclaim)_ | DesiredClaim is the normalized claim for Account to use. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
@@ -450,16 +450,16 @@ _Appears in:_
 
 
 
-AccountSigningKey manages one NATS account signing-key seed in a Kubernetes Secret.
+`AccountSigningKey` manages one NATS account signing-key seed in a Kubernetes Secret.
 By default NAuth manages the signing key seed: it generates a new key and stores it in
-a Secret named spec.secretName (defaulting to <resourceName>-ac-sign). The Secret is
+a Secret named `spec.secretName` (defaulting to `<resourceName>-ac-sign`). The Secret is
 owned by this resource and garbage-collected when the resource is deleted.
 
-In observe mode (label nauth.io/management-policy=observe), NAuth only reads an existing
+In observe mode (label `nauth.io/management-policy=observe`), NAuth only reads an existing
 Secret with the resolved name and derives the public key. Observed Secrets are not
 modified, owned, or deleted by the operator.
 
-An Account trusts the public key by listing this resource in Account.spec.signingKeyRefs.
+An Account trusts the public key by listing this resource in `Account.spec.signingKeyRefs`.
 
 
 
@@ -498,7 +498,7 @@ AccountSigningKeyList contains a list of AccountSigningKey.
 
 
 AccountSigningKeyRef references a signing-key resource whose public key is
-trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+trusted by the Account (and may be used to sign Users). Only `AccountSigningKey`
 is supported; Kind is reserved for future kinds (e.g. issuers).
 
 
@@ -509,7 +509,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `kind` _[AccountSigningKeyRefKind](#accountsigningkeyrefkind)_ | Kind of the referenced resource. Defaults to AccountSigningKey. | AccountSigningKey | Enum: [AccountSigningKey] <br /> |
+| `kind` _[AccountSigningKeyRefKind](#accountsigningkeyrefkind)_ | Kind of the referenced resource. Defaults to `AccountSigningKey`. | AccountSigningKey | Enum: [AccountSigningKey] <br /> |
 | `name` _string_ | Name of the referenced resource. |  | MaxLength: 253 <br />MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br />Required <br /> |
 | `namespace` _string_ | Namespace of the referenced resource. When empty, defaults to the<br />referrer's namespace. Cross-namespace references let multiple Accounts<br />trust a shared signing key (e.g. a cluster-wide Auth Callout service). |  | MaxLength: 253 <br />Pattern: `^([a-z0-9]([-a-z0-9]*[a-z0-9])?)?$` <br /> |
 
@@ -545,7 +545,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `secretName` _string_ | SecretName names the Kubernetes Secret that holds the account signing-key seed.<br />In managed mode (default), SecretName is optional and defaults to<br /><resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.<br />In observe mode (label nauth.io/management-policy=observe), SecretName is<br />required and identifies the existing Secret to read; the operator never falls<br />back to the managed default name and never modifies the Secret.<br />Immutable. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
+| `secretName` _string_ | `SecretName` names the Kubernetes Secret that holds the account signing-key seed.<br />In managed mode (default), `SecretName` is optional and defaults to<br />`<resourceName>-ac-sign`; the Secret is created and owned by this AccountSigningKey.<br />In observe mode (label `nauth.io/management-policy=observe`), `SecretName` is<br />required and identifies the existing Secret to read; the operator never falls<br />back to the managed default name and never modifies the Secret.<br />Immutable. |  | MaxLength: 253 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 
 
 #### AccountSigningKeyStatus
@@ -561,9 +561,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `publicKey` _string_ | PublicKey is the resolved NATS public key (A-prefixed nkey) for this signing key. |  |  |
-| `secretName` _string_ | SecretName is the resolved name of the Secret holding the seed. |  |  |
-| `managementPolicy` _string_ | ManagementPolicy reflects the effective management policy for this resource.<br />Empty means managed (default); "observe" means the Secret is only read. |  |  |
+| `publicKey` _string_ | `PublicKey` is the resolved NATS public key (A-prefixed nkey) for this signing key. |  |  |
+| `secretName` _string_ | `SecretName` is the resolved name of the Secret holding the seed. |  |  |
+| `managementPolicy` _string_ | `ManagementPolicy` reflects the effective management policy for this resource.<br />Empty means managed (default); `observe` means the Secret is only read. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
@@ -583,7 +583,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the NatsCluster to use for this account.<br />If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.<br />Otherwise, reconciliation fails because the target NatsCluster cannot be resolved. |  |  |
+| `natsClusterRef` _[NatsClusterRef](#natsclusterref)_ | NatsClusterRef references the `NatsCluster` to use for this account.<br />If not specified, the controller uses the operator-level `NATS_CLUSTER_REF` when configured.<br />Otherwise, reconciliation fails because the target `NatsCluster` cannot be resolved. |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the account. May be derived if absent. |  |  |
 | `jetStreamEnabled` _boolean_ | JetStreamEnabled indicates whether JetStream should be explicitly enabled or disabled.<br />If absent, JetStream will be implicitly enabled/disabled based on the effective JetStreamLimits. |  |  |
 | `accountLimits` _[AccountLimits](#accountlimits)_ |  |  |  |
@@ -591,7 +591,7 @@ _Appears in:_
 | `imports` _[Imports](#imports)_ |  |  |  |
 | `jetStreamLimits` _[JetStreamLimits](#jetstreamlimits)_ |  |  |  |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
-| `signingKeyRefs` _[AccountSigningKeyRef](#accountsigningkeyref) array_ | SigningKeyRefs lists references whose public keys are trusted as additional<br />signing keys for this account. The implicit default signing key is always<br />present and is not listed here. |  | MaxItems: 64 <br /> |
+| `signingKeyRefs` _[AccountSigningKeyRef](#accountsigningkeyref) array_ | `SigningKeyRefs` lists references whose public keys are trusted as additional<br />signing keys for this account. The implicit default signing key is always<br />present and is not listed here. |  | MaxItems: 64 <br /> |
 
 
 #### AccountStatus
@@ -721,7 +721,7 @@ _Appears in:_
 | `name` _string_ |  |  |  |
 | `subject` _[Subject](#subject)_ | Subject field in an import is always from the perspective of the<br />initial publisher - in the case of a stream it is the account owning<br />the stream (the exporter), and in the case of a service it is the<br />account making the request (the importer). |  |  |
 | `account` _string_ |  |  |  |
-| `localSubject` _[RenamingSubject](#renamingsubject)_ | Local subject used to subscribe (for streams) and publish (for services) to.<br />This value only needs setting if you want to change the value of Subject.<br />If the value of Subject ends in > then LocalSubject needs to end in > as well.<br />LocalSubject can contain $<number> wildcard references where number references the nth wildcard in Subject.<br />The sum of wildcard reference and * tokens needs to match the number of * token in Subject. |  |  |
+| `localSubject` _[RenamingSubject](#renamingsubject)_ | Local subject used to subscribe (for streams) and publish (for services) to.<br />This value only needs setting if you want to change the value of Subject.<br />If the value of `Subject` ends in `>`, `LocalSubject` needs to end in `>` as well.<br />`LocalSubject` can contain `$<number>` wildcard references, where `number` references<br />the nth wildcard in `Subject`. The number of wildcard references and `*` tokens<br />must match the number of `*` tokens in `Subject`. |  |  |
 | `type` _[ExportType](#exporttype)_ |  |  | Enum: [stream service] <br /> |
 | `share` _boolean_ |  |  |  |
 | `allowTrace` _boolean_ |  |  |  |
@@ -745,7 +745,7 @@ _Appears in:_
 | `name` _string_ |  |  |  |
 | `subject` _[Subject](#subject)_ | Subject field in an import is always from the perspective of the<br />initial publisher - in the case of a stream it is the account owning<br />the stream (the exporter), and in the case of a service it is the<br />account making the request (the importer). |  |  |
 | `account` _string_ |  |  |  |
-| `localSubject` _[RenamingSubject](#renamingsubject)_ | Local subject used to subscribe (for streams) and publish (for services) to.<br />This value only needs setting if you want to change the value of Subject.<br />If the value of Subject ends in > then LocalSubject needs to end in > as well.<br />LocalSubject can contain $<number> wildcard references where number references the nth wildcard in Subject.<br />The sum of wildcard reference and * tokens needs to match the number of * token in Subject. |  |  |
+| `localSubject` _[RenamingSubject](#renamingsubject)_ | Local subject used to subscribe (for streams) and publish (for services) to.<br />This value only needs setting if you want to change the value of Subject.<br />If the value of `Subject` ends in `>`, `LocalSubject` needs to end in `>` as well.<br />`LocalSubject` can contain `$<number>` wildcard references, where `number` references<br />the nth wildcard in `Subject`. The number of wildcard references and `*` tokens<br />must match the number of `*` tokens in `Subject`. |  |  |
 | `type` _[ExportType](#exporttype)_ |  |  | Enum: [stream service] <br /> |
 | `share` _boolean_ |  |  |  |
 | `allowTrace` _boolean_ |  |  |  |
@@ -819,7 +819,7 @@ NatsClusterList contains a list of NatsCluster
 
 
 
-NatsClusterRef references a NatsCluster resource
+NatsClusterRef references a `NatsCluster` resource.
 
 
 
@@ -828,7 +828,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `name` _string_ | Name of the NatsCluster |  |  |
+| `name` _string_ | Name of the `NatsCluster`. |  |  |
 | `namespace` _string_ | Namespace of the NatsCluster |  |  |
 
 
@@ -836,7 +836,7 @@ _Appears in:_
 
 
 
-NatsClusterSpec defines the desired state of NatsCluster
+NatsClusterSpec defines the desired state of `NatsCluster`.
 
 
 
@@ -845,8 +845,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `url` _string_ | URL is the NATS server URL for this cluster. Mutually exclusive with urlFrom. |  |  |
-| `urlFrom` _[URLFromReference](#urlfromreference)_ | URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with url. |  |  |
+| `url` _string_ | URL is the NATS server URL for this cluster. Mutually exclusive with `urlFrom`. |  |  |
+| `urlFrom` _[URLFromReference](#urlfromreference)_ | URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with `url`. |  |  |
 | `operatorSigningKeySecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
 | `systemAccountUserCredsSecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
 
@@ -1267,7 +1267,7 @@ _Appears in:_
 | `permissions` _[Permissions](#permissions)_ |  |  |  |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
-| `signingKeyRef` _[AccountSigningKeyRef](#accountsigningkeyref)_ | SigningKeyRef optionally references the signing key used to sign this User's<br />JWT. When absent, the Account's implicit signing key is used. The referenced<br />AccountSigningKey's public key must appear in Account.status.claims.signingKeys<br />at reconciliation time. |  |  |
+| `signingKeyRef` _[AccountSigningKeyRef](#accountsigningkeyref)_ | `SigningKeyRef` optionally references the signing key used to sign this User's<br />JWT. When absent, the Account's implicit signing key is used. The referenced<br />`AccountSigningKey`'s public key must appear in `Account.status.claims.signingKeys`<br />at reconciliation time. |  |  |
 
 
 #### UserStatus
