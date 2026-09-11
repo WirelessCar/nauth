@@ -26,16 +26,16 @@ import (
 // +kubebuilder:printcolumn:name="Policy",type=string,JSONPath=`.status.managementPolicy`
 // +kubebuilder:printcolumn:name="Public Key",type=string,JSONPath=`.status.publicKey`
 
-// AccountSigningKey manages one NATS account signing-key seed in a Kubernetes Secret.
+// `AccountSigningKey` manages one NATS account signing-key seed in a Kubernetes Secret.
 // By default NAuth manages the signing key seed: it generates a new key and stores it in
-// a Secret named spec.secretName (defaulting to <resourceName>-ac-sign). The Secret is
+// a Secret named `spec.secretName` (defaulting to `<resourceName>-ac-sign`). The Secret is
 // owned by this resource and garbage-collected when the resource is deleted.
 //
-// In observe mode (label nauth.io/management-policy=observe), NAuth only reads an existing
+// In observe mode (label `nauth.io/management-policy=observe`), NAuth only reads an existing
 // Secret with the resolved name and derives the public key. Observed Secrets are not
 // modified, owned, or deleted by the operator.
 //
-// An Account trusts the public key by listing this resource in Account.spec.signingKeyRefs.
+// An Account trusts the public key by listing this resource in `Account.spec.signingKeyRefs`.
 type AccountSigningKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -50,11 +50,11 @@ func (a *AccountSigningKey) GetConditions() *[]metav1.Condition {
 
 // AccountSigningKeySpec defines the desired state of AccountSigningKey.
 type AccountSigningKeySpec struct {
-	// SecretName names the Kubernetes Secret that holds the account signing-key seed.
+	// `SecretName` names the Kubernetes Secret that holds the account signing-key seed.
 	//
-	// In managed mode (default), SecretName is optional and defaults to
-	// <resourceName>-ac-sign; the Secret is created and owned by this AccountSigningKey.
-	// In observe mode (label nauth.io/management-policy=observe), SecretName is
+	// In managed mode (default), `SecretName` is optional and defaults to
+	// `<resourceName>-ac-sign`; the Secret is created and owned by this AccountSigningKey.
+	// In observe mode (label `nauth.io/management-policy=observe`), `SecretName` is
 	// required and identifies the existing Secret to read; the operator never falls
 	// back to the managed default name and never modifies the Secret.
 	//
@@ -68,16 +68,16 @@ type AccountSigningKeySpec struct {
 
 // AccountSigningKeyStatus defines the observed state of AccountSigningKey.
 type AccountSigningKeyStatus struct {
-	// PublicKey is the resolved NATS public key (A-prefixed nkey) for this signing key.
+	// `PublicKey` is the resolved NATS public key (A-prefixed nkey) for this signing key.
 	// +optional
 	PublicKey string `json:"publicKey,omitempty"`
 
-	// SecretName is the resolved name of the Secret holding the seed.
+	// `SecretName` is the resolved name of the Secret holding the seed.
 	// +optional
 	SecretName string `json:"secretName,omitempty"`
 
-	// ManagementPolicy reflects the effective management policy for this resource.
-	// Empty means managed (default); "observe" means the Secret is only read.
+	// `ManagementPolicy` reflects the effective management policy for this resource.
+	// Empty means managed (default); `observe` means the Secret is only read.
 	// +optional
 	ManagementPolicy string `json:"managementPolicy,omitempty"`
 

@@ -151,9 +151,10 @@ spec:
                       description: |-
                         Local subject used to subscribe (for streams) and publish (for services) to.
                         This value only needs setting if you want to change the value of Subject.
-                        If the value of Subject ends in > then LocalSubject needs to end in > as well.
-                        LocalSubject can contain $<number> wildcard references where number references the nth wildcard in Subject.
-                        The sum of wildcard reference and * tokens needs to match the number of * token in Subject.
+                        If the value of `Subject` ends in `>`, `LocalSubject` needs to end in `>` as well.
+                        `LocalSubject` can contain `$<number>` wildcard references, where `number` references
+                        the nth wildcard in `Subject`. The number of wildcard references and `*` tokens
+                        must match the number of `*` tokens in `Subject`.
                       type: string
                     name:
                       type: string
@@ -217,12 +218,12 @@ spec:
                 type: object
               natsClusterRef:
                 description: |-
-                  NatsClusterRef references the NatsCluster to use for this account.
-                  If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.
-                  Otherwise, reconciliation fails because the target NatsCluster cannot be resolved.
+                  NatsClusterRef references the `NatsCluster` to use for this account.
+                  If not specified, the controller uses the operator-level `NATS_CLUSTER_REF` when configured.
+                  Otherwise, reconciliation fails because the target `NatsCluster` cannot be resolved.
                 properties:
                   name:
-                    description: Name of the NatsCluster
+                    description: Name of the `NatsCluster`.
                     type: string
                   namespace:
                     description: Namespace of the NatsCluster
@@ -247,18 +248,18 @@ spec:
                 type: object
               signingKeyRefs:
                 description: |-
-                  SigningKeyRefs lists references whose public keys are trusted as additional
+                  `SigningKeyRefs` lists references whose public keys are trusted as additional
                   signing keys for this account. The implicit default signing key is always
                   present and is not listed here.
                 items:
                   description: |-
                     AccountSigningKeyRef references a signing-key resource whose public key is
-                    trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+                    trusted by the Account (and may be used to sign Users). Only `AccountSigningKey`
                     is supported; Kind is reserved for future kinds (e.g. issuers).
                   properties:
                     kind:
                       default: AccountSigningKey
-                      description: Kind of the referenced resource. Defaults to AccountSigningKey.
+                      description: Kind of the referenced resource. Defaults to `AccountSigningKey`.
                       enum:
                       - AccountSigningKey
                       type: string
@@ -524,9 +525,10 @@ spec:
                           description: |-
                             Local subject used to subscribe (for streams) and publish (for services) to.
                             This value only needs setting if you want to change the value of Subject.
-                            If the value of Subject ends in > then LocalSubject needs to end in > as well.
-                            LocalSubject can contain $<number> wildcard references where number references the nth wildcard in Subject.
-                            The sum of wildcard reference and * tokens needs to match the number of * token in Subject.
+                            If the value of `Subject` ends in `>`, `LocalSubject` needs to end in `>` as well.
+                            `LocalSubject` can contain `$<number>` wildcard references, where `number` references
+                            the nth wildcard in `Subject`. The number of wildcard references and `*` tokens
+                            must match the number of `*` tokens in `Subject`.
                           type: string
                         name:
                           type: string
