@@ -43,7 +43,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `Account` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[AccountSpec](#accountspec)_ |  |  |  |
 | `status` _[AccountStatus](#accountstatus)_ |  |  |  |
 
@@ -62,7 +62,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `name` _string_ | Name the child resource name |  | MinLength: 1 <br />Required <br /> |
-| `uid` _[UID](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#uid-types-pkg)_ | UID of the child resource UID |  | Required <br /> |
+| `uid` _[UID](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#uid-types-pkg)_ | UID of the child resource UID |  | Required <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration refers to the observed generation of the child resource. |  | Minimum: 0 <br />Required <br /> |
 | `status` _[AccountAdoptionStatus](#accountadoptionstatus)_ | Status of the adoption |  | Required <br /> |
 
@@ -80,7 +80,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `status` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#conditionstatus-v1-meta)_ | Status of the adoption, one of True, False, Unknown. |  | Enum: [True False Unknown] <br />Required <br /> |
+| `status` _[ConditionStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#conditionstatus-v1-meta)_ | Status of the adoption, one of True, False, Unknown. |  | Enum: [True False Unknown] <br />Required <br /> |
 | `desiredClaimObservedGeneration` _integer_ | DesiredClaimObservedGeneration refers to the observed generation of the child resource desired claim. |  | Minimum: 0 <br /> |
 | `reason` _string_ | Reason contains a programmatic identifier indicating the reason for the adoption's last transition.<br />The value should be a CamelCase string.<br />This field may not be empty. |  | MaxLength: 1024 <br />MinLength: 1 <br />Pattern: `^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$` <br />Required <br /> |
 | `message` _string_ | Message is a human-readable message indicating details about the adoption. |  | MaxLength: 32768 <br /> |
@@ -141,7 +141,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountExport` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[AccountExportSpec](#accountexportspec)_ |  |  |  |
 | `status` _[AccountExportStatus](#accountexportstatus)_ |  |  |  |
 
@@ -179,7 +179,7 @@ AccountExportList contains a list of AccountExport.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountExportList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[AccountExport](#accountexport) array_ |  |  |  |
 
 
@@ -240,9 +240,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountID` _string_ | AccountID is the ID of the account that this export is bound to. |  |  |
 | `desiredClaim` _[AccountExportClaim](#accountexportclaim)_ | Normalized claim for account to use |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
 
 
@@ -261,7 +261,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountImport` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[AccountImportSpec](#accountimportspec)_ |  |  |  |
 | `status` _[AccountImportStatus](#accountimportstatus)_ |  |  |  |
 
@@ -299,7 +299,7 @@ AccountImportList contains a list of AccountImport.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountImportList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[AccountImport](#accountimport) array_ |  |  |  |
 
 
@@ -381,9 +381,9 @@ _Appears in:_
 | `accountID` _string_ | AccountID is the resolved ID of the Account referenced by `spec.accountName`. |  |  |
 | `exportAccountID` _string_ | ExportAccountID is the resolved ID of the Account referenced by `spec.exportAccountRef`. |  |  |
 | `desiredClaim` _[AccountImportClaim](#accountimportclaim)_ | DesiredClaim is the normalized claim for Account to use. |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
 
 
@@ -424,7 +424,7 @@ AccountList contains a list of Account.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[Account](#account) array_ |  |  |  |
 
 
@@ -470,7 +470,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountSigningKey` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[AccountSigningKeySpec](#accountsigningkeyspec)_ |  |  |  |
 | `status` _[AccountSigningKeyStatus](#accountsigningkeystatus)_ |  |  |  |
 
@@ -489,7 +489,7 @@ AccountSigningKeyList contains a list of AccountSigningKey.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `AccountSigningKeyList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[AccountSigningKey](#accountsigningkey) array_ |  |  |  |
 
 
@@ -564,9 +564,9 @@ _Appears in:_
 | `publicKey` _string_ | `PublicKey` is the resolved NATS public key (A-prefixed nkey) for this signing key. |  |  |
 | `secretName` _string_ | `SecretName` is the resolved name of the Secret holding the seed. |  |  |
 | `managementPolicy` _string_ | `ManagementPolicy` reflects the effective management policy for this resource.<br />Empty means managed (default); `observe` means the Secret is only read. |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
 
 
@@ -610,9 +610,9 @@ _Appears in:_
 | `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
 | `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the desired Account state has changed and a new JWT needs to be generated. |  |  |
 | `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
 | `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully validated the desired Account state in NATS, either through a successful Account JWT upload or a matching Account lookup. It is not updated when validation is skipped or fails. |  |  |
 
@@ -793,7 +793,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `NatsCluster` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[NatsClusterSpec](#natsclusterspec)_ |  |  |  |
 | `status` _[NatsClusterStatus](#natsclusterstatus)_ |  |  |  |
 
@@ -812,7 +812,7 @@ NatsClusterList contains a list of NatsCluster
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `NatsClusterList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[NatsCluster](#natscluster) array_ |  |  |  |
 
 
@@ -865,9 +865,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
 
 
@@ -1184,7 +1184,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `User` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[UserSpec](#userspec)_ |  |  |  |
 | `status` _[UserStatus](#userstatus)_ |  |  |  |
 
@@ -1204,7 +1204,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountName` _string_ | Deprecated. Will be removed in a future release (>v0.5.0). Ref: https://github.com/WirelessCar/nauth/issues/102 |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. |  |  |
-| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is the absolute time when the generated user JWT expires. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ | ExpiresAt is the absolute time when the generated user JWT expires. |  |  |
 | `permissions` _[Permissions](#permissions)_ |  |  |  |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
@@ -1245,7 +1245,7 @@ UserList contains a list of User.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `nauth.io/v1alpha1` | | |
 | `kind` _string_ | `UserList` | | |
-| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[User](#user) array_ |  |  |  |
 
 
@@ -1264,7 +1264,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountName` _string_ | AccountName references the account used to create the user. |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  |  |
-| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  |  |
+| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  |  |
 | `permissions` _[Permissions](#permissions)_ |  |  |  |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |
@@ -1284,8 +1284,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `claims` _[UserClaims](#userclaims)_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
-| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
+| `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
