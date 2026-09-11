@@ -21,7 +21,7 @@ export default defineConfig({
 				}),
 				starlightLlmsTxt(),
 			],
-			title: "Nauth",
+			title: "NAuth",
 			description: "Kubernetes operator for NATS decentralized authentication",
 			logo: {
 				src: "./public/nauth.svg",
