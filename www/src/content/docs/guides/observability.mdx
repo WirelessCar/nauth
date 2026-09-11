@@ -36,6 +36,13 @@ helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
   --set monitoring.enabled=true
 ```
 
+The chart exposes the endpoint through an HTTP Service on port `8080` with
+the port name `http-metrics`. The chart configures the operator with
+`--metrics-secure=false`, so restrict access to the metrics Service according
+to your cluster's security requirements. With the release name and namespace
+used in the Helm command, the Service is `nauth-metrics-service` and its cluster DNS name
+is `nauth-metrics-service.nauth.svc:8080`.
+
 Core reconcile metric:
 
 ```text
@@ -47,26 +54,63 @@ Controller labels:
 | Resource | Controller label | Availability |
 | --- | --- | --- |
 | `Account` | `account` | Since v0.1.0 |
-| `AccountExport` | `accountexport` | Unreleased |
-| `AccountImport` | `accountimport` | Unreleased |
+| `AccountExport` | `accountexport` | Since v0.7.0 |
+| `AccountImport` | `accountimport` | Since v0.7.0 |
+| `AccountSigningKey` | `accountsigningkey` | Since v0.7.2 |
 | `User` | `user` | Since v0.1.0 |
 | `NatsCluster` | `natscluster` | Since v0.6.1 |
 
 Grafana queries:
 
+These queries use labels emitted by controller-runtime and do not filter on
+`service`. The chart's `service: nauth-metrics-service` label selects the
+Kubernetes Service for Prometheus Operator discovery; a static OpenTelemetry
+scrape does not add that label to the exported time series. If you scrape
+multiple NAuth installations, add the target labels supplied by your scrape
+system, such as `job` or `namespace`.
+
 ```text
-sum by (controller, result) (rate(controller_runtime_reconcile_total{service="nauth-metrics-service"}[5m]))
+sum by (controller, result) (rate(controller_runtime_reconcile_total{controller=~"account|accountexport|accountimport|accountsigningkey|user|natscluster"}[5m]))
 ```
 
 ```text
-increase(controller_runtime_reconcile_total{service="nauth-metrics-service"}[15m])
+sum by (controller) (increase(controller_runtime_reconcile_total{controller=~"account|accountexport|accountimport|accountsigningkey|user|natscluster"}[15m]))
 ```
 
 ```text
-rate(controller_runtime_reconcile_errors_total{service="nauth-metrics-service"}[5m])
+sum by (controller) (rate(controller_runtime_reconcile_errors_total{controller=~"account|accountexport|accountimport|accountsigningkey|user|natscluster"}[5m]))
 ```
+
+## Prometheus operator
+
+Enable the chart's `ServiceMonitor` and `PrometheusRule` resources when the
+Prometheus Operator CRDs are installed:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --set monitoring.enabled=true \
+  --set monitoring.serviceMonitor.enabled=true
+```
+
+The `ServiceMonitor` selects the metrics Service using the fixed label
+`service: nauth-metrics-service`. The chart's bundled reconciliation-error
+alerts cover `Account`, `AccountExport`, `AccountImport`, `User`, and
+`NatsCluster`. `AccountSigningKey` metrics are exposed, but the chart does
+not currently include a bundled alert for that controller.
 
 OpenTelemetry Collector scrape example:
+
+The following static target assumes the release name is `nauth` and the
+namespace is `nauth`. If either value differs, use the generated metrics
+Service name and namespace instead. To find the Service name:
+
+```bash
+kubectl get service -n nauth \
+  -l service=nauth-metrics-service \
+  -o jsonpath='{.items[0].metadata.name}{"\n"}'
+```
 
 ```yaml
 receivers:
