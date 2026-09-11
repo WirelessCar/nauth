@@ -48,6 +48,7 @@ The expected schema files are:
 - `nauth.io/account_v1alpha1.json`
 - `nauth.io/accountexport_v1alpha1.json`
 - `nauth.io/accountimport_v1alpha1.json`
+- `nauth.io/accountsigningkey_v1alpha1.json`
 - `nauth.io/natscluster_v1alpha1.json`
 - `nauth.io/user_v1alpha1.json`
 
