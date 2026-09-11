@@ -44,6 +44,7 @@ export default defineConfig({
 					items: [
 						{ label: "Getting Started", slug: "guides/getting-started" },
 						{ label: "Observe Existing Accounts", slug: "guides/observe-existing-accounts" },
+						{ label: "Account Signing Keys", slug: "guides/account-signing-keys" },
 						{ label: "Observability", slug: "guides/observability" },
 					],
 				},

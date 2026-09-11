@@ -1,0 +1,98 @@
+---
+title: Account Signing Keys
+description: Manage and use additional NATS account signing keys
+---
+
+> **Since v0.7.2:** `AccountSigningKey` is available in the released NAuth API.
+
+An `AccountSigningKey` manages one additional NATS account signing-key seed independently of an `Account`'s implicit signing key. An Account can trust the public key, and a User can use the key to sign its JWT.
+
+## Managed mode
+
+In managed mode, NAuth generates the signing key and creates a Secret containing the seed. The default Secret name is `<account-signing-key-name>-ac-sign`, and the Secret is owned and garbage-collected with the `AccountSigningKey` resource.
+
+Create an `AccountSigningKey` without `spec.secretName` to use the default Secret name:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: AccountSigningKey
+metadata:
+  name: payments-signing
+  namespace: my-team
+spec: {}
+```
+
+NAuth creates `payments-signing-ac-sign` with the signing seed under the `default` data key. Verify that the resource is ready and that the public key has been resolved:
+
+```bash
+kubectl apply -f account-signing-key.yaml
+kubectl get accountsigningkey -n my-team payments-signing -o yaml
+kubectl get secret -n my-team payments-signing-ac-sign
+```
+
+You can choose a custom Secret name with `spec.secretName`. The field is immutable, so choose the name before creating the resource.
+
+## Trust the key from an Account
+
+Add the `AccountSigningKey` to the Account's `spec.signingKeyRefs`:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: payments
+  namespace: my-team
+spec:
+  signingKeyRefs:
+    - kind: AccountSigningKey
+      name: payments-signing
+```
+
+The reference defaults to the Account's namespace. To trust a shared key in another namespace, set `namespace` explicitly. NAuth publishes the resolved public key in `Account.status.claims.signingKeys` after the key is Ready.
+
+## Sign a User with the key
+
+Once the Account trusts the key, select it in the User's `spec.signingKeyRef`:
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: payments-client
+  namespace: my-team
+spec:
+  accountName: payments
+  signingKeyRef:
+    kind: AccountSigningKey
+    name: payments-signing
+```
+
+The User and AccountSigningKey can be in different namespaces only when `namespace` is set on the User's `spec.signingKeyRef`. If the key is missing, not Ready, or not trusted by the Account yet, User reconciliation waits until the dependency is available.
+
+## Observe an existing signing key
+
+Use observe mode when the signing seed already exists in a Secret. NAuth reads the Secret, derives the public key, and does not modify, own, or delete the Secret.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: existing-payments-signing
+  namespace: my-team
+stringData:
+  default: REPLACE_WITH_ACCOUNT_SIGNING_KEY_SEED
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountSigningKey
+metadata:
+  name: payments-signing
+  namespace: my-team
+  labels:
+    nauth.io/management-policy: observe
+spec:
+  secretName: existing-payments-signing
+```
+
+In observe mode, `spec.secretName` is required and must identify an existing Secret in the same namespace. The Secret must contain a valid account signing-key seed under the `default` data key. Replace the placeholder before applying the manifest; signing seeds are sensitive credentials.
+
+After the observed key is Ready, use the same `spec.signingKeyRefs` and `spec.signingKeyRef` configuration described above.
