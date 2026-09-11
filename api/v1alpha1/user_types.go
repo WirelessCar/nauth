@@ -47,9 +47,9 @@ type UserSpec struct {
 	UserLimits *UserLimits `json:"userLimits,omitempty"`
 	// +optional
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
-	// SigningKeyRef optionally references the signing key used to sign this User's
+	// `SigningKeyRef` optionally references the signing key used to sign this User's
 	// JWT. When absent, the Account's implicit signing key is used. The referenced
-	// AccountSigningKey's public key must appear in Account.status.claims.signingKeys
+	// `AccountSigningKey`'s public key must appear in `Account.status.claims.signingKeys`
 	// at reconciliation time.
 	// +optional
 	SigningKeyRef *AccountSigningKeyRef `json:"signingKeyRef,omitempty"`

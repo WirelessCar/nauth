@@ -31,9 +31,9 @@ const (
 	AccountLabelNatsClusterID AccountLabel = "account.nauth.io/nats-cluster-id"
 )
 
-// NatsClusterRef references a NatsCluster resource
+// NatsClusterRef references a `NatsCluster` resource.
 type NatsClusterRef struct {
-	// Name of the NatsCluster
+	// Name of the `NatsCluster`.
 	Name string `json:"name"`
 	// Namespace of the NatsCluster
 	// +optional
@@ -42,9 +42,9 @@ type NatsClusterRef struct {
 
 // AccountSpec defines the desired state of Account.
 type AccountSpec struct {
-	// NatsClusterRef references the NatsCluster to use for this account.
-	// If not specified, the controller uses the operator-level NATS_CLUSTER_REF when configured.
-	// Otherwise, reconciliation fails because the target NatsCluster cannot be resolved.
+	// NatsClusterRef references the `NatsCluster` to use for this account.
+	// If not specified, the controller uses the operator-level `NATS_CLUSTER_REF` when configured.
+	// Otherwise, reconciliation fails because the target `NatsCluster` cannot be resolved.
 	// +optional
 	NatsClusterRef *NatsClusterRef `json:"natsClusterRef,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the account. May be derived if absent.
@@ -64,7 +64,7 @@ type AccountSpec struct {
 	JetStreamLimits *JetStreamLimits `json:"jetStreamLimits,omitempty"`
 	// +optional
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
-	// SigningKeyRefs lists references whose public keys are trusted as additional
+	// `SigningKeyRefs` lists references whose public keys are trusted as additional
 	// signing keys for this account. The implicit default signing key is always
 	// present and is not listed here.
 	// +optional
@@ -86,10 +86,10 @@ const (
 )
 
 // AccountSigningKeyRef references a signing-key resource whose public key is
-// trusted by the Account (and may be used to sign Users). Only AccountSigningKey
+// trusted by the Account (and may be used to sign Users). Only `AccountSigningKey`
 // is supported; Kind is reserved for future kinds (e.g. issuers).
 type AccountSigningKeyRef struct {
-	// Kind of the referenced resource. Defaults to AccountSigningKey.
+	// Kind of the referenced resource. Defaults to `AccountSigningKey`.
 	// +optional
 	// +kubebuilder:default=AccountSigningKey
 	Kind AccountSigningKeyRefKind `json:"kind,omitempty"`
@@ -332,9 +332,10 @@ type Import struct {
 	Account string  `json:"account,omitempty"`
 	// Local subject used to subscribe (for streams) and publish (for services) to.
 	// This value only needs setting if you want to change the value of Subject.
-	// If the value of Subject ends in > then LocalSubject needs to end in > as well.
-	// LocalSubject can contain $<number> wildcard references where number references the nth wildcard in Subject.
-	// The sum of wildcard reference and * tokens needs to match the number of * token in Subject.
+	// If the value of `Subject` ends in `>`, `LocalSubject` needs to end in `>` as well.
+	// `LocalSubject` can contain `$<number>` wildcard references, where `number` references
+	// the nth wildcard in `Subject`. The number of wildcard references and `*` tokens
+	// must match the number of `*` tokens in `Subject`.
 	LocalSubject RenamingSubject `json:"localSubject,omitempty"`
 	Type         ExportType      `json:"type,omitempty"`
 	Share        bool            `json:"share,omitempty"`

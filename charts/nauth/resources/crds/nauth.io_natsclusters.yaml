@@ -44,7 +44,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: NatsClusterSpec defines the desired state of NatsCluster
+            description: NatsClusterSpec defines the desired state of `NatsCluster`.
             properties:
               operatorSigningKeySecretRef:
                 description: SecretKeyReference contains information to locate a secret
@@ -76,11 +76,11 @@ spec:
                 type: object
               url:
                 description: URL is the NATS server URL for this cluster. Mutually
-                  exclusive with urlFrom.
+                  exclusive with `urlFrom`.
                 type: string
               urlFrom:
                 description: URLFrom loads the NATS URL from a ConfigMap or Secret.
-                  Mutually exclusive with url.
+                  Mutually exclusive with `url`.
                 properties:
                   key:
                     description: Key in the ConfigMap or Secret whose value is the

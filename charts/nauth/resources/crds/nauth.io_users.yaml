@@ -124,14 +124,14 @@ spec:
                 type: object
               signingKeyRef:
                 description: |-
-                  SigningKeyRef optionally references the signing key used to sign this User's
+                  `SigningKeyRef` optionally references the signing key used to sign this User's
                   JWT. When absent, the Account's implicit signing key is used. The referenced
-                  AccountSigningKey's public key must appear in Account.status.claims.signingKeys
+                  `AccountSigningKey`'s public key must appear in `Account.status.claims.signingKeys`
                   at reconciliation time.
                 properties:
                   kind:
                     default: AccountSigningKey
-                    description: Kind of the referenced resource. Defaults to AccountSigningKey.
+                    description: Kind of the referenced resource. Defaults to `AccountSigningKey`.
                     enum:
                     - AccountSigningKey
                     type: string

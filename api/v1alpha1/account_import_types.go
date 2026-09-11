@@ -102,10 +102,10 @@ type AccountImportRuleDerived struct {
 
 // AccountImportStatus defines the observed state of AccountImport.
 type AccountImportStatus struct {
-	// AccountID is the resolved ID of the Account referenced by spec.accountName.
+	// AccountID is the resolved ID of the Account referenced by `spec.accountName`.
 	// +optional
 	AccountID string `json:"accountID,omitempty"`
-	// ExportAccountID is the resolved ID of the Account referenced by spec.exportAccountRef.
+	// ExportAccountID is the resolved ID of the Account referenced by `spec.exportAccountRef`.
 	// +optional
 	ExportAccountID string `json:"exportAccountID,omitempty"`
 	// DesiredClaim is the normalized claim for Account to use.
