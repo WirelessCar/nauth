@@ -9,19 +9,25 @@ NAuth's main workflow is to manage NATS `Account` and `User` resources from Kube
 
 In observe mode, NAuth reads the existing account JWT from NATS and populates `status.claims`. It does not manage or push a new JWT. The observed claims can be used as a starting point when migrating the account into `spec` or recovering desired state.
 
+The observed `Account` still needs a NATS cluster. Configure the operator with `NATS_CLUSTER_REF`, or set `spec.natsClusterRef` as shown below. The example assumes the `NatsCluster` from [Getting Started](/guides/getting-started/) is available in the `nauth` namespace.
+
 The account root seed and account signing seed must exist as Kubernetes Secrets. NAuth discovers them by labels and reads each seed from the `default` data key.
 
-- account root seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-root`
-- account signing seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-sign`
+- account root seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-root`, `nauth.io/managed=true`
+- account signing seed labels: `account.nauth.io/id=$ACCOUNT_PUBKEY`, `nauth.io/secret-type=account-sign`, `nauth.io/managed=true`
+
+Replace the placeholder values before applying these manifests. The seed values are sensitive credentials.
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: my-acc-root
+  namespace: my-team
   labels:
     account.nauth.io/id: $ACCOUNT_PUBKEY
     nauth.io/secret-type: account-root
+    nauth.io/managed: "true"
 stringData:
   default: $ACCOUNT_ROOT_SEED
 ---
@@ -29,9 +35,11 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: my-acc-sign
+  namespace: my-team
   labels:
     account.nauth.io/id: $ACCOUNT_PUBKEY
     nauth.io/secret-type: account-sign
+    nauth.io/managed: "true"
 stringData:
   default: $ACCOUNT_SIGNING_SEED
 ```
@@ -43,9 +51,30 @@ apiVersion: nauth.io/v1alpha1
 kind: Account
 metadata:
   name: my-acc
+  namespace: my-team
   labels:
     account.nauth.io/id: $ACCOUNT_PUBKEY
     nauth.io/management-policy: observe
+spec:
+  natsClusterRef:
+    name: example-nats-cluster
+    namespace: nauth
 ```
+
+Create the namespace and apply the manifests:
+
+```bash
+kubectl create namespace my-team
+kubectl apply -f observed-account-secrets.yaml
+kubectl apply -f observed-account.yaml
+```
+
+Verify that NAuth has observed the account:
+
+```bash
+kubectl get account -n my-team my-acc -o yaml
+```
+
+The public key and other observed values appear under `status.claims` when reconciliation succeeds.
 
 If you represent the NATS system account in NAuth, use observe mode. NAuth prevents management of the system account JWT.
