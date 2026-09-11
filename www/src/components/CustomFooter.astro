@@ -13,9 +13,18 @@ import Pagination from "@astrojs/starlight/components/Pagination.astro";
 	<Pagination />
 
 	<div class="copyright-notice">
-		©2025 The Nauth Authors. Built with ❤️ at <a href="https://www.wirelesscar.com">WirelessCar</a>
+		©<span data-current-year>{new Date().getFullYear()}</span> The Nauth Authors. Built with ❤️ at
+		{" "}<a href="https://www.wirelesscar.com">WirelessCar</a>
 	</div>
 </footer>
+
+<script>
+	const currentYear = String(new Date().getFullYear());
+
+	document.querySelectorAll("[data-current-year]").forEach((year) => {
+		year.textContent = currentYear;
+	});
+</script>
 
 <style>
 	@layer starlight.core {
