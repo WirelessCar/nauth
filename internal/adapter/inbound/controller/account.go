@@ -205,6 +205,9 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
+	if result.ClaimsValidated {
+		natsAccount.Status.NatsAccountClaimsValidatedAt = metav1.Now()
+	}
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 	natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
@@ -290,15 +293,16 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 
 func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.AccountReference) nauth.AccountRequest {
 	return nauth.AccountRequest{
-		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
-		AccountID:        accountReference.AccountID,
-		ClaimsHash:       state.Status.ClaimsHash,
-		DisplayName:      state.Spec.DisplayName,
-		ClusterTarget:    accountReference.ClusterTarget,
-		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
-		JetStreamEnabled: state.Spec.JetStreamEnabled,
-		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
-		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
+		AccountRef:                   domain.NewNamespacedName(state.Namespace, state.Name),
+		AccountID:                    accountReference.AccountID,
+		ClaimsHash:                   state.Status.ClaimsHash,
+		NatsAccountClaimsValidatedAt: state.Status.NatsAccountClaimsValidatedAt.Time,
+		DisplayName:                  state.Spec.DisplayName,
+		ClusterTarget:                accountReference.ClusterTarget,
+		AccountLimits:                toNAuthAccountLimits(state.Spec.AccountLimits),
+		JetStreamEnabled:             state.Spec.JetStreamEnabled,
+		JetStreamLimits:              toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
+		NatsLimits:                   toNAuthNatsLimits(state.Spec.NatsLimits),
 	}
 }
 

@@ -137,6 +137,9 @@ type AccountStatus struct {
 	// ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated.
 	// +optional
 	ClaimsHash string `json:"claimsHash,omitempty"`
+	// NatsAccountClaimsValidatedAt records when the desired Account JWT was last validated against NATS.
+	// +optional
+	NatsAccountClaimsValidatedAt metav1.Time `json:"natsAccountClaimsValidatedAt,omitempty"`
 	// +optional
 	Adoptions *AccountAdoptions `json:"adoptions,omitempty"`
 	// +listType=map

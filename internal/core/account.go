@@ -22,6 +22,8 @@ type AccountManager struct {
 	secretManager   secretManager
 }
 
+const accountClaimsValidationInterval = 5 * time.Minute
+
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
@@ -173,21 +175,17 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	log := logf.FromContext(ctx)
-	prevClaimsHash := request.ClaimsHash
-	if prevClaimsHash == "" || prevClaimsHash != claimsHash {
-		sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
-		}
-		defer sysConn.Disconnect()
-
-		err = sysConn.UploadAccountJWT(signedJwt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to upload account jwt: %w", err)
-		}
-		log.Info("Uploaded Account JWT to NATS",
-			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
+	claimsValidated, err := a.reconcileAccountJWT(
+		ctx,
+		cluster,
+		accountPublicKey,
+		signedJwt,
+		claimsHash,
+		request.ClaimsHash,
+		request.NatsAccountClaimsValidatedAt,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	nauthClaims, err := convertNatsAccountClaims(natsClaims)
@@ -200,7 +198,64 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		Claims:          &nauthClaims,
 		ClaimsHash:      claimsHash,
 		Adoptions:       adoptions,
+		ClaimsValidated: claimsValidated,
 	}, nil
+}
+
+func (a *AccountManager) reconcileAccountJWT(
+	ctx context.Context,
+	cluster nauth.ClusterTarget,
+	accountID string,
+	desiredJWT string,
+	desiredClaimsHash string,
+	previousClaimsHash string,
+	lastValidation time.Time,
+) (bool, error) {
+	log := logf.FromContext(ctx)
+	claimsChanged := previousClaimsHash == "" || previousClaimsHash != desiredClaimsHash
+	now := time.Now()
+	validationFresh := !claimsChanged && !lastValidation.IsZero() &&
+		!lastValidation.After(now) && now.Sub(lastValidation) < accountClaimsValidationInterval
+	if validationFresh {
+		log.Info("Skipped Account JWT validation because claims are unchanged and validation is fresh",
+			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastValidation", lastValidation)
+		return false, nil
+	}
+
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	if err != nil {
+		return false, fmt.Errorf("failed to connect to NATS cluster: %w", err)
+	}
+	defer sysConn.Disconnect()
+
+	if !claimsChanged {
+		remoteJWT, err := sysConn.LookupAccountJWT(accountID)
+		if err != nil {
+			return false, fmt.Errorf("failed to validate account jwt in NATS: %w", err)
+		}
+
+		if remoteJWT != "" {
+			remoteClaimsHash, err := hashSignedAccountJWTClaims(remoteJWT)
+			if err != nil {
+				return false, fmt.Errorf("failed to validate remote account jwt: %w", err)
+			}
+			if remoteClaimsHash == desiredClaimsHash {
+				log.Info("Validated Account JWT in NATS because claims are unchanged",
+					"accountID", accountID, "claimsHash", desiredClaimsHash)
+				return true, nil
+			}
+			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
+				"accountID", accountID, "remoteClaimsHash", remoteClaimsHash, "claimsHash", desiredClaimsHash)
+		} else {
+			log.Info("Account JWT is missing in NATS; uploading desired claims", "accountID", accountID, "claimsHash", desiredClaimsHash)
+		}
+	}
+
+	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
+		return false, fmt.Errorf("failed to upload account jwt: %w", err)
+	}
+	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", previousClaimsHash, "claimsHash", desiredClaimsHash)
+	return true, nil
 }
 
 func (a *AccountManager) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {
@@ -328,6 +383,7 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		AccountSignedBy: natsClaims.Issuer,
 		Claims:          &nauthClaims,
 		ClaimsHash:      claimsHash,
+		ClaimsValidated: true,
 	}, nil
 }
 

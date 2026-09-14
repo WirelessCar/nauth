@@ -804,6 +804,7 @@ func (in *AccountStatus) DeepCopyInto(out *AccountStatus) {
 		*out = new(AccountClaims)
 		(*in).DeepCopyInto(*out)
 	}
+	in.NatsAccountClaimsValidatedAt.DeepCopyInto(&out.NatsAccountClaimsValidatedAt)
 	if in.Adoptions != nil {
 		in, out := &in.Adoptions, &out.Adoptions
 		*out = new(AccountAdoptions)
