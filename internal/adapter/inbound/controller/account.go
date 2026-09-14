@@ -205,10 +205,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
-	// Preserve the last successful NATS validation when this reconciliation skips
-	// validation because the existing validation is still fresh.
-	if result.ClaimsValidationPerformed {
-		natsAccount.Status.ClaimsValidatedAt = metav1.Now()
+	// Preserve the last successful NATS acceptance confirmation when this reconciliation
+	// skips checking because the existing confirmation is still fresh.
+	if result.ClaimsAcceptanceConfirmed {
+		natsAccount.Status.ClaimsAcceptedAt = metav1.Now()
 	}
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
@@ -295,16 +295,16 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 
 func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.AccountReference) nauth.AccountRequest {
 	return nauth.AccountRequest{
-		AccountRef:        domain.NewNamespacedName(state.Namespace, state.Name),
-		AccountID:         accountReference.AccountID,
-		ClaimsHash:        state.Status.ClaimsHash,
-		ClaimsValidatedAt: state.Status.ClaimsValidatedAt.Time,
-		DisplayName:       state.Spec.DisplayName,
-		ClusterTarget:     accountReference.ClusterTarget,
-		AccountLimits:     toNAuthAccountLimits(state.Spec.AccountLimits),
-		JetStreamEnabled:  state.Spec.JetStreamEnabled,
-		JetStreamLimits:   toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
-		NatsLimits:        toNAuthNatsLimits(state.Spec.NatsLimits),
+		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
+		AccountID:        accountReference.AccountID,
+		ClaimsHash:       state.Status.ClaimsHash,
+		ClaimsAcceptedAt: state.Status.ClaimsAcceptedAt.Time,
+		DisplayName:      state.Spec.DisplayName,
+		ClusterTarget:    accountReference.ClusterTarget,
+		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
+		JetStreamEnabled: state.Spec.JetStreamEnabled,
+		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
+		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
 	}
 }
 

@@ -8,19 +8,19 @@ import (
 )
 
 type AccountRequest struct {
-	AccountRef        domain.NamespacedName `json:"accountRef,omitempty"`
-	AccountID         AccountID             `json:"accountId,omitempty"`
-	ClaimsHash        string                `json:"claimsHash,omitempty"`
-	ClaimsValidatedAt time.Time             `json:"claimsValidatedAt,omitempty"`
-	DisplayName       string                `json:"displayName,omitempty"`
-	ClusterTarget     ClusterTarget         `json:"clusterTarget,omitempty"`
-	AccountLimits     *AccountLimits        `json:"accountLimits,omitempty"`
-	JetStreamEnabled  *bool                 `json:"jetStreamEnabled,omitempty"`
-	JetStreamLimits   *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
-	NatsLimits        *NatsLimits           `json:"natsLimits,omitempty"`
-	ExportGroups      ExportGroups          `json:"exportGroups,omitempty"`
-	ImportGroups      ImportGroups          `json:"importGroups,omitempty"`
-	SigningKeys       []string              `json:"signingKeys,omitempty"`
+	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
+	AccountID        AccountID             `json:"accountId,omitempty"`
+	ClaimsHash       string                `json:"claimsHash,omitempty"`
+	ClaimsAcceptedAt time.Time             `json:"claimsAcceptedAt,omitempty"`
+	DisplayName      string                `json:"displayName,omitempty"`
+	ClusterTarget    ClusterTarget         `json:"clusterTarget,omitempty"`
+	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
+	JetStreamEnabled *bool                 `json:"jetStreamEnabled,omitempty"`
+	JetStreamLimits  *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
+	NatsLimits       *NatsLimits           `json:"natsLimits,omitempty"`
+	ExportGroups     ExportGroups          `json:"exportGroups,omitempty"`
+	ImportGroups     ImportGroups          `json:"importGroups,omitempty"`
+	SigningKeys      []string              `json:"signingKeys,omitempty"`
 }
 
 func (r AccountRequest) Validate() error {
@@ -79,11 +79,11 @@ type AccountResult struct {
 	Claims          *AccountClaims
 	ClaimsHash      string
 	Adoptions       *AccountAdoptions
-	// ClaimsValidationPerformed is true when this reconciliation successfully confirmed
-	// the desired Account JWT claims with NATS, either by a matching lookup or an
-	// accepted upload. It is false when validation was skipped because the previous
-	// validation is still fresh.
-	ClaimsValidationPerformed bool `json:"-"`
+	// ClaimsAcceptanceConfirmed is true when this reconciliation confirmed that NATS
+	// accepted the desired Account JWT claims, either by a matching lookup or a
+	// successful upload. It is false when acceptance checking was skipped because
+	// the previous confirmation is still fresh.
+	ClaimsAcceptanceConfirmed bool `json:"-"`
 }
 
 type Ref string

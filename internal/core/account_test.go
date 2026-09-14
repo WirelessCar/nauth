@@ -325,18 +325,18 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now(),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now(),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.False(result.ClaimsValidationPerformed)
+	t.False(result.ClaimsAcceptanceConfirmed)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredClaimsValidationInterval() {
@@ -354,17 +354,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredClaimsValidatio
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        accountRef,
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now().Add(-2 * time.Minute),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now().Add(-2 * time.Minute),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.ClaimsValidationPerformed)
+	t.True(result.ClaimsAcceptanceConfirmed)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccount_WhenValidationExpired() {
@@ -381,18 +381,18 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccount_WhenVa
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        accountRef,
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.True(result.ClaimsValidationPerformed)
+	t.True(result.ClaimsAcceptanceConfirmed)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
 }
 
@@ -426,17 +426,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccount_W
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        accountRef,
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.ClaimsValidationPerformed)
+	t.True(result.ClaimsAcceptanceConfirmed)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccount_WhenValidationExpired() {
@@ -461,17 +461,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccount_W
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        accountRef,
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.ClaimsValidationPerformed)
+	t.True(result.ClaimsAcceptanceConfirmed)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteValidationFailure() {
@@ -489,11 +489,11 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteValidationFailu
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        accountRef,
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
@@ -567,11 +567,11 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:        domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:         nauth.AccountID(accountID),
-		ClaimsHash:        initialResult.ClaimsHash,
-		ClaimsValidatedAt: time.Now(),
-		ClusterTarget:     t.clusterTarget,
+		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		ClaimsAcceptedAt: time.Now(),
+		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then

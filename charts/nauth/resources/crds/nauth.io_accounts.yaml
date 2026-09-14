@@ -608,17 +608,17 @@ spec:
                       type: object
                     type: array
                 type: object
+              claimsAcceptedAt:
+                description: |-
+                  ClaimsAcceptedAt records when NAuth last confirmed that NATS accepted the desired Account
+                  JWT claims, either through a successful upload or a matching Account lookup. It does not
+                  represent local JWT parsing or that the JWT has reached Complete status on every server.
+                format: date-time
+                type: string
               claimsHash:
                 description: ClaimsHash is a hash of the Account JWT claims, used
                   to determine if the claims have changed and a new JWT needs to be
                   generated.
-                type: string
-              claimsValidatedAt:
-                description: |-
-                  ClaimsValidatedAt records when NAuth last confirmed that the desired Account JWT claims
-                  were accepted by the NATS claims resolver or matched the JWT returned by an Account
-                  lookup. It does not represent local JWT parsing or complete propagation to every server.
-                format: date-time
                 type: string
               conditions:
                 items:

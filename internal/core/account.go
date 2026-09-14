@@ -24,7 +24,7 @@ type AccountManager struct {
 }
 
 // DefaultAccountClaimsValidationInterval controls how long a successful NATS claims
-// validation remains fresh before the remote Account JWT is checked again.
+// acceptance confirmation remains fresh before the remote Account JWT is checked again.
 const DefaultAccountClaimsValidationInterval = 5 * time.Minute
 
 func NewAccountManager(
@@ -184,7 +184,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	claimsValidationPerformed, err := a.reconcileAccountJWT(
+	claimsAcceptanceConfirmed, err := a.reconcileAccountJWT(
 		ctx,
 		request,
 		accountPublicKey,
@@ -205,7 +205,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		Claims:                    &nauthClaims,
 		ClaimsHash:                claimsHash,
 		Adoptions:                 adoptions,
-		ClaimsValidationPerformed: claimsValidationPerformed,
+		ClaimsAcceptanceConfirmed: claimsAcceptanceConfirmed,
 	}, nil
 }
 
@@ -219,11 +219,11 @@ func (a *AccountManager) reconcileAccountJWT(
 	log := logf.FromContext(ctx)
 	claimsChanged := request.ClaimsHash == "" || request.ClaimsHash != desiredClaimsHash
 	now := time.Now()
-	validationFresh := !claimsChanged && !request.ClaimsValidatedAt.IsZero() &&
-		!request.ClaimsValidatedAt.After(now) && now.Sub(request.ClaimsValidatedAt) < a.claimsValidationInterval
-	if validationFresh {
-		log.V(1).Info("Skipped Account JWT validation because claims are unchanged and validation is fresh",
-			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastValidation", request.ClaimsValidatedAt)
+	acceptanceConfirmationFresh := !claimsChanged && !request.ClaimsAcceptedAt.IsZero() &&
+		!request.ClaimsAcceptedAt.After(now) && now.Sub(request.ClaimsAcceptedAt) < a.claimsValidationInterval
+	if acceptanceConfirmationFresh {
+		log.V(1).Info("Skipped Account JWT acceptance check because claims are unchanged and the previous confirmation is fresh",
+			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastAcceptedAt", request.ClaimsAcceptedAt)
 		return false, nil
 	}
 

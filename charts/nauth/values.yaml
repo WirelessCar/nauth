@@ -15,7 +15,7 @@ nats:
   # -- Allow existing Accounts to change their NatsCluster binding. Disabled by default.
   allowAccountNatsClusterRebind: false
 
-  # -- How long successful NATS Account claims validation remains fresh before the remote Account JWT is checked again.
+  # -- How long a successful NATS Account claims acceptance confirmation remains fresh before the remote Account JWT is checked again.
   accountClaimsValidationInterval: 5m
 
   # To move from one operator-level NatsCluster binding to explicit per-Account

@@ -110,7 +110,8 @@ func main() {
 		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
 	flag.DurationVar(&accountClaimsValidationInterval, "account-claims-validation-interval",
 		core.DefaultAccountClaimsValidationInterval,
-		"How long successful NATS Account claims validation remains fresh before the remote Account JWT is checked again.")
+		"How long a successful NATS Account claims acceptance confirmation remains fresh "+
+			"before the remote Account JWT is checked again.")
 	opts := zap.Options{
 		Development: true,
 	}
