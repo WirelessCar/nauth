@@ -63,6 +63,7 @@ type AccountReconciler struct {
 	clusterManager                inbound.ClusterManager
 	accountReader                 k8s.AccountReader
 	reporter                      *statusReporter
+	accountReconciliationInterval time.Duration
 	allowAccountNatsClusterRebind bool
 }
 
@@ -73,6 +74,7 @@ func NewAccountReconciler(
 	clusterManager inbound.ClusterManager,
 	accountReader k8s.AccountReader,
 	recorder events.EventRecorder,
+	accountReconciliationInterval time.Duration,
 	allowAccountNatsClusterRebind bool,
 ) *AccountReconciler {
 	return &AccountReconciler{
@@ -82,6 +84,7 @@ func NewAccountReconciler(
 		clusterManager:                clusterManager,
 		accountReader:                 accountReader,
 		reporter:                      newStatusReporter(k8sClient, recorder),
+		accountReconciliationInterval: accountReconciliationInterval,
 		allowAccountNatsClusterRebind: allowAccountNatsClusterRebind,
 	}
 }
@@ -205,6 +208,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.ClaimsHash
+	// Update the validation timestamp only when this reconciliation successfully validated
+	// the desired Account state in NATS. When validation is skipped, preserve the existing
+	// timestamp; when validation fails, this status update is never reached.
+	if result.StateValidationConfirmed {
+		natsAccount.Status.StateValidatedAt = metav1.Now()
+	}
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 	natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
@@ -215,7 +224,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return ctrl.Result{
-		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
+		RequeueAfter: time.Duration(float64(r.accountReconciliationInterval) * (0.9 + 0.2*rand.Float64())),
 	}, nil
 }
 
@@ -293,6 +302,7 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
 		AccountID:        accountReference.AccountID,
 		ClaimsHash:       state.Status.ClaimsHash,
+		StateValidatedAt: state.Status.StateValidatedAt.Time,
 		DisplayName:      state.Spec.DisplayName,
 		ClusterTarget:    accountReference.ClusterTarget,
 		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),

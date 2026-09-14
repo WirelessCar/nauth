@@ -16,10 +16,11 @@ import (
 )
 
 type AccountManager struct {
-	natsSysClient   outbound.NatsSysClient
-	natsAccClient   outbound.NatsAccountClient
-	accountIDReader outbound.AccountIDReader
-	secretManager   secretManager
+	natsSysClient                 outbound.NatsSysClient
+	natsAccClient                 outbound.NatsAccountClient
+	accountIDReader               outbound.AccountIDReader
+	secretManager                 secretManager
+	accountReconciliationInterval time.Duration
 }
 
 func NewAccountManager(
@@ -27,12 +28,13 @@ func NewAccountManager(
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretClient outbound.SecretClient,
+	accountReconciliationInterval time.Duration,
 ) (*AccountManager, error) {
 	sm, err := newSecretManagerImpl(secretClient)
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm)
+	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm, accountReconciliationInterval)
 }
 
 func newAccountManager(
@@ -40,12 +42,14 @@ func newAccountManager(
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretManager secretManager,
+	accountReconciliationInterval time.Duration,
 ) (*AccountManager, error) {
 	m := &AccountManager{
-		natsSysClient:   natsSysClient,
-		natsAccClient:   natsAccClient,
-		accountIDReader: accountIDReader,
-		secretManager:   secretManager,
+		natsSysClient:                 natsSysClient,
+		natsAccClient:                 natsAccClient,
+		accountIDReader:               accountIDReader,
+		secretManager:                 secretManager,
+		accountReconciliationInterval: accountReconciliationInterval,
 	}
 	if err := m.validate(); err != nil {
 		return nil, err
@@ -65,6 +69,9 @@ func (a *AccountManager) validate() error {
 	}
 	if a.natsAccClient == nil {
 		return errors.New("natsAccClient is required")
+	}
+	if a.accountReconciliationInterval <= 0 {
+		return errors.New("accountReconciliationInterval must be greater than zero")
 	}
 
 	return nil
@@ -173,21 +180,15 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	log := logf.FromContext(ctx)
-	prevClaimsHash := request.ClaimsHash
-	if prevClaimsHash == "" || prevClaimsHash != claimsHash {
-		sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
-		}
-		defer sysConn.Disconnect()
-
-		err = sysConn.UploadAccountJWT(signedJwt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to upload account jwt: %w", err)
-		}
-		log.Info("Uploaded Account JWT to NATS",
-			"accountID", accountPublicKey, "prevClaimsHash", prevClaimsHash, "claimsHash", claimsHash)
+	stateValidationConfirmed, err := a.reconcileAccountJWT(
+		ctx,
+		request,
+		accountPublicKey,
+		signedJwt,
+		claimsHash,
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	nauthClaims, err := convertNatsAccountClaims(natsClaims)
@@ -195,12 +196,68 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to convert NATS account claims: %w", err)
 	}
 	return &nauth.AccountResult{
-		AccountID:       accountPublicKey,
-		AccountSignedBy: operatorSigningPublicKey,
-		Claims:          &nauthClaims,
-		ClaimsHash:      claimsHash,
-		Adoptions:       adoptions,
+		AccountID:                accountPublicKey,
+		AccountSignedBy:          operatorSigningPublicKey,
+		Claims:                   &nauthClaims,
+		ClaimsHash:               claimsHash,
+		Adoptions:                adoptions,
+		StateValidationConfirmed: stateValidationConfirmed,
 	}, nil
+}
+
+func (a *AccountManager) reconcileAccountJWT(
+	ctx context.Context,
+	request nauth.AccountRequest,
+	accountID string,
+	desiredJWT string,
+	desiredClaimsHash string,
+) (bool, error) {
+	log := logf.FromContext(ctx)
+	claimsChanged := request.ClaimsHash == "" || request.ClaimsHash != desiredClaimsHash
+	now := time.Now()
+	stateValidationFresh := !claimsChanged && !request.StateValidatedAt.IsZero() &&
+		!request.StateValidatedAt.After(now) && now.Sub(request.StateValidatedAt) < a.accountReconciliationInterval
+	if stateValidationFresh {
+		log.V(1).Info("Skipped Account state validation because the desired state is unchanged and the previous validation is fresh",
+			"accountID", accountID, "claimsHash", desiredClaimsHash, "stateValidatedAt", request.StateValidatedAt)
+		return false, nil
+	}
+
+	sysConn, err := a.natsSysClient.Connect(request.ClusterTarget.NatsURL, request.ClusterTarget.SystemAdminCreds)
+	if err != nil {
+		return false, fmt.Errorf("failed to connect to NATS cluster: %w", err)
+	}
+	defer sysConn.Disconnect()
+
+	if !claimsChanged {
+		remoteJWT, err := sysConn.LookupAccountJWT(accountID)
+		if err != nil {
+			return false, fmt.Errorf("failed to validate account jwt in NATS: %w", err)
+		}
+
+		if remoteJWT != "" {
+			remoteClaimsHash, err := hashSignedAccountJWTClaims(remoteJWT)
+			if err != nil {
+				return false, fmt.Errorf("failed to validate remote account jwt: %w", err)
+			}
+			if remoteClaimsHash == desiredClaimsHash {
+				// The remote JWT already matches the desired claims.
+				log.V(1).Info("Skipped Account JWT upload because the remote state already matches the desired state",
+					"accountID", accountID, "claimsHash", desiredClaimsHash)
+				return true, nil
+			}
+			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
+				"accountID", accountID, "remoteClaimsHash", remoteClaimsHash, "claimsHash", desiredClaimsHash)
+		} else {
+			log.Info("Account JWT is missing in NATS; uploading desired claims", "accountID", accountID, "claimsHash", desiredClaimsHash)
+		}
+	}
+
+	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
+		return false, fmt.Errorf("failed to upload account jwt: %w", err)
+	}
+	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.ClaimsHash, "claimsHash", desiredClaimsHash)
+	return true, nil
 }
 
 func (a *AccountManager) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {

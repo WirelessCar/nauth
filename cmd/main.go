@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/go-logr/logr"
@@ -66,6 +67,8 @@ const (
 	logLevelInfo  = "info"
 	logLevelWarn  = "warn"
 	logLevelError = "error"
+
+	defaultAccountReconciliationInterval = 5 * time.Minute
 )
 
 func init() {
@@ -85,6 +88,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var accountReconciliationInterval time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
 		"If not specified, all namespaces will be watched.")
@@ -106,6 +110,9 @@ func main() {
 		"Log output format. Supported values: text, json. Defaults to existing text output.")
 	flag.StringVar(&logLevel, "log-level", "",
 		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
+	flag.DurationVar(&accountReconciliationInterval, "account-reconciliation-interval",
+		defaultAccountReconciliationInterval,
+		"How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -114,6 +121,11 @@ func main() {
 
 	if _, err := initLogger(&opts, logFormat, logLevel); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid logging configuration: %s\n", err.Error())
+		os.Exit(1)
+	}
+	if accountReconciliationInterval <= 0 {
+		setupLog.Error(nil, "account reconciliation interval must be greater than zero",
+			"accountReconciliationInterval", accountReconciliationInterval)
 		os.Exit(1)
 	}
 
@@ -289,6 +301,7 @@ func main() {
 		natsAccClient,
 		accountClient,
 		secretClient,
+		accountReconciliationInterval,
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
@@ -302,6 +315,7 @@ func main() {
 		clusterManager,
 		accountClient,
 		mgr.GetEventRecorder("account-controller"),
+		accountReconciliationInterval,
 		allowAccountNatsClusterRebind,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {

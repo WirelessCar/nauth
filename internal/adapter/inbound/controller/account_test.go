@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
@@ -56,6 +57,8 @@ type AccountControllerTestSuite struct {
 
 	unitUnderTest *AccountReconciler
 }
+
+const testAccountReconciliationInterval = time.Minute
 
 func TestAccountController_TestSuite(t *testing.T) {
 	suite.Run(t, new(AccountControllerTestSuite))
@@ -93,6 +96,7 @@ func (t *AccountControllerTestSuite) newAccountReconciler(allowAccountNatsCluste
 		t.clusterManagerMock,
 		accountClient,
 		t.fakeRecorder,
+		testAccountReconciliationInterval,
 		allowAccountNatsClusterRebind,
 	)
 }
@@ -534,6 +538,98 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 
 	// Then
 	t.NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.True(account.Status.StateValidatedAt.IsZero())
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordStateValidatedAt_WhenManagerConfirmsValidation() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+		}),
+	)
+
+	mockResult := &nauth.AccountResult{
+		AccountID:                accountID,
+		AccountSignedBy:          "OPERATOR_SIGNING_KEY",
+		StateValidationConfirmed: true,
+	}
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.False(account.Status.StateValidatedAt.IsZero())
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidatedAt_WhenManagerSkipsValidation() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	acceptedAt := metav1.NewTime(time.Now().Add(-time.Minute).Truncate(time.Second))
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+			account.Status.ClaimsHash = "claims-hash"
+			account.Status.StateValidatedAt = acceptedAt
+		}),
+	)
+
+	mockResult := &nauth.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		ClaimsHash:      "claims-hash",
+	}
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
+		t.Equal("claims-hash", request.ClaimsHash)
+		t.Equal(acceptedAt.Time, request.StateValidatedAt)
+		return mockResult, nil
+	}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Equal(acceptedAt, account.Status.StateValidatedAt)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidatedAt_WhenManagerFails() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	validatedAt := metav1.NewTime(time.Now().Add(-time.Minute).Truncate(time.Second))
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+			account.Status.StateValidatedAt = validatedAt
+		}),
+	)
+
+	managerErr := errors.New("NATS state validation failed")
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdateError(t.ctx, mock.Anything, managerErr).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().ErrorIs(err, managerErr)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Equal(validatedAt, account.Status.StateValidatedAt)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
@@ -573,6 +669,33 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 
 	t.Equal(newOperatorVersion, account.Status.OperatorVersion)
 	t.Empty(t.fakeRecorder.Events)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldUseConfiguredAccountReconciliationInterval() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+		}),
+	)
+
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, &nauth.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+	}).Once()
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	minimum := testAccountReconciliationInterval * 9 / 10
+	maximum := testAccountReconciliationInterval * 11 / 10
+	t.True(result.RequeueAfter >= minimum, "requeue interval should be at least %s, got %s", minimum, result.RequeueAfter)
+	t.True(result.RequeueAfter <= maximum, "requeue interval should be at most %s, got %s", maximum, result.RequeueAfter)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExportsExist() {

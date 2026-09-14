@@ -156,6 +156,10 @@
     "nats": {
       "type": "object",
       "properties": {
+        "accountReconciliationInterval": {
+          "description": "How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.",
+          "type": "string"
+        },
         "allowAccountNatsClusterRebind": {
           "description": "Allow existing Accounts to change their NatsCluster binding. Disabled by default.",
           "type": "boolean"

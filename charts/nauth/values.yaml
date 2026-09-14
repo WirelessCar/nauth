@@ -15,6 +15,9 @@ nats:
   # -- Allow existing Accounts to change their NatsCluster binding. Disabled by default.
   allowAccountNatsClusterRebind: false
 
+  # -- How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.
+  accountReconciliationInterval: 5m
+
   # To move from one operator-level NatsCluster binding to explicit per-Account
   # bindings, first set this reference in strict mode, then add matching
   # `spec.natsClusterRef` values to existing Accounts, and finally remove the
