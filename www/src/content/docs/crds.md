@@ -609,7 +609,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
 | `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated. |  |  |
-| `natsAccountClaimsValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | NatsAccountClaimsValidatedAt records when the desired Account JWT was last validated against NATS. |  |  |
+| `claimsValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | ClaimsValidatedAt records when NAuth last confirmed that the desired Account JWT claims were accepted by the NATS claims resolver or matched the JWT returned by an Account lookup. It does not represent local JWT parsing or complete propagation to every server. |  |  |
 | `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |

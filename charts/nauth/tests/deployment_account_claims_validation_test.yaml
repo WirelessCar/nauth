@@ -1,0 +1,18 @@
+suite: account claims validation interval args
+templates:
+  - deployment.yaml
+tests:
+  - it: uses the five minute validation interval by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --account-claims-validation-interval=5m
+
+  - it: configures the validation interval from Helm values
+    set:
+      nats:
+        accountClaimsValidationInterval: 30m
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --account-claims-validation-interval=30m

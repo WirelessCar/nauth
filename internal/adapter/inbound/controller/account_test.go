@@ -526,7 +526,6 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
-		ClaimsValidated: true,
 	}
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
@@ -538,10 +537,10 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.False(account.Status.NatsAccountClaimsValidatedAt.IsZero())
+	t.True(account.Status.ClaimsValidatedAt.IsZero())
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordNatsAccountClaimsValidatedAt_WhenManagerValidates() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordClaimsValidatedAt_WhenManagerValidates() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
@@ -552,9 +551,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordNatsAccountClaim
 	)
 
 	mockResult := &nauth.AccountResult{
-		AccountID:       accountID,
-		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		ClaimsValidated: true,
+		AccountID:                 accountID,
+		AccountSignedBy:           "OPERATOR_SIGNING_KEY",
+		ClaimsValidationPerformed: true,
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
@@ -566,10 +565,10 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordNatsAccountClaim
 	t.Require().NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.False(account.Status.NatsAccountClaimsValidatedAt.IsZero())
+	t.False(account.Status.ClaimsValidatedAt.IsZero())
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNatsAccountClaimsValidatedAt_WhenManagerSkipsValidation() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveClaimsValidatedAt_WhenManagerSkipsValidation() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	validatedAt := metav1.NewTime(time.Now().Add(-time.Minute).Truncate(time.Second))
@@ -578,7 +577,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNatsAccountCla
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 			account.Status.ClaimsHash = "claims-hash"
-			account.Status.NatsAccountClaimsValidatedAt = validatedAt
+			account.Status.ClaimsValidatedAt = validatedAt
 		}),
 	)
 
@@ -590,7 +589,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNatsAccountCla
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
 		t.Equal("claims-hash", request.ClaimsHash)
-		t.Equal(validatedAt.Time, request.NatsAccountClaimsValidatedAt)
+		t.Equal(validatedAt.Time, request.ClaimsValidatedAt)
 		return mockResult, nil
 	}).Once()
 
@@ -601,7 +600,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNatsAccountCla
 	t.Require().NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.Equal(validatedAt, account.Status.NatsAccountClaimsValidatedAt)
+	t.Equal(validatedAt, account.Status.ClaimsValidatedAt)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {

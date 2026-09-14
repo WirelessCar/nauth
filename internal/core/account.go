@@ -16,25 +16,29 @@ import (
 )
 
 type AccountManager struct {
-	natsSysClient   outbound.NatsSysClient
-	natsAccClient   outbound.NatsAccountClient
-	accountIDReader outbound.AccountIDReader
-	secretManager   secretManager
+	natsSysClient            outbound.NatsSysClient
+	natsAccClient            outbound.NatsAccountClient
+	accountIDReader          outbound.AccountIDReader
+	secretManager            secretManager
+	claimsValidationInterval time.Duration
 }
 
-const accountClaimsValidationInterval = 5 * time.Minute
+// DefaultAccountClaimsValidationInterval controls how long a successful NATS claims
+// validation remains fresh before the remote Account JWT is checked again.
+const DefaultAccountClaimsValidationInterval = 5 * time.Minute
 
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretClient outbound.SecretClient,
+	claimsValidationInterval time.Duration,
 ) (*AccountManager, error) {
 	sm, err := newSecretManagerImpl(secretClient)
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm)
+	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm, claimsValidationInterval)
 }
 
 func newAccountManager(
@@ -42,12 +46,14 @@ func newAccountManager(
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretManager secretManager,
+	claimsValidationInterval time.Duration,
 ) (*AccountManager, error) {
 	m := &AccountManager{
-		natsSysClient:   natsSysClient,
-		natsAccClient:   natsAccClient,
-		accountIDReader: accountIDReader,
-		secretManager:   secretManager,
+		natsSysClient:            natsSysClient,
+		natsAccClient:            natsAccClient,
+		accountIDReader:          accountIDReader,
+		secretManager:            secretManager,
+		claimsValidationInterval: claimsValidationInterval,
 	}
 	if err := m.validate(); err != nil {
 		return nil, err
@@ -67,6 +73,9 @@ func (a *AccountManager) validate() error {
 	}
 	if a.natsAccClient == nil {
 		return errors.New("natsAccClient is required")
+	}
+	if a.claimsValidationInterval <= 0 {
+		return errors.New("claimsValidationInterval must be greater than zero")
 	}
 
 	return nil
@@ -175,14 +184,12 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	claimsValidated, err := a.reconcileAccountJWT(
+	claimsValidationPerformed, err := a.reconcileAccountJWT(
 		ctx,
-		cluster,
+		request,
 		accountPublicKey,
 		signedJwt,
 		claimsHash,
-		request.ClaimsHash,
-		request.NatsAccountClaimsValidatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -193,36 +200,34 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to convert NATS account claims: %w", err)
 	}
 	return &nauth.AccountResult{
-		AccountID:       accountPublicKey,
-		AccountSignedBy: operatorSigningPublicKey,
-		Claims:          &nauthClaims,
-		ClaimsHash:      claimsHash,
-		Adoptions:       adoptions,
-		ClaimsValidated: claimsValidated,
+		AccountID:                 accountPublicKey,
+		AccountSignedBy:           operatorSigningPublicKey,
+		Claims:                    &nauthClaims,
+		ClaimsHash:                claimsHash,
+		Adoptions:                 adoptions,
+		ClaimsValidationPerformed: claimsValidationPerformed,
 	}, nil
 }
 
 func (a *AccountManager) reconcileAccountJWT(
 	ctx context.Context,
-	cluster nauth.ClusterTarget,
+	request nauth.AccountRequest,
 	accountID string,
 	desiredJWT string,
 	desiredClaimsHash string,
-	previousClaimsHash string,
-	lastValidation time.Time,
 ) (bool, error) {
 	log := logf.FromContext(ctx)
-	claimsChanged := previousClaimsHash == "" || previousClaimsHash != desiredClaimsHash
+	claimsChanged := request.ClaimsHash == "" || request.ClaimsHash != desiredClaimsHash
 	now := time.Now()
-	validationFresh := !claimsChanged && !lastValidation.IsZero() &&
-		!lastValidation.After(now) && now.Sub(lastValidation) < accountClaimsValidationInterval
+	validationFresh := !claimsChanged && !request.ClaimsValidatedAt.IsZero() &&
+		!request.ClaimsValidatedAt.After(now) && now.Sub(request.ClaimsValidatedAt) < a.claimsValidationInterval
 	if validationFresh {
-		log.Info("Skipped Account JWT validation because claims are unchanged and validation is fresh",
-			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastValidation", lastValidation)
+		log.V(1).Info("Skipped Account JWT validation because claims are unchanged and validation is fresh",
+			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastValidation", request.ClaimsValidatedAt)
 		return false, nil
 	}
 
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(request.ClusterTarget.NatsURL, request.ClusterTarget.SystemAdminCreds)
 	if err != nil {
 		return false, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
@@ -240,8 +245,7 @@ func (a *AccountManager) reconcileAccountJWT(
 				return false, fmt.Errorf("failed to validate remote account jwt: %w", err)
 			}
 			if remoteClaimsHash == desiredClaimsHash {
-				log.Info("Validated Account JWT in NATS because claims are unchanged",
-					"accountID", accountID, "claimsHash", desiredClaimsHash)
+				// The remote JWT already matches the desired claims.
 				return true, nil
 			}
 			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
@@ -254,7 +258,7 @@ func (a *AccountManager) reconcileAccountJWT(
 	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
 		return false, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
-	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", previousClaimsHash, "claimsHash", desiredClaimsHash)
+	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.ClaimsHash, "claimsHash", desiredClaimsHash)
 	return true, nil
 }
 
@@ -383,7 +387,6 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		AccountSignedBy: natsClaims.Issuer,
 		Claims:          &nauthClaims,
 		ClaimsHash:      claimsHash,
-		ClaimsValidated: true,
 	}, nil
 }
 

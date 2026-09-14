@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/go-logr/logr"
@@ -85,6 +86,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var accountClaimsValidationInterval time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
 		"If not specified, all namespaces will be watched.")
@@ -106,6 +108,9 @@ func main() {
 		"Log output format. Supported values: text, json. Defaults to existing text output.")
 	flag.StringVar(&logLevel, "log-level", "",
 		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
+	flag.DurationVar(&accountClaimsValidationInterval, "account-claims-validation-interval",
+		core.DefaultAccountClaimsValidationInterval,
+		"How long successful NATS Account claims validation remains fresh before the remote Account JWT is checked again.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -114,6 +119,11 @@ func main() {
 
 	if _, err := initLogger(&opts, logFormat, logLevel); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid logging configuration: %s\n", err.Error())
+		os.Exit(1)
+	}
+	if accountClaimsValidationInterval <= 0 {
+		setupLog.Error(nil, "account claims validation interval must be greater than zero",
+			"accountClaimsValidationInterval", accountClaimsValidationInterval)
 		os.Exit(1)
 	}
 
@@ -289,6 +299,7 @@ func main() {
 		natsAccClient,
 		accountClient,
 		secretClient,
+		accountClaimsValidationInterval,
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")

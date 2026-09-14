@@ -156,6 +156,10 @@
     "nats": {
       "type": "object",
       "properties": {
+        "accountClaimsValidationInterval": {
+          "description": "How long successful NATS Account claims validation remains fresh before the remote Account JWT is checked again.",
+          "type": "string"
+        },
         "allowAccountNatsClusterRebind": {
           "description": "Allow existing Accounts to change their NatsCluster binding. Disabled by default.",
           "type": "boolean"

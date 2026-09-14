@@ -8,19 +8,19 @@ import (
 )
 
 type AccountRequest struct {
-	AccountRef                   domain.NamespacedName `json:"accountRef,omitempty"`
-	AccountID                    AccountID             `json:"accountId,omitempty"`
-	ClaimsHash                   string                `json:"claimsHash,omitempty"`
-	NatsAccountClaimsValidatedAt time.Time             `json:"natsAccountClaimsValidatedAt,omitempty"`
-	DisplayName                  string                `json:"displayName,omitempty"`
-	ClusterTarget                ClusterTarget         `json:"clusterTarget,omitempty"`
-	AccountLimits                *AccountLimits        `json:"accountLimits,omitempty"`
-	JetStreamEnabled             *bool                 `json:"jetStreamEnabled,omitempty"`
-	JetStreamLimits              *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
-	NatsLimits                   *NatsLimits           `json:"natsLimits,omitempty"`
-	ExportGroups                 ExportGroups          `json:"exportGroups,omitempty"`
-	ImportGroups                 ImportGroups          `json:"importGroups,omitempty"`
-	SigningKeys                  []string              `json:"signingKeys,omitempty"`
+	AccountRef        domain.NamespacedName `json:"accountRef,omitempty"`
+	AccountID         AccountID             `json:"accountId,omitempty"`
+	ClaimsHash        string                `json:"claimsHash,omitempty"`
+	ClaimsValidatedAt time.Time             `json:"claimsValidatedAt,omitempty"`
+	DisplayName       string                `json:"displayName,omitempty"`
+	ClusterTarget     ClusterTarget         `json:"clusterTarget,omitempty"`
+	AccountLimits     *AccountLimits        `json:"accountLimits,omitempty"`
+	JetStreamEnabled  *bool                 `json:"jetStreamEnabled,omitempty"`
+	JetStreamLimits   *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
+	NatsLimits        *NatsLimits           `json:"natsLimits,omitempty"`
+	ExportGroups      ExportGroups          `json:"exportGroups,omitempty"`
+	ImportGroups      ImportGroups          `json:"importGroups,omitempty"`
+	SigningKeys       []string              `json:"signingKeys,omitempty"`
 }
 
 func (r AccountRequest) Validate() error {
@@ -79,9 +79,11 @@ type AccountResult struct {
 	Claims          *AccountClaims
 	ClaimsHash      string
 	Adoptions       *AccountAdoptions
-	// ClaimsValidated is true when the desired claims were either uploaded to NATS
-	// successfully or compared successfully with the existing remote JWT.
-	ClaimsValidated bool `json:"-"`
+	// ClaimsValidationPerformed is true when this reconciliation successfully confirmed
+	// the desired Account JWT claims with NATS, either by a matching lookup or an
+	// accepted upload. It is false when validation was skipped because the previous
+	// validation is still fresh.
+	ClaimsValidationPerformed bool `json:"-"`
 }
 
 type Ref string
