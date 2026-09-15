@@ -66,7 +66,4 @@ const ( // "requeue after" durations
 
 	// Poll interval when a required dependency exists but is not yet ready.
 	requeueDependencyNotReady = 5 * time.Second
-
-	// Default interval for periodic status reconciliation of resources other than Accounts.
-	defaultStatusRequeueInterval = 5 * time.Minute
 )
