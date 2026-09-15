@@ -373,6 +373,71 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringReconciliatio
 	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
 }
 
+func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringRepeatedChildResourceReconciliations_WhenEffectiveStateUnchanged() {
+	// Given: an Account whose desired state includes claims derived from a child resource.
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := testutil.NatsTestAccountA.AccountID()
+	childExportGroups := func() nauth.ExportGroups {
+		return nauth.ExportGroups{
+			{
+				Ref:  "child-export",
+				Name: "orders-export",
+				Exports: nauth.Exports{
+					{
+						Name:    "orders",
+						Subject: "orders",
+						Type:    nauth.ExportTypeStream,
+					},
+				},
+			},
+		}
+	}
+	request := nauth.AccountRequest{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
+		ExportGroups:  childExportGroups(),
+	}
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(_ string) {})
+	t.natsSysConnMock.mockDisconnect()
+
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
+	t.Require().NoError(err)
+	t.Require().NotNil(initialResult)
+	t.Require().NotEmpty(initialResult.ClaimsHash)
+	t.assertAndResetAllMock()
+
+	// When: repeated child-resource reconciliations produce the same effective Account state.
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	}).Times(10)
+	stateValidatedAt := time.Now()
+	for i := 0; i < 10; i++ {
+		repeatedRequest := request
+		repeatedRequest.ExportGroups = childExportGroups()
+		repeatedRequest.ClaimsHash = initialResult.ClaimsHash
+		repeatedRequest.StateValidatedAt = stateValidatedAt
+
+		result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, repeatedRequest)
+
+		// Then: every reconciliation keeps the state unchanged and skips NATS validation.
+		t.NoError(err)
+		t.NotNil(result)
+		t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
+		t.False(result.StateValidationConfirmed)
+	}
+
+	t.natsSysClientMock.AssertNotCalled(t.T(), "Connect", mock.Anything, mock.Anything)
+	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
+}
+
 func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredAccountReconciliationInterval() {
 	// Given
 	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
