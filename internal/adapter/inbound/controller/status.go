@@ -49,7 +49,6 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 	}
 
 	// Spreading out the requeue to avoid all being queued at the same time
-	// TODO: Make the status requeue interval configurable instead of hard-coding five minutes.
 	return ctrl.Result{
 		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
 	}, nil
