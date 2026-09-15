@@ -54,14 +54,6 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
 	}, nil
 }
-
-func requeueAfter(interval time.Duration) ctrl.Result {
-	// Spread out periodic reconciliations to avoid all resources being queued at the same time.
-	return ctrl.Result{
-		RequeueAfter: time.Duration(float64(interval) * (0.9 + 0.2*rand.Float64())),
-	}
-}
-
 func (s *statusReporter) error(ctx context.Context, regarding Object, err error) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
