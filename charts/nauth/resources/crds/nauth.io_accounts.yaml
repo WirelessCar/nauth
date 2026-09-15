@@ -609,9 +609,9 @@ spec:
                     type: array
                 type: object
               claimsHash:
-                description: ClaimsHash is a hash of the Account JWT claims, used
-                  to determine if the claims have changed and a new JWT needs to be
-                  generated.
+                description: |-
+                  ClaimsHash is a hash of the Account JWT claims, used to determine if the desired
+                  Account state has changed and a new JWT needs to be generated.
                 type: string
               conditions:
                 items:
@@ -678,6 +678,13 @@ spec:
               operatorVersion:
                 type: string
               reconcileTimestamp:
+                format: date-time
+                type: string
+              stateValidatedAt:
+                description: |-
+                  StateValidatedAt records when NAuth last successfully validated the desired Account state
+                  in NATS, either through a successful Account JWT upload or a matching Account lookup. It
+                  is not updated when validation is skipped or fails.
                 format: date-time
                 type: string
             type: object

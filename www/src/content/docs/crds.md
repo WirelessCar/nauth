@@ -608,12 +608,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
-| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the claims have changed and a new JWT needs to be generated. |  |  |
+| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the desired Account state has changed and a new JWT needs to be generated. |  |  |
 | `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
+| `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully validated the desired Account state in NATS, either through a successful Account JWT upload or a matching Account lookup. It is not updated when validation is skipped or fails. |  |  |
 
 
 #### CIDRList

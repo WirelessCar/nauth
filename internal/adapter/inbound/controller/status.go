@@ -53,7 +53,6 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 		RequeueAfter: time.Duration(float64(5*time.Minute) * (0.9 + 0.2*rand.Float64())),
 	}, nil
 }
-
 func (s *statusReporter) error(ctx context.Context, regarding Object, err error) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
