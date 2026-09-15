@@ -37,6 +37,8 @@ type AccountManagerTestSuite struct {
 	unitUnderTest *AccountManager
 }
 
+const testAccountReconciliationInterval = time.Minute
+
 func (t *AccountManagerTestSuite) SetupTest() {
 	t.ctx = context.Background()
 
@@ -66,7 +68,7 @@ func (t *AccountManagerTestSuite) SetupTest() {
 		t.natsAccClientMock,
 		t.accountIDReaderMock,
 		t.secretManagerMock,
-		DefaultAccountClaimsValidationInterval,
+		testAccountReconciliationInterval,
 	)
 	t.NoError(err)
 }
@@ -314,7 +316,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	t.verifyAccountResult(result, caughtAccountJWT, testutil.NatsTestAccountA.Root.Key, testutil.NatsTestAccountA.Sign.Key)
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnchanged() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldSkipNATSValidation_WhenStateUnchangedAndValidationFresh() {
 	// Given
 	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
 
@@ -328,7 +330,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:        nauth.AccountID(accountID),
 		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now(),
+		StateValidatedAt: time.Now(),
 		ClusterTarget:    t.clusterTarget,
 	})
 
@@ -336,67 +338,99 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipUpload_WhenClaimsHashUnc
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.False(result.ClaimsAcceptanceConfirmed)
+	t.False(result.StateValidationConfirmed)
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredClaimsValidationInterval() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringReconciliationBurst_WhenStateUnchanged() {
 	// Given
-	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
-	t.unitUnderTest.claimsValidationInterval = time.Minute
+	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
 
 	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
 		Root: testutil.NatsTestAccountA.Root.Key,
 		Sign: testutil.NatsTestAccountA.Sign.Key,
-	})
-	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
-	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
-	t.natsSysConnMock.mockDisconnect()
+	}).Times(10)
 
-	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now().Add(-2 * time.Minute),
-		ClusterTarget:    t.clusterTarget,
-	})
+	stateValidatedAt := time.Now()
 
-	// Then
-	t.NoError(err)
-	t.NotNil(result)
-	t.True(result.ClaimsAcceptanceConfirmed)
-}
+	// When: the same Account is reconciled repeatedly during a burst.
+	for i := 0; i < 10; i++ {
+		result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+			AccountRef:       accountRef,
+			AccountID:        nauth.AccountID(accountID),
+			ClaimsHash:       initialResult.ClaimsHash,
+			StateValidatedAt: stateValidatedAt,
+			ClusterTarget:    t.clusterTarget,
+		})
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccount_WhenValidationExpired() {
-	// Given
-	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+		t.NoError(err)
+		t.NotNil(result)
+		t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
+		t.False(result.StateValidationConfirmed)
+	}
 
-	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
-		Root: testutil.NatsTestAccountA.Root.Key,
-		Sign: testutil.NatsTestAccountA.Sign.Key,
-	})
-	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
-	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
-	t.natsSysConnMock.mockDisconnect()
-
-	// When
-	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
-		ClusterTarget:    t.clusterTarget,
-	})
-
-	// Then
-	t.NoError(err)
-	t.NotNil(result)
-	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.True(result.ClaimsAcceptanceConfirmed)
+	// Then: the initial upload performed by the helper is the only upload.
+	t.natsSysClientMock.AssertNotCalled(t.T(), "Connect", mock.Anything, mock.Anything)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
 }
 
-func (t *AccountManagerTestSuite) Test_NewAccountManager_ShouldRejectNonPositiveClaimsValidationInterval() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredAccountReconciliationInterval() {
+	// Given
+	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+	t.unitUnderTest.accountReconciliationInterval = time.Minute
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		StateValidatedAt: time.Now().Add(-2 * time.Minute),
+		ClusterTarget:    t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.True(result.StateValidationConfirmed)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccountState_WhenValidationExpired() {
+	// Given
+	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:       accountRef,
+		AccountID:        nauth.AccountID(accountID),
+		ClaimsHash:       initialResult.ClaimsHash,
+		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		ClusterTarget:    t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
+	t.True(result.StateValidationConfirmed)
+	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_NewAccountManager_ShouldRejectNonPositiveAccountReconciliationInterval() {
 	// When
 	result, err := newAccountManager(
 		t.natsSysClientMock,
@@ -408,10 +442,10 @@ func (t *AccountManagerTestSuite) Test_NewAccountManager_ShouldRejectNonPositive
 
 	// Then
 	t.Nil(result)
-	t.ErrorContains(err, "claimsValidationInterval must be greater than zero")
+	t.ErrorContains(err, "accountReconciliationInterval must be greater than zero")
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccount_WhenValidationExpired() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccountState_WhenValidationExpired() {
 	// Given
 	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
 
@@ -429,17 +463,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccount_W
 		AccountRef:       accountRef,
 		AccountID:        nauth.AccountID(accountID),
 		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
 		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.ClaimsAcceptanceConfirmed)
+	t.True(result.StateValidationConfirmed)
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccount_WhenValidationExpired() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountState_WhenValidationExpired() {
 	// Given
 	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
 	remoteClaims, err := newAccountClaimsBuilder(accountID, nil).
@@ -464,17 +498,17 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccount_W
 		AccountRef:       accountRef,
 		AccountID:        nauth.AccountID(accountID),
 		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
 		ClusterTarget:    t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.ClaimsAcceptanceConfirmed)
+	t.True(result.StateValidationConfirmed)
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteValidationFailure() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteStateValidationFailure() {
 	// Given
 	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
 	validationErr := fmt.Errorf("NATS lookup unavailable")
@@ -492,7 +526,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteValidationFailu
 		AccountRef:       accountRef,
 		AccountID:        nauth.AccountID(accountID),
 		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now().Add(-DefaultAccountClaimsValidationInterval - time.Second),
+		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
 		ClusterTarget:    t.clusterTarget,
 	})
 
@@ -570,7 +604,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
 		AccountID:        nauth.AccountID(accountID),
 		ClaimsHash:       initialResult.ClaimsHash,
-		ClaimsAcceptedAt: time.Now(),
+		StateValidatedAt: time.Now(),
 		ClusterTarget:    t.clusterTarget,
 	})
 

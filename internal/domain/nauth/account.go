@@ -11,7 +11,7 @@ type AccountRequest struct {
 	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
 	AccountID        AccountID             `json:"accountId,omitempty"`
 	ClaimsHash       string                `json:"claimsHash,omitempty"`
-	ClaimsAcceptedAt time.Time             `json:"claimsAcceptedAt,omitempty"`
+	StateValidatedAt time.Time             `json:"stateValidatedAt,omitempty"`
 	DisplayName      string                `json:"displayName,omitempty"`
 	ClusterTarget    ClusterTarget         `json:"clusterTarget,omitempty"`
 	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
@@ -79,11 +79,11 @@ type AccountResult struct {
 	Claims          *AccountClaims
 	ClaimsHash      string
 	Adoptions       *AccountAdoptions
-	// ClaimsAcceptanceConfirmed is true when this reconciliation confirmed that NATS
-	// accepted the desired Account JWT claims, either by a matching lookup or a
-	// successful upload. It is false when acceptance checking was skipped because
-	// the previous confirmation is still fresh.
-	ClaimsAcceptanceConfirmed bool `json:"-"`
+	// StateValidationConfirmed is true when this reconciliation successfully validated
+	// the desired Account state in NATS, either by a matching lookup or a successful
+	// Account JWT upload. It is false when validation was skipped because the previous
+	// validation is still fresh.
+	StateValidationConfirmed bool `json:"-"`
 }
 
 type Ref string

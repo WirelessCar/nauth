@@ -86,7 +86,7 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
-	var accountClaimsValidationInterval time.Duration
+	var accountReconciliationInterval time.Duration
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
 		"If not specified, all namespaces will be watched.")
@@ -108,10 +108,9 @@ func main() {
 		"Log output format. Supported values: text, json. Defaults to existing text output.")
 	flag.StringVar(&logLevel, "log-level", "",
 		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
-	flag.DurationVar(&accountClaimsValidationInterval, "account-claims-validation-interval",
-		core.DefaultAccountClaimsValidationInterval,
-		"How long a successful NATS Account claims acceptance confirmation remains fresh "+
-			"before the remote Account JWT is checked again.")
+	flag.DurationVar(&accountReconciliationInterval, "accountReconciliationInterval",
+		controller.DefaultAccountReconciliationInterval,
+		"How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -122,9 +121,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "invalid logging configuration: %s\n", err.Error())
 		os.Exit(1)
 	}
-	if accountClaimsValidationInterval <= 0 {
-		setupLog.Error(nil, "account claims validation interval must be greater than zero",
-			"accountClaimsValidationInterval", accountClaimsValidationInterval)
+	if accountReconciliationInterval <= 0 {
+		setupLog.Error(nil, "account reconciliation interval must be greater than zero",
+			"accountReconciliationInterval", accountReconciliationInterval)
 		os.Exit(1)
 	}
 
@@ -300,7 +299,7 @@ func main() {
 		natsAccClient,
 		accountClient,
 		secretClient,
-		accountClaimsValidationInterval,
+		accountReconciliationInterval,
 	)
 	if err != nil {
 		setupLog.Error(err, "failed to create account manager")
@@ -314,6 +313,7 @@ func main() {
 		clusterManager,
 		accountClient,
 		mgr.GetEventRecorder("account-controller"),
+		accountReconciliationInterval,
 		allowAccountNatsClusterRebind,
 	)
 	if err = accountReconciler.SetupWithManager(mgr); err != nil {

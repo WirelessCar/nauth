@@ -67,3 +67,7 @@ const ( // "requeue after" durations
 	// Poll interval when a required dependency exists but is not yet ready.
 	requeueDependencyNotReady = 5 * time.Second
 )
+
+// DefaultAccountReconciliationInterval is the default period used for Account
+// reconciliation and NATS Account state validation freshness.
+const DefaultAccountReconciliationInterval = 5 * time.Minute

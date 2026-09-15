@@ -1,0 +1,18 @@
+suite: account reconciliation interval args
+templates:
+  - deployment.yaml
+tests:
+  - it: uses the five minute reconciliation interval by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --accountReconciliationInterval=5m
+
+  - it: configures the reconciliation interval from Helm values
+    set:
+      nats:
+        accountReconciliationInterval: 30m
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --accountReconciliationInterval=30m

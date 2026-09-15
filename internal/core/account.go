@@ -16,29 +16,25 @@ import (
 )
 
 type AccountManager struct {
-	natsSysClient            outbound.NatsSysClient
-	natsAccClient            outbound.NatsAccountClient
-	accountIDReader          outbound.AccountIDReader
-	secretManager            secretManager
-	claimsValidationInterval time.Duration
+	natsSysClient                 outbound.NatsSysClient
+	natsAccClient                 outbound.NatsAccountClient
+	accountIDReader               outbound.AccountIDReader
+	secretManager                 secretManager
+	accountReconciliationInterval time.Duration
 }
-
-// DefaultAccountClaimsValidationInterval controls how long a successful NATS claims
-// acceptance confirmation remains fresh before the remote Account JWT is checked again.
-const DefaultAccountClaimsValidationInterval = 5 * time.Minute
 
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretClient outbound.SecretClient,
-	claimsValidationInterval time.Duration,
+	accountReconciliationInterval time.Duration,
 ) (*AccountManager, error) {
 	sm, err := newSecretManagerImpl(secretClient)
 	if err != nil {
 		return nil, err
 	}
-	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm, claimsValidationInterval)
+	return newAccountManager(natsSysClient, natsAccClient, accountIDReader, sm, accountReconciliationInterval)
 }
 
 func newAccountManager(
@@ -46,14 +42,14 @@ func newAccountManager(
 	natsAccClient outbound.NatsAccountClient,
 	accountIDReader outbound.AccountIDReader,
 	secretManager secretManager,
-	claimsValidationInterval time.Duration,
+	accountReconciliationInterval time.Duration,
 ) (*AccountManager, error) {
 	m := &AccountManager{
-		natsSysClient:            natsSysClient,
-		natsAccClient:            natsAccClient,
-		accountIDReader:          accountIDReader,
-		secretManager:            secretManager,
-		claimsValidationInterval: claimsValidationInterval,
+		natsSysClient:                 natsSysClient,
+		natsAccClient:                 natsAccClient,
+		accountIDReader:               accountIDReader,
+		secretManager:                 secretManager,
+		accountReconciliationInterval: accountReconciliationInterval,
 	}
 	if err := m.validate(); err != nil {
 		return nil, err
@@ -74,8 +70,8 @@ func (a *AccountManager) validate() error {
 	if a.natsAccClient == nil {
 		return errors.New("natsAccClient is required")
 	}
-	if a.claimsValidationInterval <= 0 {
-		return errors.New("claimsValidationInterval must be greater than zero")
+	if a.accountReconciliationInterval <= 0 {
+		return errors.New("accountReconciliationInterval must be greater than zero")
 	}
 
 	return nil
@@ -184,7 +180,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	claimsAcceptanceConfirmed, err := a.reconcileAccountJWT(
+	stateValidationConfirmed, err := a.reconcileAccountJWT(
 		ctx,
 		request,
 		accountPublicKey,
@@ -200,12 +196,12 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to convert NATS account claims: %w", err)
 	}
 	return &nauth.AccountResult{
-		AccountID:                 accountPublicKey,
-		AccountSignedBy:           operatorSigningPublicKey,
-		Claims:                    &nauthClaims,
-		ClaimsHash:                claimsHash,
-		Adoptions:                 adoptions,
-		ClaimsAcceptanceConfirmed: claimsAcceptanceConfirmed,
+		AccountID:                accountPublicKey,
+		AccountSignedBy:          operatorSigningPublicKey,
+		Claims:                   &nauthClaims,
+		ClaimsHash:               claimsHash,
+		Adoptions:                adoptions,
+		StateValidationConfirmed: stateValidationConfirmed,
 	}, nil
 }
 
@@ -219,11 +215,11 @@ func (a *AccountManager) reconcileAccountJWT(
 	log := logf.FromContext(ctx)
 	claimsChanged := request.ClaimsHash == "" || request.ClaimsHash != desiredClaimsHash
 	now := time.Now()
-	acceptanceConfirmationFresh := !claimsChanged && !request.ClaimsAcceptedAt.IsZero() &&
-		!request.ClaimsAcceptedAt.After(now) && now.Sub(request.ClaimsAcceptedAt) < a.claimsValidationInterval
-	if acceptanceConfirmationFresh {
-		log.V(1).Info("Skipped Account JWT acceptance check because claims are unchanged and the previous confirmation is fresh",
-			"accountID", accountID, "claimsHash", desiredClaimsHash, "lastAcceptedAt", request.ClaimsAcceptedAt)
+	stateValidationFresh := !claimsChanged && !request.StateValidatedAt.IsZero() &&
+		!request.StateValidatedAt.After(now) && now.Sub(request.StateValidatedAt) < a.accountReconciliationInterval
+	if stateValidationFresh {
+		log.V(1).Info("Skipped Account state validation because the desired state is unchanged and the previous validation is fresh",
+			"accountID", accountID, "claimsHash", desiredClaimsHash, "stateValidatedAt", request.StateValidatedAt)
 		return false, nil
 	}
 

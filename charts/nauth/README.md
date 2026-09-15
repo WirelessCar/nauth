@@ -22,7 +22,7 @@
 | nameOverride | string | `""` | Override the chart name used in generated resource names. |
 | namespace.nameOverride | string | `""` | Override the namespace rendered into namespaced resources. Defaults to the Helm release namespace. |
 | namespaced | bool | `false` | Limit the operator to the configured namespace instead of watching all namespaces. |
-| nats.accountClaimsValidationInterval | string | `"5m"` | How long a successful NATS Account claims acceptance confirmation remains fresh before the remote Account JWT is checked again. |
+| nats.accountReconciliationInterval | string | `"5m"` | How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh. |
 | nats.allowAccountNatsClusterRebind | bool | `false` | Allow existing Accounts to change their NatsCluster binding. Disabled by default. |
 | nats.clusterRef | object | `{"name":"","namespace":"","optional":false}` | Operator-level NatsCluster reference. Set `name` to bind the operator to one NATS cluster. |
 | nats.clusterRef.name | string | `""` | NatsCluster resource name. Leave empty to disable operator-level binding. |
