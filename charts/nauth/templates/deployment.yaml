@@ -36,7 +36,7 @@ spec:
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --metrics-secure=false
-            - --accountReconciliationInterval={{ .Values.nats.accountReconciliationInterval }}
+            - --account-reconciliation-interval={{ .Values.nats.accountReconciliationInterval }}
             {{- if .Values.logging.format }}
             - --log-format={{ .Values.logging.format }}
             {{- end }}

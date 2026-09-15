@@ -6,7 +6,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: --accountReconciliationInterval=5m
+          content: --account-reconciliation-interval=5m
 
   - it: configures the reconciliation interval from Helm values
     set:
@@ -15,4 +15,4 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: --accountReconciliationInterval=30m
+          content: --account-reconciliation-interval=30m

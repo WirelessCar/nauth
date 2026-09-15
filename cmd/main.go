@@ -67,6 +67,8 @@ const (
 	logLevelInfo  = "info"
 	logLevelWarn  = "warn"
 	logLevelError = "error"
+
+	defaultAccountReconciliationInterval = 5 * time.Minute
 )
 
 func init() {
@@ -108,8 +110,8 @@ func main() {
 		"Log output format. Supported values: text, json. Defaults to existing text output.")
 	flag.StringVar(&logLevel, "log-level", "",
 		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
-	flag.DurationVar(&accountReconciliationInterval, "accountReconciliationInterval",
-		controller.DefaultAccountReconciliationInterval,
+	flag.DurationVar(&accountReconciliationInterval, "account-reconciliation-interval",
+		defaultAccountReconciliationInterval,
 		"How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.")
 	opts := zap.Options{
 		Development: true,

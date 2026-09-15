@@ -49,7 +49,7 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 	}
 
 	// Spreading out the requeue to avoid all being queued at the same time
-	return requeueAfter(DefaultAccountReconciliationInterval), nil
+	return requeueAfter(defaultStatusRequeueInterval), nil
 }
 
 func requeueAfter(interval time.Duration) ctrl.Result {

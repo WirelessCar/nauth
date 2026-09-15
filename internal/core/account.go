@@ -242,6 +242,8 @@ func (a *AccountManager) reconcileAccountJWT(
 			}
 			if remoteClaimsHash == desiredClaimsHash {
 				// The remote JWT already matches the desired claims.
+				log.V(1).Info("Skipped Account JWT upload because the remote state already matches the desired state",
+					"accountID", accountID, "claimsHash", desiredClaimsHash)
 				return true, nil
 			}
 			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
