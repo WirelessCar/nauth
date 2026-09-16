@@ -109,7 +109,7 @@ func main() {
 	flag.StringVar(&logFormat, "log-format", "",
 		"Log output format. Supported values: text, json. Defaults to existing text output.")
 	flag.StringVar(&logLevel, "log-level", "",
-		"Log level. Supported values: debug, info, warn, error. Defaults to existing controller-runtime verbosity.")
+		"Log level. Supported values: debug, info, warn, error. Defaults to info.")
 	flag.DurationVar(&accountReconciliationInterval, "account-reconciliation-interval",
 		defaultAccountReconciliationInterval,
 		"How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.")
@@ -416,6 +416,9 @@ func initLogger(opts *zap.Options, format string, level string) (logr.Logger, er
 
 	switch strings.ToLower(level) {
 	case "":
+		if opts.Level == nil {
+			opts.Level = zapcore.InfoLevel
+		}
 	case logLevelDebug:
 		opts.Level = zapcore.DebugLevel
 	case logLevelInfo:

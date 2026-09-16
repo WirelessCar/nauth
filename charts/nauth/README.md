@@ -16,7 +16,7 @@
 | image.tag | string | appVersion | Override the container image tag. Defaults to the chart app version when empty. |
 | livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the NAuth operator container. |
 | logging.format | string | `""` | Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`. |
-| logging.level | string | `""` | Operator log level. Supported values: `debug`, `info`, `warn`, `error`. |
+| logging.level | string | `"info"` | Operator log level. Defaults to `info`; set to `debug` to enable verbose logging. |
 | monitoring.enabled | bool | `false` | Expose controller-runtime Prometheus metrics on `/metrics` for direct scraping or collection through a Prometheus receiver. |
 | monitoring.serviceMonitor.enabled | bool | `false` | Create Prometheus Operator ServiceMonitor and PrometheusRule resources. Requires the ServiceMonitor and PrometheusRule CRDs. |
 | nameOverride | string | `""` | Override the chart name used in generated resource names. |

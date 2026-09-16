@@ -2,12 +2,12 @@ suite: deployment logging args
 templates:
   - deployment.yaml
 tests:
-  - it: keeps existing operator logging defaults by default
+  - it: defaults operator logging to info
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
           content: --log-format=json
-      - notContains:
+      - contains:
           path: spec.template.spec.containers[0].args
           content: --log-level=info
 

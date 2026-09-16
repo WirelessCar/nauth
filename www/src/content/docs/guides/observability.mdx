@@ -5,7 +5,7 @@ description: Configure NAuth logs and reconciliation metrics
 
 ## Logs
 
-NAuth uses readable text logs by default. Enable JSON when your log pipeline expects structured records.
+NAuth uses readable text logs with an `info` level by default. Set the level to `debug` when verbose reconciliation logging is needed. Enable JSON when your log pipeline expects structured records.
 
 Helm:
 
@@ -24,6 +24,15 @@ manager --log-format=json --log-level=info
 ```
 
 Formats: `text`, `json`. Levels: `debug`, `info`, `warn`, `error`.
+
+Enable verbose logging for local troubleshooting:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --set logging.level=debug
+```
 
 ## Metrics
 

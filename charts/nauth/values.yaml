@@ -74,8 +74,8 @@ logging:
   # -- Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`.
   format: ""
   # @schema enum: ["", debug, info, warn, error]
-  # -- Operator log level. Supported values: `debug`, `info`, `warn`, `error`.
-  level: ""
+  # -- Operator log level. Defaults to `info`; set to `debug` to enable verbose logging.
+  level: info
 
 # @schema additionalProperties: false
 serviceAccount:

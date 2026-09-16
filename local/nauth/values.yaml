@@ -11,3 +11,7 @@ image:
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "test"
+
+# Keep local and end-to-end deployments verbose for troubleshooting.
+logging:
+  level: debug

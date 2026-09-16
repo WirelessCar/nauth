@@ -25,20 +25,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-func Test_initLogger_ShouldKeepDevelopmentDefaults_WhenNoNAuthLoggingFlagsAreSet(t *testing.T) {
+func Test_initLogger_ShouldDefaultToInfo_WhenNoNAuthLoggingFlagsAreSet(t *testing.T) {
 	opts := zap.Options{
 		Development: true,
 	}
 
-	if _, err := initLogger(&opts, "", ""); err != nil {
+	logger, err := initLogger(&opts, "", "")
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !opts.Development {
 		t.Fatal("expected local defaults to keep zap development mode")
 	}
-	if opts.Level != nil {
-		t.Fatal("expected local defaults to use controller-runtime development log level")
+	if opts.Level == nil {
+		t.Fatal("expected default log level to be configured")
+	}
+	if !opts.Level.Enabled(zapcore.InfoLevel) {
+		t.Fatal("expected default log level to emit info logs")
+	}
+	if opts.Level.Enabled(zapcore.DebugLevel) {
+		t.Fatal("expected default log level to suppress debug logs")
+	}
+	if logger.V(1).Enabled() {
+		t.Fatal("expected default logger to suppress verbose messages")
 	}
 }
 
@@ -75,7 +85,7 @@ func Test_initLogger_ShouldConfigureJSONInfoLogging(t *testing.T) {
 	}
 }
 
-func Test_initLogger_ShouldKeepDevelopmentDefaults_WhenOnlyJSONFormatIsSet(t *testing.T) {
+func Test_initLogger_ShouldDefaultToInfo_WhenOnlyJSONFormatIsSet(t *testing.T) {
 	opts := zap.Options{
 		Development: true,
 	}
@@ -87,8 +97,14 @@ func Test_initLogger_ShouldKeepDevelopmentDefaults_WhenOnlyJSONFormatIsSet(t *te
 	if !opts.Development {
 		t.Fatal("expected JSON format to preserve existing zap development mode")
 	}
-	if opts.Level != nil {
-		t.Fatal("expected JSON format to preserve existing controller-runtime log level")
+	if opts.Level == nil {
+		t.Fatal("expected JSON logging to configure a default log level")
+	}
+	if !opts.Level.Enabled(zapcore.InfoLevel) {
+		t.Fatal("expected JSON logging to emit info logs by default")
+	}
+	if opts.Level.Enabled(zapcore.DebugLevel) {
+		t.Fatal("expected JSON logging to suppress debug logs by default")
 	}
 }
 
@@ -103,6 +119,36 @@ func Test_initLogger_ShouldAcceptTextFormat(t *testing.T) {
 
 	if !opts.Development {
 		t.Fatal("expected text format to keep zap development mode")
+	}
+}
+
+func Test_initLogger_ShouldEnableVerboseMessages_WhenDebugLevelIsConfigured(t *testing.T) {
+	opts := zap.Options{
+		Development: true,
+	}
+
+	logger, err := initLogger(&opts, "", "debug")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !logger.V(1).Enabled() {
+		t.Fatal("expected debug logging to enable verbose messages")
+	}
+}
+
+func Test_initLogger_ShouldPreserveControllerRuntimeLevel_WhenNAuthLevelIsUnset(t *testing.T) {
+	opts := zap.Options{
+		Development: true,
+		Level:       zapcore.DebugLevel,
+	}
+
+	if _, err := initLogger(&opts, "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if !opts.Level.Enabled(zapcore.DebugLevel) {
+		t.Fatal("expected an explicitly configured controller-runtime level to be preserved")
 	}
 }
 

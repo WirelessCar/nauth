@@ -102,7 +102,7 @@
           ]
         },
         "level": {
-          "description": "Operator log level. Supported values: `debug`, `info`, `warn`, `error`.",
+          "description": "Operator log level. Defaults to `info`; set to `debug` to enable verbose logging.",
           "type": "string",
           "enum": [
             "",
