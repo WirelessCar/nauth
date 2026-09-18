@@ -543,7 +543,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.True(account.Status.StateValidatedAt.IsZero())
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordStateValidatedAt_WhenManagerConfirmsValidation() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordStateValidatedAt_WhenManagerConfirmsValidation() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
@@ -569,6 +569,10 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRecordStateValidatedAt
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.False(account.Status.StateValidatedAt.IsZero())
+	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionTrue, condition.Status)
+	t.Equal(conditionReasonReconciled, condition.Reason)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidatedAt_WhenManagerSkipsValidation() {

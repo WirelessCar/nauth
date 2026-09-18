@@ -541,6 +541,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccountSt
 func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountState_WhenValidationExpired() {
 	// Given
 	accountRef, accountID, initialResult, _ := t.createExistingAccountForValidation()
+	var uploadedJWT string
 	remoteClaims, err := newAccountClaimsBuilder(accountID, nil).
 		displayName("drifted-account").
 		signingKey(testutil.NatsTestAccountA.Sign.PublicKey).
@@ -555,7 +556,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountSt
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(accountID, remoteJWT)
-	t.natsSysConnMock.mockUploadAccountJWTCatch(func(_ string) {})
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { uploadedJWT = jwt })
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -571,6 +572,10 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountSt
 	t.NoError(err)
 	t.NotNil(result)
 	t.True(result.StateValidationConfirmed)
+	t.Require().NotEmpty(uploadedJWT)
+	uploadedClaimsHash, err := hashSignedAccountJWTClaims(uploadedJWT)
+	t.Require().NoError(err)
+	t.Equal(initialResult.ClaimsHash, uploadedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteStateValidationFailure() {
