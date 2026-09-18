@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/nats-io/jwt/v2"
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -157,6 +158,81 @@ func TestGeneral_ApplyAccount_ShouldFail(t *testing.T) {
 			require.ErrorContains(t, err, tc.expectErr)
 		})
 	}
+}
+
+func TestConnection_LookupAccountState_ShouldReturnIncompleteImportState(t *testing.T) {
+	op := newOperator(t)
+	missingExportAccount := testutil.CreateNatsTestAccountKey()
+	account := newAccount(t, op, func(_ string, claims *jwt.AccountClaims) {
+		claims.Imports.Add(&jwt.Import{
+			Account: missingExportAccount.PublicKey,
+			Subject: "foo.>",
+			Type:    jwt.Stream,
+		})
+	})
+	server, sysConn := runServer(t, op)
+	require.NoError(t, applyAccountJWT(t, server, sysConn, account))
+
+	state, err := (&connection{conn: sysConn}).LookupAccountState(account.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateIncomplete, state.Status)
+	require.Equal(t, account.key.PublicKey, state.AccountID)
+	require.NotEmpty(t, state.ServerID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(account.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
+func TestConnection_LookupAccountState_ShouldReturnCompleteState(t *testing.T) {
+	op := newOperator(t)
+	account := newAccount(t, op, nil)
+	server, sysConn := runServer(t, op)
+	require.NoError(t, applyAccountJWT(t, server, sysConn, account))
+
+	state, err := (&connection{conn: sysConn}).LookupAccountState(account.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, account.key.PublicKey, state.AccountID)
+	require.NotEmpty(t, state.ServerID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(account.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
+func TestConnection_LookupAccountState_ShouldReturnCompleteStateForValidImport(t *testing.T) {
+	op := newOperator(t)
+	exportAccountKey := testutil.CreateNatsTestAccountKey()
+	importAccount := newAccount(t, op, func(_ string, claims *jwt.AccountClaims) {
+		claims.Imports.Add(&jwt.Import{
+			Account: exportAccountKey.PublicKey,
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	exportAccount := newAccountWithKey(t, op, exportAccountKey, func(_ string, claims *jwt.AccountClaims) {
+		claims.Exports.Add(&jwt.Export{
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	server, sysConn := runServer(t, op)
+	require.NoError(t, applyAccountJWT(t, server, sysConn, exportAccount))
+	require.NoError(t, applyAccountJWT(t, server, sysConn, importAccount))
+
+	state, err := (&connection{conn: sysConn}).LookupAccountState(importAccount.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, importAccount.key.PublicKey, state.AccountID)
+	require.NotEmpty(t, state.ServerID)
+	require.Contains(t, state.Imports, domain.NatsAccountImport{
+		AccountID:    exportAccountKey.PublicKey,
+		Subject:      "foo.hello",
+		LocalSubject: "foo.hello",
+		Type:         "stream",
+	})
 }
 
 /* *****************************************************************

@@ -1,8 +1,6 @@
 package core
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,7 +8,6 @@ import (
 
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/nats-io/jwt/v2"
-	"k8s.io/apimachinery/pkg/util/json"
 )
 
 type accountClaimsBuilder struct {
@@ -174,24 +171,6 @@ func validateJetStreamLimits(jetStreamExpected *bool, limits jwt.OperatorLimits)
 		}
 	}
 	return nil
-}
-
-func hashSignedAccountJWTClaims(accountJWT string) (string, error) {
-	claims, err := jwt.DecodeAccountClaims(accountJWT)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode account JWT claims for hashing: %w", err)
-	}
-	// Exclude unstable JWT metadata so equivalent account content hashes the same across reconciles.
-	claims.IssuedAt = 0
-	claims.ID = ""
-
-	payload, err := json.Marshal(claims)
-	if err != nil {
-		return "", err
-	}
-
-	sum := sha256.Sum256(payload)
-	return hex.EncodeToString(sum[:]), nil
 }
 
 func toPointerDefaultNil[V int64 | bool](value V, defaultValue V) *V {

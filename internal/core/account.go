@@ -175,7 +175,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to sign account jwt: %w", err)
 	}
 
-	claimsHash, err := hashSignedAccountJWTClaims(signedJwt)
+	claimsHash, err := domain.HashNatsAccountJWTClaims(signedJwt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
@@ -236,7 +236,7 @@ func (a *AccountManager) reconcileAccountJWT(
 		}
 
 		if remoteJWT != "" {
-			remoteClaimsHash, err := hashSignedAccountJWTClaims(remoteJWT)
+			remoteClaimsHash, err := domain.HashNatsAccountJWTClaims(remoteJWT)
 			if err != nil {
 				return false, fmt.Errorf("failed to validate remote account jwt: %w", err)
 			}
@@ -376,7 +376,7 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert NATS account claims for account %s during import: %w", accountID, err)
 	}
-	claimsHash, err := hashSignedAccountJWTClaims(accountJWT)
+	claimsHash, err := domain.HashNatsAccountJWTClaims(accountJWT)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash account claims during import: %w", err)
 	}

@@ -1,6 +1,9 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/nats-io/jwt/v2"
@@ -8,6 +11,54 @@ import (
 )
 
 type NatsOperatorSigningKey nkeys.KeyPair
+
+type NatsAccountStateStatus string
+
+const (
+	NatsAccountStateUnknown    NatsAccountStateStatus = "Unknown"
+	NatsAccountStateComplete   NatsAccountStateStatus = "Complete"
+	NatsAccountStateIncomplete NatsAccountStateStatus = "Incomplete"
+)
+
+type NatsAccountState struct {
+	Status     NatsAccountStateStatus
+	ServerID   string
+	AccountID  string
+	ClaimsHash string
+	Imports    []NatsAccountImport
+}
+
+type NatsAccountImport struct {
+	AccountID    string
+	Subject      string
+	LocalSubject string
+	Type         string
+	Invalid      bool
+}
+
+func (s NatsAccountState) MatchesClaimsHash(expected string) bool {
+	return expected != "" && s.ClaimsHash != "" && s.ClaimsHash == expected
+}
+
+// HashNatsAccountJWTClaims returns a stable hash of the claims in an Account JWT.
+// Unstable JWT metadata is excluded so equivalent Account content hashes the same
+// across reconciliations.
+func HashNatsAccountJWTClaims(accountJWT string) (string, error) {
+	claims, err := jwt.DecodeAccountClaims(accountJWT)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode account JWT claims for hashing: %w", err)
+	}
+	claims.IssuedAt = 0
+	claims.ID = ""
+
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:]), nil
+}
 
 type NatsUserCreds struct {
 	Creds     []byte

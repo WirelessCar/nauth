@@ -235,6 +235,14 @@ func (n *NatsSysConnectionMock) mockLookupAccountJWT(accountID, result string) {
 	n.On("LookupAccountJWT", accountID).Return(result, nil)
 }
 
+func (n *NatsSysConnectionMock) LookupAccountState(accountID string) (domain.NatsAccountState, error) {
+	args := n.Called(accountID)
+	if args.Get(0) == nil {
+		return domain.NatsAccountState{}, args.Error(1)
+	}
+	return args.Get(0).(domain.NatsAccountState), args.Error(1)
+}
+
 func (n *NatsSysConnectionMock) HasAccount(accountID string) (bool, error) {
 	args := n.Called(accountID)
 	return args.Bool(0), args.Error(1)

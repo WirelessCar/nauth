@@ -17,6 +17,7 @@ type NatsSysConnection interface {
 	NatsConnection
 	VerifySystemAccountAccess() error
 	LookupAccountJWT(accountID string) (string, error)
+	LookupAccountState(accountID string) (domain.NatsAccountState, error)
 	UploadAccountJWT(jwt string) error
 	DeleteAccountJWT(jwt string) error
 }

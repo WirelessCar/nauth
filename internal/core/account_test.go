@@ -573,7 +573,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountSt
 	t.NotNil(result)
 	t.True(result.StateValidationConfirmed)
 	t.Require().NotEmpty(uploadedJWT)
-	uploadedClaimsHash, err := hashSignedAccountJWTClaims(uploadedJWT)
+	uploadedClaimsHash, err := domain.HashNatsAccountJWTClaims(uploadedJWT)
 	t.Require().NoError(err)
 	t.Equal(initialResult.ClaimsHash, uploadedClaimsHash)
 }
