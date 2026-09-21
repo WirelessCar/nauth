@@ -1,0 +1,17 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 20
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: import-account
+    ref: import_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: export-account
+    ref: export_account
+assertAll:
+  - celExpr: import_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.status == "False")
+  - celExpr: import_account.status.conditions.exists(c, c.type == "Ready" && c.status == "False")
+  - celExpr: export_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.status == "True")
+  - celExpr: export_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True")

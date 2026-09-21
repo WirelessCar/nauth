@@ -7,11 +7,25 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain"
 )
 
+// AccountState contains manager-owned account reconciliation state exchanged
+// between the controller and account manager.
+type AccountState struct {
+	// ClaimsHash is the desired Account JWT claims hash used to detect desired-state changes.
+	ClaimsHash string `json:"claimsHash,omitempty"`
+	// ObservedServerID identifies the NATS server that supplied the last successful state observation.
+	ObservedServerID string `json:"observedServerId,omitempty"`
+	// ObservedClaimsHash is the hash of the Account JWT claims returned by the last successful NATS state observation.
+	ObservedClaimsHash string `json:"observedClaimsHash,omitempty"`
+	// ObservedStatus is the completeness status returned by the last NATS state observation.
+	ObservedStatus domain.NatsAccountStateStatus `json:"observedStatus,omitempty"`
+	// StateValidatedAt records when the desired Account state was last successfully observed in NATS, including an explicit incomplete result.
+	StateValidatedAt time.Time `json:"stateValidatedAt,omitempty"`
+}
+
 type AccountRequest struct {
 	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
 	AccountID        AccountID             `json:"accountId,omitempty"`
-	ClaimsHash       string                `json:"claimsHash,omitempty"`
-	StateValidatedAt time.Time             `json:"stateValidatedAt,omitempty"`
+	State            AccountState          `json:"state,omitempty"`
 	DisplayName      string                `json:"displayName,omitempty"`
 	ClusterTarget    ClusterTarget         `json:"clusterTarget,omitempty"`
 	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
@@ -77,13 +91,13 @@ type AccountResult struct {
 	AccountID       string
 	AccountSignedBy string
 	Claims          *AccountClaims
-	ClaimsHash      string
-	Adoptions       *AccountAdoptions
-	// StateValidationConfirmed is true when this reconciliation successfully validated
-	// the desired Account state in NATS, either by a matching lookup or a successful
-	// Account JWT upload. It is false when validation was skipped because the previous
-	// validation is still fresh.
-	StateValidationConfirmed bool `json:"-"`
+	State           AccountState
+	// NatsState contains the latest ACCOUNTZ observation. A nil value means
+	// validation was skipped because the persisted observation was still fresh.
+	NatsState *domain.NatsAccountState
+	// NatsObservationMessage explains why the latest NATS state observation was Unknown.
+	NatsObservationMessage string
+	Adoptions              *AccountAdoptions
 }
 
 type Ref string

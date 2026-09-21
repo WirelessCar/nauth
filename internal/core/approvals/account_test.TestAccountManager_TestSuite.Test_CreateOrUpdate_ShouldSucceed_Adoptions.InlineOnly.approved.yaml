@@ -38,4 +38,5 @@ Claims:
     subs: 100
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
-ClaimsHash: 1e2c15cfcb8fd0f50faa7bb3cd06fe5616238bedcb7234fd7f66555c9713cb00
+State:
+  claimsHash: 1e2c15cfcb8fd0f50faa7bb3cd06fe5616238bedcb7234fd7f66555c9713cb00

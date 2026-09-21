@@ -674,19 +674,32 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              nats:
+                description: Nats contains NATS-specific Account state observation
+                  evidence.
+                properties:
+                  observedClaimsHash:
+                    description: ObservedClaimsHash is the hash of the Account JWT
+                      claims returned by the last successful NATS state observation.
+                    type: string
+                  observedServerId:
+                    description: ObservedServerID identifies the NATS server that
+                      supplied the last successful state observation.
+                    type: string
+                  stateValidatedAt:
+                    description: |-
+                      StateValidatedAt records when NAuth last successfully observed the desired Account
+                      state in NATS, including an explicit Complete=false result. It is not updated when
+                      validation is skipped or the observation is Unknown.
+                    format: date-time
+                    type: string
+                type: object
               observedGeneration:
                 format: int64
                 type: integer
               operatorVersion:
                 type: string
               reconcileTimestamp:
-                format: date-time
-                type: string
-              stateValidatedAt:
-                description: |-
-                  StateValidatedAt records when NAuth last successfully validated the desired Account state
-                  in NATS, either through a successful Account JWT upload or a matching Account lookup. It
-                  is not updated when validation is skipped or fails.
                 format: date-time
                 type: string
             type: object

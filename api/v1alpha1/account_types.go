@@ -130,6 +130,21 @@ type AccountClaims struct {
 	NatsLimits *NatsLimits `json:"natsLimits,omitempty"`
 }
 
+// AccountNatsStatus defines the NATS state observed for an Account.
+type AccountNatsStatus struct {
+	// ObservedServerID identifies the NATS server that supplied the last successful state observation.
+	// +optional
+	ObservedServerID string `json:"observedServerId,omitempty"`
+	// ObservedClaimsHash is the hash of the Account JWT claims returned by the last successful NATS state observation.
+	// +optional
+	ObservedClaimsHash string `json:"observedClaimsHash,omitempty"`
+	// StateValidatedAt records when NAuth last successfully observed the desired Account
+	// state in NATS, including an explicit Complete=false result. It is not updated when
+	// validation is skipped or the observation is Unknown.
+	// +optional
+	StateValidatedAt metav1.Time `json:"stateValidatedAt,omitempty"`
+}
+
 // AccountStatus defines the observed state of Account.
 type AccountStatus struct {
 	// +optional
@@ -138,11 +153,9 @@ type AccountStatus struct {
 	// Account state has changed and a new JWT needs to be generated.
 	// +optional
 	ClaimsHash string `json:"claimsHash,omitempty"`
-	// StateValidatedAt records when NAuth last successfully validated the desired Account state
-	// in NATS, either through a successful Account JWT upload or a matching Account lookup. It
-	// is not updated when validation is skipped or fails.
+	// Nats contains NATS-specific Account state observation evidence.
 	// +optional
-	StateValidatedAt metav1.Time `json:"stateValidatedAt,omitempty"`
+	Nats *AccountNatsStatus `json:"nats,omitempty"`
 	// +optional
 	Adoptions *AccountAdoptions `json:"adoptions,omitempty"`
 	// +listType=map

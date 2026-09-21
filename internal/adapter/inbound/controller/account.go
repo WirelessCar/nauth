@@ -23,6 +23,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
@@ -207,18 +208,23 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		natsAccount.Status.Claims = claims
 	}
 	natsAccount.Status.Adoptions = adoptions
-	natsAccount.Status.ClaimsHash = result.ClaimsHash
-	// Update the validation timestamp only when this reconciliation successfully validated
-	// the desired Account state in NATS. When validation is skipped, preserve the existing
-	// timestamp; when validation fails, this status update is never reached.
-	if result.StateValidationConfirmed {
-		natsAccount.Status.StateValidatedAt = metav1.Now()
+	natsAccount.Status.ClaimsHash = result.State.ClaimsHash
+	// Persist validation evidence only after a successful, identity-matched ACCOUNTZ observation.
+	// Upload-only and Unknown results must preserve the previous observation.
+	if !result.State.StateValidatedAt.IsZero() && result.NatsState != nil && result.NatsState.Status != domain.NatsAccountStateUnknown {
+		if natsAccount.Status.Nats == nil {
+			natsAccount.Status.Nats = &v1alpha1.AccountNatsStatus{}
+		}
+		natsAccount.Status.Nats.ObservedServerID = result.State.ObservedServerID
+		natsAccount.Status.Nats.ObservedClaimsHash = result.State.ObservedClaimsHash
+		natsAccount.Status.Nats.StateValidatedAt = metav1.NewTime(result.State.StateValidatedAt)
 	}
+	r.updateAccountConditions(natsAccount, result)
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
 	natsAccount.Status.ReconcileTimestamp = metav1.Now()
 	natsAccount.Status.OperatorVersion = os.Getenv(envOperatorVersion)
 
-	if err := r.kubernetes.UpdateReadyStatusReconciled(ctx, natsAccount); err != nil {
+	if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
 	}
@@ -298,11 +304,36 @@ func toAccountReference(state *v1alpha1.Account, clusterTarget nauth.ClusterTarg
 }
 
 func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.AccountReference) nauth.AccountRequest {
+	var stateValidatedAt time.Time
+	var observedServerID string
+	var observedClaimsHash string
+	var observedStatus domain.NatsAccountStateStatus
+	if state.Status.Nats != nil {
+		stateValidatedAt = state.Status.Nats.StateValidatedAt.Time
+		observedServerID = state.Status.Nats.ObservedServerID
+		observedClaimsHash = state.Status.Nats.ObservedClaimsHash
+	}
+	if condition := meta.FindStatusCondition(state.Status.Conditions, conditionTypeNatsAccountComplete); condition != nil {
+		switch condition.Status {
+		case metav1.ConditionTrue:
+			observedStatus = domain.NatsAccountStateComplete
+		case metav1.ConditionFalse:
+			observedStatus = domain.NatsAccountStateIncomplete
+		default:
+			observedStatus = domain.NatsAccountStateUnknown
+		}
+	}
+
 	return nauth.AccountRequest{
-		AccountRef:       domain.NewNamespacedName(state.Namespace, state.Name),
-		AccountID:        accountReference.AccountID,
-		ClaimsHash:       state.Status.ClaimsHash,
-		StateValidatedAt: state.Status.StateValidatedAt.Time,
+		AccountRef: domain.NewNamespacedName(state.Namespace, state.Name),
+		AccountID:  accountReference.AccountID,
+		State: nauth.AccountState{
+			ClaimsHash:         state.Status.ClaimsHash,
+			ObservedServerID:   observedServerID,
+			ObservedClaimsHash: observedClaimsHash,
+			ObservedStatus:     observedStatus,
+			StateValidatedAt:   stateValidatedAt,
+		},
 		DisplayName:      state.Spec.DisplayName,
 		ClusterTarget:    accountReference.ClusterTarget,
 		AccountLimits:    toNAuthAccountLimits(state.Spec.AccountLimits),
@@ -310,6 +341,92 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
 		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
 	}
+}
+
+func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
+	if result.NatsState != nil {
+		condition := accountNatsCompleteCondition(result.NatsState, result.State.ClaimsHash, result.NatsObservationMessage)
+		meta.SetStatusCondition(&account.Status.Conditions, condition)
+	}
+
+	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	if natsCondition == nil {
+		meta.SetStatusCondition(&account.Status.Conditions, newCondition(
+			conditionTypeNatsAccountComplete,
+			metav1.ConditionUnknown,
+			conditionReasonUnknown,
+			"NATS Account completeness has not been observed",
+		))
+		natsCondition = meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	}
+
+	ready := metav1.Condition{
+		Type:    conditionTypeReady,
+		Status:  natsCondition.Status,
+		Reason:  natsCondition.Reason,
+		Message: natsCondition.Message,
+	}
+	if ready.Status == metav1.ConditionTrue {
+		ready.Reason = conditionReasonReconciled
+		ready.Message = "Successfully reconciled"
+	}
+	meta.SetStatusCondition(&account.Status.Conditions, ready)
+	sortConditions(account.Status.Conditions)
+}
+
+func accountNatsCompleteCondition(state *domain.NatsAccountState, desiredClaimsHash, observationMessage string) metav1.Condition {
+	if state.Status == domain.NatsAccountStateUnknown {
+		message := observationMessage
+		if message == "" {
+			message = "NATS Account completeness is Unknown"
+		}
+		return newCondition(conditionTypeNatsAccountComplete, metav1.ConditionUnknown, conditionReasonUnknown, message)
+	}
+	if !state.MatchesClaimsHash(desiredClaimsHash) {
+		return newCondition(
+			conditionTypeNatsAccountComplete,
+			metav1.ConditionFalse,
+			conditionReasonNotReady,
+			"NATS returned Account claims that do not match the desired claims",
+		)
+	}
+	if state.Status != domain.NatsAccountStateComplete {
+		return newCondition(
+			conditionTypeNatsAccountComplete,
+			metav1.ConditionFalse,
+			conditionReasonNotReady,
+			incompleteAccountMessage(state),
+		)
+	}
+	return newCondition(
+		conditionTypeNatsAccountComplete,
+		metav1.ConditionTrue,
+		conditionReasonOK,
+		"NATS reports the Account as complete",
+	)
+}
+
+func incompleteAccountMessage(state *domain.NatsAccountState) string {
+	const maxInvalidImports = 5
+	invalidImports := make([]string, 0, min(len(state.Imports), maxInvalidImports))
+	invalidImportCount := 0
+	for _, imp := range state.Imports {
+		if !imp.Invalid {
+			continue
+		}
+		invalidImportCount++
+		if len(invalidImports) < maxInvalidImports {
+			invalidImports = append(invalidImports, fmt.Sprintf("%s -> %s (%s)", imp.AccountID, imp.Subject, imp.Type))
+		}
+	}
+	if len(invalidImports) > 0 {
+		message := "NATS reports invalid imports: " + strings.Join(invalidImports, "; ")
+		if invalidImportCount > len(invalidImports) {
+			message += fmt.Sprintf("; and %d more", invalidImportCount-len(invalidImports))
+		}
+		return message
+	}
+	return "NATS reports the Account as incomplete"
 }
 
 func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {

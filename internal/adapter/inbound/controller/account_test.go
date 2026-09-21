@@ -60,6 +60,48 @@ type AccountControllerTestSuite struct {
 
 const testAccountReconciliationInterval = time.Minute
 
+func TestAccountNatsCompleteCondition(t *testing.T) {
+	tests := []struct {
+		name       string
+		state      domain.NatsAccountState
+		wantStatus metav1.ConditionStatus
+	}{
+		{
+			name: "unknown state remains unknown even when the hash matches",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateUnknown,
+				ClaimsHash: "desired-hash",
+			},
+			wantStatus: metav1.ConditionUnknown,
+		},
+		{
+			name: "incomplete state is false when the hash matches",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateIncomplete,
+				ClaimsHash: "desired-hash",
+			},
+			wantStatus: metav1.ConditionFalse,
+		},
+		{
+			name: "complete state is false when the hash differs",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ClaimsHash: "observed-hash",
+			},
+			wantStatus: metav1.ConditionFalse,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			condition := accountNatsCompleteCondition(&tt.state, "desired-hash", "")
+			if condition.Status != tt.wantStatus {
+				t.Fatalf("expected status %q, got %q", tt.wantStatus, condition.Status)
+			}
+		})
+	}
+}
+
 func TestAccountController_TestSuite(t *testing.T) {
 	suite.Run(t, new(AccountControllerTestSuite))
 }
@@ -529,6 +571,19 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: "claims-hash",
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   time.Now(),
+		},
+		NatsState: &domain.NatsAccountState{
+			Status:     domain.NatsAccountStateComplete,
+			ServerID:   "server-a",
+			AccountID:  accountID,
+			ClaimsHash: "claims-hash",
+		},
 	}
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockImport(t.ctx, mock.Anything, mockResult).Once()
@@ -540,10 +595,14 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 	t.NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.True(account.Status.StateValidatedAt.IsZero())
+	t.Require().NotNil(account.Status.Nats)
+	t.Equal("server-a", account.Status.Nats.ObservedServerID)
+	t.Equal("claims-hash", account.Status.Nats.ObservedClaimsHash)
+	t.assertAccountCondition(account.Status.Conditions, conditionTypeNatsAccountComplete, metav1.ConditionTrue, conditionReasonOK)
+	t.assertAccountCondition(account.Status.Conditions, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled)
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordStateValidatedAt_WhenManagerConfirmsValidation() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordNATSStateValidatedAt_WhenManagerConfirmsValidation() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	t.setupAccount(
@@ -554,9 +613,21 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordStateV
 	)
 
 	mockResult := &nauth.AccountResult{
-		AccountID:                accountID,
-		AccountSignedBy:          "OPERATOR_SIGNING_KEY",
-		StateValidationConfirmed: true,
+		AccountID:       accountID,
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: "claims-hash",
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   time.Now(),
+		},
+		NatsState: &domain.NatsAccountState{
+			Status:     domain.NatsAccountStateComplete,
+			ServerID:   "server-a",
+			AccountID:  accountID,
+			ClaimsHash: "claims-hash",
+		},
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
@@ -568,14 +639,101 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordStateV
 	t.Require().NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.False(account.Status.StateValidatedAt.IsZero())
+	t.Require().NotNil(account.Status.Nats)
+	t.Equal("server-a", account.Status.Nats.ObservedServerID)
+	t.Equal("claims-hash", account.Status.Nats.ObservedClaimsHash)
+	t.False(account.Status.Nats.StateValidatedAt.IsZero())
 	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
 	t.Require().NotNil(condition)
 	t.Equal(metav1.ConditionTrue, condition.Status)
 	t.Equal(conditionReasonReconciled, condition.Reason)
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidatedAt_WhenManagerSkipsValidation() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAccountIsIncomplete() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+		}),
+	)
+
+	mockResult := &nauth.AccountResult{
+		AccountID:       accountID,
+		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: "claims-hash",
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   time.Now(),
+		},
+		NatsState: &domain.NatsAccountState{
+			Status:     domain.NatsAccountStateIncomplete,
+			ServerID:   "server-a",
+			AccountID:  accountID,
+			ClaimsHash: "claims-hash",
+			Imports: []domain.NatsAccountImport{{
+				AccountID: "export-account",
+				Subject:   "allowed.>",
+				Type:      "stream",
+				Invalid:   true,
+			}},
+		},
+	}
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.assertAccountCondition(account.Status.Conditions, conditionTypeNatsAccountComplete, metav1.ConditionFalse, conditionReasonNotReady)
+	t.assertAccountCondition(account.Status.Conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
+	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	t.Contains(condition.Message, "export-account -> allowed.> (stream)")
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_WhenNATSAccountObservationIsInconclusive() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+		}),
+	)
+
+	mockResult := &nauth.AccountResult{
+		AccountID:              accountID,
+		AccountSignedBy:        "OPERATOR_SIGNING_KEY",
+		State:                  nauth.AccountState{ClaimsHash: "claims-hash"},
+		NatsState:              &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown},
+		NatsObservationMessage: "ACCOUNTZ is unavailable on connected NATS server \"server-a\" version \"2.0.0\"; account state is Unknown",
+	}
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	t.Equal(metav1.ConditionUnknown, natsCondition.Status)
+	t.Equal(mockResult.NatsObservationMessage, natsCondition.Message)
+	readyCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Equal(metav1.ConditionUnknown, readyCondition.Status)
+	t.Equal(conditionReasonUnknown, readyCondition.Reason)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNATSStateValidatedAt_WhenManagerSkipsValidation() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	acceptedAt := metav1.NewTime(time.Now().Add(-time.Minute).Truncate(time.Second))
@@ -584,19 +742,31 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidated
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
 			account.Status.ClaimsHash = "claims-hash"
-			account.Status.StateValidatedAt = acceptedAt
+			account.Status.Nats = &v1alpha1.AccountNatsStatus{
+				ObservedServerID:   "server-a",
+				ObservedClaimsHash: "claims-hash",
+				StateValidatedAt:   acceptedAt,
+			}
+			account.Status.Conditions = []metav1.Condition{
+				{Type: conditionTypeNatsAccountComplete, Status: metav1.ConditionTrue, Reason: conditionReasonOK, LastTransitionTime: metav1.NewTime(time.Now().Truncate(time.Second))},
+			}
 		}),
 	)
 
 	mockResult := &nauth.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
-		ClaimsHash:      "claims-hash",
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: "claims-hash",
+			StateValidatedAt:   acceptedAt.Time,
+		},
 	}
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 	t.accountManagerMock.mockCreateOrUpdateFn(t.ctx, mock.Anything, func(request nauth.AccountRequest) (*nauth.AccountResult, error) {
-		t.Equal("claims-hash", request.ClaimsHash)
-		t.Equal(acceptedAt.Time, request.StateValidatedAt)
+		t.Equal("claims-hash", request.State.ClaimsHash)
+		t.Equal(acceptedAt.Time, request.State.StateValidatedAt)
 		return mockResult, nil
 	}).Once()
 
@@ -607,10 +777,11 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidated
 	t.Require().NoError(err)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.Equal(acceptedAt, account.Status.StateValidatedAt)
+	t.Require().NotNil(account.Status.Nats)
+	t.Equal(acceptedAt, account.Status.Nats.StateValidatedAt)
 }
 
-func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidatedAt_WhenManagerFails() {
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNATSStateValidatedAt_WhenManagerFails() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()
 	validatedAt := metav1.NewTime(time.Now().Add(-time.Minute).Truncate(time.Second))
@@ -618,7 +789,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidated
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
-			account.Status.StateValidatedAt = validatedAt
+			account.Status.Nats = &v1alpha1.AccountNatsStatus{StateValidatedAt: validatedAt}
 		}),
 	)
 
@@ -633,7 +804,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveStateValidated
 	t.Require().ErrorIs(err, managerErr)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
-	t.Equal(validatedAt, account.Status.StateValidatedAt)
+	t.Require().NotNil(account.Status.Nats)
+	t.Equal(validatedAt, account.Status.Nats.StateValidatedAt)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVersionChanges() {
@@ -653,6 +825,13 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenOperatorVe
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
 		Claims:          &nauth.AccountClaims{},
+		State:           nauth.AccountState{ClaimsHash: "claims-hash"},
+		NatsState: &domain.NatsAccountState{
+			Status:     domain.NatsAccountStateComplete,
+			ServerID:   "server-a",
+			AccountID:  accountID,
+			ClaimsHash: "claims-hash",
+		},
 	}
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, mockResult).Once()
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
@@ -731,7 +910,14 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 			AccountID:       accountID,
 			AccountSignedBy: "OPERATOR_SIGNING_KEY",
 			Claims:          &nauth.AccountClaims{},
-			Adoptions:       adoptions,
+			State:           nauth.AccountState{ClaimsHash: "claims-hash"},
+			NatsState: &domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ServerID:   "server-a",
+				AccountID:  accountID,
+				ClaimsHash: "claims-hash",
+			},
+			Adoptions: adoptions,
 		}, nil
 	}).Once()
 
@@ -786,6 +972,13 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenAccountExp
 		},
 	}
 	t.Require().Equal(expectAdoptions, account.Status.Adoptions)
+}
+
+func (t *AccountControllerTestSuite) assertAccountCondition(conditions []metav1.Condition, conditionType string, status metav1.ConditionStatus, reason string) {
+	condition := meta.FindStatusCondition(conditions, conditionType)
+	t.Require().NotNil(condition)
+	t.Equal(status, condition.Status)
+	t.Equal(reason, condition.Reason)
 }
 
 func (t *AccountControllerTestSuite) anyExportClaim(observedGeneration int64) *v1alpha1.AccountExportClaim {

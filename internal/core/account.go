@@ -23,6 +23,12 @@ type AccountManager struct {
 	accountReconciliationInterval time.Duration
 }
 
+type accountJWTReconciliationResult struct {
+	nauthState             nauth.AccountState
+	natsState              *domain.NatsAccountState
+	natsObservationMessage string
+}
+
 func NewAccountManager(
 	natsSysClient outbound.NatsSysClient,
 	natsAccClient outbound.NatsAccountClient,
@@ -180,7 +186,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to hash account claims: %w", err)
 	}
 
-	stateValidationConfirmed, err := a.reconcileAccountJWT(
+	reconciliation, err := a.reconcileAccountJWT(
 		ctx,
 		request,
 		accountPublicKey,
@@ -196,12 +202,13 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		return nil, fmt.Errorf("failed to convert NATS account claims: %w", err)
 	}
 	return &nauth.AccountResult{
-		AccountID:                accountPublicKey,
-		AccountSignedBy:          operatorSigningPublicKey,
-		Claims:                   &nauthClaims,
-		ClaimsHash:               claimsHash,
-		Adoptions:                adoptions,
-		StateValidationConfirmed: stateValidationConfirmed,
+		AccountID:              accountPublicKey,
+		AccountSignedBy:        operatorSigningPublicKey,
+		Claims:                 &nauthClaims,
+		State:                  reconciliation.nauthState,
+		NatsState:              reconciliation.natsState,
+		NatsObservationMessage: reconciliation.natsObservationMessage,
+		Adoptions:              adoptions,
 	}, nil
 }
 
@@ -211,40 +218,50 @@ func (a *AccountManager) reconcileAccountJWT(
 	accountID string,
 	desiredJWT string,
 	desiredClaimsHash string,
-) (bool, error) {
+) (*accountJWTReconciliationResult, error) {
 	log := logf.FromContext(ctx)
-	claimsChanged := request.ClaimsHash == "" || request.ClaimsHash != desiredClaimsHash
+	claimsChanged := request.State.ClaimsHash == "" || request.State.ClaimsHash != desiredClaimsHash
 	now := time.Now()
-	stateValidationFresh := !claimsChanged && !request.StateValidatedAt.IsZero() &&
-		!request.StateValidatedAt.After(now) && now.Sub(request.StateValidatedAt) < a.accountReconciliationInterval
+	stateValidationFresh, freshnessReason := a.canReuseAccountStateValidation(request.State, desiredClaimsHash, now)
 	if stateValidationFresh {
 		log.V(1).Info("Skipped Account state validation because the desired state is unchanged and the previous validation is fresh",
-			"accountID", accountID, "claimsHash", desiredClaimsHash, "stateValidatedAt", request.StateValidatedAt)
-		return false, nil
+			"accountID", accountID,
+			"desiredClaimsHash", desiredClaimsHash,
+			"observedClaimsHash", request.State.ObservedClaimsHash,
+			"observedStatus", request.State.ObservedStatus,
+			"stateValidatedAt", request.State.StateValidatedAt)
+		return &accountJWTReconciliationResult{nauthState: request.State}, nil
 	}
+	log.V(1).Info("Account state validation is not fresh; reconciling NATS state",
+		"accountID", accountID,
+		"desiredClaimsHash", desiredClaimsHash,
+		"observedClaimsHash", request.State.ObservedClaimsHash,
+		"observedStatus", request.State.ObservedStatus,
+		"stateValidatedAt", request.State.StateValidatedAt,
+		"reason", freshnessReason)
 
 	sysConn, err := a.natsSysClient.Connect(request.ClusterTarget.NatsURL, request.ClusterTarget.SystemAdminCreds)
 	if err != nil {
-		return false, fmt.Errorf("failed to connect to NATS cluster: %w", err)
+		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
 	defer sysConn.Disconnect()
 
 	if !claimsChanged {
 		remoteJWT, err := sysConn.LookupAccountJWT(accountID)
 		if err != nil {
-			return false, fmt.Errorf("failed to validate account jwt in NATS: %w", err)
+			return nil, fmt.Errorf("failed to validate account jwt in NATS: %w", err)
 		}
 
 		if remoteJWT != "" {
 			remoteClaimsHash, err := domain.HashNatsAccountJWTClaims(remoteJWT)
 			if err != nil {
-				return false, fmt.Errorf("failed to validate remote account jwt: %w", err)
+				return nil, fmt.Errorf("failed to validate remote account jwt: %w", err)
 			}
 			if remoteClaimsHash == desiredClaimsHash {
 				// The remote JWT already matches the desired claims.
 				log.V(1).Info("Skipped Account JWT upload because the remote state already matches the desired state",
 					"accountID", accountID, "claimsHash", desiredClaimsHash)
-				return true, nil
+				return a.observeAccountState(sysConn, accountID, desiredClaimsHash)
 			}
 			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
 				"accountID", accountID, "remoteClaimsHash", remoteClaimsHash, "claimsHash", desiredClaimsHash)
@@ -254,10 +271,74 @@ func (a *AccountManager) reconcileAccountJWT(
 	}
 
 	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
-		return false, fmt.Errorf("failed to upload account jwt: %w", err)
+		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
-	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.ClaimsHash, "claimsHash", desiredClaimsHash)
-	return true, nil
+	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.State.ClaimsHash, "claimsHash", desiredClaimsHash)
+	return a.observeAccountState(sysConn, accountID, desiredClaimsHash)
+}
+
+func (a *AccountManager) canReuseAccountStateValidation(state nauth.AccountState, desiredClaimsHash string, now time.Time) (bool, string) {
+	if state.ClaimsHash == "" || state.ClaimsHash != desiredClaimsHash {
+		return false, "desired claims hash changed"
+	}
+	if state.StateValidatedAt.IsZero() {
+		return false, "state has not been validated"
+	}
+	if state.StateValidatedAt.After(now) {
+		return false, "validation timestamp is in the future"
+	}
+	if now.Sub(state.StateValidatedAt) >= a.accountReconciliationInterval {
+		return false, "validation has expired"
+	}
+	if state.ObservedStatus != domain.NatsAccountStateComplete {
+		return false, "last observed NATS state was not Complete"
+	}
+	if state.ObservedClaimsHash != desiredClaimsHash {
+		return false, "observed claims hash does not match desired claims"
+	}
+	return true, ""
+}
+
+func (a *AccountManager) observeAccountState(
+	sysConn outbound.NatsSysConnection,
+	accountID string,
+	desiredClaimsHash string,
+) (*accountJWTReconciliationResult, error) {
+	natsState, err := sysConn.LookupAccountState(accountID)
+	if err != nil {
+		if natsState.Status == domain.NatsAccountStateUnknown {
+			return &accountJWTReconciliationResult{
+				nauthState: nauth.AccountState{
+					ClaimsHash:     desiredClaimsHash,
+					ObservedStatus: domain.NatsAccountStateUnknown,
+				},
+				natsState:              &natsState,
+				natsObservationMessage: err.Error(),
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to validate account state in NATS: %w", err)
+	}
+	if natsState.Status == domain.NatsAccountStateUnknown {
+		return &accountJWTReconciliationResult{
+			nauthState: nauth.AccountState{
+				ClaimsHash:     desiredClaimsHash,
+				ObservedStatus: domain.NatsAccountStateUnknown,
+			},
+			natsState:              &natsState,
+			natsObservationMessage: "NATS account completeness could not be established",
+		}, nil
+	}
+
+	return &accountJWTReconciliationResult{
+		nauthState: nauth.AccountState{
+			ClaimsHash:         desiredClaimsHash,
+			ObservedServerID:   natsState.ServerID,
+			ObservedClaimsHash: natsState.ClaimsHash,
+			ObservedStatus:     natsState.Status,
+			StateValidatedAt:   time.Now(),
+		},
+		natsState: &natsState,
+	}, nil
 }
 
 func (a *AccountManager) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {
@@ -380,11 +461,21 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash account claims during import: %w", err)
 	}
+	reconciliation, err := a.observeAccountState(
+		sysConn,
+		accountID,
+		claimsHash,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &nauth.AccountResult{
-		AccountID:       accountID,
-		AccountSignedBy: natsClaims.Issuer,
-		Claims:          &nauthClaims,
-		ClaimsHash:      claimsHash,
+		AccountID:              accountID,
+		AccountSignedBy:        natsClaims.Issuer,
+		Claims:                 &nauthClaims,
+		State:                  reconciliation.nauthState,
+		NatsState:              reconciliation.natsState,
+		NatsObservationMessage: reconciliation.natsObservationMessage,
 	}, nil
 }
 

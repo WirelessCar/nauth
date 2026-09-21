@@ -614,7 +614,25 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
-| `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully validated the desired Account state in NATS, either through a successful Account JWT upload or a matching Account lookup. It is not updated when validation is skipped or fails. |  |  |
+| `nats` _[AccountNatsStatus](#accountnatsstatus)_ | Nats contains NATS-specific Account state observation evidence. |  |  |
+
+
+#### AccountNatsStatus
+
+
+
+AccountNatsStatus defines the NATS state observed for an Account.
+
+
+
+_Appears in:_
+- [AccountStatus](#accountstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedServerId` _string_ | ObservedServerID identifies the NATS server that supplied the last successful state observation. |  |  |
+| `observedClaimsHash` _string_ | ObservedClaimsHash is the hash of the Account JWT claims returned by the last successful NATS state observation. |  |  |
+| `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully observed the desired Account state in NATS, including an explicit Complete=false result. It is not updated when validation is skipped or the observation is Unknown. |  |  |
 
 
 #### CIDRList

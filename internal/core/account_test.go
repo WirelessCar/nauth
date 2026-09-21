@@ -125,6 +125,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -168,6 +169,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenAccountExplicitC
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -203,6 +205,7 @@ func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed_WhenSecretsAlreadyEx
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -245,6 +248,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 			var caughtAccountJWT string
 			t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+			t.natsSysConnMock.mockCompleteAccountState()
 			t.natsSysConnMock.mockDisconnect()
 
 			// When
@@ -257,10 +261,25 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_Adoptions() 
 			t.Require().NotEmpty(caughtAccountJWT)
 
 			t.NotNil(result.Claims)
-			t.NotEmpty(result.ClaimsHash)
+			t.NotEmpty(result.State.ClaimsHash)
 			t.verifyAccountResult(result, caughtAccountJWT, testutil.NatsTestAccountA.Root.Key, testutil.NatsTestAccountA.Sign.Key)
 
-			resultYaml, err := yaml.Marshal(result)
+			approvalResult := struct {
+				AccountID       string
+				AccountSignedBy string
+				Claims          *nauth.AccountClaims
+				State           struct {
+					ClaimsHash string `json:"claimsHash,omitempty"`
+				}
+				Adoptions *nauth.AccountAdoptions
+			}{
+				AccountID:       result.AccountID,
+				AccountSignedBy: result.AccountSignedBy,
+				Claims:          result.Claims,
+				Adoptions:       result.Adoptions,
+			}
+			approvalResult.State.ClaimsHash = result.State.ClaimsHash
+			resultYaml, err := yaml.Marshal(approvalResult)
 			t.Require().NoError(err)
 			approvals.VerifyString(t.T(), string(resultYaml), approvalOptionsForTestSuite(&t.Suite).
 				ForFile().WithExtension(".yaml"))
@@ -300,6 +319,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSucceed() {
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -326,19 +346,63 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipNATSValidation_WhenState
 	})
 
 	// When
+	stateValidatedAt := time.Now()
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now(),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:         initialResult.State.ClaimsHash,
+			ObservedClaimsHash: initialResult.State.ClaimsHash,
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   stateValidatedAt,
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.False(result.StateValidationConfirmed)
+	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
+	t.Equal(stateValidatedAt, result.State.StateValidatedAt)
+	t.Nil(result.NatsState)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidateIncompleteObservation_WhenValidationIsFresh() {
+	// Given
+	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		ServerID:   "server-b",
+		AccountID:  accountID,
+		ClaimsHash: initialResult.State.ClaimsHash,
+	}, nil)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:         initialResult.State.ClaimsHash,
+			ObservedClaimsHash: initialResult.State.ClaimsHash,
+			ObservedStatus:     domain.NatsAccountStateIncomplete,
+			StateValidatedAt:   time.Now(),
+		},
+		ClusterTarget: t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(domain.NatsAccountStateComplete, result.NatsState.Status)
+	t.Equal("server-b", result.State.ObservedServerID)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringReconciliationBurst_WhenStateUnchanged() {
@@ -355,17 +419,21 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringReconciliatio
 	// When: the same Account is reconciled repeatedly during a burst.
 	for i := 0; i < 10; i++ {
 		result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-			AccountRef:       accountRef,
-			AccountID:        nauth.AccountID(accountID),
-			ClaimsHash:       initialResult.ClaimsHash,
-			StateValidatedAt: stateValidatedAt,
-			ClusterTarget:    t.clusterTarget,
+			AccountRef: accountRef,
+			AccountID:  nauth.AccountID(accountID),
+			State: nauth.AccountState{
+				ClaimsHash:         initialResult.State.ClaimsHash,
+				ObservedClaimsHash: initialResult.State.ClaimsHash,
+				ObservedStatus:     domain.NatsAccountStateComplete,
+				StateValidatedAt:   stateValidatedAt,
+			},
+			ClusterTarget: t.clusterTarget,
 		})
 
 		t.NoError(err)
 		t.NotNil(result)
-		t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-		t.False(result.StateValidationConfirmed)
+		t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
+		t.Equal(stateValidatedAt, result.State.StateValidatedAt)
 	}
 
 	// Then: the initial upload performed by the helper is the only upload.
@@ -405,12 +473,13 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringRepeatedChild
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(_ string) {})
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, request)
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
-	t.Require().NotEmpty(initialResult.ClaimsHash)
+	t.Require().NotEmpty(initialResult.State.ClaimsHash)
 	t.assertAndResetAllMock()
 
 	// When: repeated child-resource reconciliations produce the same effective Account state.
@@ -422,16 +491,18 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringRepeatedChild
 	for i := 0; i < 10; i++ {
 		repeatedRequest := request
 		repeatedRequest.ExportGroups = childExportGroups()
-		repeatedRequest.ClaimsHash = initialResult.ClaimsHash
-		repeatedRequest.StateValidatedAt = stateValidatedAt
+		repeatedRequest.State.ClaimsHash = initialResult.State.ClaimsHash
+		repeatedRequest.State.ObservedClaimsHash = initialResult.State.ClaimsHash
+		repeatedRequest.State.ObservedStatus = domain.NatsAccountStateComplete
+		repeatedRequest.State.StateValidatedAt = stateValidatedAt
 
 		result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, repeatedRequest)
 
 		// Then: every reconciliation keeps the state unchanged and skips NATS validation.
 		t.NoError(err)
 		t.NotNil(result)
-		t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-		t.False(result.StateValidationConfirmed)
+		t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
+		t.Equal(stateValidatedAt, result.State.StateValidatedAt)
 	}
 
 	t.natsSysClientMock.AssertNotCalled(t.T(), "Connect", mock.Anything, mock.Anything)
@@ -449,21 +520,28 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUseConfiguredAccountReconcil
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		AccountID:  accountID,
+		ClaimsHash: initialResult.State.ClaimsHash,
+	}, nil)
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now().Add(-2 * time.Minute),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now().Add(-2 * time.Minute),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.StateValidationConfirmed)
+	t.False(result.State.StateValidatedAt.IsZero())
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccountState_WhenValidationExpired() {
@@ -476,23 +554,67 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldValidateRemoteAccountState_W
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		AccountID:  accountID,
+		ClaimsHash: initialResult.State.ClaimsHash,
+	}, nil)
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.Equal(initialResult.ClaimsHash, result.ClaimsHash)
-	t.True(result.StateValidationConfirmed)
+	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
+	t.False(result.State.StateValidatedAt.IsZero())
 	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldRefreshObservedServerIdentity_WhenValidationExpires() {
+	// Given
+	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		ServerID:   "server-b",
+		AccountID:  accountID,
+		ClaimsHash: initialResult.State.ClaimsHash,
+	}, nil)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:         initialResult.State.ClaimsHash,
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: initialResult.State.ClaimsHash,
+			StateValidatedAt:   time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal("server-b", result.State.ObservedServerID)
+	t.Equal(initialResult.State.ClaimsHash, result.State.ObservedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) Test_NewAccountManager_ShouldRejectNonPositiveAccountReconciliationInterval() {
@@ -521,21 +643,24 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairMissingRemoteAccountSt
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(accountID, "")
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(_ string) {})
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.StateValidationConfirmed)
+	t.False(result.State.StateValidatedAt.IsZero())
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountState_WhenValidationExpired() {
@@ -557,25 +682,28 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRepairDriftedRemoteAccountSt
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(accountID, remoteJWT)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { uploadedJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.True(result.StateValidationConfirmed)
+	t.False(result.State.StateValidatedAt.IsZero())
 	t.Require().NotEmpty(uploadedJWT)
 	uploadedClaimsHash, err := domain.HashNatsAccountJWTClaims(uploadedJWT)
 	t.Require().NoError(err)
-	t.Equal(initialResult.ClaimsHash, uploadedClaimsHash)
+	t.Equal(initialResult.State.ClaimsHash, uploadedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteStateValidationFailure() {
@@ -593,11 +721,13 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteStateValidation
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       accountRef,
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
@@ -605,6 +735,43 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSurfaceRemoteStateValidation
 	t.ErrorContains(err, "failed to validate account jwt in NATS")
 	t.ErrorIs(err, validationErr)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "UploadAccountJWT", mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldReturnUnknownObservation_WhenAccountCompletenessCannotBeEstablished() {
+	// Given
+	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
+	observationErr := fmt.Errorf("ACCOUNTZ is unavailable on connected NATS server")
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{Status: domain.NatsAccountStateUnknown}, observationErr)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:         initialResult.State.ClaimsHash,
+			ObservedClaimsHash: initialResult.State.ClaimsHash,
+			StateValidatedAt:   time.Now().Add(-testAccountReconciliationInterval - time.Second),
+		},
+		ClusterTarget: t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(domain.NatsAccountStateUnknown, result.NatsState.Status)
+	t.Equal(observationErr.Error(), result.NatsObservationMessage)
+	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
+	t.Zero(result.State.StateValidatedAt)
+	t.Empty(result.State.ObservedServerID)
+	t.Empty(result.State.ObservedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) createExistingAccountForValidation() (domain.NamespacedName, string, *nauth.AccountResult, string) {
@@ -618,6 +785,7 @@ func (t *AccountManagerTestSuite) createExistingAccountForValidation() (domain.N
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { existingJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
@@ -627,7 +795,7 @@ func (t *AccountManagerTestSuite) createExistingAccountForValidation() (domain.N
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(result)
-	t.Require().NotEmpty(result.ClaimsHash)
+	t.Require().NotEmpty(result.State.ClaimsHash)
 	t.Require().NotEmpty(existingJWT)
 	t.assertAndResetAllMock()
 
@@ -646,6 +814,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) {})
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
@@ -655,7 +824,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	})
 	t.Require().NoError(err)
 	t.Require().NotNil(initialResult)
-	t.Require().NotEmpty(initialResult.ClaimsHash)
+	t.Require().NotEmpty(initialResult.State.ClaimsHash)
 	t.assertAndResetAllMock()
 
 	newOpSignKey := testutil.CreateNatsTestOperatorKey()
@@ -667,21 +836,24 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldUploadNewAccountJWT_WhenOper
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { caughtAccountJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
 	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
-		AccountRef:       domain.NewNamespacedName("account-namespace", "account-name"),
-		AccountID:        nauth.AccountID(accountID),
-		ClaimsHash:       initialResult.ClaimsHash,
-		StateValidatedAt: time.Now(),
-		ClusterTarget:    t.clusterTarget,
+		AccountRef: domain.NewNamespacedName("account-namespace", "account-name"),
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:       initialResult.State.ClaimsHash,
+			StateValidatedAt: time.Now(),
+		},
+		ClusterTarget: t.clusterTarget,
 	})
 
 	// Then
 	t.NoError(err)
 	t.NotNil(result)
-	t.NotEqual(initialResult.ClaimsHash, result.ClaimsHash)
+	t.NotEqual(initialResult.State.ClaimsHash, result.State.ClaimsHash)
 	t.Equal(newOpSignKey.PublicKey, result.AccountSignedBy)
 	t.NotEmpty(caughtAccountJWT)
 
@@ -706,6 +878,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_WithSigningKeys_NewAccount
 	var capturedJWT string
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -739,6 +912,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_AddSigningKeys_ShouldInclu
 	var capturedJWT string
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -777,6 +951,7 @@ func (t *AccountManagerTestSuite) Test_Create_ImplicitMode_ShouldCreateRootAndSi
 	var capturedJWT string
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -808,6 +983,7 @@ func (t *AccountManagerTestSuite) Test_CreateOrUpdate_RemoveSigningKeys_OnlyImpl
 	var capturedJWT string
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { capturedJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -936,6 +1112,14 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
 	t.natsSysConnMock.mockLookupAccountJWT(account.AccountID(), existingJWT)
+	existingClaimsHash, err := domain.HashNatsAccountJWTClaims(existingJWT)
+	t.Require().NoError(err)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		ServerID:   "server-a",
+		AccountID:  account.AccountID(),
+		ClaimsHash: existingClaimsHash,
+	}, nil)
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -951,6 +1135,8 @@ func (t *AccountManagerTestSuite) Test_Import_ShouldSucceed() {
 	t.Equal(account.AccountID(), result.AccountID)
 	t.Equal(account.Sign.PublicKey, result.AccountSignedBy)
 	t.Equal(existingNatsLimitsSubs, *result.Claims.NatsLimits.Subs)
+	t.Equal(domain.NatsAccountStateComplete, result.NatsState.Status)
+	t.Equal(existingClaimsHash, result.State.ObservedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) Test_FindAccountID_ShouldReturnIDFromAccountSecrets() {
@@ -1216,7 +1402,7 @@ func (t *AccountManagerTestSuite) verifyAccountResult(result *nauth.AccountResul
 	t.NotEmpty(result.AccountID)
 	t.Equal(result.AccountID, rootKeyPublic)
 	t.Equal(testutil.NatsTestOperatorA.Sign.PublicKey, result.AccountSignedBy)
-	t.NotEmpty(result.ClaimsHash)
+	t.NotEmpty(result.State.ClaimsHash)
 
 	accountClaims, err := jwt.DecodeAccountClaims(caughtAccountJWT)
 	t.NoError(err, "failed to decode caught account JWT")

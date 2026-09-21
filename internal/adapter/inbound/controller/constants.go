@@ -21,6 +21,7 @@ import "time"
 const ( // Conditions
 	// Types
 	conditionTypeReady                = "Ready"
+	conditionTypeNatsAccountComplete  = "NATSAccountComplete"
 	conditionTypeBoundToAccount       = "BoundToAccount"
 	conditionTypeBoundToExportAccount = "BoundToExportAccount"
 	conditionTypeValidRules           = "ValidRules"
@@ -40,6 +41,7 @@ const ( // Conditions
 	conditionReasonNotFound    = "NotFound"
 	conditionReasonAdopting    = "Adopting"
 	conditionReasonFailed      = "Failed"
+	conditionReasonUnknown     = "Unknown"
 
 	// Messages
 	conditionMessageAdopted = "Adopted"
