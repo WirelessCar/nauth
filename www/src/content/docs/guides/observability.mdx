@@ -144,3 +144,39 @@ service:
       receivers: [prometheus]
       exporters: [otlp]
 ```
+
+## Account readiness
+
+> **Since v0.7.5:** Account readiness requires a matching, complete NATS Account observation.
+
+NAuth marks an `Account` as ready only after NATS reports the desired Account JWT as complete through `ACCOUNTZ`.
+
+A successful JWT upload alone is not sufficient for `Ready=True`.
+
+The `NATSAccountComplete` condition describes the latest completeness result:
+
+- `True`: the desired JWT claims hash was observed and NATS reported `Complete=true`.
+- `False`: NATS reported an incomplete Account or returned a claims hash that does not match the desired state.
+- `Unknown`: NAuth could not establish Account completeness, for example because the connected NATS server does not support the required `ACCOUNTZ` API or the request was inconclusive.
+
+`Ready` follows the same NATS result unless another reconciliation requirement reports an explicit failure.
+Consequently, an inconclusive NATS observation can leave both `NATSAccountComplete` and `Ready` as `Unknown`.
+
+When NATS reports invalid imports, the `NATSAccountComplete=False` message includes bounded troubleshooting details when available.
+The message may contain up to five invalid imports and indicate how many additional imports were omitted.
+
+Inspect Account conditions and the last successful NATS observation with:
+
+```bash
+kubectl get account my-account -n my-team \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status} ({.reason}): {.message}{"\n"}{end}'
+kubectl get account my-account -n my-team \
+  -o jsonpath='{.status.nats}{"\n"}'
+```
+
+The `status.nats` fields describe the last successful, identity-matched `ACCOUNTZ` observation, including the observed server ID, observed claims hash, and validation timestamp.
+NAuth observes the server reached by its current NATS connection and does not query every server in the cluster.
+See [ADR-6](https://github.com/WirelessCar/nauth/blob/main/adr/0006-account-readiness-single-server-observation.md) for the observation decision and its trade-offs.
+
+Server-targeted `ACCOUNTZ` is currently supported from NATS v2.2.0 onward.
+Older NATS versions may leave Account completeness and `Ready` as `Unknown` instead of allowing JWT upload success to produce `Ready=True`.

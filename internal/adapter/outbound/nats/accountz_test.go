@@ -37,6 +37,29 @@ func TestParseAccountzResponse_ShouldReturnCompleteAccountState(t *testing.T) {
 	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
 }
 
+func TestParseAccountzResponse_ShouldSupportNATS220Payload(t *testing.T) {
+	operator := newOperator(t)
+	account := newAccount(t, operator, nil)
+
+	// Keep this payload independent from the adapter response structs so the
+	// test protects the NATS v2.2.0 ACCOUNTZ JSON contract.
+	payload := []byte(fmt.Sprintf(
+		`{"server":{"id":"server-a"},"data":{"server_id":"server-a","now":"2026-09-21T12:00:00Z","account_detail":{"account_name":%q,"complete":true,"jwt":%q,"imports":[]}}}`,
+		account.key.PublicKey,
+		account.jwt,
+	))
+
+	state, err := parseAccountzResponse(payload, account.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, "server-a", state.ServerID)
+	require.Equal(t, account.key.PublicKey, state.AccountID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(account.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
 func TestParseAccountzResponse_ShouldReturnIncompleteStateAndInvalidImports(t *testing.T) {
 	operator := newOperator(t)
 	account := newAccount(t, operator, nil)
