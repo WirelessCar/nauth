@@ -184,6 +184,135 @@ func TestConnection_LookupAccountState_ShouldReturnIncompleteImportState(t *test
 	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
 }
 
+func TestConnection_RequestAccountLoad_ShouldMakeUploadedAccountVisibleToAccountz(t *testing.T) {
+	op := newOperator(t)
+	account := newAccount(t, op, nil)
+	_, sysConn := runServer(t, op)
+	conn := &connection{conn: sysConn}
+
+	require.NoError(t, conn.UploadAccountJWT(account.jwt))
+	state, err := conn.LookupAccountState(account.key.PublicKey)
+	require.Equal(t, domain.NatsAccountStateUnknown, state.Status)
+	require.ErrorContains(t, err, "does not exist")
+
+	require.NoError(t, conn.RequestAccountLoad(account.key.PublicKey))
+	state, err = conn.LookupAccountState(account.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, account.key.PublicKey, state.AccountID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(account.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
+func TestConnection_RequestAccountLoad_ShouldExposeIncompleteImportState(t *testing.T) {
+	op := newOperator(t)
+	missingExportAccount := testutil.CreateNatsTestAccountKey()
+	account := newAccount(t, op, func(_ string, claims *jwt.AccountClaims) {
+		claims.Imports.Add(&jwt.Import{
+			Account: missingExportAccount.PublicKey,
+			Subject: "foo.>",
+			Type:    jwt.Stream,
+		})
+	})
+	_, sysConn := runServer(t, op)
+	conn := &connection{conn: sysConn}
+
+	require.NoError(t, conn.UploadAccountJWT(account.jwt))
+	state, err := conn.LookupAccountState(account.key.PublicKey)
+	require.Equal(t, domain.NatsAccountStateUnknown, state.Status)
+	require.ErrorContains(t, err, "does not exist")
+
+	require.NoError(t, conn.RequestAccountLoad(account.key.PublicKey))
+	state, err = conn.LookupAccountState(account.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateIncomplete, state.Status)
+	require.Equal(t, account.key.PublicKey, state.AccountID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(account.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
+func TestConnection_RequestAccountLoad_ShouldExposeCompleteStateForValidImport(t *testing.T) {
+	op := newOperator(t)
+	exportAccountKey := testutil.CreateNatsTestAccountKey()
+	importAccount := newAccount(t, op, func(_ string, claims *jwt.AccountClaims) {
+		claims.Imports.Add(&jwt.Import{
+			Account: exportAccountKey.PublicKey,
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	exportAccount := newAccountWithKey(t, op, exportAccountKey, func(_ string, claims *jwt.AccountClaims) {
+		claims.Exports.Add(&jwt.Export{
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	_, sysConn := runServer(t, op)
+	conn := &connection{conn: sysConn}
+
+	require.NoError(t, conn.UploadAccountJWT(exportAccount.jwt))
+	require.NoError(t, conn.UploadAccountJWT(importAccount.jwt))
+	state, err := conn.LookupAccountState(importAccount.key.PublicKey)
+	require.Equal(t, domain.NatsAccountStateUnknown, state.Status)
+	require.ErrorContains(t, err, "does not exist")
+
+	require.NoError(t, conn.RequestAccountLoad(importAccount.key.PublicKey))
+	state, err = conn.LookupAccountState(importAccount.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, importAccount.key.PublicKey, state.AccountID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(importAccount.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+	require.Contains(t, state.Imports, domain.NatsAccountImport{
+		AccountID:    exportAccountKey.PublicKey,
+		Subject:      "foo.hello",
+		LocalSubject: "foo.hello",
+		Type:         "stream",
+	})
+}
+
+func TestConnection_RequestAccountLoad_ShouldObserveUpdatedLoadedAccount(t *testing.T) {
+	op := newOperator(t)
+	accountKey := testutil.CreateNatsTestAccountKey()
+	accountV1 := newAccountWithKey(t, op, accountKey, nil)
+	accountV2 := newAccountWithKey(t, op, accountKey, func(_ string, claims *jwt.AccountClaims) {
+		claims.Exports.Add(&jwt.Export{
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	_, sysConn := runServer(t, op)
+	conn := &connection{conn: sysConn}
+
+	require.NoError(t, conn.UploadAccountJWT(accountV1.jwt))
+	state, err := conn.LookupAccountState(accountV1.key.PublicKey)
+	require.Equal(t, domain.NatsAccountStateUnknown, state.Status)
+	require.ErrorContains(t, err, "does not exist")
+
+	require.NoError(t, conn.RequestAccountLoad(accountV1.key.PublicKey))
+	state, err = conn.LookupAccountState(accountV1.key.PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, accountV1.key.PublicKey, state.AccountID)
+
+	require.NoError(t, conn.UploadAccountJWT(accountV2.jwt))
+	require.NoError(t, conn.RequestAccountLoad(accountV2.key.PublicKey))
+	state, err = conn.LookupAccountState(accountV2.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Equal(t, domain.NatsAccountStateComplete, state.Status)
+	require.Equal(t, accountV2.key.PublicKey, state.AccountID)
+	expectedClaimsHash, err := domain.HashNatsAccountJWTClaims(accountV2.jwt)
+	require.NoError(t, err)
+	require.Equal(t, expectedClaimsHash, state.ClaimsHash)
+}
+
 func TestConnection_LookupAccountState_ShouldReturnCompleteState(t *testing.T) {
 	op := newOperator(t)
 	account := newAccount(t, op, nil)

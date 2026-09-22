@@ -304,29 +304,27 @@ func (a *AccountManager) observeAccountState(
 	accountID string,
 	desiredClaimsHash string,
 ) (*accountJWTReconciliationResult, error) {
+	if err := sysConn.RequestAccountLoad(accountID); err != nil {
+		return unknownAccountStateResult(
+			desiredClaimsHash,
+			domain.NatsAccountState{Status: domain.NatsAccountStateUnknown},
+			fmt.Sprintf("failed to request runtime Account load: %v", err),
+		), nil
+	}
+
 	natsState, err := sysConn.LookupAccountState(accountID)
 	if err != nil {
 		if natsState.Status == domain.NatsAccountStateUnknown {
-			return &accountJWTReconciliationResult{
-				nauthState: nauth.AccountState{
-					ClaimsHash:     desiredClaimsHash,
-					ObservedStatus: domain.NatsAccountStateUnknown,
-				},
-				natsState:              &natsState,
-				natsObservationMessage: err.Error(),
-			}, nil
+			return unknownAccountStateResult(desiredClaimsHash, natsState, err.Error()), nil
 		}
 		return nil, fmt.Errorf("failed to validate account state in NATS: %w", err)
 	}
 	if natsState.Status == domain.NatsAccountStateUnknown {
-		return &accountJWTReconciliationResult{
-			nauthState: nauth.AccountState{
-				ClaimsHash:     desiredClaimsHash,
-				ObservedStatus: domain.NatsAccountStateUnknown,
-			},
-			natsState:              &natsState,
-			natsObservationMessage: "NATS account completeness could not be established",
-		}, nil
+		return unknownAccountStateResult(
+			desiredClaimsHash,
+			natsState,
+			"NATS account completeness could not be established",
+		), nil
 	}
 
 	return &accountJWTReconciliationResult{
@@ -339,6 +337,21 @@ func (a *AccountManager) observeAccountState(
 		},
 		natsState: &natsState,
 	}, nil
+}
+
+func unknownAccountStateResult(
+	desiredClaimsHash string,
+	natsState domain.NatsAccountState,
+	message string,
+) *accountJWTReconciliationResult {
+	return &accountJWTReconciliationResult{
+		nauthState: nauth.AccountState{
+			ClaimsHash:     desiredClaimsHash,
+			ObservedStatus: domain.NatsAccountStateUnknown,
+		},
+		natsState:              &natsState,
+		natsObservationMessage: message,
+	}
 }
 
 func (a *AccountManager) FindAccountID(ctx context.Context, reference nauth.AccountReference) (nauth.AccountID, bool, error) {

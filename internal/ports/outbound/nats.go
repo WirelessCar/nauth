@@ -18,6 +18,10 @@ type NatsSysConnection interface {
 	VerifySystemAccountAccess() error
 	LookupAccountJWT(accountID string) (string, error)
 	LookupAccountState(accountID string) (domain.NatsAccountState, error)
+	// RequestAccountLoad asks the connected NATS server to load an Account from its resolver.
+	// A nil error only confirms that the request was published and flushed; ACCOUNTZ observation
+	// is required to verify that the Account was actually loaded.
+	RequestAccountLoad(accountID string) error
 	UploadAccountJWT(jwt string) error
 	DeleteAccountJWT(jwt string) error
 }

@@ -365,6 +365,68 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipNATSValidation_WhenState
 	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
 	t.Equal(stateValidatedAt, result.State.StateValidatedAt)
 	t.Nil(result.NatsState)
+	t.natsSysConnMock.AssertNotCalled(t.T(), "RequestAccountLoad", mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldRequestAccountLoadBeforeStateObservation() {
+	// Given
+	accountRef, accountID, _, _ := t.createExistingAccountForValidation()
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	uploadCall := t.natsSysConnMock.On("UploadAccountJWT", mock.Anything).Return(nil).Once()
+	loadCall := t.natsSysConnMock.On("RequestAccountLoad", accountID).Return(nil).Once().NotBefore(uploadCall)
+	t.natsSysConnMock.On("LookupAccountState", accountID).Return(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		AccountID:  accountID,
+		ClaimsHash: "observed-claims-hash",
+	}, nil).Once().NotBefore(loadCall)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(domain.NatsAccountStateComplete, result.NatsState.Status)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldReturnUnknown_WhenAccountLoadCannotBeRequested() {
+	// Given
+	accountRef, accountID, _, _ := t.createExistingAccountForValidation()
+	loadErr := fmt.Errorf("NATS account load request failed")
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	uploadCall := t.natsSysConnMock.On("UploadAccountJWT", mock.Anything).Return(nil).Once()
+	t.natsSysConnMock.On("RequestAccountLoad", accountID).Return(loadErr).Once().NotBefore(uploadCall)
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(accountID),
+		ClusterTarget: t.clusterTarget,
+	})
+
+	// Then
+	t.NoError(err)
+	t.NotNil(result)
+	t.Equal(domain.NatsAccountStateUnknown, result.NatsState.Status)
+	t.Equal("failed to request runtime Account load: NATS account load request failed", result.NatsObservationMessage)
+	t.Zero(result.State.StateValidatedAt)
+	t.natsSysConnMock.AssertNotCalled(t.T(), "LookupAccountState", mock.Anything)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidateIncompleteObservation_WhenValidationIsFresh() {

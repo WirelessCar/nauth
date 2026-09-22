@@ -243,7 +243,17 @@ func (n *NatsSysConnectionMock) LookupAccountState(accountID string) (domain.Nat
 	return args.Get(0).(domain.NatsAccountState), args.Error(1)
 }
 
+func (n *NatsSysConnectionMock) RequestAccountLoad(accountID string) error {
+	args := n.Called(accountID)
+	return args.Error(0)
+}
+
+func (n *NatsSysConnectionMock) mockRequestAccountLoadAny() *mock.Call {
+	return n.On("RequestAccountLoad", mock.Anything).Return(nil).Once()
+}
+
 func (n *NatsSysConnectionMock) mockLookupAccountState(result domain.NatsAccountState, err error) *mock.Call {
+	n.mockRequestAccountLoadAny()
 	return n.On("LookupAccountState", mock.Anything).Return(result, err).Once()
 }
 

@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -11,6 +12,36 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConnection_RequestAccountLoad_ShouldPublishRequestWithoutResponse(t *testing.T) {
+	server := runNatsServer(t, natsServerConfig{})
+	nc := connectTestAccount(t, server)
+	sub, err := nc.SubscribeSync(accountLoadRequestSubject)
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+
+	const accountID = "ACC123"
+	require.NoError(t, (&connection{conn: nc}).RequestAccountLoad(accountID))
+
+	msg, err := sub.NextMsg(time.Second)
+	require.NoError(t, err)
+	require.Equal(t, accountLoadRequestSubject, msg.Subject)
+
+	var request accountLoadRequest
+	require.NoError(t, json.Unmarshal(msg.Data, &request))
+	require.Equal(t, accountLoadRequest{Account: accountID, Subject: accountLoadSubject}, request)
+}
+
+func TestConnection_RequestAccountLoad_ShouldFail_WhenConnectionIsLost(t *testing.T) {
+	require.ErrorContains(t, (&connection{}).RequestAccountLoad("ACC123"), "NATS connection is not established or lost")
+}
+
+func TestConnection_RequestAccountLoad_ShouldFail_WhenAccountIDIsEmpty(t *testing.T) {
+	server := runNatsServer(t, natsServerConfig{})
+	nc := connectTestAccount(t, server)
+
+	require.EqualError(t, (&connection{conn: nc}).RequestAccountLoad(""), "account ID is required")
+}
 
 func TestConnection_ListAccountStreams_ShouldReturnExistingStreamNames(t *testing.T) {
 	server := runNatsServer(t, natsServerConfig{
