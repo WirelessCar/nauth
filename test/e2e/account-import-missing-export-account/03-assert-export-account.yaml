@@ -4,6 +4,13 @@ metadata:
   name: export-account
 status:
   conditions:
+    - type: NATSAccountComplete
+      status: "True"
+      reason: OK
     - type: Ready
       status: "True"
       reason: Reconciled
+  claims:
+    exports:
+      - subject: export-delayed.>
+        type: stream

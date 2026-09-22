@@ -15,3 +15,6 @@ spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
+  exports:
+    - subject: svc.request
+      type: service

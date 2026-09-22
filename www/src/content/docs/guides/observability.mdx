@@ -153,6 +153,23 @@ NAuth marks an `Account` as ready only after NATS reports the desired Account JW
 
 A successful JWT upload alone is not sufficient for `Ready=True`.
 
+### Validation workflow
+
+When validation is needed, NAuth performs the following sequence over its system-account connection:
+
+1. Ensure the desired Account JWT is available in NATS, uploading it when necessary.
+2. Publish `{"acc":"<account-id>","subject":"x"}` to `$SYS.REQ.ACCOUNT.NSUBS` and flush the connection to request runtime Account materialization.
+   NAuth uses `x` as a placeholder subject required by this API and ignores the subscription count.
+   NAuth does not wait for an application-level response; the flush does not confirm that NATS loaded the Account.
+3. Query `$SYS.REQ.SERVER.<server-id>.ACCOUNTZ` on the same connection.
+4. Accept the observation only when the server ID and Account ID match the expected identities and the observed claims hash matches the desired claims hash.
+
+`Ready=True` requires the accepted observation to also report `Complete=true`.
+The materialization request itself is never readiness evidence.
+
+A fresh successful validation is reused until the normal Account validation interval expires, skipping both the materialization request and `ACCOUNTZ` query.
+Incomplete or `Unknown` validation uses a fixed 10-second requeue interval; NAuth does not block reconciliation with a sleep loop.
+
 The `NATSAccountComplete` condition describes the latest completeness result:
 
 - `True`: the desired JWT claims hash was observed and NATS reported `Complete=true`.

@@ -16,5 +16,19 @@ spec:
     namespace: nats
     name: local-nats
   exports:
-    - subject: shared.>
+    - subject: allowed.>
+      type: stream
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: import-rule
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}
+  rules:
+    - name: not-allowed-rule
+      subject: not-allowed.>
       type: stream

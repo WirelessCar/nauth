@@ -6,4 +6,6 @@ spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
-
+  exports:
+    - subject: delayed-account.>
+      type: stream

@@ -7,5 +7,5 @@ spec:
     namespace: nats
     name: local-nats
   exports:
-    - subject: export-delayed.>
+    - subject: not-allowed.>
       type: stream

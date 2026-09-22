@@ -25,6 +25,7 @@ type AccountManager struct {
 
 type accountJWTReconciliationResult struct {
 	nauthState             nauth.AccountState
+	validationOutcome      nauth.AccountValidationOutcome
 	natsState              *domain.NatsAccountState
 	natsObservationMessage string
 }
@@ -206,6 +207,7 @@ func (a *AccountManager) CreateOrUpdate(ctx context.Context, request nauth.Accou
 		AccountSignedBy:        operatorSigningPublicKey,
 		Claims:                 &nauthClaims,
 		State:                  reconciliation.nauthState,
+		ValidationOutcome:      reconciliation.validationOutcome,
 		NatsState:              reconciliation.natsState,
 		NatsObservationMessage: reconciliation.natsObservationMessage,
 		Adoptions:              adoptions,
@@ -230,7 +232,10 @@ func (a *AccountManager) reconcileAccountJWT(
 			"observedClaimsHash", request.State.ObservedClaimsHash,
 			"observedStatus", request.State.ObservedStatus,
 			"stateValidatedAt", request.State.StateValidatedAt)
-		return &accountJWTReconciliationResult{nauthState: request.State}, nil
+		return &accountJWTReconciliationResult{
+			nauthState:        request.State,
+			validationOutcome: nauth.AccountValidationReady,
+		}, nil
 	}
 	log.V(1).Info("Account state validation is not fresh; reconciling NATS state",
 		"accountID", accountID,
@@ -247,6 +252,7 @@ func (a *AccountManager) reconcileAccountJWT(
 	defer sysConn.Disconnect()
 
 	if !claimsChanged {
+		lastObservationIncomplete := request.State.ObservedStatus == domain.NatsAccountStateIncomplete
 		remoteJWT, err := sysConn.LookupAccountJWT(accountID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to validate account jwt in NATS: %w", err)
@@ -257,14 +263,19 @@ func (a *AccountManager) reconcileAccountJWT(
 			if err != nil {
 				return nil, fmt.Errorf("failed to validate remote account jwt: %w", err)
 			}
-			if remoteClaimsHash == desiredClaimsHash {
+			if remoteClaimsHash == desiredClaimsHash && !lastObservationIncomplete {
 				// The remote JWT already matches the desired claims.
 				log.V(1).Info("Skipped Account JWT upload because the remote state already matches the desired state",
 					"accountID", accountID, "claimsHash", desiredClaimsHash)
 				return a.observeAccountState(sysConn, accountID, desiredClaimsHash)
 			}
-			log.Info("Detected Account JWT drift in NATS; uploading desired claims",
-				"accountID", accountID, "remoteClaimsHash", remoteClaimsHash, "claimsHash", desiredClaimsHash)
+			if remoteClaimsHash == desiredClaimsHash && lastObservationIncomplete {
+				log.Info("Re-uploading Account JWT because the last NATS observation was incomplete",
+					"accountID", accountID, "claimsHash", desiredClaimsHash)
+			} else {
+				log.Info("Detected Account JWT drift in NATS; uploading desired claims",
+					"accountID", accountID, "remoteClaimsHash", remoteClaimsHash, "claimsHash", desiredClaimsHash)
+			}
 		} else {
 			log.Info("Account JWT is missing in NATS; uploading desired claims", "accountID", accountID, "claimsHash", desiredClaimsHash)
 		}
@@ -335,8 +346,19 @@ func (a *AccountManager) observeAccountState(
 			ObservedStatus:     natsState.Status,
 			StateValidatedAt:   time.Now(),
 		},
-		natsState: &natsState,
+		validationOutcome: accountValidationOutcome(natsState, desiredClaimsHash),
+		natsState:         &natsState,
 	}, nil
+}
+
+func accountValidationOutcome(state domain.NatsAccountState, desiredClaimsHash string) nauth.AccountValidationOutcome {
+	if state.Status == domain.NatsAccountStateUnknown {
+		return nauth.AccountValidationUnknown
+	}
+	if state.Status == domain.NatsAccountStateComplete && state.MatchesClaimsHash(desiredClaimsHash) {
+		return nauth.AccountValidationReady
+	}
+	return nauth.AccountValidationPending
 }
 
 func unknownAccountStateResult(
@@ -349,6 +371,7 @@ func unknownAccountStateResult(
 			ClaimsHash:     desiredClaimsHash,
 			ObservedStatus: domain.NatsAccountStateUnknown,
 		},
+		validationOutcome:      nauth.AccountValidationUnknown,
 		natsState:              &natsState,
 		natsObservationMessage: message,
 	}
@@ -487,6 +510,7 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		AccountSignedBy:        natsClaims.Issuer,
 		Claims:                 &nauthClaims,
 		State:                  reconciliation.nauthState,
+		ValidationOutcome:      reconciliation.validationOutcome,
 		NatsState:              reconciliation.natsState,
 		NatsObservationMessage: reconciliation.natsObservationMessage,
 	}, nil

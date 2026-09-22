@@ -230,8 +230,18 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	return ctrl.Result{
-		RequeueAfter: time.Duration(float64(r.accountReconciliationInterval) * (0.9 + 0.2*rand.Float64())),
+		RequeueAfter: r.requeueAfterValidation(result.ValidationOutcome),
 	}, nil
+}
+
+func (r *AccountReconciler) requeueAfterValidation(outcome nauth.AccountValidationOutcome) time.Duration {
+	if outcome != nauth.AccountValidationReady {
+		return requeuePendingAccountValidation
+	}
+
+	// Spread out successful periodic validations to avoid reconciling every
+	// Account at the same time.
+	return time.Duration(float64(r.accountReconciliationInterval) * (0.9 + 0.2*rand.Float64()))
 }
 
 func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.Account, accountRef nauth.AccountReference, managementPolicy string) (ctrl.Result, error) {

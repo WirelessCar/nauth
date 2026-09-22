@@ -8,6 +8,9 @@ metadata:
     - account.nauth.io/finalizer
 status:
   conditions:
+    - type: NATSAccountComplete
+      status: "True"
+      reason: OK
     - type: Ready
       status: "True"
       reason: Reconciled

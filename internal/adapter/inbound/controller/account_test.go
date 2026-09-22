@@ -102,6 +102,47 @@ func TestAccountNatsCompleteCondition(t *testing.T) {
 	}
 }
 
+func TestAccountRequeueAfterValidationOutcome(t *testing.T) {
+	tests := []struct {
+		name              string
+		validationOutcome nauth.AccountValidationOutcome
+		shortRequeue      bool
+	}{
+		{
+			name:              "pending validation",
+			validationOutcome: nauth.AccountValidationPending,
+			shortRequeue:      true,
+		},
+		{
+			name:              "unknown validation",
+			validationOutcome: nauth.AccountValidationUnknown,
+			shortRequeue:      true,
+		},
+		{
+			name:              "ready validation",
+			validationOutcome: nauth.AccountValidationReady,
+		},
+	}
+
+	reconciler := &AccountReconciler{accountReconciliationInterval: testAccountReconciliationInterval}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := reconciler.requeueAfterValidation(tt.validationOutcome)
+			if tt.shortRequeue {
+				if got != requeuePendingAccountValidation {
+					t.Fatalf("expected requeue after %s, got %s", requeuePendingAccountValidation, got)
+				}
+				return
+			}
+			minimum := testAccountReconciliationInterval * 9 / 10
+			maximum := testAccountReconciliationInterval * 11 / 10
+			if got < minimum || got > maximum {
+				t.Fatalf("expected requeue between %s and %s, got %s", minimum, maximum, got)
+			}
+		})
+	}
+}
+
 func TestAccountController_TestSuite(t *testing.T) {
 	suite.Run(t, new(AccountControllerTestSuite))
 }
@@ -578,6 +619,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldImportObservedAccount(
 			ObservedStatus:     domain.NatsAccountStateComplete,
 			StateValidatedAt:   time.Now(),
 		},
+		ValidationOutcome: nauth.AccountValidationReady,
 		NatsState: &domain.NatsAccountState{
 			Status:     domain.NatsAccountStateComplete,
 			ServerID:   "server-a",
@@ -622,6 +664,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordNATSSt
 			ObservedStatus:     domain.NatsAccountStateComplete,
 			StateValidatedAt:   time.Now(),
 		},
+		ValidationOutcome: nauth.AccountValidationReady,
 		NatsState: &domain.NatsAccountState{
 			Status:     domain.NatsAccountStateComplete,
 			ServerID:   "server-a",
@@ -633,10 +676,14 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBeReadyAndRecordNATSSt
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
 	t.Require().NoError(err)
+	minimum := testAccountReconciliationInterval * 9 / 10
+	maximum := testAccountReconciliationInterval * 11 / 10
+	t.True(result.RequeueAfter >= minimum, "requeue interval should be at least %s, got %s", minimum, result.RequeueAfter)
+	t.True(result.RequeueAfter <= maximum, "requeue interval should be at most %s, got %s", maximum, result.RequeueAfter)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.Require().NotNil(account.Status.Nats)
@@ -669,6 +716,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAcc
 			ObservedStatus:     domain.NatsAccountStateComplete,
 			StateValidatedAt:   time.Now(),
 		},
+		ValidationOutcome: nauth.AccountValidationPending,
 		NatsState: &domain.NatsAccountState{
 			Status:     domain.NatsAccountStateIncomplete,
 			ServerID:   "server-a",
@@ -686,10 +734,11 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAcc
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
 	t.Require().NoError(err)
+	t.Equal(requeuePendingAccountValidation, result.RequeueAfter)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	t.assertAccountCondition(account.Status.Conditions, conditionTypeNatsAccountComplete, metav1.ConditionFalse, conditionReasonNotReady)
@@ -712,6 +761,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_Wh
 		AccountID:              accountID,
 		AccountSignedBy:        "OPERATOR_SIGNING_KEY",
 		State:                  nauth.AccountState{ClaimsHash: "claims-hash"},
+		ValidationOutcome:      nauth.AccountValidationUnknown,
 		NatsState:              &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown},
 		NatsObservationMessage: "ACCOUNTZ is unavailable on connected NATS server \"server-a\" version \"2.0.0\"; account state is Unknown",
 	}
@@ -719,10 +769,11 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_Wh
 	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
 
 	// When
-	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
 
 	// Then
 	t.Require().NoError(err)
+	t.Equal(requeuePendingAccountValidation, result.RequeueAfter)
 	account := &v1alpha1.Account{}
 	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
 	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
@@ -868,6 +919,13 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldUseConfiguredAccountRe
 	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, &nauth.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedClaimsHash: "claims-hash",
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   time.Now(),
+		},
+		ValidationOutcome: nauth.AccountValidationReady,
 	}).Once()
 
 	// When

@@ -33,6 +33,9 @@ status:
       payload: 500
       subs: 100
   conditions:
+    - type: NATSAccountComplete
+      status: "True"
+      reason: OK
     - type: Ready
       status: "True"
       reason: Reconciled

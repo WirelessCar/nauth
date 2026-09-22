@@ -16,3 +16,6 @@ spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
+  exports:
+    - subject: shared.cross.>
+      type: stream

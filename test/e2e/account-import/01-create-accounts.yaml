@@ -15,4 +15,6 @@ spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
-
+  exports:
+    - subject: shared.>
+      type: stream

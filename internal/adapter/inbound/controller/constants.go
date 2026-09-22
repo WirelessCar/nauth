@@ -68,4 +68,7 @@ const ( // "requeue after" durations
 
 	// Poll interval when a required dependency exists but is not yet ready.
 	requeueDependencyNotReady = 5 * time.Second
+
+	// Poll interval while NATS state is pending validation.
+	requeuePendingAccountValidation = 10 * time.Second
 )

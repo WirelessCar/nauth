@@ -104,6 +104,54 @@ func TestAccountManager_TestSuite(t *testing.T) {
 	suite.Run(t, new(AccountManagerTestSuite))
 }
 
+func TestAccountValidationOutcome(t *testing.T) {
+	tests := []struct {
+		name  string
+		state domain.NatsAccountState
+		want  nauth.AccountValidationOutcome
+	}{
+		{
+			name: "complete state with matching claims hash is ready",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ClaimsHash: "claims-hash",
+			},
+			want: nauth.AccountValidationReady,
+		},
+		{
+			name: "incomplete state is pending",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateIncomplete,
+				ClaimsHash: "claims-hash",
+			},
+			want: nauth.AccountValidationPending,
+		},
+		{
+			name: "complete state with mismatching claims hash is pending",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ClaimsHash: "observed-hash",
+			},
+			want: nauth.AccountValidationPending,
+		},
+		{
+			name: "unknown state is unknown",
+			state: domain.NatsAccountState{
+				Status: domain.NatsAccountStateUnknown,
+			},
+			want: nauth.AccountValidationUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := accountValidationOutcome(tt.state, "claims-hash"); got != tt.want {
+				t.Fatalf("expected validation outcome %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
 func (t *AccountManagerTestSuite) Test_Create_ShouldSucceed() {
 	// Given
 	var (
@@ -364,6 +412,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipNATSValidation_WhenState
 	t.NotNil(result)
 	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
 	t.Equal(stateValidatedAt, result.State.StateValidatedAt)
+	t.Equal(nauth.AccountValidationReady, result.ValidationOutcome)
 	t.Nil(result.NatsState)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "RequestAccountLoad", mock.Anything)
 }
@@ -397,6 +446,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRequestAccountLoadBeforeStat
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(domain.NatsAccountStateComplete, result.NatsState.Status)
+	t.Equal(nauth.AccountValidationPending, result.ValidationOutcome)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldReturnUnknown_WhenAccountLoadCannotBeRequested() {
@@ -425,11 +475,12 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldReturnUnknown_WhenAccountLoa
 	t.NotNil(result)
 	t.Equal(domain.NatsAccountStateUnknown, result.NatsState.Status)
 	t.Equal("failed to request runtime Account load: NATS account load request failed", result.NatsObservationMessage)
+	t.Equal(nauth.AccountValidationUnknown, result.ValidationOutcome)
 	t.Zero(result.State.StateValidatedAt)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "LookupAccountState", mock.Anything)
 }
 
-func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidateIncompleteObservation_WhenValidationIsFresh() {
+func (t *AccountManagerTestSuite) Test_Update_ShouldReuploadMatchingAccountJWT_WhenLastObservationIncomplete() {
 	// Given
 	accountRef, accountID, initialResult, existingJWT := t.createExistingAccountForValidation()
 
@@ -438,13 +489,18 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidateIncompleteObservat
 		Sign: testutil.NatsTestAccountA.Sign.Key,
 	})
 	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
-	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
-	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+	lookupJWTCall := t.natsSysConnMock.On("LookupAccountJWT", accountID).Return(existingJWT, nil).Once()
+	var uploadedJWT string
+	uploadCall := t.natsSysConnMock.On("UploadAccountJWT", mock.Anything).Return(nil).Once().
+		Run(func(args mock.Arguments) { uploadedJWT = args.String(0) }).
+		NotBefore(lookupJWTCall)
+	loadCall := t.natsSysConnMock.On("RequestAccountLoad", accountID).Return(nil).Once().NotBefore(uploadCall)
+	t.natsSysConnMock.On("LookupAccountState", accountID).Return(domain.NatsAccountState{
 		Status:     domain.NatsAccountStateComplete,
 		ServerID:   "server-b",
 		AccountID:  accountID,
 		ClaimsHash: initialResult.State.ClaimsHash,
-	}, nil)
+	}, nil).Once().NotBefore(loadCall)
 	t.natsSysConnMock.mockDisconnect()
 
 	// When
@@ -464,7 +520,11 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidateIncompleteObservat
 	t.NoError(err)
 	t.NotNil(result)
 	t.Equal(domain.NatsAccountStateComplete, result.NatsState.Status)
+	t.Equal(nauth.AccountValidationReady, result.ValidationOutcome)
 	t.Equal("server-b", result.State.ObservedServerID)
+	uploadedClaimsHash, err := domain.HashNatsAccountJWTClaims(uploadedJWT)
+	t.Require().NoError(err)
+	t.Equal(initialResult.State.ClaimsHash, uploadedClaimsHash)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldNotUploadDuringReconciliationBurst_WhenStateUnchanged() {
@@ -830,6 +890,7 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldReturnUnknownObservation_Whe
 	t.NotNil(result)
 	t.Equal(domain.NatsAccountStateUnknown, result.NatsState.Status)
 	t.Equal(observationErr.Error(), result.NatsObservationMessage)
+	t.Equal(nauth.AccountValidationUnknown, result.ValidationOutcome)
 	t.Equal(initialResult.State.ClaimsHash, result.State.ClaimsHash)
 	t.Zero(result.State.StateValidatedAt)
 	t.Empty(result.State.ObservedServerID)

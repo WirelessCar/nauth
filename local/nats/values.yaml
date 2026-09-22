@@ -2,7 +2,8 @@ nats:
   config:
     cluster:
       enabled: true
-      replicas: 2
+      # Use three servers so E2E tests exercise clustered Account propagation.
+      replicas: 3
     jetstream:
       enabled: true
       memoryStore:
@@ -15,7 +16,8 @@ nats:
       enabled: true
       merge:
         type: full
-        interval: 2m
+        # Keep local resolver convergence below the KUTTL step timeout.
+        interval: 5s
         timeout: 1.9s
         allow_delete: true
     merge:

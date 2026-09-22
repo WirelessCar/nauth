@@ -4,6 +4,9 @@ metadata:
   name: import-account
 status:
   conditions:
+    - type: NATSAccountComplete
+      status: "True"
+      reason: OK
     - type: Ready
       status: "True"
       reason: Reconciled
@@ -15,6 +18,9 @@ metadata:
   name: export-account
 status:
   conditions:
+    - type: NATSAccountComplete
+      status: "True"
+      reason: OK
     - type: Ready
       status: "True"
       reason: Reconciled

@@ -22,6 +22,14 @@ type AccountState struct {
 	StateValidatedAt time.Time `json:"stateValidatedAt,omitempty"`
 }
 
+type AccountValidationOutcome string
+
+const (
+	AccountValidationReady   AccountValidationOutcome = "Ready"
+	AccountValidationPending AccountValidationOutcome = "Pending"
+	AccountValidationUnknown AccountValidationOutcome = "Unknown"
+)
+
 type AccountRequest struct {
 	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
 	AccountID        AccountID             `json:"accountId,omitempty"`
@@ -92,6 +100,8 @@ type AccountResult struct {
 	AccountSignedBy string
 	Claims          *AccountClaims
 	State           AccountState
+	// ValidationOutcome is the manager's explicit result of Account state validation.
+	ValidationOutcome AccountValidationOutcome
 	// NatsState contains the latest ACCOUNTZ observation. A nil value means
 	// validation was skipped because the persisted observation was still fresh.
 	NatsState *domain.NatsAccountState
