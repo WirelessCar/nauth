@@ -12,6 +12,7 @@ resourceRefs:
     ref: export_account
 assertAll:
   - celExpr: import_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.status == "False" && c.reason == "NotReady")
+  - celExpr: import_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.message.contains("NATS did not report desired imports") && c.message.contains("not-allowed.>"))
   - celExpr: import_account.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "NotReady")
   - celExpr: has(import_account.status.nats) && has(import_account.status.nats.stateValidatedAt)
   - celExpr: has(import_account.status.nats) && import_account.status.nats.observedServerId != ""

@@ -355,7 +355,7 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 
 func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
 	if result.NatsState != nil {
-		condition := accountNatsCompleteCondition(result.NatsState, result.State.ClaimsHash, result.NatsObservationMessage)
+		condition := accountNatsCompleteCondition(result)
 		meta.SetStatusCondition(&account.Status.Conditions, condition)
 	}
 
@@ -384,15 +384,16 @@ func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, r
 	sortConditions(account.Status.Conditions)
 }
 
-func accountNatsCompleteCondition(state *domain.NatsAccountState, desiredClaimsHash, observationMessage string) metav1.Condition {
+func accountNatsCompleteCondition(result *nauth.AccountResult) metav1.Condition {
+	state := result.NatsState
 	if state.Status == domain.NatsAccountStateUnknown {
-		message := observationMessage
+		message := result.NatsObservationMessage
 		if message == "" {
 			message = "NATS Account completeness is Unknown"
 		}
 		return newCondition(conditionTypeNatsAccountComplete, metav1.ConditionUnknown, conditionReasonUnknown, message)
 	}
-	if !state.MatchesClaimsHash(desiredClaimsHash) {
+	if !state.MatchesClaimsHash(result.State.ClaimsHash) {
 		return newCondition(
 			conditionTypeNatsAccountComplete,
 			metav1.ConditionFalse,
@@ -401,11 +402,15 @@ func accountNatsCompleteCondition(state *domain.NatsAccountState, desiredClaimsH
 		)
 	}
 	if state.Status != domain.NatsAccountStateComplete {
+		var desiredImports nauth.Imports
+		if result.Claims != nil {
+			desiredImports = result.Claims.Imports
+		}
 		return newCondition(
 			conditionTypeNatsAccountComplete,
 			metav1.ConditionFalse,
 			conditionReasonNotReady,
-			incompleteAccountMessage(state),
+			incompleteAccountMessage(state, desiredImports),
 		)
 	}
 	return newCondition(
@@ -416,27 +421,84 @@ func accountNatsCompleteCondition(state *domain.NatsAccountState, desiredClaimsH
 	)
 }
 
-func incompleteAccountMessage(state *domain.NatsAccountState) string {
-	const maxInvalidImports = 5
-	invalidImports := make([]string, 0, min(len(state.Imports), maxInvalidImports))
+func incompleteAccountMessage(state *domain.NatsAccountState, desiredImports nauth.Imports) string {
+	const maxImportsInConditionMessage = 5
+	invalidImports := make([]string, 0, min(len(state.Imports), maxImportsInConditionMessage))
 	invalidImportCount := 0
 	for _, imp := range state.Imports {
 		if !imp.Invalid {
 			continue
 		}
 		invalidImportCount++
-		if len(invalidImports) < maxInvalidImports {
+		if len(invalidImports) < maxImportsInConditionMessage {
 			invalidImports = append(invalidImports, fmt.Sprintf("%s -> %s (%s)", imp.AccountID, imp.Subject, imp.Type))
 		}
 	}
+	messages := make([]string, 0, 2)
 	if len(invalidImports) > 0 {
 		message := "NATS reports invalid imports: " + strings.Join(invalidImports, "; ")
 		if invalidImportCount > len(invalidImports) {
 			message += fmt.Sprintf("; and %d more", invalidImportCount-len(invalidImports))
 		}
-		return message
+		messages = append(messages, message)
+	}
+
+	missingImports := unobservedAccountImports(desiredImports, state.Imports)
+	if len(missingImports) > 0 {
+		message := "NATS did not report desired imports: " + strings.Join(missingImports[:min(len(missingImports), maxImportsInConditionMessage)], "; ")
+		if len(missingImports) > maxImportsInConditionMessage {
+			message += fmt.Sprintf("; and %d more", len(missingImports)-maxImportsInConditionMessage)
+		}
+		messages = append(messages, message)
+	}
+
+	if len(messages) != 0 {
+		return strings.Join(messages, "; ")
 	}
 	return "NATS reports the Account as incomplete"
+}
+
+func unobservedAccountImports(desiredImports nauth.Imports, observedImports []domain.NatsAccountImport) []string {
+	type importIdentity struct {
+		accountID    string
+		subject      string
+		localSubject string
+		importType   string
+	}
+
+	observed := make(map[importIdentity]struct{}, len(observedImports))
+	for _, imp := range observedImports {
+		observed[importIdentity{
+			accountID:    imp.AccountID,
+			subject:      imp.Subject,
+			localSubject: effectiveImportLocalSubject(imp.Subject, imp.LocalSubject),
+			importType:   imp.Type,
+		}] = struct{}{}
+	}
+
+	missing := make([]string, 0)
+	for _, imp := range desiredImports {
+		if imp == nil {
+			continue
+		}
+		identity := importIdentity{
+			accountID:    string(imp.AccountID),
+			subject:      string(imp.Subject),
+			localSubject: effectiveImportLocalSubject(string(imp.Subject), string(imp.LocalSubject)),
+			importType:   string(imp.Type),
+		}
+		if _, found := observed[identity]; !found {
+			missing = append(missing, fmt.Sprintf("%s -> %s (%s)", imp.AccountID, imp.Subject, imp.Type))
+		}
+	}
+	return missing
+}
+
+func effectiveImportLocalSubject(subject, localSubject string) string {
+	if localSubject == "" {
+		return subject
+	}
+	return localSubject
 }
 
 func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha1.Account, accountReference nauth.AccountReference) (nauth.AccountRequest, accountAdoptionRefs, error) {

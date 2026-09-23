@@ -94,9 +94,71 @@ func TestAccountNatsCompleteCondition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			condition := accountNatsCompleteCondition(&tt.state, "desired-hash", "")
+			condition := accountNatsCompleteCondition(&nauth.AccountResult{
+				State:     nauth.AccountState{ClaimsHash: "desired-hash"},
+				NatsState: &tt.state,
+			})
 			if condition.Status != tt.wantStatus {
 				t.Fatalf("expected status %q, got %q", tt.wantStatus, condition.Status)
+			}
+		})
+	}
+}
+
+func TestIncompleteAccountMessage(t *testing.T) {
+	desiredImport := &nauth.Import{
+		AccountID: "EXPORT_ACCOUNT",
+		Subject:   "hello.world",
+		Type:      nauth.ExportTypeStream,
+	}
+	tests := []struct {
+		name           string
+		state          domain.NatsAccountState
+		desiredImports nauth.Imports
+		wantMessage    string
+	}{
+		{
+			name: "reports desired import omitted by ACCOUNTZ without inferring a cause",
+			state: domain.NatsAccountState{
+				Status: domain.NatsAccountStateIncomplete,
+			},
+			desiredImports: nauth.Imports{desiredImport},
+			wantMessage:    "NATS did not report desired imports: EXPORT_ACCOUNT -> hello.world (stream)",
+		},
+		{
+			name: "matches an observed import with its default local subject",
+			state: domain.NatsAccountState{
+				Status: domain.NatsAccountStateIncomplete,
+				Imports: []domain.NatsAccountImport{{
+					AccountID:    "EXPORT_ACCOUNT",
+					Subject:      "hello.world",
+					LocalSubject: "hello.world",
+					Type:         "stream",
+				}},
+			},
+			desiredImports: nauth.Imports{desiredImport},
+			wantMessage:    "NATS reports the Account as incomplete",
+		},
+		{
+			name: "reports an observed invalid import without also calling it missing",
+			state: domain.NatsAccountState{
+				Status: domain.NatsAccountStateIncomplete,
+				Imports: []domain.NatsAccountImport{{
+					AccountID: "EXPORT_ACCOUNT",
+					Subject:   "hello.world",
+					Type:      "stream",
+					Invalid:   true,
+				}},
+			},
+			desiredImports: nauth.Imports{desiredImport},
+			wantMessage:    "NATS reports invalid imports: EXPORT_ACCOUNT -> hello.world (stream)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := incompleteAccountMessage(&tt.state, tt.desiredImports); got != tt.wantMessage {
+				t.Fatalf("incompleteAccountMessage() = %q, want %q", got, tt.wantMessage)
 			}
 		})
 	}
@@ -709,6 +771,13 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAcc
 	mockResult := &nauth.AccountResult{
 		AccountID:       accountID,
 		AccountSignedBy: "OPERATOR_SIGNING_KEY",
+		Claims: &nauth.AccountClaims{
+			Imports: nauth.Imports{{
+				AccountID: "missing-export-account",
+				Subject:   "not-exported.>",
+				Type:      nauth.ExportTypeStream,
+			}},
+		},
 		State: nauth.AccountState{
 			ClaimsHash:         "claims-hash",
 			ObservedServerID:   "server-a",
@@ -745,6 +814,8 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAcc
 	t.assertAccountCondition(account.Status.Conditions, conditionTypeReady, metav1.ConditionFalse, conditionReasonNotReady)
 	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
 	t.Contains(condition.Message, "export-account -> allowed.> (stream)")
+	t.Contains(condition.Message, "NATS did not report desired imports: missing-export-account -> not-exported.> (stream)")
+	t.NotContains(condition.Message, "not exported")
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_WhenNATSAccountObservationIsInconclusive() {
