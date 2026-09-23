@@ -70,8 +70,12 @@ test: verify-go-version-sync manifests generate fmt vet setup-envtest ## Run tes
 build-e2e-ctl: $(LOCALBIN) ## Build the e2e-ctl binary used by KUTTL e2e tests.
 	go build -o $(LOCALBIN)/e2e-ctl ./test/e2e-ctl
 
+.PHONY: build-e2e-runner
+build-e2e-runner: build-e2e-ctl ## Build the KUTTL e2e test runner.
+	go build -o $(LOCALBIN)/e2e-runner ./test/e2e-runner
+
 .PHONY: test-e2e
-test-e2e: verify-go-version-sync manifests generate fmt vet build-e2e-ctl ## Run the e2e tests. Expected an isolated environment using Kind.
+test-e2e: verify-go-version-sync manifests generate fmt vet build-e2e-runner ## Run the e2e tests. Expected an isolated environment using Kind.
 	@command -v $(KIND) >/dev/null 2>&1 || { \
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
@@ -84,7 +88,7 @@ test-e2e: verify-go-version-sync manifests generate fmt vet build-e2e-ctl ## Run
 		echo "kubectl-kuttl is not installed. Please install the KUTTL plugin manually."; \
 		exit 1; \
 	}
-	PATH="$(LOCALBIN):$$PATH" kubectl kuttl test
+	PATH="$(LOCALBIN):$$PATH" e2e-runner
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

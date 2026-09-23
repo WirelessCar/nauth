@@ -69,8 +69,8 @@ git diff --exit-code -- charts/nauth/values.schema.json
 silent = false
 description = "Run end-to-end tests"
 run = """
-make build-e2e-ctl
-PATH="$PWD/bin:$PATH" kubectl kuttl test
+make build-e2e-runner
+PATH="$PWD/bin:$PATH" e2e-runner
 """
 
 [tasks."nauth:kuttle-k9s"]

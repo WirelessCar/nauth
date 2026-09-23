@@ -56,3 +56,45 @@ jobs:
         run: |
           go mod tidy
           make test-e2e
+
+      - name: Upload E2E logs
+        if: always()
+        id: upload-e2e-logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuttl-logs
+          path: test/logs/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Summarize failed E2E logs
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.upload-e2e-logs.outputs.artifact-url }}
+        run: |
+          {
+            echo '## KUTTL logs'
+            if [[ -n "$ARTIFACT_URL" ]]; then
+              echo "[Download the E2E logs]($ARTIFACT_URL)"
+            fi
+            echo
+            echo 'NAuth controller logs in the artifact: `test/logs/nauth.log`'
+
+            failed_logs=()
+            while IFS= read -r -d '' log; do
+              if grep -q '^--- FAIL: kuttl/harness/' "$log"; then
+                failed_logs+=("$log")
+              fi
+            done < <(find test/logs/kuttl -maxdepth 1 -type f -name '*.log' -print0 2>/dev/null)
+
+            if (( ${#failed_logs[@]} > 0 )); then
+              echo
+              echo 'Failed-test logs in the artifact:'
+              for log in "${failed_logs[@]}"; do
+                echo "- \`$log\`"
+              done
+            elif [[ ! -f test/logs/kuttl-run.log ]]; then
+              echo
+              echo 'No per-test KUTTL log files were produced.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
