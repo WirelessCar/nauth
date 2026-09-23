@@ -364,6 +364,51 @@ func TestConnection_LookupAccountState_ShouldReturnCompleteStateForValidImport(t
 	})
 }
 
+func TestConnection_LookupAccountState_ShouldReturnInvalidImportAfterExportIsRemoved(t *testing.T) {
+	op := newOperator(t)
+	exportAccountKey := testutil.CreateNatsTestAccountKey()
+	importAccount := newAccount(t, op, func(_ string, claims *jwt.AccountClaims) {
+		claims.Imports.Add(&jwt.Import{
+			Account: exportAccountKey.PublicKey,
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	exportAccountWithExport := newAccountWithKey(t, op, exportAccountKey, func(_ string, claims *jwt.AccountClaims) {
+		claims.Exports.Add(&jwt.Export{
+			Subject: "foo.hello",
+			Type:    jwt.Stream,
+		})
+	})
+	exportAccountWithoutExport := newAccountWithKey(t, op, exportAccountKey, nil)
+	server, sysConn := runServer(t, op)
+	conn := &connection{conn: sysConn}
+
+	require.NoError(t, applyAccountJWT(t, server, sysConn, exportAccountWithExport))
+	require.NoError(t, applyAccountJWT(t, server, sysConn, importAccount))
+
+	state, err := conn.LookupAccountState(importAccount.key.PublicKey)
+	require.NoError(t, err)
+	require.Contains(t, state.Imports, domain.NatsAccountImport{
+		AccountID:    exportAccountKey.PublicKey,
+		Subject:      "foo.hello",
+		LocalSubject: "foo.hello",
+		Type:         "stream",
+	})
+
+	require.NoError(t, applyAccountJWT(t, server, sysConn, exportAccountWithoutExport))
+	state, err = conn.LookupAccountState(importAccount.key.PublicKey)
+
+	require.NoError(t, err)
+	require.Contains(t, state.Imports, domain.NatsAccountImport{
+		AccountID:    exportAccountKey.PublicKey,
+		Subject:      "foo.hello",
+		LocalSubject: "foo.hello",
+		Type:         "stream",
+		Invalid:      true,
+	})
+}
+
 /* *****************************************************************
 * Helpers
 ******************************************************************/
