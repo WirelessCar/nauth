@@ -45,6 +45,7 @@ const ( // Conditions
 
 	// Messages
 	conditionMessageAdopted = "Adopted"
+	conditionMessageReady   = "Successfully reconciled"
 )
 
 const ( // Events

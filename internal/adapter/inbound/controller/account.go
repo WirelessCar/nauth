@@ -23,6 +23,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -354,34 +355,59 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 }
 
 func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
+	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
 	if result.NatsState != nil {
 		condition := accountNatsCompleteCondition(result)
-		meta.SetStatusCondition(&account.Status.Conditions, condition)
+		natsCondition = &condition
 	}
 
-	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
 	if natsCondition == nil {
-		meta.SetStatusCondition(&account.Status.Conditions, newCondition(
+		condition := newCondition(
 			conditionTypeNatsAccountComplete,
 			metav1.ConditionUnknown,
 			conditionReasonUnknown,
 			"NATS Account completeness has not been observed",
-		))
-		natsCondition = meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+		)
+		natsCondition = &condition
 	}
 
+	setAccountConditions(account, *natsCondition)
+	sortConditions(account.Status.Conditions)
+}
+
+func setAccountConditions(account *v1alpha1.Account, subConditions ...metav1.Condition) {
 	ready := metav1.Condition{
-		Type:    conditionTypeReady,
-		Status:  natsCondition.Status,
-		Reason:  natsCondition.Reason,
-		Message: natsCondition.Message,
+		Type:               conditionTypeReady,
+		ObservedGeneration: account.Generation,
+		Status:             metav1.ConditionTrue,
+		Reason:             conditionReasonReconciled,
+		Message:            conditionMessageReady,
 	}
-	if ready.Status == metav1.ConditionTrue {
-		ready.Reason = conditionReasonReconciled
-		ready.Message = "Successfully reconciled"
+	notTrueConditions := make([]string, 0, len(subConditions))
+	for _, condition := range subConditions {
+		condition.ObservedGeneration = account.Generation
+		meta.SetStatusCondition(&account.Status.Conditions, condition)
+		if condition.Status != metav1.ConditionTrue {
+			notTrueConditions = append(notTrueConditions, fmt.Sprintf("%s (%s)", condition.Type, condition.Status))
+			if condition.Status == metav1.ConditionFalse {
+				ready.Status = metav1.ConditionFalse
+				ready.Reason = conditionReasonNotReady
+			} else if ready.Status == metav1.ConditionTrue {
+				ready.Status = metav1.ConditionUnknown
+				ready.Reason = conditionReasonUnknown
+			}
+		}
+	}
+	if len(notTrueConditions) > 0 {
+		slices.Sort(notTrueConditions)
+		ready.Message = fmt.Sprintf(
+			"%d/%d readiness conditions are not True: %s",
+			len(notTrueConditions),
+			len(subConditions),
+			strings.Join(notTrueConditions, ", "),
+		)
 	}
 	meta.SetStatusCondition(&account.Status.Conditions, ready)
-	sortConditions(account.Status.Conditions)
 }
 
 func accountNatsCompleteCondition(result *nauth.AccountResult) metav1.Condition {

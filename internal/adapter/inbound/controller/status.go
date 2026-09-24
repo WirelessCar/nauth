@@ -40,7 +40,7 @@ func (s *statusReporter) status(ctx context.Context, object Object) (ctrl.Result
 		Type:    conditionTypeReady,
 		Status:  metav1.ConditionTrue,
 		Reason:  conditionReasonReconciled,
-		Message: "Successfully reconciled",
+		Message: conditionMessageReady,
 	})
 
 	if err := s.client.Status().Update(ctx, object); err != nil {

@@ -105,6 +105,74 @@ func TestAccountNatsCompleteCondition(t *testing.T) {
 	}
 }
 
+func TestSetAccountConditionsAggregatesSubConditions(t *testing.T) {
+	tests := []struct {
+		name          string
+		subConditions []metav1.Condition
+		wantStatus    metav1.ConditionStatus
+		wantReason    string
+		wantMessage   string
+	}{
+		{
+			name: "all conditions true",
+			subConditions: []metav1.Condition{{
+				Type: conditionTypeNatsAccountComplete, Status: metav1.ConditionTrue, Reason: conditionReasonOK, Message: "NATS-specific details",
+			}},
+			wantStatus:  metav1.ConditionTrue,
+			wantReason:  conditionReasonReconciled,
+			wantMessage: conditionMessageReady,
+		},
+		{
+			name: "unknown condition makes readiness unknown",
+			subConditions: []metav1.Condition{
+				{Type: conditionTypeNatsAccountComplete, Status: metav1.ConditionTrue, Reason: conditionReasonOK, Message: "NATS-specific details"},
+				{Type: "OtherRequirement", Status: metav1.ConditionUnknown, Reason: "Unknown", Message: "other-specific details"},
+			},
+			wantStatus:  metav1.ConditionUnknown,
+			wantReason:  conditionReasonUnknown,
+			wantMessage: "1/2 readiness conditions are not True: OtherRequirement (Unknown)",
+		},
+		{
+			name: "false condition takes precedence over unknown",
+			subConditions: []metav1.Condition{
+				{Type: "OtherRequirement", Status: metav1.ConditionFalse, Reason: "NotReady", Message: "other-specific details"},
+				{Type: conditionTypeNatsAccountComplete, Status: metav1.ConditionUnknown, Reason: conditionReasonUnknown, Message: "NATS-specific details"},
+			},
+			wantStatus:  metav1.ConditionFalse,
+			wantReason:  conditionReasonNotReady,
+			wantMessage: "2/2 readiness conditions are not True: NATSAccountComplete (Unknown), OtherRequirement (False)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &v1alpha1.Account{ObjectMeta: metav1.ObjectMeta{Generation: 7}}
+			setAccountConditions(account, tt.subConditions...)
+
+			ready := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+			if ready == nil {
+				t.Fatal("Ready condition was not set")
+			}
+			if ready.Status != tt.wantStatus || ready.Reason != tt.wantReason || ready.Message != tt.wantMessage {
+				t.Fatalf("Ready = (%q, %q, %q), want (%q, %q, %q)", ready.Status, ready.Reason, ready.Message, tt.wantStatus, tt.wantReason, tt.wantMessage)
+			}
+			if ready.ObservedGeneration != account.Generation {
+				t.Errorf("Ready observed generation = %d, want %d", ready.ObservedGeneration, account.Generation)
+			}
+			for _, subCondition := range tt.subConditions {
+				condition := meta.FindStatusCondition(account.Status.Conditions, subCondition.Type)
+				if condition == nil {
+					t.Errorf("%s condition was not set", subCondition.Type)
+					continue
+				}
+				if condition.ObservedGeneration != account.Generation {
+					t.Errorf("%s observed generation = %d, want %d", condition.Type, condition.ObservedGeneration, account.Generation)
+				}
+			}
+		})
+	}
+}
+
 func TestIncompleteAccountMessage(t *testing.T) {
 	desiredImport := &nauth.Import{
 		AccountID: "EXPORT_ACCOUNT",
@@ -816,6 +884,9 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotBeReady_WhenNATSAcc
 	t.Contains(condition.Message, "export-account -> allowed.> (stream)")
 	t.Contains(condition.Message, "NATS did not report desired imports: missing-export-account -> not-exported.> (stream)")
 	t.NotContains(condition.Message, "not exported")
+	readyCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Equal("1/1 readiness conditions are not True: NATSAccountComplete (False)", readyCondition.Message)
+	t.NotContains(readyCondition.Message, "NATS did not report desired imports")
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_WhenNATSAccountObservationIsInconclusive() {
@@ -853,6 +924,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetUnknownReadiness_Wh
 	readyCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
 	t.Equal(metav1.ConditionUnknown, readyCondition.Status)
 	t.Equal(conditionReasonUnknown, readyCondition.Reason)
+	t.Equal("1/1 readiness conditions are not True: NATSAccountComplete (Unknown)", readyCondition.Message)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPreserveNATSStateValidatedAt_WhenManagerSkipsValidation() {
