@@ -79,7 +79,7 @@ func TestAccountImportReconciler_ShouldReconcileForExportAccountUpdate(t *testin
 			mutate: func(account *v1alpha1.Account) {
 				account.Status.ClaimsHash = "hash-b"
 			},
-			expectRequeue: false,
+			expectRequeue: true,
 		},
 		{
 			name: "observed_generation_only_changed",

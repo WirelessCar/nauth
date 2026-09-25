@@ -219,6 +219,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		natsAccount.Status.Nats.ObservedServerID = result.State.ObservedServerID
 		natsAccount.Status.Nats.ObservedClaimsHash = result.State.ObservedClaimsHash
 		natsAccount.Status.Nats.StateValidatedAt = metav1.NewTime(result.State.StateValidatedAt)
+		natsAccount.Status.Nats.ObservedImportDependenciesHash = result.State.ObservedImportDependenciesHash
 	}
 	r.updateAccountConditions(natsAccount, result)
 	natsAccount.Status.ObservedGeneration = natsAccount.Generation
@@ -318,11 +319,13 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 	var stateValidatedAt time.Time
 	var observedServerID string
 	var observedClaimsHash string
+	var observedImportDependenciesHash string
 	var observedStatus domain.NatsAccountStateStatus
 	if state.Status.Nats != nil {
 		stateValidatedAt = state.Status.Nats.StateValidatedAt.Time
 		observedServerID = state.Status.Nats.ObservedServerID
 		observedClaimsHash = state.Status.Nats.ObservedClaimsHash
+		observedImportDependenciesHash = state.Status.Nats.ObservedImportDependenciesHash
 	}
 	if condition := meta.FindStatusCondition(state.Status.Conditions, conditionTypeNatsAccountComplete); condition != nil {
 		switch condition.Status {
@@ -339,11 +342,12 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 		AccountRef: domain.NewNamespacedName(state.Namespace, state.Name),
 		AccountID:  accountReference.AccountID,
 		State: nauth.AccountState{
-			ClaimsHash:         state.Status.ClaimsHash,
-			ObservedServerID:   observedServerID,
-			ObservedClaimsHash: observedClaimsHash,
-			ObservedStatus:     observedStatus,
-			StateValidatedAt:   stateValidatedAt,
+			ClaimsHash:                     state.Status.ClaimsHash,
+			ObservedServerID:               observedServerID,
+			ObservedClaimsHash:             observedClaimsHash,
+			ObservedStatus:                 observedStatus,
+			StateValidatedAt:               stateValidatedAt,
+			ObservedImportDependenciesHash: observedImportDependenciesHash,
 		},
 		DisplayName:      state.Spec.DisplayName,
 		ClusterTarget:    accountReference.ClusterTarget,
@@ -427,7 +431,7 @@ func accountNatsCompleteCondition(result *nauth.AccountResult) metav1.Condition 
 			"NATS returned Account claims that do not match the desired claims",
 		)
 	}
-	if state.Status != domain.NatsAccountStateComplete {
+	if state.Status != domain.NatsAccountStateComplete || state.HasInvalidImports() {
 		var desiredImports nauth.Imports
 		if result.Claims != nil {
 			desiredImports = result.Claims.Imports
@@ -556,6 +560,10 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	}
 	request.SigningKeys = signingKeys
 
+	// Bootstrap accounts do not have an Account ID yet, so their managed
+	// AccountExport and AccountImport resources cannot be found by label. Inline
+	// configuration has already been added above; load managed resources and
+	// fingerprint their dependencies during the subsequent full reconciliation.
 	if accountReference.AccountID == "" {
 		return request, adoptionRefs, nil
 	}
@@ -582,7 +590,53 @@ func (r *AccountReconciler) toAccountRequest(ctx context.Context, state *v1alpha
 	request.ImportGroups = append(request.ImportGroups, newImportGroups...)
 	adoptionRefs.imports = append(adoptionRefs.imports, newImportRefs...)
 
+	request.ImportDependenciesHash, err = r.importDependenciesHash(ctx, state, imports)
+	if err != nil {
+		return request, adoptionRefs, fmt.Errorf("failed to fingerprint import dependencies: %w", err)
+	}
+
 	return request, adoptionRefs, nil
+}
+
+func (r *AccountReconciler) importDependenciesHash(ctx context.Context, target *v1alpha1.Account, imports *v1alpha1.AccountImportList) (string, error) {
+	refs := make(map[types.NamespacedName]struct{})
+	addRef := func(namespace, name string) {
+		if namespace == "" {
+			namespace = target.Namespace
+		}
+		if name != "" {
+			refs[types.NamespacedName{Namespace: namespace, Name: name}] = struct{}{}
+		}
+	}
+
+	for _, imp := range target.Spec.Imports {
+		addRef(imp.AccountRef.Namespace, imp.AccountRef.Name)
+	}
+	if imports != nil {
+		for _, imp := range imports.Items {
+			addRef(imp.Spec.ExportAccountRef.Namespace, imp.Spec.ExportAccountRef.Name)
+		}
+	}
+
+	dependencies := make([]nauth.AccountImportDependency, 0, len(refs))
+	for ref := range refs {
+		exportAccount := &v1alpha1.Account{}
+		if err := r.kubernetes.Get(ctx, ref, exportAccount); err != nil {
+			if apierrors.IsNotFound(err) {
+				dependencies = append(dependencies, nauth.AccountImportDependency{
+					AccountRef: domain.NewNamespacedName(ref.Namespace, ref.Name),
+				})
+				continue
+			}
+			return "", fmt.Errorf("failed to get imported-from Account %q: %w", ref, err)
+		}
+		dependencies = append(dependencies, nauth.AccountImportDependency{
+			AccountRef: domain.NewNamespacedName(ref.Namespace, ref.Name),
+			ClaimsHash: exportAccount.Status.ClaimsHash,
+		})
+	}
+
+	return nauth.HashAccountImportDependencies(dependencies), nil
 }
 
 func newCachedAccountIDReader(ctx context.Context, accountIDReader k8s.AccountReader) ResolveAccountIDFn {
@@ -685,6 +739,13 @@ func (r *AccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&v1alpha1.AccountImport{},
 			handler.EnqueueRequestsFromMapFunc(r.mapAccountImportToAccounts),
 			builder.WithPredicates(accountImportWatchPredicateForAccounts()),
+		).
+		Watches(
+			&v1alpha1.Account{},
+			// An export account claims change can invalidate imports without changing the
+			// AccountImport desired claim, so enqueue Accounts that import from it directly.
+			handler.EnqueueRequestsFromMapFunc(r.mapExportAccountToImportingAccounts),
+			builder.WithPredicates(accountImportExportAccountWatchPredicate()),
 		).
 		Watches(
 			&v1alpha1.AccountSigningKey{},
@@ -863,6 +924,73 @@ func (r *AccountReconciler) mapAccountImportToAccounts(ctx context.Context, obj 
 	}
 
 	return requests
+}
+
+func (r *AccountReconciler) mapExportAccountToImportingAccounts(ctx context.Context, obj client.Object) []reconcile.Request {
+	exportAccount, ok := obj.(*v1alpha1.Account)
+	if !ok {
+		return nil
+	}
+
+	imports := &v1alpha1.AccountImportList{}
+	exportAccountRef := types.NamespacedName{
+		Namespace: exportAccount.Namespace,
+		Name:      exportAccount.Name,
+	}
+	if err := r.kubernetes.List(ctx, imports, client.MatchingFields{
+		importExportAccountRefIndexKey: exportAccountRef.String(),
+	}); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list AccountImports for export Account watch", "account", exportAccount.Name, "namespace", exportAccount.Namespace)
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(imports.Items))
+	seen := make(map[types.NamespacedName]struct{})
+	for i := range imports.Items {
+		requests = appendUniqueAccountRequests(requests, seen, r.mapAccountImportToAccounts(ctx, &imports.Items[i])...)
+	}
+
+	accounts := &v1alpha1.AccountList{}
+	if err := r.kubernetes.List(ctx, accounts); err != nil {
+		logf.FromContext(ctx).Error(err, "Failed to list Accounts for inline import watch", "account", exportAccount.Name, "namespace", exportAccount.Namespace)
+		return requests
+	}
+	for i := range accounts.Items {
+		account := &accounts.Items[i]
+		if accountImportsFrom(account, exportAccountRef) {
+			requests = appendUniqueAccountRequests(requests, seen, reconcile.Request{
+				NamespacedName: client.ObjectKeyFromObject(account),
+			})
+		}
+	}
+	return requests
+}
+
+func appendUniqueAccountRequests(requests []reconcile.Request, seen map[types.NamespacedName]struct{}, additions ...reconcile.Request) []reconcile.Request {
+	for _, request := range additions {
+		if _, alreadyQueued := seen[request.NamespacedName]; alreadyQueued {
+			continue
+		}
+		seen[request.NamespacedName] = struct{}{}
+		requests = append(requests, request)
+	}
+	return requests
+}
+
+func accountImportsFrom(account *v1alpha1.Account, exportAccountRef types.NamespacedName) bool {
+	if account == nil {
+		return false
+	}
+	for _, imp := range account.Spec.Imports {
+		importAccountNamespace := imp.AccountRef.Namespace
+		if importAccountNamespace == "" {
+			importAccountNamespace = account.Namespace
+		}
+		if importAccountNamespace == exportAccountRef.Namespace && imp.AccountRef.Name == exportAccountRef.Name {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *AccountReconciler) validateAccountDeletion(ctx context.Context, accountID nauth.AccountID, namespace domain.Namespace) error {

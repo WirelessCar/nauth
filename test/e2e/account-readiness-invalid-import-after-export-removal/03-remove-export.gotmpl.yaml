@@ -1,0 +1,6 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  # Change only the export account. The AccountImport remains configured
+  # so NATS can retain it and report it as runtime-invalid.
+  - command: kubectl patch accounts.nauth.io export-account -n {{ .Namespace }} --type=merge -p '{"spec":{"exports":[]}}'

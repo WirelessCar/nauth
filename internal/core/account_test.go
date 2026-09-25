@@ -135,6 +135,17 @@ func TestAccountValidationOutcome(t *testing.T) {
 			want: nauth.AccountValidationPending,
 		},
 		{
+			name: "complete state with an invalid import is pending",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ClaimsHash: "claims-hash",
+				Imports: []domain.NatsAccountImport{{
+					Invalid: true,
+				}},
+			},
+			want: nauth.AccountValidationPending,
+		},
+		{
 			name: "unknown state is unknown",
 			state: domain.NatsAccountState{
 				Status: domain.NatsAccountStateUnknown,
@@ -415,6 +426,83 @@ func (t *AccountManagerTestSuite) Test_Update_ShouldSkipNATSValidation_WhenState
 	t.Equal(nauth.AccountValidationReady, result.ValidationOutcome)
 	t.Nil(result.NatsState)
 	t.natsSysConnMock.AssertNotCalled(t.T(), "RequestAccountLoad", mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_Update_ShouldRevalidate_WhenImportDependencyFingerprintChanges() {
+	// Given an Account whose desired claims include a cross-account import.
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	accountID := testutil.NatsTestAccountA.AccountID()
+	importAccount := testutil.CreateNatsTestAccount()
+	importGroups := nauth.ImportGroups{
+		{
+			Ref:      "inline",
+			Required: true,
+			Imports: nauth.Imports{
+				{
+					AccountID: nauth.AccountID(importAccount.AccountID()),
+					Subject:   "foo",
+					Type:      nauth.ExportTypeStream,
+				},
+			},
+		},
+	}
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	var existingJWT string
+	t.natsSysConnMock.mockUploadAccountJWTCatch(func(jwt string) { existingJWT = jwt })
+	t.natsSysConnMock.mockCompleteAccountState()
+	t.natsSysConnMock.mockDisconnect()
+
+	initialResult, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef:             accountRef,
+		AccountID:              nauth.AccountID(accountID),
+		ClusterTarget:          t.clusterTarget,
+		ImportGroups:           importGroups,
+		ImportDependenciesHash: "source-claims-v1",
+	})
+	t.Require().NoError(err)
+	t.Require().NotNil(initialResult)
+	t.Require().NotEmpty(existingJWT)
+	t.assertAndResetAllMock()
+
+	// When the same desired state is reconciled while its previous validation is
+	// still fresh, the runtime import state must still be observed again.
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, accountID, &Secrets{
+		Root: testutil.NatsTestAccountA.Root.Key,
+		Sign: testutil.NatsTestAccountA.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockLookupAccountJWT(accountID, existingJWT)
+	t.natsSysConnMock.mockLookupAccountState(domain.NatsAccountState{
+		Status:     domain.NatsAccountStateComplete,
+		AccountID:  accountID,
+		ClaimsHash: initialResult.State.ClaimsHash,
+	}, nil)
+	t.natsSysConnMock.mockDisconnect()
+
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.AccountRequest{
+		AccountRef: accountRef,
+		AccountID:  nauth.AccountID(accountID),
+		State: nauth.AccountState{
+			ClaimsHash:                     initialResult.State.ClaimsHash,
+			ObservedClaimsHash:             initialResult.State.ClaimsHash,
+			ObservedStatus:                 domain.NatsAccountStateComplete,
+			StateValidatedAt:               time.Now(),
+			ObservedImportDependenciesHash: "source-claims-v1",
+		},
+		ClusterTarget:          t.clusterTarget,
+		ImportGroups:           importGroups,
+		ImportDependenciesHash: "source-claims-v2",
+	})
+
+	t.NoError(err)
+	t.NotNil(result)
+	t.NotNil(result.NatsState)
+	t.Equal(nauth.AccountValidationReady, result.ValidationOutcome)
 }
 
 func (t *AccountManagerTestSuite) Test_Update_ShouldRequestAccountLoadBeforeStateObservation() {

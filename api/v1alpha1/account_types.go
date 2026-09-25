@@ -143,6 +143,10 @@ type AccountNatsStatus struct {
 	// validation is skipped or the observation is Unknown.
 	// +optional
 	StateValidatedAt metav1.Time `json:"stateValidatedAt,omitempty"`
+	// ObservedImportDependenciesHash is the fingerprint of the imported-from Account claims
+	// associated with the last successful NATS state observation.
+	// +optional
+	ObservedImportDependenciesHash string `json:"observedImportDependenciesHash,omitempty"`
 }
 
 // AccountStatus defines the observed state of Account.

@@ -163,6 +163,7 @@ func parseAccountzResponse(payload []byte, expectedAccountID string) (domain.Nat
 	}
 
 	imports := make([]domain.NatsAccountImport, 0, len(account.Imports))
+	hasInvalidImport := false
 	for _, imp := range account.Imports {
 		imports = append(imports, domain.NatsAccountImport{
 			AccountID:    imp.Account,
@@ -171,6 +172,7 @@ func parseAccountzResponse(payload []byte, expectedAccountID string) (domain.Nat
 			Type:         imp.Type,
 			Invalid:      imp.Invalid,
 		})
+		hasInvalidImport = hasInvalidImport || imp.Invalid
 	}
 
 	serverID := response.Data.ServerID
@@ -179,7 +181,9 @@ func parseAccountzResponse(payload []byte, expectedAccountID string) (domain.Nat
 	}
 
 	status := domain.NatsAccountStateComplete
-	if !*account.Complete {
+	// ACCOUNTZ complete only means that NATS finished loading the account. An
+	// invalid import still makes the account unusable for cross-account access.
+	if !*account.Complete || hasInvalidImport {
 		status = domain.NatsAccountStateIncomplete
 	}
 	return domain.NatsAccountState{
