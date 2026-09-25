@@ -400,6 +400,9 @@ func TestConnection_LookupAccountState_ShouldReturnInvalidImportAfterExportIsRem
 	state, err = conn.LookupAccountState(importAccount.key.PublicKey)
 
 	require.NoError(t, err)
+	// ACCOUNTZ can report complete=true after an export is removed, but the
+	// retained import is runtime-invalid and must not make the account Ready.
+	require.Equal(t, domain.NatsAccountStateIncomplete, state.Status)
 	require.Contains(t, state.Imports, domain.NatsAccountImport{
 		AccountID:    exportAccountKey.PublicKey,
 		Subject:      "foo.hello",

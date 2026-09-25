@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
+	"github.com/WirelessCar/nauth/internal/domain"
+	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -172,6 +175,130 @@ func TestAccountReconciler_MapAccountExportToAccounts(t *testing.T) {
 	assert.Equal(t, reconcile.Request{
 		NamespacedName: client.ObjectKeyFromObject(accountA),
 	}, requests[0])
+}
+
+func TestAccountReconciler_MapExportAccountToImportingAccounts(t *testing.T) {
+	testScheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(testScheme))
+
+	byExportAccountRefIndexFunc := func(rawObj client.Object) []string {
+		imp := rawObj.(*v1alpha1.AccountImport)
+		ref := imp.Spec.ExportAccountRef
+		if ref.Name == "" && ref.Namespace == "" {
+			return nil
+		}
+		namespace := ref.Namespace
+		if namespace == "" {
+			namespace = imp.Namespace
+		}
+		return []string{types.NamespacedName{Namespace: namespace, Name: ref.Name}.String()}
+	}
+
+	exportAccount := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "export-account", Namespace: "export-ns"},
+	}
+	targetAccount := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "import-account",
+			Namespace: "import-ns",
+			Labels: map[string]string{
+				string(v1alpha1.AccountLabelAccountID): accountIDAccA,
+			},
+		},
+	}
+	matchingImport := &v1alpha1.AccountImport{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "import-rule",
+			Namespace: "import-ns",
+			Labels: map[string]string{
+				string(v1alpha1.AccountImportLabelAccountID): accountIDAccA,
+			},
+		},
+		Spec: v1alpha1.AccountImportSpec{
+			AccountName: "import-account",
+			ExportAccountRef: v1alpha1.AccountRef{
+				Name:      "export-account",
+				Namespace: "export-ns",
+			},
+		},
+	}
+	nonMatchingImport := &v1alpha1.AccountImport{
+		ObjectMeta: metav1.ObjectMeta{Name: "import-other", Namespace: "import-ns"},
+		Spec: v1alpha1.AccountImportSpec{
+			AccountName: "import-account",
+			ExportAccountRef: v1alpha1.AccountRef{
+				Name:      "other-account",
+				Namespace: "export-ns",
+			},
+		},
+	}
+	inlineTargetAccount := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "inline-import-account", Namespace: "inline-ns"},
+		Spec: v1alpha1.AccountSpec{
+			Imports: v1alpha1.Imports{{
+				AccountRef: v1alpha1.AccountRef{
+					Name:      "export-account",
+					Namespace: "export-ns",
+				},
+			}},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithIndex(&v1alpha1.AccountImport{}, importExportAccountRefIndexKey, byExportAccountRefIndexFunc).
+		WithObjects(exportAccount, targetAccount, matchingImport, nonMatchingImport, inlineTargetAccount).
+		Build()
+
+	reconciler := &AccountReconciler{kubernetes: newKubernetesClient(fakeClient)}
+	requests := reconciler.mapExportAccountToImportingAccounts(context.Background(), exportAccount)
+
+	assert.ElementsMatch(t, []reconcile.Request{
+		{NamespacedName: client.ObjectKeyFromObject(targetAccount)},
+		{NamespacedName: client.ObjectKeyFromObject(inlineTargetAccount)},
+	}, requests)
+}
+
+func TestAccountReconciler_ImportDependenciesHashIncludesInlineAndManagedExportAccounts(t *testing.T) {
+	testScheme := runtime.NewScheme()
+	require.NoError(t, v1alpha1.AddToScheme(testScheme))
+
+	inlineExportAccount := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "inline-export-account", Namespace: "export-ns"},
+		Status:     v1alpha1.AccountStatus{ClaimsHash: "claims-inline"},
+	}
+	managedExportAccount := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "managed-export-account", Namespace: "export-ns"},
+		Status:     v1alpha1.AccountStatus{ClaimsHash: "claims-resource"},
+	}
+	target := &v1alpha1.Account{
+		ObjectMeta: metav1.ObjectMeta{Name: "target", Namespace: "target-ns"},
+		Spec: v1alpha1.AccountSpec{
+			Imports: v1alpha1.Imports{{
+				AccountRef: v1alpha1.AccountRef{Name: inlineExportAccount.Name, Namespace: inlineExportAccount.Namespace},
+			}},
+		},
+	}
+	accountImport := &v1alpha1.AccountImport{
+		ObjectMeta: metav1.ObjectMeta{Name: "resource-import", Namespace: target.Namespace},
+		Spec: v1alpha1.AccountImportSpec{
+			ExportAccountRef: v1alpha1.AccountRef{Name: managedExportAccount.Name, Namespace: managedExportAccount.Namespace},
+		},
+	}
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(inlineExportAccount, managedExportAccount, target).
+		Build()
+	reconciler := &AccountReconciler{kubernetes: newKubernetesClient(fakeClient)}
+
+	fingerprint, err := reconciler.importDependenciesHash(context.Background(), target, &v1alpha1.AccountImportList{Items: []v1alpha1.AccountImport{*accountImport}})
+
+	require.NoError(t, err)
+	assert.Equal(t, nauth.HashAccountImportDependencies([]nauth.AccountImportDependency{
+		{AccountRef: domain.NewNamespacedName(inlineExportAccount.Namespace, inlineExportAccount.Name), ClaimsHash: inlineExportAccount.Status.ClaimsHash},
+		{AccountRef: domain.NewNamespacedName(managedExportAccount.Namespace, managedExportAccount.Name), ClaimsHash: managedExportAccount.Status.ClaimsHash},
+	}), fingerprint)
 }
 
 func TestAccountReconciler_MapAccountSigningKeyToAccounts(t *testing.T) {

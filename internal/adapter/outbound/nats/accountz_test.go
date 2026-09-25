@@ -100,6 +100,36 @@ func TestParseAccountzResponse_ShouldReturnIncompleteStateAndInvalidImports(t *t
 	}, state.Imports)
 }
 
+func TestParseAccountzResponse_ShouldTreatCompleteAccountWithInvalidImportAsIncomplete(t *testing.T) {
+	operator := newOperator(t)
+	account := newAccount(t, operator, nil)
+	complete := true
+	payload := marshalAccountzResponse(t, accountzResponse{
+		Data: &accountzData{
+			ServerID: "server-a",
+			Account: &accountzAccount{
+				AccountName: account.key.PublicKey,
+				Complete:    &complete,
+				JWT:         account.jwt,
+				Imports: []accountzImport{{
+					Account: "EXPORT_ACCOUNT",
+					Subject: "foo.>",
+					Type:    "stream",
+					Invalid: true,
+				}},
+			},
+		},
+	})
+
+	state, err := parseAccountzResponse(payload, account.key.PublicKey)
+
+	require.NoError(t, err)
+	// NATS complete=true means the account load finished; it does not mean
+	// that every configured cross-account import is usable.
+	require.Equal(t, domain.NatsAccountStateIncomplete, state.Status)
+	require.True(t, state.HasInvalidImports())
+}
+
 func TestParseAccountzResponse_ShouldReturnUnknownWhenValidationDataIsInsufficient(t *testing.T) {
 	operator := newOperator(t)
 	account := newAccount(t, operator, nil)

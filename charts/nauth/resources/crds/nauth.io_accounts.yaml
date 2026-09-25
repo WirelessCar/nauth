@@ -682,6 +682,11 @@ spec:
                     description: ObservedClaimsHash is the hash of the Account JWT
                       claims returned by the last successful NATS state observation.
                     type: string
+                  observedImportDependenciesHash:
+                    description: |-
+                      ObservedImportDependenciesHash is the fingerprint of the imported-from Account claims
+                      associated with the last successful NATS state observation.
+                    type: string
                   observedServerId:
                     description: ObservedServerID identifies the NATS server that
                       supplied the last successful state observation.

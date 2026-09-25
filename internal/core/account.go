@@ -223,8 +223,12 @@ func (a *AccountManager) reconcileAccountJWT(
 ) (*accountJWTReconciliationResult, error) {
 	log := logf.FromContext(ctx)
 	claimsChanged := request.State.ClaimsHash == "" || request.State.ClaimsHash != desiredClaimsHash
-	now := time.Now()
-	stateValidationFresh, freshnessReason := a.canReuseAccountStateValidation(request.State, desiredClaimsHash, now)
+	stateValidationFresh, freshnessReason := a.canReuseAccountStateValidation(
+		request.State,
+		desiredClaimsHash,
+		request.ImportDependenciesHash,
+		time.Now(),
+	)
 	if stateValidationFresh {
 		log.V(1).Info("Skipped Account state validation because the desired state is unchanged and the previous validation is fresh",
 			"accountID", accountID,
@@ -267,7 +271,7 @@ func (a *AccountManager) reconcileAccountJWT(
 				// The remote JWT already matches the desired claims.
 				log.V(1).Info("Skipped Account JWT upload because the remote state already matches the desired state",
 					"accountID", accountID, "claimsHash", desiredClaimsHash)
-				return a.observeAccountState(sysConn, accountID, desiredClaimsHash)
+				return a.observeAccountState(sysConn, accountID, desiredClaimsHash, request.ImportDependenciesHash)
 			}
 			if remoteClaimsHash == desiredClaimsHash && lastObservationIncomplete {
 				log.Info("Re-uploading Account JWT because the last NATS observation was incomplete",
@@ -285,12 +289,15 @@ func (a *AccountManager) reconcileAccountJWT(
 		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
 	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.State.ClaimsHash, "claimsHash", desiredClaimsHash)
-	return a.observeAccountState(sysConn, accountID, desiredClaimsHash)
+	return a.observeAccountState(sysConn, accountID, desiredClaimsHash, request.ImportDependenciesHash)
 }
 
-func (a *AccountManager) canReuseAccountStateValidation(state nauth.AccountState, desiredClaimsHash string, now time.Time) (bool, string) {
+func (a *AccountManager) canReuseAccountStateValidation(state nauth.AccountState, desiredClaimsHash, importDependenciesHash string, now time.Time) (bool, string) {
 	if state.ClaimsHash == "" || state.ClaimsHash != desiredClaimsHash {
 		return false, "desired claims hash changed"
+	}
+	if state.ObservedImportDependenciesHash != importDependenciesHash {
+		return false, "import dependencies changed"
 	}
 	if state.StateValidatedAt.IsZero() {
 		return false, "state has not been validated"
@@ -314,6 +321,7 @@ func (a *AccountManager) observeAccountState(
 	sysConn outbound.NatsSysConnection,
 	accountID string,
 	desiredClaimsHash string,
+	importDependenciesHash string,
 ) (*accountJWTReconciliationResult, error) {
 	if err := sysConn.RequestAccountLoad(accountID); err != nil {
 		return unknownAccountStateResult(
@@ -340,11 +348,12 @@ func (a *AccountManager) observeAccountState(
 
 	return &accountJWTReconciliationResult{
 		nauthState: nauth.AccountState{
-			ClaimsHash:         desiredClaimsHash,
-			ObservedServerID:   natsState.ServerID,
-			ObservedClaimsHash: natsState.ClaimsHash,
-			ObservedStatus:     natsState.Status,
-			StateValidatedAt:   time.Now(),
+			ClaimsHash:                     desiredClaimsHash,
+			ObservedServerID:               natsState.ServerID,
+			ObservedClaimsHash:             natsState.ClaimsHash,
+			ObservedStatus:                 natsState.Status,
+			StateValidatedAt:               time.Now(),
+			ObservedImportDependenciesHash: importDependenciesHash,
 		},
 		validationOutcome: accountValidationOutcome(natsState, desiredClaimsHash),
 		natsState:         &natsState,
@@ -355,7 +364,7 @@ func accountValidationOutcome(state domain.NatsAccountState, desiredClaimsHash s
 	if state.Status == domain.NatsAccountStateUnknown {
 		return nauth.AccountValidationUnknown
 	}
-	if state.Status == domain.NatsAccountStateComplete && state.MatchesClaimsHash(desiredClaimsHash) {
+	if state.Status == domain.NatsAccountStateComplete && !state.HasInvalidImports() && state.MatchesClaimsHash(desiredClaimsHash) {
 		return nauth.AccountValidationReady
 	}
 	return nauth.AccountValidationPending
@@ -501,6 +510,7 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		sysConn,
 		accountID,
 		claimsHash,
+		"",
 	)
 	if err != nil {
 		return nil, err

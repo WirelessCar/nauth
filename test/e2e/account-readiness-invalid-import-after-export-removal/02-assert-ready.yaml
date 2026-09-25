@@ -1,0 +1,24 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: import-account
+    ref: import_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: export-account
+    ref: export_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: AccountImport
+    name: import-rule
+    ref: import_rule
+assertAll:
+  - celExpr: import_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.status == "True" && c.reason == "OK")
+  - celExpr: import_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")
+  - celExpr: has(import_account.status.claims) && has(import_account.status.claims.imports) && import_account.status.claims.imports.size() == 2
+  - celExpr: has(import_account.status.nats) && has(import_account.status.nats.observedImportDependenciesHash)
+  - celExpr: export_account.status.conditions.exists(c, c.type == "NATSAccountComplete" && c.status == "True" && c.reason == "OK")
+  - celExpr: export_account.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Reconciled")
+  - celExpr: import_rule.status.conditions.exists(c, c.type == "Ready" && c.status == "True" && c.reason == "Ready")

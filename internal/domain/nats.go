@@ -36,6 +36,15 @@ type NatsAccountImport struct {
 	Invalid      bool
 }
 
+func (s NatsAccountState) HasInvalidImports() bool {
+	for _, imp := range s.Imports {
+		if imp.Invalid {
+			return true
+		}
+	}
+	return false
+}
+
 func (s NatsAccountState) MatchesClaimsHash(expected string) bool {
 	return expected != "" && s.ClaimsHash != "" && s.ClaimsHash == expected
 }

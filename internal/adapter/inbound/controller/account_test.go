@@ -90,6 +90,17 @@ func TestAccountNatsCompleteCondition(t *testing.T) {
 			},
 			wantStatus: metav1.ConditionFalse,
 		},
+		{
+			name: "complete state with an invalid import is false",
+			state: domain.NatsAccountState{
+				Status:     domain.NatsAccountStateComplete,
+				ClaimsHash: "desired-hash",
+				Imports: []domain.NatsAccountImport{{
+					Invalid: true,
+				}},
+			},
+			wantStatus: metav1.ConditionFalse,
+		},
 	}
 
 	for _, tt := range tests {

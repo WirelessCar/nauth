@@ -339,7 +339,10 @@ func accountUpdateAffectsExportAccountImports(oldAccount *v1alpha1.Account, newA
 		return false
 	}
 
-	return oldAccount.GetLabel(v1alpha1.AccountLabelAccountID) != newAccount.GetLabel(v1alpha1.AccountLabelAccountID)
+	// An export account claims change can alter export availability even when the
+	// AccountImport's configured rules and desired claim are unchanged.
+	return oldAccount.GetLabel(v1alpha1.AccountLabelAccountID) != newAccount.GetLabel(v1alpha1.AccountLabelAccountID) ||
+		oldAccount.Status.ClaimsHash != newAccount.Status.ClaimsHash
 }
 
 func accountImportAccountWatchPredicate() predicate.Funcs {

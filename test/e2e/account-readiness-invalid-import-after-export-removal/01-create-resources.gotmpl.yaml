@@ -1,0 +1,42 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: import-account
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  imports:
+    - accountRef:
+        name: export-account
+        namespace: {{ .Namespace }}
+      subject: inline-removed.>
+      type: stream
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: export-account
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  exports:
+    - subject: removed.>
+      type: stream
+    - subject: inline-removed.>
+      type: stream
+---
+apiVersion: nauth.io/v1alpha1
+kind: AccountImport
+metadata:
+  name: import-rule
+spec:
+  accountName: import-account
+  exportAccountRef:
+    name: export-account
+    namespace: {{ .Namespace }}
+  rules:
+    - name: removed-rule
+      subject: removed.>
+      type: stream

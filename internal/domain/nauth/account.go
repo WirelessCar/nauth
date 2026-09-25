@@ -1,7 +1,10 @@
 package nauth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -20,6 +23,41 @@ type AccountState struct {
 	ObservedStatus domain.NatsAccountStateStatus `json:"observedStatus,omitempty"`
 	// StateValidatedAt records when the desired Account state was last successfully observed in NATS, including an explicit incomplete result.
 	StateValidatedAt time.Time `json:"stateValidatedAt,omitempty"`
+	// ObservedImportDependenciesHash identifies the imported-from Account claims associated with the last state observation.
+	ObservedImportDependenciesHash string `json:"observedImportDependenciesHash,omitempty"`
+}
+
+// AccountImportDependency identifies an imported-from Account and the claims
+// hash that was observed for it.
+type AccountImportDependency struct {
+	AccountRef domain.NamespacedName
+	ClaimsHash string
+}
+
+// HashAccountImportDependencies returns a stable fingerprint for the imported-
+// from Accounts that affect an Account's runtime imports.
+func HashAccountImportDependencies(dependencies []AccountImportDependency) string {
+	if len(dependencies) == 0 {
+		return ""
+	}
+
+	entries := append([]AccountImportDependency(nil), dependencies...)
+	sort.Slice(entries, func(i, j int) bool {
+		left, right := entries[i], entries[j]
+		if left.AccountRef.String() == right.AccountRef.String() {
+			return left.ClaimsHash < right.ClaimsHash
+		}
+		return left.AccountRef.String() < right.AccountRef.String()
+	})
+
+	hash := sha256.New()
+	for _, dependency := range entries {
+		_, _ = hash.Write([]byte(dependency.AccountRef.String()))
+		_, _ = hash.Write([]byte{0})
+		_, _ = hash.Write([]byte(dependency.ClaimsHash))
+		_, _ = hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 type AccountValidationOutcome string
@@ -31,18 +69,19 @@ const (
 )
 
 type AccountRequest struct {
-	AccountRef       domain.NamespacedName `json:"accountRef,omitempty"`
-	AccountID        AccountID             `json:"accountId,omitempty"`
-	State            AccountState          `json:"state,omitempty"`
-	DisplayName      string                `json:"displayName,omitempty"`
-	ClusterTarget    ClusterTarget         `json:"clusterTarget,omitempty"`
-	AccountLimits    *AccountLimits        `json:"accountLimits,omitempty"`
-	JetStreamEnabled *bool                 `json:"jetStreamEnabled,omitempty"`
-	JetStreamLimits  *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
-	NatsLimits       *NatsLimits           `json:"natsLimits,omitempty"`
-	ExportGroups     ExportGroups          `json:"exportGroups,omitempty"`
-	ImportGroups     ImportGroups          `json:"importGroups,omitempty"`
-	SigningKeys      []string              `json:"signingKeys,omitempty"`
+	AccountRef             domain.NamespacedName `json:"accountRef,omitempty"`
+	AccountID              AccountID             `json:"accountId,omitempty"`
+	State                  AccountState          `json:"state,omitempty"`
+	ImportDependenciesHash string                `json:"importDependenciesHash,omitempty"`
+	DisplayName            string                `json:"displayName,omitempty"`
+	ClusterTarget          ClusterTarget         `json:"clusterTarget,omitempty"`
+	AccountLimits          *AccountLimits        `json:"accountLimits,omitempty"`
+	JetStreamEnabled       *bool                 `json:"jetStreamEnabled,omitempty"`
+	JetStreamLimits        *JetStreamLimits      `json:"jetStreamLimits,omitempty"`
+	NatsLimits             *NatsLimits           `json:"natsLimits,omitempty"`
+	ExportGroups           ExportGroups          `json:"exportGroups,omitempty"`
+	ImportGroups           ImportGroups          `json:"importGroups,omitempty"`
+	SigningKeys            []string              `json:"signingKeys,omitempty"`
 }
 
 func (r AccountRequest) Validate() error {
