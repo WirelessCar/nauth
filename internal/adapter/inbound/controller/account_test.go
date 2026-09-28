@@ -661,6 +661,40 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	t.True(k8err.IsNotFound(err))
 }
 
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldBlockDeletion_WhenNatsClusterBindingChanged() {
+	// Given
+	accountID := nauth.AccountID(testutil.AnyNatsTestAccountID())
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelNatsClusterID, "natscluster1")
+		}),
+	)
+	t.unitUnderTest = t.newAccountReconciler(true)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Require().NoError(k8sClient.Delete(t.ctx, account))
+
+	target := createDummyClusterTarget()
+	target.UID = "natscluster2"
+	t.clusterManagerMock.mockGetClusterTarget(target, nil)
+	t.accountManagerMock.mockFindAccountID(t.ctx, mock.Anything, accountID, true, nil).Maybe()
+	t.accountManagerMock.mockDelete(t.ctx, mock.Anything, nil).Maybe()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().Error(err)
+	t.Equal("account already bound to cluster with uid: natscluster1", err.Error())
+	t.accountManagerMock.AssertNotCalled(t.T(), "FindAccountID", mock.Anything, mock.Anything)
+	t.accountManagerMock.AssertNotCalled(t.T(), "Delete", mock.Anything, mock.Anything)
+
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Contains(account.Finalizers, finalizerAccount)
+}
+
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldRemoveFinalizer_WhenDeletingAccountWithoutManagedState() {
 	// Given
 	t.setupAccount(
