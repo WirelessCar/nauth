@@ -134,7 +134,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
 		if err := validateAccountClusterBinding(natsAccount, clusterTarget.UID); err != nil {
-			return r.reporter.error(ctx, natsAccount, err)
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf(
+				"cannot delete Account; check its NatsCluster reference and the operator's NatsCluster configuration: %w",
+				err,
+			))
 		}
 		return r.deleteAccount(ctx, natsAccount, accountRef, managementPolicy)
 	}
@@ -154,7 +157,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Bind to NatsCluster
 	if err := bindAccountToCluster(natsAccount, clusterTarget.UID, r.allowAccountNatsClusterRebind); err != nil {
-		return r.reporter.error(ctx, natsAccount, err)
+		return r.reporter.error(ctx, natsAccount, fmt.Errorf(
+			"cannot reconcile Account; check its NatsCluster reference and the operator's NatsCluster configuration: %w",
+			err,
+		))
 	}
 
 	// Manage NATS resources
@@ -301,7 +307,11 @@ func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.A
 func validateAccountClusterBinding(account *v1alpha1.Account, clusterID string) error {
 	boundToClusterID := account.GetLabel(v1alpha1.AccountLabelNatsClusterID)
 	if boundToClusterID != "" && boundToClusterID != clusterID {
-		return fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
+		return fmt.Errorf(
+			"account already bound to NatsCluster UID %s, but the configured NatsCluster has UID %s",
+			boundToClusterID,
+			clusterID,
+		)
 	}
 	return nil
 }
