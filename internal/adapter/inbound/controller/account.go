@@ -133,6 +133,12 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// ACCOUNT MARKED FOR DELETION
 	if !natsAccount.DeletionTimestamp.IsZero() {
+		if err := validateAccountClusterBinding(natsAccount, clusterTarget.UID); err != nil {
+			return r.reporter.error(ctx, natsAccount, fmt.Errorf(
+				"cannot delete Account; check its NatsCluster reference and the operator's NatsCluster configuration: %w",
+				err,
+			))
+		}
 		return r.deleteAccount(ctx, natsAccount, accountRef, managementPolicy)
 	}
 
@@ -151,7 +157,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// Bind to NatsCluster
 	if err := bindAccountToCluster(natsAccount, clusterTarget.UID, r.allowAccountNatsClusterRebind); err != nil {
-		return r.reporter.error(ctx, natsAccount, err)
+		return r.reporter.error(ctx, natsAccount, fmt.Errorf(
+			"cannot reconcile Account; check its NatsCluster reference and the operator's NatsCluster configuration: %w",
+			err,
+		))
 	}
 
 	// Manage NATS resources
@@ -295,10 +304,23 @@ func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.A
 	return ctrl.Result{}, nil
 }
 
-func bindAccountToCluster(account *v1alpha1.Account, clusterID string, allowRebind bool) error {
+func validateAccountClusterBinding(account *v1alpha1.Account, clusterID string) error {
 	boundToClusterID := account.GetLabel(v1alpha1.AccountLabelNatsClusterID)
-	if boundToClusterID != "" && boundToClusterID != clusterID && !allowRebind {
-		return fmt.Errorf("account already bound to cluster with uid: %s", boundToClusterID)
+	if boundToClusterID != "" && boundToClusterID != clusterID {
+		return fmt.Errorf(
+			"account already bound to NatsCluster UID %s, but the configured NatsCluster has UID %s",
+			boundToClusterID,
+			clusterID,
+		)
+	}
+	return nil
+}
+
+func bindAccountToCluster(account *v1alpha1.Account, clusterID string, allowRebind bool) error {
+	if !allowRebind {
+		if err := validateAccountClusterBinding(account, clusterID); err != nil {
+			return err
+		}
 	}
 	account.SetLabel(v1alpha1.AccountLabelNatsClusterID, clusterID)
 	return nil
