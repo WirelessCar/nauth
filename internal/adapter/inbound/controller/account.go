@@ -210,6 +210,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
+	previousClaimsHash := natsAccount.Status.ClaimsHash
 	// Snapshot Ready before updating conditions, which mutates the existing condition in place.
 	previousReady := metav1.Condition{}
 	if condition := meta.FindStatusCondition(natsAccount.Status.Conditions, conditionTypeReady); condition != nil {
@@ -243,6 +244,16 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
+	}
+
+	if previousClaimsHash != natsAccount.Status.ClaimsHash {
+		log.Info("Account state updated",
+			"name", natsAccount.Name,
+			"namespace", natsAccount.Namespace,
+			"accountID", result.AccountID,
+			"natsClusterUID", clusterTarget.UID,
+			"prevClaimsHash", previousClaimsHash,
+			"claimsHash", natsAccount.Status.ClaimsHash)
 	}
 
 	// Report recovery only after the new Ready condition has been persisted.

@@ -274,7 +274,7 @@ func (a *AccountManager) reconcileAccountJWT(
 				return a.observeAccountState(sysConn, accountID, desiredClaimsHash, request.ImportDependenciesHash)
 			}
 			if remoteClaimsHash == desiredClaimsHash && lastObservationIncomplete {
-				log.Info("Re-uploading Account JWT because the last NATS observation was incomplete",
+				log.V(1).Info("Re-uploading Account JWT because the last NATS observation was incomplete",
 					"accountID", accountID, "claimsHash", desiredClaimsHash)
 			} else {
 				log.Info("Detected Account JWT drift in NATS; uploading desired claims",
@@ -288,7 +288,7 @@ func (a *AccountManager) reconcileAccountJWT(
 	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
 		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
-	log.Info("Uploaded Account JWT to NATS",
+	log.V(1).Info("Uploaded Account JWT to NATS",
 		"name", request.AccountRef.Name,
 		"namespace", request.AccountRef.Namespace,
 		"accountID", accountID,
