@@ -288,7 +288,13 @@ func (a *AccountManager) reconcileAccountJWT(
 	if err := sysConn.UploadAccountJWT(desiredJWT); err != nil {
 		return nil, fmt.Errorf("failed to upload account jwt: %w", err)
 	}
-	log.Info("Uploaded Account JWT to NATS", "accountID", accountID, "prevClaimsHash", request.State.ClaimsHash, "claimsHash", desiredClaimsHash)
+	log.Info("Uploaded Account JWT to NATS",
+		"name", request.AccountRef.Name,
+		"namespace", request.AccountRef.Namespace,
+		"accountID", accountID,
+		"natsClusterUID", request.ClusterTarget.UID,
+		"prevClaimsHash", request.State.ClaimsHash,
+		"claimsHash", desiredClaimsHash)
 	return a.observeAccountState(sysConn, accountID, desiredClaimsHash, request.ImportDependenciesHash)
 }
 
