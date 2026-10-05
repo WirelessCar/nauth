@@ -171,6 +171,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to bootstrap account: %w", err))
 			}
 			logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
+			logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
 			if err := r.kubernetes.PatchLabels(ctx, natsAccount); err != nil {
@@ -193,6 +194,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
+	logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 
 	// Apply result to Account resource labels and status
 	natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
@@ -408,6 +410,26 @@ func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alp
 		"observedServerID", result.NatsState.ServerID,
 		"desiredClaimsHash", result.State.ClaimsHash,
 		"observedClaimsHash", result.NatsState.ClaimsHash,
+		"reason", condition.Message)
+}
+
+func logAccountUnknownObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+	if result.NatsState == nil || result.NatsState.Status != domain.NatsAccountStateUnknown {
+		return
+	}
+	condition := accountNatsCompleteCondition(result)
+	previousCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	if previousCondition != nil && previousCondition.Status == condition.Status && previousCondition.Reason == condition.Reason && previousCondition.Message == condition.Message {
+		return
+	}
+
+	// Log the observation before Kubernetes writes. Failed writes can repeat INFO on retries until the diagnostic is persisted.
+	logf.FromContext(ctx).Info("NATS Account state observation is Unknown",
+		"name", account.Name,
+		"namespace", account.Namespace,
+		"accountID", result.AccountID,
+		"natsClusterUID", clusterUID,
+		"desiredClaimsHash", result.State.ClaimsHash,
 		"reason", condition.Message)
 }
 

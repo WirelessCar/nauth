@@ -210,6 +210,106 @@ func TestReconcileAccountIncompleteLogging(t *testing.T) {
 	}
 }
 
+func TestReconcileAccountUnknownLogging(t *testing.T) {
+	complete := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateComplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+	}
+	incomplete := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateIncomplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+	}
+	mismatch := *complete
+	mismatch.ClaimsHash = "other-claims-hash"
+	unknown := &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown}
+	otherServer := &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown, ServerID: "server-b"}
+	const lookupReason = "failed to lookup Account state: nats: timeout"
+	const loadReason = "failed to request runtime Account load: nats: timeout"
+	const fallbackReason = "NATS Account completeness is Unknown"
+	type observation struct {
+		state   *domain.NatsAccountState
+		message string
+	}
+	tests := []struct {
+		name             string
+		observations     []observation
+		wantReasons      []string
+		failStatusWrites int
+		failLabelWrites  int
+		bootstrap        bool
+		observe          bool
+	}{
+		{name: "first_unknown_observation", observations: []observation{{state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "unknown_after_complete", observations: []observation{{state: complete}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "unknown_after_incomplete", observations: []observation{{state: incomplete}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "unknown_after_claims_mismatch", observations: []observation{{state: &mismatch}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "unchanged_reason_across_skipped_validation", observations: []observation{{state: unknown, message: lookupReason}, {}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "unchanged_reason_across_servers", observations: []observation{{state: unknown, message: lookupReason}, {state: otherServer, message: lookupReason}}, wantReasons: []string{lookupReason}},
+		{name: "changed_observation_reason", observations: []observation{{state: unknown, message: lookupReason}, {state: unknown, message: loadReason}}, wantReasons: []string{lookupReason, loadReason}},
+		{name: "recurrence_after_recovery", observations: []observation{{state: unknown, message: lookupReason}, {state: complete}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason, lookupReason}},
+		{name: "recurrence_after_incomplete", observations: []observation{{state: unknown, message: lookupReason}, {state: incomplete}, {state: unknown, message: lookupReason}}, wantReasons: []string{lookupReason, lookupReason}},
+		{name: "empty_reason_uses_condition_fallback", observations: []observation{{state: unknown}, {state: unknown}}, wantReasons: []string{fallbackReason}},
+		{name: "diagnostic_after_fallback", observations: []observation{{state: unknown}, {state: unknown, message: lookupReason}}, wantReasons: []string{fallbackReason, lookupReason}},
+		{
+			name: "status_conflict_followed_by_recovery", observations: []observation{{state: unknown, message: lookupReason}, {state: complete}},
+			failStatusWrites: 1, wantReasons: []string{lookupReason},
+		},
+		{
+			name: "label_conflict_followed_by_recovery", observations: []observation{{state: unknown, message: lookupReason}, {state: complete}},
+			failLabelWrites: 1, wantReasons: []string{lookupReason},
+		},
+		{
+			name: "failed_status_writes_repeat_until_persistence_succeeds", observations: []observation{{state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}},
+			failStatusWrites: 2, wantReasons: []string{lookupReason, lookupReason, lookupReason},
+		},
+		{
+			name: "bootstrap_unknown_followed_by_recovery", observations: []observation{{state: unknown, message: lookupReason}, {state: complete}},
+			bootstrap: true, wantReasons: []string{lookupReason},
+		},
+		{
+			name: "bootstrap_unknown_repeats_until_status_is_persisted", observations: []observation{{state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}},
+			bootstrap: true, wantReasons: []string{lookupReason, lookupReason},
+		},
+		{
+			name: "observe_unknown_suppresses_unchanged_reason", observations: []observation{{state: unknown, message: lookupReason}, {state: unknown, message: lookupReason}},
+			observe: true, wantReasons: []string{lookupReason},
+		},
+		{name: "known_observations", observations: []observation{{state: complete}, {state: incomplete}, {state: &mismatch}}},
+		{name: "skipped_validation", observations: []observation{{}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := newAccountLoggingFixture(t, len(tt.observations), accountLoggingOptions{bootstrap: tt.bootstrap, observe: tt.observe, failStatusWrites: tt.failStatusWrites, failLabelWrites: tt.failLabelWrites})
+
+			for i, observation := range tt.observations {
+				state := observation.state
+				result := fixture.result(state, "desired-hash")
+				result.NatsObservationMessage = observation.message
+				err := fixture.reconcile(result)
+				if i < tt.failStatusWrites+tt.failLabelWrites {
+					require.ErrorIs(t, err, fixture.writeErr)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+
+			entries := fixture.logs.FilterMessage("NATS Account state observation is Unknown").All()
+			require.Len(t, entries, len(tt.wantReasons))
+			for i, entry := range entries {
+				require.Equal(t, zapcore.InfoLevel, entry.Level)
+				fields := entry.ContextMap()
+				require.Equal(t, fixture.account.Name, fields["name"])
+				require.Equal(t, fixture.account.Namespace, fields["namespace"])
+				require.Equal(t, fixture.accountID, fields["accountID"])
+				require.Equal(t, fixture.clusterUID, fields["natsClusterUID"])
+				require.Equal(t, "desired-hash", fields["desiredClaimsHash"])
+				require.Equal(t, tt.wantReasons[i], fields["reason"])
+				require.NotContains(t, fields, "observedServerID")
+				require.NotContains(t, fields, "observedClaimsHash")
+			}
+		})
+	}
+}
+
 type accountLoggingOptions struct {
 	initialStatus    v1alpha1.AccountStatus
 	bootstrap        bool
