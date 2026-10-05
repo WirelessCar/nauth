@@ -579,6 +579,13 @@ func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountRefe
 		return fmt.Errorf("failed to delete account JWT in NATS: %w", err)
 	}
 
+	// Report the NATS acknowledgement even if secret cleanup fails.
+	logf.FromContext(ctx).Info("NATS acknowledged Account JWT deletion",
+		"name", reference.AccountRef.Name,
+		"namespace", reference.AccountRef.Namespace,
+		"accountID", accountID,
+		"natsClusterUID", cluster.UID)
+
 	err = a.secretManager.DeleteAll(ctx, reference.AccountRef, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to delete account secrets: %w", err)
