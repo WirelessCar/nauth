@@ -170,9 +170,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if err != nil {
 				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to bootstrap account: %w", err))
 			}
-			logAccountClaimsMismatchObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
-			logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
-			logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
+			// Compare with persisted status before applying the result or writing labels.
+			logIfAccountClaimsMismatchChanged(ctx, natsAccount, result, clusterTarget.UID)
+			logIfAccountIncompleteDiagnosticChanged(ctx, natsAccount, result, clusterTarget.UID)
+			logIfAccountUnknownDiagnosticChanged(ctx, natsAccount, result, clusterTarget.UID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
 			if err := r.kubernetes.PatchLabels(ctx, natsAccount); err != nil {
@@ -194,9 +195,10 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		adoptions = toAPIAdoptions(result.Adoptions, adoptionRefs)
 	}
 
-	logAccountClaimsMismatchObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
-	logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
-	logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
+	// Compare with persisted status before mutating it or writing labels/status.
+	logIfAccountClaimsMismatchChanged(ctx, natsAccount, result, clusterTarget.UID)
+	logIfAccountIncompleteDiagnosticChanged(ctx, natsAccount, result, clusterTarget.UID)
+	logIfAccountUnknownDiagnosticChanged(ctx, natsAccount, result, clusterTarget.UID)
 
 	// Apply result to Account resource labels and status
 	natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
@@ -243,7 +245,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	logAccountReadinessRecoveryPostWrite(ctx, natsAccount, previousReady, clusterTarget.UID)
+	// Report recovery only after the new Ready condition has been persisted.
+	logIfAccountReadinessRecovered(ctx, natsAccount, previousReady, clusterTarget.UID)
 
 	return ctrl.Result{
 		RequeueAfter: r.requeueAfterValidation(result.ValidationOutcome),
@@ -372,7 +375,9 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 	}
 }
 
-func logAccountClaimsMismatchObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+// logIfAccountClaimsMismatchChanged reports a new or changed claims mismatch.
+// Call before mutating Account status or persisting the reconciliation result.
+func logIfAccountClaimsMismatchChanged(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
 	state := result.NatsState
 	if state == nil || state.Status == domain.NatsAccountStateUnknown || state.MatchesClaimsHash(result.State.ClaimsHash) {
 		return
@@ -395,7 +400,9 @@ func logAccountClaimsMismatchObservationPreWrite(ctx context.Context, account *v
 		"observedClaimsHash", state.ClaimsHash)
 }
 
-func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+// logIfAccountIncompleteDiagnosticChanged reports a new or changed incompleteness diagnostic.
+// Call before mutating Account status or persisting the reconciliation result.
+func logIfAccountIncompleteDiagnosticChanged(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
 	state := result.NatsState
 	if state == nil || state.Status == domain.NatsAccountStateUnknown || !state.MatchesClaimsHash(result.State.ClaimsHash) {
 		return
@@ -409,7 +416,7 @@ func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alp
 		return
 	}
 
-	// Log the observation before Kubernetes writes. Failed writes can repeat INFO on retries until the diagnostic is persisted.
+	// Failed Kubernetes writes can repeat INFO on retries until the diagnostic is persisted.
 	logf.FromContext(ctx).Info("NATS Account is incomplete",
 		"name", account.Name,
 		"namespace", account.Namespace,
@@ -421,7 +428,9 @@ func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alp
 		"reason", condition.Message)
 }
 
-func logAccountUnknownObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+// logIfAccountUnknownDiagnosticChanged reports a new or changed Unknown observation diagnostic.
+// Call before mutating Account status or persisting the reconciliation result.
+func logIfAccountUnknownDiagnosticChanged(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
 	if result.NatsState == nil || result.NatsState.Status != domain.NatsAccountStateUnknown {
 		return
 	}
@@ -431,7 +440,7 @@ func logAccountUnknownObservationPreWrite(ctx context.Context, account *v1alpha1
 		return
 	}
 
-	// Log the observation before Kubernetes writes. Failed writes can repeat INFO on retries until the diagnostic is persisted.
+	// Failed Kubernetes writes can repeat INFO on retries until the diagnostic is persisted.
 	logf.FromContext(ctx).Info("NATS Account state observation is Unknown",
 		"name", account.Name,
 		"namespace", account.Namespace,
@@ -441,7 +450,9 @@ func logAccountUnknownObservationPreWrite(ctx context.Context, account *v1alpha1
 		"reason", condition.Message)
 }
 
-func logAccountReadinessRecoveryPostWrite(ctx context.Context, account *v1alpha1.Account, previousReady metav1.Condition, clusterUID string) {
+// logIfAccountReadinessRecovered reports a Ready=False/Unknown to Ready=True transition.
+// Call only after the Account status write succeeds.
+func logIfAccountReadinessRecovered(ctx context.Context, account *v1alpha1.Account, previousReady metav1.Condition, clusterUID string) {
 	if previousReady.Status != metav1.ConditionFalse && previousReady.Status != metav1.ConditionUnknown {
 		return
 	}
@@ -450,7 +461,6 @@ func logAccountReadinessRecoveryPostWrite(ctx context.Context, account *v1alpha1
 		return
 	}
 
-	// Log only after the status write succeeds, so recovery means Ready was persisted.
 	fields := []any{
 		"name", account.Name,
 		"namespace", account.Namespace,
