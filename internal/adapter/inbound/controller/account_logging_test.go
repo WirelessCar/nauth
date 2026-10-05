@@ -310,6 +310,87 @@ func TestReconcileAccountUnknownLogging(t *testing.T) {
 	}
 }
 
+func TestReconcileAccountReadinessRecoveryLogging(t *testing.T) {
+	complete := &domain.NatsAccountState{Status: domain.NatsAccountStateComplete, ServerID: "server-a", ClaimsHash: "desired-hash"}
+	incomplete := &domain.NatsAccountState{Status: domain.NatsAccountStateIncomplete, ServerID: "server-a", ClaimsHash: "desired-hash"}
+	unknown := &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown}
+	validatedAt := metav1.NewTime(time.Date(2026, time.October, 5, 7, 0, 0, 0, time.UTC))
+	tests := []struct {
+		name             string
+		observations     []*domain.NatsAccountState
+		initialNotReady  bool
+		cachedValidation bool
+		failStatusWrites int
+		wantLogCounts    []int
+		wantPrevious     []metav1.ConditionStatus
+	}{
+		{
+			name: "recovery_recurrence_and_steady_ready", initialNotReady: true,
+			observations:  []*domain.NatsAccountState{complete, incomplete, complete, unknown, complete, complete},
+			wantLogCounts: []int{1, 1, 2, 2, 3, 3}, wantPrevious: []metav1.ConditionStatus{metav1.ConditionFalse, metav1.ConditionFalse, metav1.ConditionUnknown},
+		},
+		{name: "initial_and_repeated_ready", observations: []*domain.NatsAccountState{complete, complete}, wantLogCounts: []int{0, 0}},
+		{
+			name: "status_conflict_then_successful_retry", initialNotReady: true, failStatusWrites: 1,
+			observations: []*domain.NatsAccountState{complete, complete}, wantLogCounts: []int{0, 1}, wantPrevious: []metav1.ConditionStatus{metav1.ConditionFalse},
+		},
+		{
+			name: "cached_validation_recovery", initialNotReady: true, cachedValidation: true,
+			observations: []*domain.NatsAccountState{nil}, wantLogCounts: []int{1}, wantPrevious: []metav1.ConditionStatus{metav1.ConditionFalse},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := v1alpha1.AccountStatus{}
+			if tt.initialNotReady {
+				status.Conditions = []metav1.Condition{{Type: conditionTypeReady, Status: metav1.ConditionFalse, Reason: conditionReasonNotReady}}
+			}
+			wantServerID := "server-a"
+			if tt.cachedValidation {
+				wantServerID = "cached-server"
+				status.Nats = &v1alpha1.AccountNatsStatus{ObservedServerID: wantServerID, ObservedClaimsHash: "desired-hash", StateValidatedAt: validatedAt}
+				status.ClaimsHash = "desired-hash"
+				status.Conditions = append(status.Conditions, metav1.Condition{Type: conditionTypeNatsAccountComplete, Status: metav1.ConditionTrue, Reason: conditionReasonOK})
+			}
+			fixture := newAccountLoggingFixture(t, len(tt.observations), accountLoggingOptions{initialStatus: status, failStatusWrites: tt.failStatusWrites})
+			for i, state := range tt.observations {
+				result := fixture.result(state, "desired-hash")
+				if state != nil && state.Status != domain.NatsAccountStateUnknown {
+					result.State.StateValidatedAt = validatedAt.Time
+				}
+				err := fixture.reconcile(result)
+				if i < tt.failStatusWrites {
+					require.ErrorIs(t, err, fixture.writeErr)
+				} else {
+					require.NoError(t, err)
+				}
+				require.Len(t, fixture.logs.FilterMessage("Account readiness has recovered").All(), tt.wantLogCounts[i])
+			}
+
+			for i, entry := range fixture.logs.FilterMessage("Account readiness has recovered").All() {
+				require.Equal(t, zapcore.InfoLevel, entry.Level)
+				fields := entry.ContextMap()
+				require.Equal(t, fixture.account.Name, fields["name"])
+				require.Equal(t, fixture.account.Namespace, fields["namespace"])
+				require.Equal(t, fixture.accountID, fields["accountID"])
+				require.Equal(t, fixture.clusterUID, fields["natsClusterUID"])
+				require.Equal(t, "desired-hash", fields["desiredClaimsHash"])
+				require.Equal(t, string(tt.wantPrevious[i]), fields["previousReadyStatus"])
+				wantReason := conditionReasonNotReady
+				if tt.wantPrevious[i] == metav1.ConditionUnknown {
+					wantReason = conditionReasonUnknown
+				}
+				require.Equal(t, wantReason, fields["previousReadyReason"])
+				require.Equal(t, wantServerID, fields["observedServerID"])
+				require.Equal(t, "desired-hash", fields["observedClaimsHash"])
+				require.IsType(t, time.Time{}, fields["stateValidatedAt"])
+				require.WithinDuration(t, validatedAt.Time, fields["stateValidatedAt"].(time.Time), 0)
+			}
+		})
+	}
+}
+
 type accountLoggingOptions struct {
 	initialStatus    v1alpha1.AccountStatus
 	bootstrap        bool

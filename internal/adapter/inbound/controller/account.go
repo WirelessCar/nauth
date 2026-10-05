@@ -207,6 +207,11 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// UPDATE ACCOUNT STATUS
 	claimsMismatchChanged := accountClaimsMismatchChanged(natsAccount, result)
+	// Snapshot Ready before updating conditions, which mutates the existing condition in place.
+	previousReady := metav1.Condition{}
+	if condition := meta.FindStatusCondition(natsAccount.Status.Conditions, conditionTypeReady); condition != nil {
+		previousReady = *condition
+	}
 	if result.Claims != nil {
 		claims, err := toAPIAccountClaims(result.Claims)
 		if err != nil {
@@ -236,6 +241,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
 	}
+
+	logAccountReadinessRecoveryPostWrite(ctx, natsAccount, previousReady, clusterTarget.UID)
 
 	if claimsMismatchChanged {
 		log.Info("Observed NATS Account claims do not match the desired claims",
@@ -431,6 +438,34 @@ func logAccountUnknownObservationPreWrite(ctx context.Context, account *v1alpha1
 		"natsClusterUID", clusterUID,
 		"desiredClaimsHash", result.State.ClaimsHash,
 		"reason", condition.Message)
+}
+
+func logAccountReadinessRecoveryPostWrite(ctx context.Context, account *v1alpha1.Account, previousReady metav1.Condition, clusterUID string) {
+	if previousReady.Status != metav1.ConditionFalse && previousReady.Status != metav1.ConditionUnknown {
+		return
+	}
+	ready := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	if ready == nil || ready.Status != metav1.ConditionTrue {
+		return
+	}
+
+	// Log only after the status write succeeds, so recovery means Ready was persisted.
+	fields := []any{
+		"name", account.Name,
+		"namespace", account.Namespace,
+		"accountID", account.GetLabel(v1alpha1.AccountLabelAccountID),
+		"natsClusterUID", clusterUID,
+		"desiredClaimsHash", account.Status.ClaimsHash,
+		"previousReadyStatus", string(previousReady.Status),
+		"previousReadyReason", previousReady.Reason,
+	}
+	if account.Status.Nats != nil {
+		fields = append(fields,
+			"observedServerID", account.Status.Nats.ObservedServerID,
+			"observedClaimsHash", account.Status.Nats.ObservedClaimsHash,
+			"stateValidatedAt", account.Status.Nats.StateValidatedAt.Time)
+	}
+	logf.FromContext(ctx).Info("Account readiness has recovered", fields...)
 }
 
 func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
