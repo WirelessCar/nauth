@@ -201,6 +201,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
+	claimsMismatchChanged := accountClaimsMismatchChanged(natsAccount, result)
 	if result.Claims != nil {
 		claims, err := toAPIAccountClaims(result.Claims)
 		if err != nil {
@@ -229,6 +230,17 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.kubernetes.Status().Update(ctx, natsAccount); err != nil {
 		log.Info("Failed to update the account status", "name", natsAccount.Name, "err", err)
 		return ctrl.Result{}, err
+	}
+
+	if claimsMismatchChanged {
+		log.Info("Observed NATS Account claims do not match the desired claims",
+			"name", natsAccount.Name,
+			"namespace", natsAccount.Namespace,
+			"accountID", result.AccountID,
+			"natsClusterUID", clusterTarget.UID,
+			"observedServerID", result.NatsState.ServerID,
+			"desiredClaimsHash", result.State.ClaimsHash,
+			"observedClaimsHash", result.NatsState.ClaimsHash)
 	}
 
 	return ctrl.Result{
@@ -356,6 +368,18 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 		JetStreamLimits:  toNAuthJetStreamLimits(state.Spec.JetStreamLimits),
 		NatsLimits:       toNAuthNatsLimits(state.Spec.NatsLimits),
 	}
+}
+
+func accountClaimsMismatchChanged(account *v1alpha1.Account, result *nauth.AccountResult) bool {
+	if result.NatsState == nil || result.NatsState.Status == domain.NatsAccountStateUnknown || result.NatsState.MatchesClaimsHash(result.State.ClaimsHash) {
+		return false
+	}
+	previousCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	if previousCondition == nil || previousCondition.Status != metav1.ConditionFalse || account.Status.Nats == nil {
+		return true
+	}
+	// Ignore server and timestamp changes when the same mismatch has already been reported.
+	return account.Status.ClaimsHash != result.State.ClaimsHash || account.Status.Nats.ObservedClaimsHash != result.NatsState.ClaimsHash
 }
 
 func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
