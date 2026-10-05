@@ -170,6 +170,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if err != nil {
 				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to bootstrap account: %w", err))
 			}
+			logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelSignedBy, result.AccountSignedBy)
 			if err := r.kubernetes.PatchLabels(ctx, natsAccount); err != nil {
@@ -190,6 +191,8 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		adoptions = toAPIAdoptions(result.Adoptions, adoptionRefs)
 	}
+
+	logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 
 	// Apply result to Account resource labels and status
 	natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
@@ -382,6 +385,32 @@ func accountClaimsMismatchChanged(account *v1alpha1.Account, result *nauth.Accou
 	return account.Status.ClaimsHash != result.State.ClaimsHash || account.Status.Nats.ObservedClaimsHash != result.NatsState.ClaimsHash
 }
 
+func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+	state := result.NatsState
+	if state == nil || state.Status == domain.NatsAccountStateUnknown || !state.MatchesClaimsHash(result.State.ClaimsHash) {
+		return
+	}
+	if state.Status == domain.NatsAccountStateComplete && !state.HasInvalidImports() {
+		return
+	}
+	condition := accountNatsCompleteCondition(result)
+	previousCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
+	if previousCondition != nil && previousCondition.Status == condition.Status && previousCondition.Reason == condition.Reason && previousCondition.Message == condition.Message {
+		return
+	}
+
+	// Log the observation before Kubernetes writes. Failed writes can repeat INFO on retries until the diagnostic is persisted.
+	logf.FromContext(ctx).Info("NATS Account is incomplete",
+		"name", account.Name,
+		"namespace", account.Namespace,
+		"accountID", result.AccountID,
+		"natsClusterUID", clusterUID,
+		"observedServerID", result.NatsState.ServerID,
+		"desiredClaimsHash", result.State.ClaimsHash,
+		"observedClaimsHash", result.NatsState.ClaimsHash,
+		"reason", condition.Message)
+}
+
 func (r *AccountReconciler) updateAccountConditions(account *v1alpha1.Account, result *nauth.AccountResult) {
 	natsCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
 	if result.NatsState != nil {
@@ -477,17 +506,17 @@ func accountNatsCompleteCondition(result *nauth.AccountResult) metav1.Condition 
 
 func incompleteAccountMessage(state *domain.NatsAccountState, desiredImports nauth.Imports) string {
 	const maxImportsInConditionMessage = 5
-	invalidImports := make([]string, 0, min(len(state.Imports), maxImportsInConditionMessage))
+	invalidImports := make([]string, 0, len(state.Imports))
 	invalidImportCount := 0
 	for _, imp := range state.Imports {
 		if !imp.Invalid {
 			continue
 		}
 		invalidImportCount++
-		if len(invalidImports) < maxImportsInConditionMessage {
-			invalidImports = append(invalidImports, fmt.Sprintf("%s -> %s (%s)", imp.AccountID, imp.Subject, imp.Type))
-		}
+		invalidImports = append(invalidImports, fmt.Sprintf("%s -> %s (%s)", imp.AccountID, imp.Subject, imp.Type))
 	}
+	slices.Sort(invalidImports)
+	invalidImports = invalidImports[:min(len(invalidImports), maxImportsInConditionMessage)]
 	messages := make([]string, 0, 2)
 	if len(invalidImports) > 0 {
 		message := "NATS reports invalid imports: " + strings.Join(invalidImports, "; ")
@@ -498,6 +527,7 @@ func incompleteAccountMessage(state *domain.NatsAccountState, desiredImports nau
 	}
 
 	missingImports := unobservedAccountImports(desiredImports, state.Imports)
+	slices.Sort(missingImports)
 	if len(missingImports) > 0 {
 		message := "NATS did not report desired imports: " + strings.Join(missingImports[:min(len(missingImports), maxImportsInConditionMessage)], "; ")
 		if len(missingImports) > maxImportsInConditionMessage {

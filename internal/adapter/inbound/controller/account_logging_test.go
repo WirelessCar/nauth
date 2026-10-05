@@ -99,6 +99,117 @@ func TestReconcileAccountClaimsMismatchLogging(t *testing.T) {
 	}
 }
 
+func TestReconcileAccountIncompleteLogging(t *testing.T) {
+	complete := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateComplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+	}
+	incomplete := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateIncomplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+	}
+	invalid := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateIncomplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+		Imports: []domain.NatsAccountImport{{AccountID: "export-account", Subject: "orders.>", Type: "stream", Invalid: true}},
+	}
+	otherServer := *invalid
+	otherServer.ServerID = "server-b"
+	loadedWithInvalidImports := *invalid
+	loadedWithInvalidImports.Status = domain.NatsAccountStateComplete
+	changedInvalid := &domain.NatsAccountState{
+		Status: domain.NatsAccountStateIncomplete, ServerID: "server-a", ClaimsHash: "desired-hash",
+		Imports: []domain.NatsAccountImport{{AccountID: "export-account", Subject: "stock.>", Type: "stream", Invalid: true}},
+	}
+	mismatch := *invalid
+	mismatch.ClaimsHash = "other-claims-hash"
+	unknown := &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown}
+	twoInvalid := *invalid
+	twoInvalid.Imports = append(append([]domain.NatsAccountImport{}, invalid.Imports...), changedInvalid.Imports...)
+	reordered := twoInvalid
+	reordered.Imports = []domain.NatsAccountImport{twoInvalid.Imports[1], twoInvalid.Imports[0]}
+	const incompleteReason = "NATS reports the Account as incomplete"
+	const invalidReason = "NATS reports invalid imports: export-account -> orders.> (stream)"
+	const changedInvalidReason = "NATS reports invalid imports: export-account -> stock.> (stream)"
+	tests := []struct {
+		name             string
+		observations     []*domain.NatsAccountState
+		imports          nauth.Imports
+		wantReasons      []string
+		failStatusWrites int
+		failLabelWrites  int
+		bootstrap        bool
+	}{
+		{name: "first_incomplete_observation", observations: []*domain.NatsAccountState{incomplete}, wantReasons: []string{incompleteReason}},
+		{name: "first_invalid_import", observations: []*domain.NatsAccountState{invalid}, wantReasons: []string{invalidReason}},
+		{name: "loaded_account_with_invalid_import", observations: []*domain.NatsAccountState{&loadedWithInvalidImports}, wantReasons: []string{invalidReason}},
+		{name: "unchanged_cause_across_servers_and_skipped_validation", observations: []*domain.NatsAccountState{invalid, &otherServer, nil, invalid}, wantReasons: []string{invalidReason}},
+		{name: "changed_invalid_import", observations: []*domain.NatsAccountState{invalid, changedInvalid}, wantReasons: []string{invalidReason, changedInvalidReason}},
+		{name: "changed_incompleteness_cause", observations: []*domain.NatsAccountState{incomplete, invalid}, wantReasons: []string{incompleteReason, invalidReason}},
+		{name: "recurrence_after_recovery", observations: []*domain.NatsAccountState{invalid, complete, invalid}, wantReasons: []string{invalidReason, invalidReason}},
+		{name: "incomplete_after_unknown_observation", observations: []*domain.NatsAccountState{invalid, unknown, invalid}, wantReasons: []string{invalidReason, invalidReason}},
+		{name: "incomplete_after_claims_converge", observations: []*domain.NatsAccountState{&mismatch, invalid}, wantReasons: []string{invalidReason}},
+		{
+			name: "status_conflict_followed_by_recovery", observations: []*domain.NatsAccountState{invalid, complete},
+			failStatusWrites: 1, wantReasons: []string{invalidReason},
+		},
+		{
+			name: "label_conflict_followed_by_recovery", observations: []*domain.NatsAccountState{invalid, complete},
+			failLabelWrites: 1, wantReasons: []string{invalidReason},
+		},
+		{
+			name: "failed_status_writes_repeat_until_persistence_succeeds", observations: []*domain.NatsAccountState{invalid, invalid, invalid, invalid},
+			failStatusWrites: 2, wantReasons: []string{invalidReason, invalidReason, invalidReason},
+		},
+		{
+			name: "bootstrap_incomplete_followed_by_recovery", observations: []*domain.NatsAccountState{incomplete, complete},
+			bootstrap: true, wantReasons: []string{incompleteReason},
+		},
+		{
+			name: "desired_import_missing_from_runtime", observations: []*domain.NatsAccountState{incomplete},
+			imports:     nauth.Imports{{AccountID: "export-account", Subject: "orders.>", Type: nauth.ExportTypeStream}},
+			wantReasons: []string{"NATS did not report desired imports: export-account -> orders.> (stream)"},
+		},
+		{
+			name: "unchanged_imports_returned_in_different_order", observations: []*domain.NatsAccountState{&twoInvalid, &reordered},
+			wantReasons: []string{"NATS reports invalid imports: export-account -> orders.> (stream); export-account -> stock.> (stream)"},
+		},
+		{name: "complete_account", observations: []*domain.NatsAccountState{complete}},
+		{name: "unknown_observation", observations: []*domain.NatsAccountState{unknown}},
+		{name: "skipped_validation", observations: []*domain.NatsAccountState{nil}},
+		{name: "invalid_imports_from_mismatching_claims", observations: []*domain.NatsAccountState{&mismatch}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := newAccountLoggingFixture(t, len(tt.observations), accountLoggingOptions{bootstrap: tt.bootstrap, failStatusWrites: tt.failStatusWrites, failLabelWrites: tt.failLabelWrites})
+
+			for i, state := range tt.observations {
+				result := fixture.result(state, "desired-hash")
+				result.Claims = &nauth.AccountClaims{Imports: tt.imports}
+				err := fixture.reconcile(result)
+				if i < tt.failStatusWrites+tt.failLabelWrites {
+					require.ErrorIs(t, err, fixture.writeErr)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+
+			entries := fixture.logs.FilterMessage("NATS Account is incomplete").All()
+			require.Len(t, entries, len(tt.wantReasons))
+			for i, entry := range entries {
+				require.Equal(t, zapcore.InfoLevel, entry.Level)
+				fields := entry.ContextMap()
+				require.Equal(t, fixture.account.Name, fields["name"])
+				require.Equal(t, fixture.account.Namespace, fields["namespace"])
+				require.Equal(t, fixture.accountID, fields["accountID"])
+				require.Equal(t, fixture.clusterUID, fields["natsClusterUID"])
+				require.Equal(t, "server-a", fields["observedServerID"])
+				require.Equal(t, "desired-hash", fields["desiredClaimsHash"])
+				require.Equal(t, "desired-hash", fields["observedClaimsHash"])
+				require.Equal(t, tt.wantReasons[i], fields["reason"])
+			}
+		})
+	}
+}
+
 type accountLoggingOptions struct {
 	initialStatus    v1alpha1.AccountStatus
 	bootstrap        bool
