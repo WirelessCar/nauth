@@ -46,10 +46,13 @@ func TestReconcileAccountClaimsMismatchLogging(t *testing.T) {
 	}
 	unknown := &domain.NatsAccountState{Status: domain.NatsAccountStateUnknown}
 	tests := []struct {
-		name          string
-		observations  []*domain.NatsAccountState
-		desiredHashes []string
-		wantLogs      int
+		name             string
+		observations     []*domain.NatsAccountState
+		desiredHashes    []string
+		wantLogs         int
+		failStatusWrites int
+		failLabelWrites  int
+		bootstrap        bool
 	}{
 		{name: "first_mismatch", observations: []*domain.NatsAccountState{mismatch}, wantLogs: 1},
 		{name: "mismatch_after_matching_claims", observations: []*domain.NatsAccountState{matching, mismatch}, wantLogs: 1},
@@ -61,6 +64,18 @@ func TestReconcileAccountClaimsMismatchLogging(t *testing.T) {
 		},
 		{name: "mismatch_recurs_after_recovery", observations: []*domain.NatsAccountState{mismatch, matching, mismatch}, wantLogs: 2},
 		{name: "mismatch_after_unknown_observation", observations: []*domain.NatsAccountState{mismatch, unknown, mismatch}, wantLogs: 2},
+		{
+			name: "status_conflict_followed_by_recovery", observations: []*domain.NatsAccountState{mismatch, matching},
+			failStatusWrites: 1, wantLogs: 1,
+		},
+		{
+			name: "label_conflict_repeats_until_persisted_then_recovers", observations: []*domain.NatsAccountState{mismatch, mismatch, mismatch, matching},
+			failLabelWrites: 1, wantLogs: 2,
+		},
+		{
+			name: "bootstrap_mismatch_followed_by_recovery", observations: []*domain.NatsAccountState{mismatch, matching},
+			bootstrap: true, wantLogs: 1,
+		},
 		{name: "matching_claims", observations: []*domain.NatsAccountState{matching}},
 		{name: "incomplete_account_with_matching_claims", observations: []*domain.NatsAccountState{incomplete}},
 		{name: "unknown_observation", observations: []*domain.NatsAccountState{unknown}},
@@ -69,7 +84,7 @@ func TestReconcileAccountClaimsMismatchLogging(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fixture := newAccountLoggingFixture(t, len(tt.observations), accountLoggingOptions{})
+			fixture := newAccountLoggingFixture(t, len(tt.observations), accountLoggingOptions{bootstrap: tt.bootstrap, failStatusWrites: tt.failStatusWrites, failLabelWrites: tt.failLabelWrites})
 
 			for i, state := range tt.observations {
 				desiredHash := "desired-hash"
@@ -78,7 +93,11 @@ func TestReconcileAccountClaimsMismatchLogging(t *testing.T) {
 				}
 				result := fixture.result(state, desiredHash)
 				err := fixture.reconcile(result)
-				require.NoError(t, err)
+				if i < tt.failStatusWrites+tt.failLabelWrites {
+					require.ErrorIs(t, err, fixture.writeErr)
+				} else {
+					require.NoError(t, err)
+				}
 			}
 
 			entries := fixture.logs.FilterMessage("Observed NATS Account claims do not match the desired claims").All()

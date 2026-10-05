@@ -170,6 +170,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if err != nil {
 				return r.reporter.error(ctx, natsAccount, fmt.Errorf("failed to bootstrap account: %w", err))
 			}
+			logAccountClaimsMismatchObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 			logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 			logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 			natsAccount.SetLabel(v1alpha1.AccountLabelAccountID, result.AccountID)
@@ -193,6 +194,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		adoptions = toAPIAdoptions(result.Adoptions, adoptionRefs)
 	}
 
+	logAccountClaimsMismatchObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 	logAccountIncompleteObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 	logAccountUnknownObservationPreWrite(ctx, natsAccount, result, clusterTarget.UID)
 
@@ -206,7 +208,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// UPDATE ACCOUNT STATUS
-	claimsMismatchChanged := accountClaimsMismatchChanged(natsAccount, result)
 	// Snapshot Ready before updating conditions, which mutates the existing condition in place.
 	previousReady := metav1.Condition{}
 	if condition := meta.FindStatusCondition(natsAccount.Status.Conditions, conditionTypeReady); condition != nil {
@@ -243,17 +244,6 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	logAccountReadinessRecoveryPostWrite(ctx, natsAccount, previousReady, clusterTarget.UID)
-
-	if claimsMismatchChanged {
-		log.Info("Observed NATS Account claims do not match the desired claims",
-			"name", natsAccount.Name,
-			"namespace", natsAccount.Namespace,
-			"accountID", result.AccountID,
-			"natsClusterUID", clusterTarget.UID,
-			"observedServerID", result.NatsState.ServerID,
-			"desiredClaimsHash", result.State.ClaimsHash,
-			"observedClaimsHash", result.NatsState.ClaimsHash)
-	}
 
 	return ctrl.Result{
 		RequeueAfter: r.requeueAfterValidation(result.ValidationOutcome),
@@ -382,16 +372,27 @@ func toBootstrapAccountRequest(state *v1alpha1.Account, accountReference nauth.A
 	}
 }
 
-func accountClaimsMismatchChanged(account *v1alpha1.Account, result *nauth.AccountResult) bool {
-	if result.NatsState == nil || result.NatsState.Status == domain.NatsAccountStateUnknown || result.NatsState.MatchesClaimsHash(result.State.ClaimsHash) {
-		return false
+func logAccountClaimsMismatchObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
+	state := result.NatsState
+	if state == nil || state.Status == domain.NatsAccountStateUnknown || state.MatchesClaimsHash(result.State.ClaimsHash) {
+		return
 	}
 	previousCondition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeNatsAccountComplete)
-	if previousCondition == nil || previousCondition.Status != metav1.ConditionFalse || account.Status.Nats == nil {
-		return true
-	}
 	// Ignore server and timestamp changes when the same mismatch has already been reported.
-	return account.Status.ClaimsHash != result.State.ClaimsHash || account.Status.Nats.ObservedClaimsHash != result.NatsState.ClaimsHash
+	if previousCondition != nil && previousCondition.Status == metav1.ConditionFalse && account.Status.Nats != nil &&
+		account.Status.ClaimsHash == result.State.ClaimsHash && account.Status.Nats.ObservedClaimsHash == state.ClaimsHash {
+		return
+	}
+
+	// Failed Kubernetes writes can repeat INFO on retries until the observation is persisted.
+	logf.FromContext(ctx).Info("Observed NATS Account claims do not match the desired claims",
+		"name", account.Name,
+		"namespace", account.Namespace,
+		"accountID", result.AccountID,
+		"natsClusterUID", clusterUID,
+		"observedServerID", state.ServerID,
+		"desiredClaimsHash", result.State.ClaimsHash,
+		"observedClaimsHash", state.ClaimsHash)
 }
 
 func logAccountIncompleteObservationPreWrite(ctx context.Context, account *v1alpha1.Account, result *nauth.AccountResult, clusterUID string) {
