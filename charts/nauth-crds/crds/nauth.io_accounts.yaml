@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: accounts.nauth.io
 spec:
   group: nauth.io
@@ -76,6 +76,12 @@ spec:
                 items:
                   properties:
                     accountTokenPosition:
+                      description: |-
+                        NATS treats token positions as 1-based. Set this to the position of a `*`
+                        token in the export subject where the importing account's token must appear.
+                        A value of 0 disables account-token-position enforcement; omitting the
+                        field has the same effect.
+                      minimum: 0
                       type: integer
                     advertise:
                       type: boolean
@@ -449,6 +455,12 @@ spec:
                     items:
                       properties:
                         accountTokenPosition:
+                          description: |-
+                            NATS treats token positions as 1-based. Set this to the position of a `*`
+                            token in the export subject where the importing account's token must appear.
+                            A value of 0 disables account-token-position enforcement; omitting the
+                            field has the same effect.
+                          minimum: 0
                           type: integer
                         advertise:
                           type: boolean

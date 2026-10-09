@@ -323,17 +323,23 @@ type SigningKey struct {
 
 type Exports []*Export
 type Export struct {
-	Name                 string          `json:"name,omitempty"`
-	Subject              Subject         `json:"subject,omitempty"`
-	Type                 ExportType      `json:"type,omitempty"`
-	TokenReq             bool            `json:"tokenReq,omitempty"`
-	Revocations          RevocationList  `json:"revocations,omitempty"`
-	ResponseType         ResponseType    `json:"responseType,omitempty"`
-	ResponseThreshold    time.Duration   `json:"responseThreshold,omitempty"`
-	Latency              *ServiceLatency `json:"serviceLatency,omitempty"`
-	AccountTokenPosition uint            `json:"accountTokenPosition,omitempty"`
-	Advertise            bool            `json:"advertise,omitempty"`
-	AllowTrace           bool            `json:"allowTrace,omitempty"`
+	Name              string          `json:"name,omitempty"`
+	Subject           Subject         `json:"subject,omitempty"`
+	Type              ExportType      `json:"type,omitempty"`
+	TokenReq          bool            `json:"tokenReq,omitempty"`
+	Revocations       RevocationList  `json:"revocations,omitempty"`
+	ResponseType      ResponseType    `json:"responseType,omitempty"`
+	ResponseThreshold time.Duration   `json:"responseThreshold,omitempty"`
+	Latency           *ServiceLatency `json:"serviceLatency,omitempty"`
+	// NATS treats token positions as 1-based. Set this to the position of a `*`
+	// token in the export subject where the importing account's token must appear.
+	// A value of 0 disables account-token-position enforcement; omitting the
+	// field has the same effect.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	AccountTokenPosition uint `json:"accountTokenPosition,omitempty"`
+	Advertise            bool `json:"advertise,omitempty"`
+	AllowTrace           bool `json:"allowTrace,omitempty"`
 }
 
 type Imports []*Import

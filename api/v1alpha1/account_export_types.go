@@ -83,7 +83,12 @@ type AccountExportRule struct {
 	ResponseThreshold *time.Duration `json:"responseThreshold,omitempty"`
 	// +optional
 	Latency *ServiceLatency `json:"serviceLatency,omitempty"`
+	// NATS treats token positions as 1-based. Set this to the position of a `*`
+	// token in the export subject where the importing account's token must appear.
+	// A value of 0 disables account-token-position enforcement; omitting the
+	// field has the same effect.
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	AccountTokenPosition *uint `json:"accountTokenPosition,omitempty"`
 	// +optional
 	Advertise *bool `json:"advertise,omitempty"`

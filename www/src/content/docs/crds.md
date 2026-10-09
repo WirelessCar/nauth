@@ -203,7 +203,7 @@ _Appears in:_
 | `responseType` _[ResponseType](#responsetype)_ |  |  | Enum: [Singleton Stream Chunked] <br /> |
 | `responseThreshold` _[Duration](#duration)_ |  |  |  |
 | `serviceLatency` _[ServiceLatency](#servicelatency)_ |  |  |  |
-| `accountTokenPosition` _integer_ |  |  |  |
+| `accountTokenPosition` _integer_ | NATS treats token positions as 1-based. Set this to the position of a `*`<br />token in the export subject where the importing account's token must appear.<br />A value of 0 disables account-token-position enforcement; omitting the<br />field has the same effect. |  | Minimum: 0 <br /> |
 | `advertise` _boolean_ |  |  |  |
 | `allowTrace` _boolean_ |  |  |  |
 
@@ -428,6 +428,25 @@ AccountList contains a list of Account.
 | `items` _[Account](#account) array_ |  |  |  |
 
 
+#### AccountNatsStatus
+
+
+
+AccountNatsStatus defines the NATS state observed for an Account.
+
+
+
+_Appears in:_
+- [AccountStatus](#accountstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `observedServerId` _string_ | ObservedServerID identifies the NATS server that supplied the last successful state observation. |  |  |
+| `observedClaimsHash` _string_ | ObservedClaimsHash is the hash of the Account JWT claims returned by the last successful NATS state observation. |  |  |
+| `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully observed the desired Account<br />state in NATS, including an explicit Complete=false result. It is not updated when<br />validation is skipped or the observation is Unknown. |  |  |
+| `observedImportDependenciesHash` _string_ | ObservedImportDependenciesHash is the fingerprint of the imported-from Account claims<br />associated with the last successful NATS state observation. |  |  |
+
+
 #### AccountRef
 
 
@@ -608,31 +627,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
-| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the desired Account state has changed and a new JWT needs to be generated. |  |  |
+| `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the desired<br />Account state has changed and a new JWT needs to be generated. |  |  |
+| `nats` _[AccountNatsStatus](#accountnatsstatus)_ | Nats contains NATS-specific Account state observation evidence. |  |  |
 | `adoptions` _[AccountAdoptions](#accountadoptions)_ |  |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |
 | `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
-| `nats` _[AccountNatsStatus](#accountnatsstatus)_ | Nats contains NATS-specific Account state observation evidence. |  |  |
-
-
-#### AccountNatsStatus
-
-
-
-AccountNatsStatus defines the NATS state observed for an Account.
-
-
-
-_Appears in:_
-- [AccountStatus](#accountstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `observedServerId` _string_ | ObservedServerID identifies the NATS server that supplied the last successful state observation. |  |  |
-| `observedClaimsHash` _string_ | ObservedClaimsHash is the hash of the Account JWT claims returned by the last successful NATS state observation. |  |  |
-| `stateValidatedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | StateValidatedAt records when NAuth last successfully observed the desired Account state in NATS, including an explicit Complete=false result. It is not updated when validation is skipped or the observation is Unknown. |  |  |
 
 
 #### CIDRList
@@ -669,7 +670,7 @@ _Appears in:_
 | `responseType` _[ResponseType](#responsetype)_ |  |  | Enum: [Singleton Stream Chunked] <br /> |
 | `responseThreshold` _[Duration](#duration)_ |  |  |  |
 | `serviceLatency` _[ServiceLatency](#servicelatency)_ |  |  |  |
-| `accountTokenPosition` _integer_ |  |  |  |
+| `accountTokenPosition` _integer_ | NATS treats token positions as 1-based. Set this to the position of a `*`<br />token in the export subject where the importing account's token must appear.<br />A value of 0 disables account-token-position enforcement; omitting the<br />field has the same effect. |  | Minimum: 0 <br /> |
 | `advertise` _boolean_ |  |  |  |
 | `allowTrace` _boolean_ |  |  |  |
 
@@ -718,7 +719,7 @@ _Appears in:_
 | `responseType` _[ResponseType](#responsetype)_ |  |  | Enum: [Singleton Stream Chunked] <br /> |
 | `responseThreshold` _[Duration](#duration)_ |  |  |  |
 | `serviceLatency` _[ServiceLatency](#servicelatency)_ |  |  |  |
-| `accountTokenPosition` _integer_ |  |  |  |
+| `accountTokenPosition` _integer_ | NATS treats token positions as 1-based. Set this to the position of a `*`<br />token in the export subject where the importing account's token must appear.<br />A value of 0 disables account-token-position enforcement; omitting the<br />field has the same effect. |  | Minimum: 0 <br /> |
 | `advertise` _boolean_ |  |  |  |
 | `allowTrace` _boolean_ |  |  |  |
 
