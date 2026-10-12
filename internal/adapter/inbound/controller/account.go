@@ -28,11 +28,14 @@ import (
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s"
+	"github.com/WirelessCar/nauth/internal/core"
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	k8sval "k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -57,6 +60,8 @@ var (
 	errInvalidSigningKeyRefKind = errors.New("invalid AccountSigningKeyRef kind")
 )
 
+const accountIDConfigMapSuffix = "-ac-id"
+
 // AccountReconciler reconciles an Account object
 type AccountReconciler struct {
 	kubernetes                    *kubernetesClient
@@ -67,6 +72,7 @@ type AccountReconciler struct {
 	reporter                      *statusReporter
 	accountReconciliationInterval time.Duration
 	allowAccountNatsClusterRebind bool
+	configMaps                    *k8s.ConfigMapClient
 }
 
 func NewAccountReconciler(
@@ -88,6 +94,7 @@ func NewAccountReconciler(
 		reporter:                      newStatusReporter(k8sClient, recorder),
 		accountReconciliationInterval: accountReconciliationInterval,
 		allowAccountNatsClusterRebind: allowAccountNatsClusterRebind,
+		configMaps:                    k8s.NewConfigMapClient(k8sClient),
 	}
 }
 
@@ -96,7 +103,7 @@ func NewAccountReconciler(
 // +kubebuilder:rbac:groups=nauth.io,resources=accounts/finalizers,verbs=update
 // +kubebuilder:rbac:groups=nauth.io,resources=natsclusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=nauth.io,resources=accountsigningkeys,verbs=get;list;watch
-// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch
 
@@ -259,9 +266,43 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Report recovery only after the new Ready condition has been persisted.
 	logIfAccountReadinessRecovered(ctx, natsAccount, previousReady, clusterTarget.UID)
 
+	// After status update: ConfigMap failure must not hold back status.
+	if err := r.applyAccountIDConfigMap(ctx, natsAccount, result.AccountID); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{
 		RequeueAfter: r.requeueAfterValidation(result.ValidationOutcome),
 	}, nil
+}
+
+// applyAccountIDConfigMap writes accountID to ConfigMap <account name>accountIDConfigMapSuffix, owned by account.
+// Returns nil with a Warning event when the name is not a valid DNS subdomain or another owner holds the ConfigMap.
+func (r *AccountReconciler) applyAccountIDConfigMap(ctx context.Context, account *v1alpha1.Account, accountID string) error {
+	name := account.Name + accountIDConfigMapSuffix
+	if errs := k8sval.NameIsDNSSubdomain(name, false); len(errs) > 0 {
+		r.reporter.Recorder.Eventf(account, nil, corev1.EventTypeWarning, conditionReasonInvalid, actionReconciled,
+			"Account ID ConfigMap %s skipped: %s", name, strings.Join(errs, ", "))
+		return nil
+	}
+	cmMeta := metav1.ObjectMeta{
+		Name:      name,
+		Namespace: account.Namespace,
+		Labels: map[string]string{
+			string(v1alpha1.AccountLabelAccountID): accountID,
+			core.SecretLabelAccountName:            account.Name,
+		},
+	}
+	err := r.configMaps.Apply(ctx, account, cmMeta, map[string]string{k8s.DefaultSecretKeyName: accountID})
+	if errors.Is(err, domain.ErrConfigMapConflict) {
+		logf.FromContext(ctx).Info("Account ID ConfigMap not published", "name", name, "namespace", account.Namespace, "reason", err.Error())
+		r.reporter.Recorder.Eventf(account, nil, corev1.EventTypeWarning, conditionReasonConflict, actionReconciled, "%s", err)
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to publish Account ID ConfigMap: %w", err)
+	}
+	return nil
 }
 
 func (r *AccountReconciler) requeueAfterValidation(outcome nauth.AccountValidationOutcome) time.Duration {

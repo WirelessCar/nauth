@@ -39,3 +39,19 @@ status:
     - type: Ready
       status: "True"
       reason: Reconciled
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-account-ac-id
+  labels:
+    account.nauth.io/id: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO
+    account.nauth.io/name: example-account
+    nauth.io/managed: "true"
+  ownerReferences:
+    - apiVersion: nauth.io/v1alpha1
+      kind: Account
+      name: example-account
+      controller: true
+data:
+  default: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO

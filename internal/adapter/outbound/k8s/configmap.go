@@ -19,15 +19,18 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/WirelessCar/nauth/internal/domain"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// ConfigMapClient reads ConfigMap data from the cluster.
+// ConfigMapClient reads and writes ConfigMaps.
 type ConfigMapClient struct {
 	client client.Client
 }
@@ -59,6 +62,35 @@ func (c *ConfigMapClient) Get(ctx context.Context, configMapRef domain.Namespace
 		result[k] = string(v)
 	}
 	return result, nil
+}
+
+// Apply creates or updates a NAuth-managed ConfigMap controlled by owner and labels it LabelManaged.
+// Returns domain.ErrConfigMapConflict without writing when the existing ConfigMap is unmanaged
+// or controlled by another owner.
+func (c *ConfigMapClient) Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, data map[string]string) error {
+	key := client.ObjectKey{Namespace: meta.Namespace, Name: meta.Name}
+	cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: meta.Namespace, Name: meta.Name}}
+	_, err := controllerutil.CreateOrUpdate(ctx, c.client, cm, func() error {
+		if cm.ResourceVersion != "" {
+			if cm.Labels[LabelManaged] != LabelManagedValue {
+				return domain.ErrConfigMapConflict.WithCause(fmt.Errorf("ConfigMap %s not managed by NAuth", key))
+			}
+			if ref := metav1.GetControllerOf(cm); ref != nil && ref.UID != owner.GetUID() {
+				return domain.ErrConfigMapConflict.WithCause(fmt.Errorf("ConfigMap %s controlled by %s %s", key, ref.Kind, ref.Name))
+			}
+		}
+		if cm.Labels == nil {
+			cm.Labels = map[string]string{}
+		}
+		maps.Copy(cm.Labels, meta.Labels)
+		cm.Labels[LabelManaged] = LabelManagedValue
+		cm.Data = data
+		return controllerutil.SetControllerReference(owner, cm, c.client.Scheme())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to apply ConfigMap %s: %w", key, err)
+	}
+	return nil
 }
 
 // Compile-time assertion that implementation satisfies the ports interface

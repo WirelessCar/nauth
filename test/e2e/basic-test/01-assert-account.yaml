@@ -47,8 +47,14 @@ resourceRefs:
     kind: Account
     name: example-account
     ref: example_account
+  - apiVersion: v1
+    kind: ConfigMap
+    name: example-account-ac-id
+    ref: account_id_cm
 assertAll:
   - celExpr: matches(example_account.metadata.labels["account.nauth.io/id"], "^A.{55}$")
+  - celExpr: account_id_cm.data["default"] == example_account.metadata.labels["account.nauth.io/id"]
+  - celExpr: account_id_cm.metadata.ownerReferences.exists(o, o.kind == "Account" && o.uid == example_account.metadata.uid && o.controller)
   - celExpr: example_account.metadata.labels["account.nauth.io/signed-by"] == "OCRTCOTZAWYINN4U4XVNEM6TDJNOBLZQMGDIZ765WFA5ZLYMRB32HCG4"
   - celExpr: matches(example_account.status.claims.signingKeys[0].key, "^A.{55}$")
 commands:

@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -435,6 +436,7 @@ func newAccountLoggingFixture(t *testing.T, reconciliations int, options account
 	t.Helper()
 	scheme := runtime.NewScheme()
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
 	accountID := testutil.NatsTestAccountA.Root.PublicKey
 	account := &v1alpha1.Account{
 		ObjectMeta: metav1.ObjectMeta{

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -1579,3 +1580,131 @@ func (o *accountManagerMock) mockImport(ctx interface{}, state interface{}, resu
 }
 
 var _ inbound.AccountManager = (*accountManagerMock)(nil)
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPublishAccountIDConfigMap() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupReconciledAccount(accountID)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	cm := t.getAccountIDConfigMap()
+	t.Equal(map[string]string{"default": accountID}, cm.Data)
+	t.Equal(map[string]string{
+		string(v1alpha1.AccountLabelAccountID): accountID,
+		"account.nauth.io/name":                t.accountName,
+		k8s.LabelManaged:                       k8s.LabelManagedValue,
+	}, cm.Labels)
+	t.Require().NotNil(metav1.GetControllerOf(cm))
+	t.Equal(account.UID, metav1.GetControllerOf(cm).UID)
+	t.Empty(t.fakeRecorder.Events)
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldUpdateAccountIDConfigMap_WhenAccountIDChanges() {
+	// Given
+	oldAccountID := testutil.AnyNatsTestAccountID()
+	newAccountID := testutil.AnyNatsTestAccountID()
+	t.setupReconciledAccount(oldAccountID)
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+	t.Require().NoError(err)
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, &nauth.AccountResult{AccountID: newAccountID}).Once()
+
+	// When
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	cm := t.getAccountIDConfigMap()
+	t.Equal(map[string]string{"default": newAccountID}, cm.Data)
+	t.Equal(newAccountID, cm.Labels[string(v1alpha1.AccountLabelAccountID)])
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldKeepForeignConfigMapAndWarn_WhenAccountIDConfigMapNameTaken() {
+	// Given
+	t.setupReconciledAccount(testutil.AnyNatsTestAccountID())
+	foreign := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: t.accountName + "-ac-id", Namespace: t.accountNamespace},
+		Data:       map[string]string{"default": "foreign"},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, foreign))
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.assertAccountCondition(account.Status.Conditions, conditionTypeReady, metav1.ConditionTrue, conditionReasonReconciled)
+	cm := t.getAccountIDConfigMap()
+	t.Equal(map[string]string{"default": "foreign"}, cm.Data)
+	t.Nil(metav1.GetControllerOf(cm))
+	t.Require().Len(t.fakeRecorder.Events, 1)
+	event := <-t.fakeRecorder.Events
+	t.Contains(event, corev1.EventTypeWarning)
+	t.Contains(event, "ConfigMapConflict")
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSkipAccountIDConfigMapAndWarn_WhenNameTooLong() {
+	// Given
+	t.accountName = strings.Repeat("a", 250)
+	t.accountNamespacedRef.Name = t.accountName
+	t.setupReconciledAccount(testutil.AnyNatsTestAccountID())
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	configMaps := &corev1.ConfigMapList{}
+	t.Require().NoError(k8sClient.List(t.ctx, configMaps, client.InNamespace(t.accountNamespace)))
+	for _, cm := range configMaps.Items {
+		t.NotEqual(k8s.LabelManagedValue, cm.Labels[k8s.LabelManaged], "unexpected managed ConfigMap %s", cm.Name)
+	}
+	t.Require().Len(t.fakeRecorder.Events, 1)
+	event := <-t.fakeRecorder.Events
+	t.Contains(event, corev1.EventTypeWarning)
+	t.Contains(event, t.accountName+"-ac-id")
+	t.Contains(event, "must be no more than 253 characters")
+}
+
+// setupReconciledAccount creates an Account with an account ID label and mocks one successful CreateOrUpdate.
+func (t *AccountControllerTestSuite) setupReconciledAccount(accountID string) {
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+		}),
+	)
+	t.clusterManagerMock.mockGetClusterTarget(createDummyClusterTarget(), nil)
+	t.accountManagerMock.mockCreateOrUpdate(t.ctx, mock.Anything, &nauth.AccountResult{
+		AccountID:         accountID,
+		AccountSignedBy:   "OPERATOR_SIGNING_KEY",
+		ValidationOutcome: nauth.AccountValidationReady,
+		State: nauth.AccountState{
+			ClaimsHash:         "claims-hash",
+			ObservedServerID:   "server-a",
+			ObservedClaimsHash: "claims-hash",
+			ObservedStatus:     domain.NatsAccountStateComplete,
+			StateValidatedAt:   time.Now(),
+		},
+		NatsState: &domain.NatsAccountState{
+			Status:     domain.NatsAccountStateComplete,
+			ServerID:   "server-a",
+			AccountID:  accountID,
+			ClaimsHash: "claims-hash",
+		},
+	}).Once()
+}
+
+func (t *AccountControllerTestSuite) getAccountIDConfigMap() *corev1.ConfigMap {
+	cm := &corev1.ConfigMap{}
+	t.Require().NoError(k8sClient.Get(t.ctx, ktypes.NamespacedName{Namespace: t.accountNamespace, Name: t.accountName + "-ac-id"}, cm))
+	return cm
+}

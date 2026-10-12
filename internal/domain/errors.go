@@ -13,6 +13,7 @@ const (
 	ErrAccountNotFound   Error = "AccountNotFound"
 	ErrAccountNotReady   Error = "AccountNotReady"
 	ErrConfigMapNotFound Error = "ConfigMapNotFound"
+	ErrConfigMapConflict Error = "ConfigMapConflict"
 )
 
 func (e Error) Error() string {
