@@ -151,6 +151,9 @@ type AccountNatsStatus struct {
 
 // AccountStatus defines the observed state of Account.
 type AccountStatus struct {
+	// AccountID is the Account public key.
+	// +optional
+	AccountID string `json:"accountID,omitempty"`
 	// +optional
 	Claims *AccountClaims `json:"claims,omitempty"`
 	// ClaimsHash is a hash of the Account JWT claims, used to determine if the desired

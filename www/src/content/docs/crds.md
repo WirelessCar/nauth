@@ -626,6 +626,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `accountID` _string_ | AccountID is the Account public key. |  |  |
 | `claims` _[AccountClaims](#accountclaims)_ |  |  |  |
 | `claimsHash` _string_ | ClaimsHash is a hash of the Account JWT claims, used to determine if the desired<br />Account state has changed and a new JWT needs to be generated. |  |  |
 | `nats` _[AccountNatsStatus](#accountnatsstatus)_ | Nats contains NATS-specific Account state observation evidence. |  |  |

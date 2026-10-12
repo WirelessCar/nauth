@@ -71,14 +71,14 @@ The User and AccountSigningKey can be in different namespaces only when `namespa
 
 ## Use the key from a workload
 
-> **Unreleased:** The Account ID ConfigMap ships in the next NAuth release.
+> **Unreleased:** The Account ID ConfigMap and `Account.status.accountID` ship in the next NAuth release.
 
 A workload that signs User JWTs itself needs the signing seed and the Account ID (the Account's public key). Read both with `secretKeyRef` and `configMapKeyRef`:
 
 - Signing seed: Secret `payments-signing-ac-sign`, key `default`.
 - Account ID: ConfigMap `payments-ac-id`, key `default`.
 
-NAuth creates the `<account>-ac-id` ConfigMap for every Account and keeps it in sync with the Account ID. The Account owns the ConfigMap, so deleting the Account deletes it. If a ConfigMap with that name exists and NAuth does not manage it, NAuth leaves it unchanged and records a `Warning` event on the Account.
+NAuth creates the `<account>-ac-id` ConfigMap for every Account and keeps it in sync with the Account ID. The Account owns the ConfigMap, so deleting the Account deletes it. If a ConfigMap with that name exists and NAuth does not manage it, NAuth leaves it unchanged and records a `Warning` event on the Account. API clients can read the same value from `Account.status.accountID`.
 
 ## Observe an existing signing key
 

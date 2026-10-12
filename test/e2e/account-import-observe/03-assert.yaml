@@ -8,6 +8,7 @@ metadata:
   finalizers:
     - account.nauth.io/finalizer
 status:
+  accountID: ADDS6I3G7LBIBNDMZ5Q32VUJN2XNSW2QK4HY2SY5ZA7I2JLBFYF4KJDO
   claims:
     accountLimits:
       conn: 100

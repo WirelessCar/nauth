@@ -1581,6 +1581,21 @@ func (o *accountManagerMock) mockImport(ctx interface{}, state interface{}, resu
 
 var _ inbound.AccountManager = (*accountManagerMock)(nil)
 
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldSetStatusAccountID() {
+	// Given
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupReconciledAccount(accountID)
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	// Then
+	t.Require().NoError(err)
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Equal(accountID, account.Status.AccountID)
+}
+
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldPublishAccountIDConfigMap() {
 	// Given
 	accountID := testutil.AnyNatsTestAccountID()

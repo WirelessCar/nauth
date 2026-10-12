@@ -230,6 +230,7 @@ func (r *AccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 		natsAccount.Status.Claims = claims
 	}
+	natsAccount.Status.AccountID = result.AccountID
 	natsAccount.Status.Adoptions = adoptions
 	natsAccount.Status.ClaimsHash = result.State.ClaimsHash
 	// Persist validation evidence only after a successful, identity-matched ACCOUNTZ observation.

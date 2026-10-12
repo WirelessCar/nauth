@@ -298,6 +298,9 @@ spec:
           status:
             description: AccountStatus defines the observed state of Account.
             properties:
+              accountID:
+                description: AccountID is the Account public key.
+                type: string
               adoptions:
                 description: AccountAdoptions defines the status of child resources
                   that have been adopted or are candidates for adoption by this account.
