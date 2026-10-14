@@ -62,6 +62,11 @@ vet: ## Run go vet against code.
 verify-go-version-sync: ## Verify that Go versions are aligned across go.mod, mise.toml and Dockerfile.
 	bash hack/verify-go-version-sync.sh
 
+.PHONY: audit
+audit: verify-go-version-sync vet ## Verify Go modules and versions, and run go vet.
+	go mod verify
+	go mod tidy -diff
+
 .PHONY: test
 test: verify-go-version-sync manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out

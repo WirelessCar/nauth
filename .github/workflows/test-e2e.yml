@@ -53,9 +53,7 @@ jobs:
           kind version
 
       - name: Running E2E Tests
-        run: |
-          go mod tidy
-          make test-e2e
+        run: make test-e2e
 
       - name: Upload E2E logs
         if: always()

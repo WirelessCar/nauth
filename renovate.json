@@ -12,6 +12,7 @@
   "labels": ["dependencies"],
   "schedule": ["before 6am on monday"],
   "rangeStrategy": "bump",
+  "postUpdateOptions": ["gomodTidy"],
   "osvVulnerabilityAlerts": true,
   "asdf": {
     "enabled": false
