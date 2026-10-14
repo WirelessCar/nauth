@@ -319,6 +319,12 @@ func (r *AccountReconciler) requeueAfterValidation(outcome nauth.AccountValidati
 func (r *AccountReconciler) deleteAccount(ctx context.Context, state *v1alpha1.Account, accountRef nauth.AccountReference, managementPolicy string) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
+	boundToClusterID := state.GetLabel(v1alpha1.AccountLabelNatsClusterID)
+	if boundToClusterID != "" && boundToClusterID != accountRef.ClusterTarget.UID {
+		err := fmt.Errorf("account bound to NatsCluster with UID %q cannot be deleted from NatsCluster with UID %q", boundToClusterID, accountRef.ClusterTarget.UID)
+		return r.reporter.error(ctx, state, err)
+	}
+
 	meta.SetStatusCondition(&state.Status.Conditions, metav1.Condition{
 		Type:    conditionTypeReady,
 		Status:  metav1.ConditionFalse,

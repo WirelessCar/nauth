@@ -610,6 +610,7 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 		t.defaultAccount(func(account *v1alpha1.Account) {
 			account.Finalizers = append(account.Finalizers, finalizerAccount)
 			account.SetLabel(v1alpha1.AccountLabelAccountID, testutil.AnyNatsTestAccountID())
+			account.SetLabel(v1alpha1.AccountLabelNatsClusterID, "UID")
 		}),
 	)
 
@@ -630,6 +631,38 @@ func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedFor
 	err = k8sClient.Get(t.ctx, t.accountNamespacedRef, account)
 	t.Require().Error(err)
 	t.True(k8err.IsNotFound(err))
+}
+
+func (t *AccountControllerTestSuite) Test_Reconcile_ShouldNotDeleteAccountFromDifferentCluster() {
+	accountID := testutil.AnyNatsTestAccountID()
+	t.setupAccount(
+		t.defaultAccount(func(account *v1alpha1.Account) {
+			account.Finalizers = append(account.Finalizers, finalizerAccount)
+			account.SetLabel(v1alpha1.AccountLabelAccountID, accountID)
+			account.SetLabel(v1alpha1.AccountLabelNatsClusterID, "original-cluster-uid")
+		}),
+	)
+
+	account := &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Require().NoError(k8sClient.Delete(t.ctx, account))
+
+	newTarget := createDummyClusterTarget()
+	newTarget.UID = "replacement-cluster-uid"
+	t.clusterManagerMock.mockGetClusterTarget(newTarget, nil)
+
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.accountNamespacedRef})
+
+	t.ErrorContains(err, "account bound to NatsCluster with UID \"original-cluster-uid\" cannot be deleted from NatsCluster with UID \"replacement-cluster-uid\"")
+	t.accountManagerMock.AssertNotCalled(t.T(), "Delete", mock.Anything, mock.Anything)
+
+	account = &v1alpha1.Account{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.accountNamespacedRef, account))
+	t.Contains(account.Finalizers, finalizerAccount)
+	t.Equal("original-cluster-uid", account.GetLabel(v1alpha1.AccountLabelNatsClusterID))
+	condition := meta.FindStatusCondition(account.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionFalse, condition.Status)
 }
 
 func (t *AccountControllerTestSuite) Test_Reconcile_ShouldDeleteAccountMarkedForDeletion_WhenAccountIDCanBeFound() {
