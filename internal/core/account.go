@@ -548,20 +548,40 @@ func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountRefe
 		return fmt.Errorf("account ID is missing for account %s", reference.AccountRef)
 	}
 
-	accountSecrets, found, err := a.secretManager.GetSecrets(ctx, reference.AccountRef, accountID)
+	accountSecrets, accountSecretsFound, err := a.secretManager.GetSecrets(ctx, reference.AccountRef, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get secrets for account: %w", err)
 	}
-	if found {
-		// Account secrets may already be gone if secretManager.DeleteAll partially failed during previous attempt.
-		// Then we won't be able to sign a JWT to lookup account streams, but we can skip the check since the account
-		// is effectively already deleted in NATS.
-		streams, err := a.listAccountStreams(cluster, accountSecrets, accountID)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	if err != nil {
+		return fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+	defer sysConn.Disconnect()
+
+	// Stream enumeration needs the Account secrets to mint a temporary user JWT.
+	// If they're missing, skip the check and continue with deletion.
+	if accountSecretsFound {
+		// Confirm the account still has a JWT in the cluster before checking streams.
+		// A valid temporary user JWT cannot authenticate once the account is gone, so
+		// trying the stream lookup first only reports a lost NATS connection.
+		accountJWT, err := sysConn.LookupAccountJWT(accountID)
 		if err != nil {
-			return fmt.Errorf("failed to list account streams: %w", err)
+			return fmt.Errorf("failed to look up account JWT before deletion: %w", err)
 		}
-		if len(streams) > 0 {
-			return fmt.Errorf("account deletion aborted due to %d JetStream Stream(s) still exist for account: %s", len(streams), streams)
+		if accountJWT == "" {
+			logf.FromContext(ctx).Info("Skipping JetStream stream check because Account JWT is absent from NATS",
+				"name", reference.AccountRef.Name,
+				"namespace", reference.AccountRef.Namespace,
+				"accountID", accountID,
+				"natsClusterUID", cluster.UID)
+		} else {
+			streams, err := a.listAccountStreams(cluster, accountSecrets, accountID)
+			if err != nil {
+				return fmt.Errorf("failed to list account streams: %w", err)
+			}
+			if len(streams) > 0 {
+				return fmt.Errorf("account deletion aborted due to %d JetStream Stream(s) still exist for account: %s", len(streams), streams)
+			}
 		}
 	}
 
@@ -573,12 +593,6 @@ func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountRefe
 	if err != nil {
 		return fmt.Errorf("failed to sign account JWT: %w", err)
 	}
-
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
-	if err != nil {
-		return fmt.Errorf("failed to connect to NATS: %w", err)
-	}
-	defer sysConn.Disconnect()
 
 	err = sysConn.DeleteAccountJWT(deleteJwt)
 	if err != nil {

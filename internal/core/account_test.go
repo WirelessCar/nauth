@@ -1415,6 +1415,8 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 		Root: account.Root.Key,
 		Sign: account.Sign.Key,
 	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.mockLookupAccountJWT(account.AccountID(), "account-jwt").Once()
 
 	t.natsAccClientMock.mockConnectMatchingCreds(t.natsURL, func(userCreds domain.NatsUserCreds) bool {
 		if userCreds.AccountID == account.AccountID() {
@@ -1426,7 +1428,6 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	t.natsAccConnMock.mockListAccountStreams([]string{}).Once()
 	t.natsAccConnMock.mockDisconnect().Once()
 
-	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
 	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(jwt string) { caughtDeleteJWT = jwt }).Once()
 	t.natsSysConnMock.mockDisconnect().Once()
 	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, account.AccountID()).Once()
@@ -1481,6 +1482,56 @@ func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed_WhenAccountSecretsAr
 	// Then
 	t.Require().NoError(err)
 	t.Require().NotEmpty(caughtDeleteJWT, "expected deletion JWT to be published to NATS")
+}
+
+func (t *AccountManagerTestSuite) Test_Delete_ShouldSkipJetStreamCheck_WhenAccountJWTIsMissing() {
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	account := testutil.CreateNatsTestAccount()
+	var caughtDeleteJWT string
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, account.AccountID(), &Secrets{
+		Root: account.Root.Key,
+		Sign: account.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.mockLookupAccountJWT(account.AccountID(), "").Once()
+	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(value string) { caughtDeleteJWT = value }).Once()
+	t.natsSysConnMock.mockDisconnect().Once()
+	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, account.AccountID()).Once()
+
+	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(account.AccountID()),
+		ClusterTarget: t.clusterTarget,
+	})
+
+	t.Require().NoError(err)
+	t.Require().NotEmpty(caughtDeleteJWT, "expected deletion JWT to be published to NATS")
+	t.natsAccClientMock.AssertNotCalled(t.T(), "Connect", mock.Anything, mock.Anything)
+}
+
+func (t *AccountManagerTestSuite) Test_Delete_ShouldFail_WhenAccountJWTLookupFails() {
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	account := testutil.CreateNatsTestAccount()
+	lookupErr := fmt.Errorf("temporary lookup failure")
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, account.AccountID(), &Secrets{
+		Root: account.Root.Key,
+		Sign: account.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnect(t.natsURL, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.On("LookupAccountJWT", account.AccountID()).Return("", lookupErr).Once()
+	t.natsSysConnMock.mockDisconnect().Once()
+
+	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(account.AccountID()),
+		ClusterTarget: t.clusterTarget,
+	})
+
+	t.ErrorContains(err, "failed to look up account JWT before deletion: temporary lookup failure")
+	t.natsAccClientMock.AssertNotCalled(t.T(), "Connect", mock.Anything, mock.Anything)
+	t.natsSysConnMock.AssertNotCalled(t.T(), "DeleteAccountJWT", mock.Anything)
 }
 
 func (t *AccountManagerTestSuite) Test_signAccountJWT_ShouldFailWhenInvalidClaims() {
