@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"fmt"
 	"reflect"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -39,8 +40,10 @@ type UserSpec struct {
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
 	// ExpiresAt is an optional absolute time when the generated user JWT expires.
+	// It must be a valid RFC 3339 timestamp.
 	// +optional
-	ExpiresAt *metav1.Time `json:"expiresAt,omitempty"`
+	// +kubebuilder:validation:Pattern=`^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$`
+	ExpiresAt string `json:"expiresAt,omitempty"`
 	// +optional
 	Permissions *Permissions `json:"permissions,omitempty"`
 	// +optional
@@ -53,6 +56,20 @@ type UserSpec struct {
 	// at reconciliation time.
 	// +optional
 	SigningKeyRef *AccountSigningKeyRef `json:"signingKeyRef,omitempty"`
+}
+
+// ExpiresAtAsTime parses the optional expiration timestamp from its RFC 3339 representation.
+func (s UserSpec) ExpiresAtAsTime() (*time.Time, error) {
+	if s.ExpiresAt == "" {
+		return nil, nil
+	}
+
+	expiresAt, err := time.Parse(time.RFC3339, s.ExpiresAt)
+	if err != nil {
+		return nil, fmt.Errorf("spec.expiresAt %q must be a valid RFC 3339 timestamp: %w", s.ExpiresAt, err)
+	}
+
+	return &expiresAt, nil
 }
 
 type UserClaims struct {

@@ -35,11 +35,13 @@ func TestClaims(t *testing.T) {
 		t.Run(testCase.TestName, func(t *testing.T) {
 			spec, err := loadUserSpec(testCase.InputFile)
 			require.NoError(t, err)
+			expiresAt, err := spec.ExpiresAtAsTime()
+			require.NoError(t, err)
 
 			// Build NATS JWT UserClaims from UserSpec
 			natsClaims := newUserClaimsBuilder(userClaimsTestUserPubKey).
 				displayName(userClaimsTestDisplayName).
-				expires(toTimePtr(spec.ExpiresAt)).
+				expires(expiresAt).
 				permissions(toNAuthUserPermissions(spec.Permissions)).
 				userLimits(toNAuthUserLimits(spec.UserLimits)).
 				natsLimits(toNAuthNatsLimits(spec.NatsLimits)).

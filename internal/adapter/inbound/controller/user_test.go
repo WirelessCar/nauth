@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -117,6 +118,48 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFa
 
 	t.Len(t.fakeRecorder.Events, 1)
 	t.Contains(<-t.fakeRecorder.Events, errAccountNotFound.Error())
+}
+
+func (t *UserControllerTestSuite) Test_Create_ShouldRejectMalformedExpiresAt() {
+	// The field stays a string so typed User decoding cannot fail. The CRD pattern
+	// rejects malformed timestamp shapes at admission.
+	err := k8sClient.Create(t.ctx, &v1alpha1.User{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testutil.ScopedTestName("malformed-expires-at", t.T().Name()),
+			Namespace: t.namespace(),
+		},
+		Spec: v1alpha1.UserSpec{
+			ExpiresAt: "2026-10-13T08:00:00x5Z",
+		},
+	})
+	t.Require().Error(err)
+}
+
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldReportInvalidCalendarDateWithoutBreakingUserList() {
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	user.Spec.ExpiresAt = "2026-02-30T08:00:00Z"
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+
+	// The schema pattern checks timestamp shape; semantic date validation happens
+	// in Go. Keeping the API field string lets list decoding remain healthy until
+	// reconciliation reports the invalid value on this User.
+	users := &v1alpha1.UserList{}
+	t.Require().NoError(k8sClient.List(t.ctx, users, client.InNamespace(t.namespace())))
+	t.Len(users.Items, 1)
+	t.Equal("2026-02-30T08:00:00Z", users.Items[0].Spec.ExpiresAt)
+
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().Error(err)
+	t.Contains(err.Error(), "spec.expiresAt")
+	t.userManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	condition := meta.FindStatusCondition(user.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionFalse, condition.Status)
+	t.Equal(conditionReasonErrored, condition.Reason)
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenUserIsDeleted() {

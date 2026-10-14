@@ -56,7 +56,7 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldSucceed_WhenNewUser() {
 		},
 		Spec: v1alpha1.UserSpec{
 			AccountName: "my-account",
-			ExpiresAt:   &expiresAt,
+			ExpiresAt:   expiresAt.Format(time.RFC3339),
 		},
 	}
 	expiresAtTime := expiresAt.Time

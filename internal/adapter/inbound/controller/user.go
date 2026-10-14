@@ -23,7 +23,6 @@ import (
 	"os"
 	"reflect"
 	"sort"
-	"time"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -173,7 +172,12 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return r.reporter.error(ctx, user, err)
 	}
 
-	result, err := r.manager.CreateOrUpdate(ctx, toUserRequest(user, signingSecretRef, signingPublicKey))
+	request, err := toUserRequest(user, signingSecretRef, signingPublicKey)
+	if err != nil {
+		return r.reporter.error(ctx, user, err)
+	}
+
+	result, err := r.manager.CreateOrUpdate(ctx, request)
 	if err != nil {
 		return r.reporter.error(ctx, user, err)
 	}
@@ -226,10 +230,10 @@ func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName, signingPublicKey string) nauth.UserRequest {
-	var expiresAt *time.Time
-	if user.Spec.ExpiresAt != nil {
-		expiresAt = &user.Spec.ExpiresAt.Time
+func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName, signingPublicKey string) (nauth.UserRequest, error) {
+	expiresAt, err := user.Spec.ExpiresAtAsTime()
+	if err != nil {
+		return nauth.UserRequest{}, err
 	}
 	return nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName(user.Namespace, user.Name),
@@ -243,7 +247,7 @@ func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName,
 		Owner:                      user,
 		SigningPrivateKeySecretRef: signingSecretRef,
 		SigningPublicKey:           signingPublicKey,
-	}
+	}, nil
 }
 
 // resolveTrustedSigningKey walks the Account -> AccountSigningKey trust chain that
