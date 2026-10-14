@@ -79,6 +79,48 @@ type connection struct {
 	conn      *nats.Conn
 }
 
+func (n *connection) checkConnection() error {
+	if n.conn == nil {
+		return fmt.Errorf("NATS connection is not initialized")
+	}
+	if n.conn.IsConnected() {
+		return nil
+	}
+
+	status := n.conn.Status()
+	if cause := describeNATSConnectionError(n.conn.LastError()); cause != "" {
+		return fmt.Errorf("NATS connection is unavailable (status: %s; cause: %s)", status, cause)
+	}
+	return fmt.Errorf("NATS connection is unavailable (status: %s)", status)
+}
+
+func describeNATSConnectionError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	switch {
+	case errors.Is(err, nats.ErrAuthorization):
+		return "authentication failed: authorization violation"
+	case errors.Is(err, nats.ErrAuthExpired):
+		return "authentication expired"
+	case errors.Is(err, nats.ErrAuthRevoked):
+		return "authentication revoked"
+	case errors.Is(err, nats.ErrAccountAuthExpired):
+		return "account authentication expired"
+	case errors.Is(err, nats.ErrNoServers):
+		return "no NATS servers available"
+	case errors.Is(err, nats.ErrTimeout):
+		return "connection attempt timed out"
+	case errors.Is(err, nats.ErrConnectionClosed):
+		return "connection closed"
+	case errors.Is(err, nats.ErrConnectionReconnecting):
+		return "connection is reconnecting"
+	default:
+		return "connection failed"
+	}
+}
+
 func (n *connection) EnsureConnected() error {
 	if n.conn != nil && n.conn.IsConnected() {
 		return nil
@@ -101,8 +143,8 @@ func (n *connection) Disconnect() {
 }
 
 func (n *connection) VerifySystemAccountAccess() error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return err
 	}
 
 	_, err := n.conn.Request("$SYS.REQ.SERVER.PING", nil, natsMaxTimeout)
@@ -114,8 +156,8 @@ func (n *connection) VerifySystemAccountAccess() error {
 }
 
 func (n *connection) ListAccountStreams() ([]string, error) {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return nil, fmt.Errorf("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), natsMaxTimeout)
@@ -147,8 +189,8 @@ func (n *connection) ListAccountStreams() ([]string, error) {
 }
 
 func (n *connection) LookupAccountJWT(accountID string) (string, error) {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return "", fmt.Errorf("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return "", err
 	}
 
 	msg, err := n.conn.Request(fmt.Sprintf("$SYS.REQ.ACCOUNT.%s.CLAIMS.LOOKUP", accountID), nil, natsMaxTimeout)
@@ -168,8 +210,8 @@ func (n *connection) DeleteAccountJWT(jwt string) error {
 }
 
 func (n *connection) updateClaimsJWT(subject string, jwt string) error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return err
 	}
 
 	msg, err := n.conn.Request(subject, []byte(jwt), natsMaxTimeout)

@@ -18,8 +18,8 @@ type accountLoadRequest struct {
 }
 
 func (n *connection) RequestAccountLoad(accountID string) error {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return fmt.Errorf("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return err
 	}
 	if accountID == "" {
 		return fmt.Errorf("account ID is required")

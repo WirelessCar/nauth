@@ -77,8 +77,8 @@ func (e accountzError) String() string {
 }
 
 func (n *connection) LookupAccountState(accountID string) (domain.NatsAccountState, error) {
-	if n.conn == nil || !n.conn.IsConnected() {
-		return unknownAccountState("NATS connection is not established or lost")
+	if err := n.checkConnection(); err != nil {
+		return unknownAccountState(err.Error())
 	}
 	if accountID == "" {
 		return unknownAccountState("account ID is required")

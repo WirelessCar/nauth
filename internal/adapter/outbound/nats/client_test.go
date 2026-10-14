@@ -33,7 +33,7 @@ func TestConnection_RequestAccountLoad_ShouldPublishRequestWithoutResponse(t *te
 }
 
 func TestConnection_RequestAccountLoad_ShouldFail_WhenConnectionIsLost(t *testing.T) {
-	require.ErrorContains(t, (&connection{}).RequestAccountLoad("ACC123"), "NATS connection is not established or lost")
+	require.EqualError(t, (&connection{}).RequestAccountLoad("ACC123"), "NATS connection is not initialized")
 }
 
 func TestConnection_RequestAccountLoad_ShouldFail_WhenAccountIDIsEmpty(t *testing.T) {
@@ -115,6 +115,7 @@ func TestConnection_ListAccountStreams_ShouldFail_WhenConnectionIsLost(t *testin
 
 	names, err := conn.ListAccountStreams()
 	require.Error(t, err)
+	require.ErrorContains(t, err, "NATS connection is unavailable (status: CLOSED)")
 	require.Nil(t, names)
 }
 

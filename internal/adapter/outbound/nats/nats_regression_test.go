@@ -2,6 +2,7 @@ package nats
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -364,6 +365,51 @@ func TestConnection_LookupAccountState_ShouldReturnCompleteStateForValidImport(t
 	})
 }
 
+func TestAccountClient_ConnectToDeletedAccount_ShouldReportAuthorizationFailureOnStreamLookup(t *testing.T) {
+	op := newOperator(t)
+	account := newAccount(t, op, nil)
+	server, sysConn := runServerWithDeleteType(t, op, true)
+	require.NoError(t, applyAccountJWT(t, server, sysConn, account))
+
+	deleteClaim := jwt.NewGenericClaims(op.rootKey.PublicKey)
+	deleteClaim.Data["accounts"] = []string{account.key.PublicKey}
+	deleteJWT, err := deleteClaim.Encode(op.rootKey.Key)
+	require.NoError(t, err)
+	require.NoError(t, (&connection{conn: sysConn}).DeleteAccountJWT(deleteJWT))
+	accountJWT, err := (&connection{conn: sysConn}).LookupAccountJWT(account.key.PublicKey)
+	require.NoError(t, err)
+	require.Empty(t, accountJWT)
+	require.NoError(t, (&connection{conn: sysConn}).DeleteAccountJWT(deleteJWT))
+
+	userKey := testutil.CreateNatsTestUserKey()
+	userClaims := jwt.NewUserClaims(userKey.PublicKey)
+	userClaims.IssuerAccount = account.key.PublicKey
+	userClaims.Expires = time.Now().Add(30 * time.Second).Unix()
+	userClaims.Permissions = jwt.Permissions{
+		Pub: jwt.Permission{Allow: jwt.StringList{"$JS.API.>"}},
+		Sub: jwt.Permission{Allow: jwt.StringList{"_INBOX.>"}},
+	}
+	userJWT, err := userClaims.Encode(account.key.Key)
+	require.NoError(t, err)
+	userCredsBytes, err := jwt.FormatUserConfig(userJWT, userKey.Seed)
+	require.NoError(t, err)
+	userCreds, err := domain.NewNatsUserCreds(userCredsBytes)
+	require.NoError(t, err)
+	accountConn, err := NewAccountClient().Connect(server.ClientURL(), *userCreds)
+	require.NoError(t, err)
+	defer accountConn.Disconnect()
+	accountNatsConn := accountConn.(*connection)
+	require.Eventually(t, func() bool {
+		return errors.Is(accountNatsConn.conn.LastError(), nats.ErrAuthorization)
+	}, 5*time.Second, 10*time.Millisecond, "expected NATS to reject the temporary user's credentials")
+
+	names, err := accountConn.ListAccountStreams()
+	require.Nil(t, names)
+	require.ErrorContains(t, err, "NATS connection is unavailable (status:")
+	require.ErrorContains(t, err, "cause: authentication failed: authorization violation")
+	require.NotContains(t, err.Error(), server.ClientURL())
+}
+
 func TestConnection_LookupAccountState_ShouldReturnInvalidImportAfterExportIsRemoved(t *testing.T) {
 	op := newOperator(t)
 	exportAccountKey := testutil.CreateNatsTestAccountKey()
@@ -483,10 +529,18 @@ func newActivationToken(t *testing.T, exporterSignKey testutil.NatsTestAccountKe
 }
 
 func runServer(t *testing.T, operator operator) (*natsserver.Server, *nats.Conn) {
+	return runServerWithDeleteType(t, operator, false)
+}
+
+func runServerWithDeleteType(t *testing.T, operator operator, allowAccountDelete bool) (*natsserver.Server, *nats.Conn) {
 	t.Helper()
 
 	sysAcc := newAccount(t, operator, nil)
-	resolver, err := natsserver.NewDirAccResolver(t.TempDir(), 0, time.Minute, natsserver.NoDelete)
+	deleteType := natsserver.NoDelete
+	if allowAccountDelete {
+		deleteType = natsserver.HardDelete
+	}
+	resolver, err := natsserver.NewDirAccResolver(t.TempDir(), 0, time.Minute, deleteType)
 	require.NoError(t, err)
 	require.NoError(t, resolver.Store(sysAcc.key.PublicKey, sysAcc.jwt))
 
