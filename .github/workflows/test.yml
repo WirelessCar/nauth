@@ -16,14 +16,10 @@ name: Operator tests
 
 on:
   pull_request:
-    paths:
-      - 'api/**'
-      - 'dir/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'test/e2e-ctl/**'
-      - Dockerfile
-      - go.*
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
 
 jobs:
   test:

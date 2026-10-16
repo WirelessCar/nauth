@@ -1,0 +1,32 @@
+name: Pull Request Title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  validate-title:
+    name: Validate Conventional PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip title validation for merge group
+        if: github.event_name == 'merge_group'
+        run: echo "PR title was validated on the pull request before queue admission."
+
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          title_pattern='^[a-z][a-z0-9-]*(\([[:alnum:]._/-]+\))?!?: .+$'
+          if [[ "$PR_TITLE" =~ $title_pattern ]]; then
+            echo "PR title follows Conventional Commits syntax."
+          else
+            echo "::error::PR title must use Conventional Commits syntax, for example 'feat(api): add token validation'."
+            exit 1
+          fi

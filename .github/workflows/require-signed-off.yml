@@ -3,17 +3,30 @@ name: Require Signed-Off Commits
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   signed_off:
     name: Validate Signed-off Commits
     runs-on: ubuntu-latest
     steps:
+      - name: Skip DCO range check for merge group
+        if: github.event_name == 'merge_group'
+        run: echo "Contributor commits were checked on the pull request before queue admission."
+
       - name: Checkout repository
+        if: github.event_name == 'pull_request'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+
       - name: Enforce Signed-off-by
+        if: github.event_name == 'pull_request'
         uses: ./.github/actions/require-signed-off
         with:
           base_sha: ${{ github.event.pull_request.base.sha }}
