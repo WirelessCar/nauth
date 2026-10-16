@@ -30,11 +30,14 @@ git commit -s
 ```
 If you need to add your sign off to a commit you have already made, please see this [article](https://docs.github.com/en/desktop/contributing-and-collaborating-using-github-desktop/managing-commits/amending-a-commit).
 
+Every commit must include a verified signature and a DCO `Signed-off-by` trailer. Use `git commit -S -s` to sign and add the sign-off.
+
 ## Submitting a pull request
 
 1. [Fork][fork] and clone the repository.
 1. Create a new branch: `git checkout -b my-branch-name`.
 1. Make your change, add tests, and make sure the tests still pass.
+1. Use a Conventional Commit title for your pull request: `<type>: <description>` or `<type>(<scope>): <description>`, for example `feat(api): add token validation`. See [Conventional Commits](https://www.conventionalcommits.org/).
 1. Push to your fork and [submit a pull request][pr].
 1. Pat your self on the back and wait for your pull request to be reviewed and merged.
 
