@@ -12,25 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Go Version Sync
+name: Audit
 
 on:
   pull_request:
     paths:
+      - '.github/workflows/audit.yml'
+      - 'api/**'
+      - 'cmd/**'
+      - 'hack/**'
+      - 'internal/**'
+      - 'test/**'
       - Dockerfile
-      - go.mod
+      - go.*
       - mise.toml
-      - hack/verify-go-version-sync.sh
       - Makefile
 
 jobs:
-  verify-go-version-sync:
-    name: verify Go version sync
+  audit:
+    name: audit
     runs-on: ubuntu-latest
     steps:
       - name: Clone the code
         uses: actions/checkout@v6
 
-      - name: Verify Go versions are in sync
-        run: |
-          bash hack/verify-go-version-sync.sh
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+
+      - name: Audit
+        run: make audit

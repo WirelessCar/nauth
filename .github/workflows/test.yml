@@ -44,6 +44,4 @@ jobs:
           key: ${{ runner.os }}-envtest-cache
 
       - name: Running Tests
-        run: |
-          go mod tidy
-          make test
+        run: make test
