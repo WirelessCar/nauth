@@ -14,20 +14,14 @@ concurrency:
 
 jobs:
   add-pr-number:
-    if: github.event.workflow_run.event == 'pull_request' && vars.NAUTH_TITLE_BOT_APP_CLIENT_ID != ''
+    if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
-      - name: Create title-bot token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ vars.NAUTH_TITLE_BOT_APP_CLIENT_ID }}
-          private-key: ${{ secrets.NAUTH_TITLE_BOT_APP_PRIVATE_KEY }}
-          permission-pull-requests: write
-
       - name: Add PR number to title
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}

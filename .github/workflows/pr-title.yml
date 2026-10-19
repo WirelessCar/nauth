@@ -23,28 +23,13 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-          REQUIRE_PR_NUMBER_SUFFIX: ${{ vars.NAUTH_PR_NUMBER_SUFFIX_REQUIRED }}
         run: |
           set -euo pipefail
 
           base_title="$PR_TITLE"
-          if [[ "$REQUIRE_PR_NUMBER_SUFFIX" == "true" ]]; then
-            suffix=" (#${PR_NUMBER})"
-            if [[ "$PR_TITLE" != *"$suffix" ]]; then
-              echo "::error::PR title must end with the automatic PR-number suffix '$suffix'."
-              exit 1
-            fi
-
-            base_title="${PR_TITLE:0:${#PR_TITLE}-${#suffix}}"
-          fi
-
           title_pattern='^[a-z][a-z0-9-]*(\([[:alnum:]._/-]+\))?!?: .+$'
           if [[ "$base_title" =~ $title_pattern ]]; then
-            if [[ "$REQUIRE_PR_NUMBER_SUFFIX" == "true" ]]; then
-              echo "PR title follows Conventional Commits syntax and includes its PR number."
-            else
-              echo "PR title follows Conventional Commits syntax."
-            fi
+            echo "PR title follows Conventional Commits syntax."
           else
             echo "::error::PR title must use Conventional Commits syntax, for example 'feat(api): add token validation'."
             exit 1
