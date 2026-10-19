@@ -122,8 +122,12 @@ func (p *kubectlPortForward) Close() error {
 	p.cancel()
 
 	select {
-	case <-p.done:
-		return nil
+	case err := <-p.done:
+		if err != nil {
+			// The command was canceled above, so its exit error is expected.
+			return nil
+		}
+		return err
 	case <-time.After(2 * time.Second):
 		return fmt.Errorf("timed out stopping kubectl port-forward: %s", p.output.String())
 	}
