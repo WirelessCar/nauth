@@ -21,10 +21,14 @@ jobs:
       - name: Validate pull request title
         if: github.event_name == 'pull_request'
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
+
+          if [[ "$PR_TITLE" =~ [[:space:]]\(#[0-9]+\)$ ]]; then
+            echo "::error::Do not append a PR number to the title; GitHub adds it to the merge commit automatically."
+            exit 1
+          fi
 
           base_title="$PR_TITLE"
           title_pattern='^[a-z][a-z0-9-]*(\([[:alnum:]._/-]+\))?!?: .+$'
