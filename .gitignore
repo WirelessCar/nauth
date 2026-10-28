@@ -54,5 +54,8 @@ test/logs/
 # Git worktrees in repo root
 .worktrees/
 
+# Local plans and scratch files
+.scratch/
+
 # ignore empty file codex generates
 .codex
