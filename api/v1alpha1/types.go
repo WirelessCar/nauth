@@ -65,13 +65,10 @@ type TimeRange struct {
 
 type NatsLimits struct {
 	// +optional
-	// +kubebuilder:default=-1
 	Subs *int64 `json:"subs,omitempty"` // Max number of subscriptions
 	// +optional
-	// +kubebuilder:default=-1
 	Data *int64 `json:"data,omitempty"` // Max number of bytes
 	// +optional
-	// +kubebuilder:default=-1
 	Payload *int64 `json:"payload,omitempty"` // Max message payload
 }
 

@@ -1,0 +1,61 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-partial
+status:
+  conditions:
+    - type: NATSAccountComplete
+      status: "True"
+    - type: Ready
+      status: "True"
+  claims:
+    accountLimits:
+      conn: 5
+    natsLimits:
+      subs: 7
+    jetStreamLimits:
+      maxAckPending: 1000
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-jetstream-disabled
+status:
+  conditions:
+    - type: NATSAccountComplete
+      status: "True"
+    - type: Ready
+      status: "True"
+  claims:
+    jetStreamEnabled: false
+    jetStreamLimits:
+      streams: 5
+      consumer: 50
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: limits-partial
+    ref: partial_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: limits-jetstream-disabled
+    ref: jetstream_disabled_account
+assertAll:
+  - celExpr: size(partial_account.spec.accountLimits) == 1 && partial_account.spec.accountLimits.conn == 5
+  - celExpr: size(partial_account.spec.natsLimits) == 1 && partial_account.spec.natsLimits.subs == 7
+  - celExpr: size(partial_account.spec.jetStreamLimits) == 1 && partial_account.spec.jetStreamLimits.maxAckPending == 1000
+  - celExpr: size(partial_account.status.claims.accountLimits) == 1
+  - celExpr: size(partial_account.status.claims.natsLimits) == 1
+  - celExpr: '!has(partial_account.status.claims.jetStreamLimits.memMaxStreamBytes) && !has(partial_account.status.claims.jetStreamLimits.diskMaxStreamBytes)'
+  - celExpr: size(jetstream_disabled_account.spec.jetStreamLimits) == 2 && jetstream_disabled_account.spec.jetStreamLimits.streams == 5 && jetstream_disabled_account.spec.jetStreamLimits.consumer == 50
+  - celExpr: '!has(jetstream_disabled_account.status.claims.jetStreamLimits.memStorage) && !has(jetstream_disabled_account.status.claims.jetStreamLimits.diskStorage)'
+collectors:
+  - type: command
+    command: >-
+      kubectl get accounts.nauth.io -n $NAMESPACE
+      -o 'custom-columns=KIND:.kind,NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,REASON:.status.conditions[?(@.type=="Ready")].reason,MESSAGE:.status.conditions[?(@.type=="Ready")].message'
+  - type: events

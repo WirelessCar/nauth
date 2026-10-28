@@ -526,3 +526,150 @@ func normalizeClaimsForApproval(claims *jwt.AccountClaims) *jwt.AccountClaims {
 	result.ID = "TEST-JWT-ID-STATIC-FOR-APPROVAL-TESTS"
 	return result
 }
+
+func TestAccountClaimsUseJWTDefaultsAndPreserveExplicitLimits(t *testing.T) {
+	unlimited, conn, subs, ack := int64(-1), int64(5), int64(7), int64(1000)
+	wildcards, required := true, true
+	tests := []struct {
+		name            string
+		spec            TestAccountClaimsSpec
+		wantStreamBytes int64
+	}{
+		{
+			name: "sparse",
+			spec: TestAccountClaimsSpec{
+				AccountLimits:   &nauth.AccountLimits{Conn: &conn},
+				NatsLimits:      &nauth.NatsLimits{Subs: &subs},
+				JetStreamLimits: &nauth.JetStreamLimits{MaxAckPending: &ack, MaxBytesRequired: &required},
+			},
+		},
+		{
+			name:            "explicit_unlimited",
+			wantStreamBytes: -1,
+			spec: TestAccountClaimsSpec{
+				AccountLimits: &nauth.AccountLimits{
+					Conn: &conn, Imports: &unlimited, Exports: &unlimited, LeafNodeConn: &unlimited, WildcardExports: &wildcards,
+				},
+				NatsLimits: &nauth.NatsLimits{Subs: &subs, Data: &unlimited, Payload: &unlimited},
+				JetStreamLimits: &nauth.JetStreamLimits{
+					MemoryStorage: &unlimited, DiskStorage: &unlimited, Streams: &unlimited, Consumer: &unlimited,
+					MaxAckPending: &ack, MaxBytesRequired: &required,
+					MemoryMaxStreamBytes: &unlimited, DiskMaxStreamBytes: &unlimited,
+				},
+			},
+		},
+	}
+	want := jwt.OperatorLimits{
+		AccountLimits: jwt.AccountLimits{Conn: 5, Imports: -1, Exports: -1, LeafNodeConn: -1, WildcardExports: true},
+		NatsLimits:    jwt.NatsLimits{Subs: 7, Data: -1, Payload: -1},
+		JetStreamLimits: jwt.JetStreamLimits{
+			MemoryStorage: -1, DiskStorage: -1, Streams: -1, Consumer: -1, MaxAckPending: 1000,
+			MaxBytesRequired: true,
+		},
+	}
+	key := testutil.CreateNatsTestKeyFromSeed(testClaimsOperatorSeed)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, err := json.Marshal(tt.spec)
+			require.NoError(t, err)
+			claims, err := newAccountClaimsBuilder(testClaimsAccountPubKey, tt.spec.JetStreamEnabled).
+				accountLimits(tt.spec.AccountLimits).
+				natsLimits(tt.spec.NatsLimits).
+				jetStreamLimits(tt.spec.JetStreamLimits).
+				build()
+			require.NoError(t, err)
+			token, err := signAccountJWT(claims, key.Key)
+			require.NoError(t, err)
+			decoded, err := jwt.DecodeAccountClaims(token)
+			require.NoError(t, err)
+			expected := want
+			expected.MemoryMaxStreamBytes = tt.wantStreamBytes
+			expected.DiskMaxStreamBytes = tt.wantStreamBytes
+			require.Equal(t, expected, decoded.Limits)
+			after, err := json.Marshal(tt.spec)
+			require.NoError(t, err)
+			require.Equal(t, string(before), string(after), "claim defaults must not populate the input")
+		})
+	}
+}
+
+func TestAccountClaimsHonorExplicitAndOmittedLimits(t *testing.T) {
+	zero, unlimited, bytes := int64(0), int64(-1), int64(1024)
+	streams, consumers := int64(5), int64(50)
+	enabled, disabled := true, false
+	defaultJS := jwt.JetStreamLimits{
+		MemoryStorage: -1, DiskStorage: -1, Streams: -1, Consumer: -1, MaxAckPending: -1,
+	}
+	overridden := defaultJS
+	overridden.MemoryStorage, overridden.MemoryMaxStreamBytes, overridden.DiskMaxStreamBytes = 0, 0, 1024
+	disabledStorage := defaultJS
+	disabledStorage.MemoryStorage, disabledStorage.DiskStorage = 0, 0
+	tests := []struct {
+		name    string
+		enabled *bool
+		limits  *nauth.JetStreamLimits
+		want    jwt.JetStreamLimits
+		wantErr string
+	}{
+		{name: "legacy_unspecified_enablement", want: defaultJS},
+		{name: "enabled_without_object", enabled: &enabled, want: defaultJS},
+		{name: "legacy_empty_object", limits: &nauth.JetStreamLimits{}, want: defaultJS},
+		{name: "enabled_empty_object", enabled: &enabled, limits: &nauth.JetStreamLimits{}, want: defaultJS},
+		{
+			name: "explicit_zero_and_byte_limit", enabled: &enabled,
+			limits: &nauth.JetStreamLimits{
+				MemoryStorage: &zero, MemoryMaxStreamBytes: &zero, DiskMaxStreamBytes: &bytes, MaxBytesRequired: &disabled,
+			},
+			want: overridden,
+		},
+		{
+			name: "disabled_partial_non_storage_limits", enabled: &disabled,
+			limits: &nauth.JetStreamLimits{Streams: &streams, Consumer: &consumers},
+			want:   jwt.JetStreamLimits{Streams: 5, Consumer: 50},
+		},
+		{
+			name:   "legacy_explicit_disabled_storage",
+			limits: &nauth.JetStreamLimits{MemoryStorage: &zero, DiskStorage: &zero}, want: disabledStorage,
+		},
+		{
+			name: "enabled_conflicting_storage", enabled: &enabled,
+			limits: &nauth.JetStreamLimits{MemoryStorage: &zero, DiskStorage: &zero}, wantErr: "requested to be enabled",
+		},
+		{
+			name: "disabled_conflicting_unlimited_storage", enabled: &disabled,
+			limits: &nauth.JetStreamLimits{DiskStorage: &unlimited}, wantErr: "requested to be disabled",
+		},
+		{
+			name: "disabled_conflicting_positive_storage", enabled: &disabled,
+			limits: &nauth.JetStreamLimits{MemoryStorage: &bytes}, wantErr: "requested to be disabled",
+		},
+	}
+	key := testutil.CreateNatsTestKeyFromSeed(testClaimsOperatorSeed)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before, err := json.Marshal(tt.limits)
+			require.NoError(t, err)
+			claims, err := newAccountClaimsBuilder(testClaimsAccountPubKey, tt.enabled).
+				jetStreamLimits(tt.limits).
+				accountLimits(&nauth.AccountLimits{Conn: &zero, WildcardExports: &disabled}).
+				natsLimits(&nauth.NatsLimits{Subs: &zero, Data: &unlimited, Payload: &bytes}).
+				build()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Nil(t, claims)
+				return
+			}
+			require.NoError(t, err)
+			token, err := signAccountJWT(claims, key.Key)
+			require.NoError(t, err)
+			decoded, err := jwt.DecodeAccountClaims(token)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, decoded.Limits.JetStreamLimits)
+			require.Equal(t, jwt.AccountLimits{Imports: -1, Exports: -1, LeafNodeConn: -1}, decoded.Limits.AccountLimits)
+			require.Equal(t, jwt.NatsLimits{Subs: 0, Data: -1, Payload: 1024}, decoded.Limits.NatsLimits)
+			after, err := json.Marshal(tt.limits)
+			require.NoError(t, err)
+			require.Equal(t, string(before), string(after))
+		})
+	}
+}

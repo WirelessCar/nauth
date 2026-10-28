@@ -1,0 +1,28 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-partial
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  accountLimits:
+    conn: 5
+  natsLimits:
+    subs: 7
+  jetStreamEnabled: true
+  jetStreamLimits:
+    maxAckPending: 1000
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-jetstream-disabled
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats
+  jetStreamEnabled: false
+  jetStreamLimits:
+    streams: 5
+    consumer: 50

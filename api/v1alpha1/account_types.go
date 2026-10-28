@@ -263,46 +263,33 @@ type AccountAdoptionStatus struct {
 
 type JetStreamLimits struct {
 	// +optional
-	// +kubebuilder:default=-1
 	MemoryStorage *int64 `json:"memStorage,omitempty"` // Max number of bytes stored in memory across all streams. (0 means disabled)
 	// +optional
-	// +kubebuilder:default=-1
 	DiskStorage *int64 `json:"diskStorage,omitempty"` // Max number of bytes stored on disk across all streams. (0 means disabled)
 	// +optional
-	// +kubebuilder:default=-1
 	Streams *int64 `json:"streams,omitempty"` // Max number of streams
 	// +optional
-	// +kubebuilder:default=-1
 	Consumer *int64 `json:"consumer,omitempty"` // Max number of consumers
 	// +optional
-	// +kubebuilder:default=-1
 	MaxAckPending *int64 `json:"maxAckPending,omitempty"` // Max ack pending of a Stream
 	// +optional
-	// +kubebuilder:default=-1
 	MemoryMaxStreamBytes *int64 `json:"memMaxStreamBytes,omitempty"` // Max bytes a memory backed stream can have. (0 means disabled/unlimited)
 	// +optional
-	// +kubebuilder:default=-1
 	DiskMaxStreamBytes *int64 `json:"diskMaxStreamBytes,omitempty"` // Max bytes a disk backed stream can have. (0 means disabled/unlimited)
 	// +optional
-	// +kubebuilder:default=false
 	MaxBytesRequired *bool `json:"maxBytesRequired,omitempty"` // Max bytes required by all Streams
 }
 
 type AccountLimits struct {
 	// +optional
-	// +kubebuilder:default=-1
 	Imports *int64 `json:"imports,omitempty"` // Max number of imports
 	// +optional
-	// +kubebuilder:default=-1
 	Exports *int64 `json:"exports,omitempty"` // Max number of exports
 	// +optional
-	// +kubebuilder:default=true
 	WildcardExports *bool `json:"wildcards,omitempty"` // Are wildcards allowed in exports
 	// +optional
-	// +kubebuilder:default=-1
 	Conn *int64 `json:"conn,omitempty"` // Max number of active connections
 	// +optional
-	// +kubebuilder:default=-1
 	LeafNodeConn *int64 `json:"leaf,omitempty"` // Max number of active leaf node connections
 }
 

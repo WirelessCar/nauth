@@ -1,0 +1,8 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: limits-partial
+spec:
+  accountName: user-limits-account
+  natsLimits:
+    payload: 1024
