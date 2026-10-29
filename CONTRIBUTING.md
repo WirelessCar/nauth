@@ -105,39 +105,43 @@ The documentation website follows the current `main` branch. Mark release-sensit
 - `Since vX.Y.Z` when the feature is available from a published release.
 - `Unreleased` when the feature is documented on `main` before the next NAuth release.
 
-Before tagging a release, replace relevant `Unreleased` labels with `Since vX.Y.Z`.
+Before merging a stable release PR, replace relevant `Unreleased` labels with `Since vX.Y.Z`.
 
 ## Releasing
-Releases are tag-driven and use [SemVer](https://semver.org/). Release candidate tags use SemVer
-pre-release identifiers; the leading `v` is only the Git tag prefix and is stripped before publishing artifacts.
+NAuth uses Release Please for stable and release candidate releases. It creates a Release PR that updates
+`CHANGELOG.md` and `.release-please-manifest.json`. Release PRs are never auto-merged. A maintainer controls when to
+merge them and create a release.
 
-Release tags must use one of these formats:
-- stable release: `vX.Y.Z`, for example `v0.7.0`
-- release candidate: `vX.Y.Z-rc.N`, for example `v0.7.0-rc.1`
+While the release line is below `1.0.0`, breaking changes bump the minor version and every nonbreaking change bumps
+the patch version. This includes `feat`, `docs`, `chore`, `test`, and `ci` commits. Release Please is configured to
+include these commit types in release notes and to keep releases on the `0.x` line.
 
-Do not use `v0.7.0-rc-1`; use `v0.7.0-rc.1`.
+The `Release Please` workflow uses the repository's `GITHUB_TOKEN`. It watches `main` for stable releases and
+`release/*` branches for release candidates. The `Operator Release` workflow is called only after Release Please
+creates a release. It builds the operator image and both Helm charts from the release tag.
 
-1. If this release changes NAuth CRDs, regenerate them and update the external CRDs catalog:
-   ```bash
-   make manifests
-   mise nauth:update-crds-catalog ../CRDs-catalog
-   ```
-   See [Updating CRDs-catalog](./docs/crds-catalog.md). Open the catalog PR from that checkout; do not commit generated catalog files to this repository.
-2. Create and push a new release tag:
-   ```bash
-   git tag v0.7.0-rc.1
-   git push origin v0.7.0-rc.1
-   ```
-3. Create and publish the GitHub release from the GitHub UI.
+Before merging a stable release PR:
 
-The `Operator Release` workflow derives the release version from the tag (without the `v`) and uses it for:
-- operator image tags/labels
-- `charts/nauth/Chart.yaml` (`version` and `appVersion`) during packaging
-- `charts/nauth-crds/Chart.yaml` (`version`) during packaging
+- If the release changes NAuth CRDs, regenerate them and update the external CRDs catalog:
+  ```bash
+  make manifests
+  mise nauth:update-crds-catalog ../CRDs-catalog
+  ```
+  See [Updating CRDs-catalog](./docs/crds-catalog.md). Open the catalog PR from that checkout; do not commit generated catalog files to this repository.
+- Replace relevant `Unreleased` documentation labels with `Since vX.Y.Z`.
 
-Release candidates publish the same artifacts as stable releases. When creating an RC release in the GitHub UI:
-- mark it as a pre-release
-- do not mark it as the latest release
+Merging the Release PR creates the GitHub Release and tag. The `Operator Release` workflow publishes the operator image
+and both Helm charts using that version. The leading `v` is stripped before publishing artifacts.
+
+To prepare release candidates, create a branch from `main` named `release/X.Y.Z`, for example `release/0.7.9`.
+Release Please uses its prerelease configuration on that branch and creates Release PRs with SemVer prerelease versions
+such as `v0.7.9-rc.1`. Merge each Release PR manually to create its GitHub prerelease and publish its artifacts.
+To request a specific version, add a `Release-As: X.Y.Z-rc.N` footer to a commit on the release branch.
+Release tags use one of these formats:
+- stable release: `vX.Y.Z`, for example `v0.7.9`
+- release candidate: `vX.Y.Z-rc.N`, for example `v0.7.9-rc.1`
+
+Do not use `v0.7.9-rc-1`; use `v0.7.9-rc.1`.
 
 Install an RC explicitly:
 
@@ -145,20 +149,11 @@ Install an RC explicitly:
 helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
   --namespace nauth \
   --create-namespace \
-  --version 0.7.0-rc.1
+  --version 0.7.9-rc.1
 ```
 
-When promoting a tested RC line to a stable release, create the final stable tag:
-
-```bash
-git tag v0.7.0
-git push origin v0.7.0
-```
-
-Release notes are generated from the latest previous non-RC release tag. For example, if `v0.6.3` is the latest stable
-release and `v0.7.0-rc.1` plus `v0.7.0-rc.2` have been published, the final `v0.7.0` release notes start at `v0.6.3`,
-not at `v0.7.0-rc.2`. When using generated release notes in the GitHub UI, select the latest previous non-RC release tag
-as the previous tag before generating or publishing the notes.
+To promote a tested RC line to stable, merge its release branch into `main`. Then review and manually merge the stable
+Release PR that Release Please creates. Do not create tags or GitHub Releases by hand.
 
 ## Resources
 

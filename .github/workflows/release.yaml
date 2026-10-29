@@ -13,19 +13,24 @@
 # limitations under the License.
 
 name: Operator Release
-run-name: Release Operator ${{ github.ref_name }}
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Release tag created by Release Please
+        required: true
+        type: string
 env:
   RELEASE_TAG_REGEX: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$'
+  RELEASE_TAG: ${{ inputs.release_tag }}
 jobs:
   docker-build:
     name: Build & Push Operator
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Set up QEMU
@@ -38,11 +43,11 @@ jobs:
           password: ${{secrets.GITHUB_TOKEN}}
 
       - name: Validate release tag syntax
-        run: echo "${{ github.ref_name }}" | grep -E -e "$RELEASE_TAG_REGEX"
+        run: echo "$RELEASE_TAG" | grep -E -e "$RELEASE_TAG_REGEX"
       - name: Get Semantic Version
         id: semver
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="$RELEASE_TAG"
           echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
 
       - name: Docker meta
@@ -89,13 +94,15 @@ jobs:
         working-directory: charts/
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_tag }}
       - uses: azure/setup-helm@v5
       - name: Validate release tag syntax
-        run: echo "${{ github.ref_name }}" | grep -E -e "$RELEASE_TAG_REGEX"
+        run: echo "$RELEASE_TAG" | grep -E -e "$RELEASE_TAG_REGEX"
       - name: Get Semantic Version
         id: semver
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="$RELEASE_TAG"
           echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
       - name: Set chart versions from release tag
         run: |
