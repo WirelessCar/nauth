@@ -31,6 +31,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/ports/inbound"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
@@ -1755,4 +1756,77 @@ func (t *AccountControllerTestSuite) getAccountIDConfigMap() *corev1.ConfigMap {
 	cm := &corev1.ConfigMap{}
 	t.Require().NoError(k8sClient.Get(t.ctx, ktypes.NamespacedName{Namespace: t.accountNamespace, Name: t.accountName + "-ac-id"}, cm))
 	return cm
+}
+
+func TestAccountAPI_PreservesLimitFieldsAcrossWrites(t *testing.T) {
+	zero, unlimited, conn, subs, ack := int64(0), int64(-1), int64(5), int64(7), int64(1000)
+	disabled, required := false, true
+	tests := []struct {
+		name string
+		spec v1alpha1.AccountSpec
+	}{
+		{name: "omitted"},
+		{
+			name: "empty",
+			spec: v1alpha1.AccountSpec{
+				AccountLimits:   &v1alpha1.AccountLimits{},
+				NatsLimits:      &v1alpha1.NatsLimits{},
+				JetStreamLimits: &v1alpha1.JetStreamLimits{},
+			},
+		},
+		{
+			name: "partial",
+			spec: v1alpha1.AccountSpec{
+				AccountLimits:   &v1alpha1.AccountLimits{Conn: &conn},
+				NatsLimits:      &v1alpha1.NatsLimits{Subs: &subs},
+				JetStreamLimits: &v1alpha1.JetStreamLimits{MaxAckPending: &ack, MaxBytesRequired: &required},
+			},
+		},
+		{
+			name: "explicit_zero_false_and_unlimited",
+			spec: v1alpha1.AccountSpec{
+				AccountLimits: &v1alpha1.AccountLimits{Conn: &zero, Imports: &unlimited, WildcardExports: &disabled},
+				NatsLimits:    &v1alpha1.NatsLimits{Subs: &zero, Data: &unlimited},
+				JetStreamLimits: &v1alpha1.JetStreamLimits{
+					MemoryStorage: &zero, DiskStorage: &zero, Streams: &unlimited,
+					MemoryMaxStreamBytes: &zero, DiskMaxStreamBytes: &unlimited, MaxBytesRequired: &disabled,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			namespace := testutil.ScopedTestName("account-limits", t.Name())
+			require.NoError(t, ensureNamespace(ctx, namespace))
+			account := &v1alpha1.Account{
+				ObjectMeta: metav1.ObjectMeta{Name: "limits", Namespace: namespace},
+				Spec:       tt.spec,
+			}
+			want := account.DeepCopy()
+			require.NoError(t, k8sClient.Create(ctx, account))
+			key := client.ObjectKeyFromObject(account)
+			account = &v1alpha1.Account{}
+			require.NoError(t, k8sClient.Get(ctx, key, account))
+			require.Equal(t, want.Spec, account.Spec, "admission must preserve the authored spec")
+
+			account.Spec.DisplayName, want.Spec.DisplayName = "updated", "updated"
+			require.NoError(t, k8sClient.Update(ctx, account))
+			account = &v1alpha1.Account{}
+			require.NoError(t, k8sClient.Get(ctx, key, account))
+			require.Equal(t, want.Spec, account.Spec, "updates must not add limit defaults")
+
+			wantClaims := &v1alpha1.AccountClaims{
+				AccountLimits:   want.Spec.AccountLimits,
+				NatsLimits:      want.Spec.NatsLimits,
+				JetStreamLimits: want.Spec.JetStreamLimits,
+			}
+			account.Status.Claims = wantClaims.DeepCopy()
+			require.NoError(t, k8sClient.Status().Update(ctx, account))
+			account = &v1alpha1.Account{}
+			require.NoError(t, k8sClient.Get(ctx, key, account))
+			require.Equal(t, wantClaims, account.Status.Claims, "status must not gain limit defaults")
+			require.Equal(t, want.Spec, account.Spec, "status writes must preserve spec")
+		})
+	}
 }

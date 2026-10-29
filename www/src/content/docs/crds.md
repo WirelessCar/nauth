@@ -403,11 +403,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `imports` _integer_ |  | -1 |  |
-| `exports` _integer_ |  | -1 |  |
-| `wildcards` _boolean_ |  | true |  |
-| `conn` _integer_ |  | -1 |  |
-| `leaf` _integer_ |  | -1 |  |
+| `imports` _integer_ |  |  |  |
+| `exports` _integer_ |  |  |  |
+| `wildcards` _boolean_ |  |  |  |
+| `conn` _integer_ |  |  |  |
+| `leaf` _integer_ |  |  |  |
 
 
 #### AccountList
@@ -788,14 +788,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `memStorage` _integer_ |  | -1 |  |
-| `diskStorage` _integer_ |  | -1 |  |
-| `streams` _integer_ |  | -1 |  |
-| `consumer` _integer_ |  | -1 |  |
-| `maxAckPending` _integer_ |  | -1 |  |
-| `memMaxStreamBytes` _integer_ |  | -1 |  |
-| `diskMaxStreamBytes` _integer_ |  | -1 |  |
-| `maxBytesRequired` _boolean_ |  | false |  |
+| `memStorage` _integer_ |  |  |  |
+| `diskStorage` _integer_ |  |  |  |
+| `streams` _integer_ |  |  |  |
+| `consumer` _integer_ |  |  |  |
+| `maxAckPending` _integer_ |  |  |  |
+| `memMaxStreamBytes` _integer_ |  |  |  |
+| `diskMaxStreamBytes` _integer_ |  |  |  |
+| `maxBytesRequired` _boolean_ |  |  |  |
 
 
 #### NatsCluster
@@ -907,9 +907,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `subs` _integer_ |  | -1 |  |
-| `data` _integer_ |  | -1 |  |
-| `payload` _integer_ |  | -1 |  |
+| `subs` _integer_ |  |  |  |
+| `data` _integer_ |  |  |  |
+| `payload` _integer_ |  |  |  |
 
 
 #### Permission
@@ -1284,7 +1284,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `accountName` _string_ | AccountName references the account used to create the user. |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  |  |
-| `expiresAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ | ExpiresAt is an optional absolute time when the generated user JWT expires. |  |  |
+| `expiresAt` _string_ | ExpiresAt is an optional absolute time when the generated user JWT expires.<br />It must be a valid RFC 3339 timestamp. |  | Pattern: `^[0-9]\{4\}-(0[1-9]\|1[0-2])-(0[1-9]\|[12][0-9]\|3[01])T([01][0-9]\|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z\|[+-]([01][0-9]\|2[0-3]):[0-5][0-9])$` <br /> |
 | `permissions` _[Permissions](#permissions)_ |  |  |  |
 | `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
 | `natsLimits` _[NatsLimits](#natslimits)_ |  |  |  |

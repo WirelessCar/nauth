@@ -15,7 +15,6 @@ status:
       exports: 10
       imports: 10
       leaf: 0
-      wildcards: true
     exports:
       - name: export-test
         subject: foo.>

@@ -1,0 +1,29 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: limits-partial
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+  claims:
+    natsLimits:
+      payload: 1024
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: limits-partial
+    ref: partial_user
+assertAll:
+  - celExpr: size(partial_user.spec.natsLimits) == 1 && partial_user.spec.natsLimits.payload == 1024
+  - celExpr: size(partial_user.status.claims.natsLimits) == 1
+collectors:
+  - type: command
+    command: >-
+      kubectl get accounts.nauth.io,users.nauth.io -n $NAMESPACE
+      -o 'custom-columns=KIND:.kind,NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,REASON:.status.conditions[?(@.type=="Ready")].reason,MESSAGE:.status.conditions[?(@.type=="Ready")].message'
+  - type: events

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -290,4 +291,59 @@ func futureUserExpiresAt() v1.Time {
 		expiresAt = time.Date(now.Year()+1, time.December, 31, 23, 59, 59, 0, time.UTC)
 	}
 	return v1.NewTime(expiresAt)
+}
+
+func (t *UserManagerTestSuite) Test_Create_ShouldPreserveNatsLimitDefaultsAndOverrides() {
+	zero, unlimited, payload := int64(0), int64(-1), int64(1024)
+	tests := []struct {
+		name   string
+		limits *nauth.NatsLimits
+		want   jwt.NatsLimits
+	}{
+		{name: "omitted", want: jwt.NatsLimits{Subs: -1, Data: -1, Payload: -1}},
+		{name: "empty", limits: &nauth.NatsLimits{}, want: jwt.NatsLimits{Subs: -1, Data: -1, Payload: -1}},
+		{name: "partial", limits: &nauth.NatsLimits{Payload: &payload}, want: jwt.NatsLimits{Subs: -1, Data: -1, Payload: 1024}},
+		{
+			name:   "explicit_zero_and_unlimited",
+			limits: &nauth.NatsLimits{Subs: &zero, Data: &unlimited, Payload: &payload},
+			want:   jwt.NatsLimits{Subs: 0, Data: -1, Payload: 1024},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func() {
+			t.userJWTSignerMock.Mock, t.secretClientMock.Mock = mock.Mock{}, mock.Mock{}
+			defer t.userJWTSignerMock.AssertExpectations(t.T())
+			defer t.secretClientMock.AssertExpectations(t.T())
+			keys := testutil.NatsTestAccountA
+			accountRef := domain.NewNamespacedName("my-namespace", "my-account")
+			user := &v1alpha1.User{ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"}}
+			t.userJWTSignerMock.mockSignUserJWT(t.ctx, accountRef, func(claims *jwt.UserClaims) *SignedUserJWT {
+				claims.IssuerAccount = keys.AccountID()
+				token, err := claims.Encode(keys.Sign.Key)
+				t.Require().NoError(err)
+				return &SignedUserJWT{UserJWT: token, AccountID: keys.AccountID(), SignedBy: keys.Sign.PublicKey}
+			})
+			var credentials map[string]string
+			t.secretClientMock.mockApplyWithCatch(t.ctx, user, mock.Anything, mock.Anything, func(data map[string]string) {
+				credentials = data
+			})
+			before, err := json.Marshal(tt.limits)
+			t.Require().NoError(err)
+
+			_, err = t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+				UserRef: domain.NewNamespacedName("my-namespace", "my-user"), AccountRef: accountRef,
+				Owner: user, NatsLimits: tt.limits,
+			})
+
+			t.Require().NoError(err)
+			token, err := jwt.ParseDecoratedJWT([]byte(credentials["user.creds"]))
+			t.Require().NoError(err)
+			claims, err := jwt.DecodeUserClaims(token)
+			t.Require().NoError(err)
+			t.Equal(tt.want, claims.NatsLimits)
+			after, err := json.Marshal(tt.limits)
+			t.Require().NoError(err)
+			t.Equal(string(before), string(after))
+		})
+	}
 }

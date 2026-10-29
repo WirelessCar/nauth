@@ -10,6 +10,7 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/testutil"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	k8err "k8s.io/apimachinery/pkg/api/errors"
@@ -558,4 +559,51 @@ func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, request nauth.User
 		return nil, err
 	}
 	return &nauth.UserResult{}, nil
+}
+
+func TestUserAPI_PreservesLimitFieldsAcrossWrites(t *testing.T) {
+	zero, unlimited, payload := int64(0), int64(-1), int64(1024)
+	tests := []struct {
+		name   string
+		limits *v1alpha1.NatsLimits
+	}{
+		{name: "omitted"},
+		{name: "empty", limits: &v1alpha1.NatsLimits{}},
+		{name: "partial", limits: &v1alpha1.NatsLimits{Payload: &payload}},
+		{
+			name:   "explicit_zero_and_unlimited",
+			limits: &v1alpha1.NatsLimits{Subs: &zero, Data: &unlimited, Payload: &payload},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			namespace := testutil.ScopedTestName("user-limits", t.Name())
+			require.NoError(t, ensureNamespace(ctx, namespace))
+			user := &v1alpha1.User{
+				ObjectMeta: metav1.ObjectMeta{Name: "limits", Namespace: namespace},
+				Spec:       v1alpha1.UserSpec{AccountName: "unused-account", NatsLimits: tt.limits},
+			}
+			want := user.DeepCopy()
+			require.NoError(t, k8sClient.Create(ctx, user))
+			key := client.ObjectKeyFromObject(user)
+			user = &v1alpha1.User{}
+			require.NoError(t, k8sClient.Get(ctx, key, user))
+			require.Equal(t, want.Spec, user.Spec, "admission must preserve the authored spec")
+
+			user.Spec.DisplayName, want.Spec.DisplayName = "updated", "updated"
+			require.NoError(t, k8sClient.Update(ctx, user))
+			user = &v1alpha1.User{}
+			require.NoError(t, k8sClient.Get(ctx, key, user))
+			require.Equal(t, want.Spec, user.Spec, "updates must not add limit defaults")
+
+			wantClaims := &v1alpha1.UserClaims{NatsLimits: want.Spec.NatsLimits}
+			user.Status.Claims = *wantClaims.DeepCopy()
+			require.NoError(t, k8sClient.Status().Update(ctx, user))
+			user = &v1alpha1.User{}
+			require.NoError(t, k8sClient.Get(ctx, key, user))
+			require.Equal(t, *wantClaims, user.Status.Claims, "status must not gain limit defaults")
+			require.Equal(t, want.Spec, user.Spec, "status writes must preserve spec")
+		})
+	}
 }
