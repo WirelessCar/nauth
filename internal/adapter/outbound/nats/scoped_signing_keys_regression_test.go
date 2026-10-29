@@ -186,3 +186,123 @@ func TestScopedSigningKey_LargePermissionSetCanAuthenticateAndEnforcePermissions
 	_, err = sub.NextMsg(100 * time.Millisecond)
 	require.ErrorIs(t, err, nats.ErrTimeout)
 }
+
+// TestScopedSigningKey_PermissionUpdateReauthenticatesExistingConnections
+// verifies that changing a scoped signer permission in an uploaded Account JWT
+// takes effect for new connections and existing clients. NATS Server closes
+// connections authenticated with an altered signer scope; clients that
+// reconnect with the same User JWT receive the updated permissions.
+func TestScopedSigningKey_PermissionUpdateReauthenticatesExistingConnections(t *testing.T) {
+	const (
+		allowedSubject = "scoped.permissions.x"
+		removedSubject = "scoped.permissions.y"
+	)
+	operator := newOperator(t)
+	accountKey := testutil.CreateNatsTestAccountKey()
+	scopedSignerKey := testutil.CreateNatsTestAccountKey()
+	userKey := testutil.CreateNatsTestUserKey()
+
+	account := newAccountWithKey(t, operator, accountKey, func(_ string, claims *jwt.AccountClaims) {
+		scope := jwt.NewUserScope()
+		scope.Key = scopedSignerKey.PublicKey
+		scope.Template.Pub.Allow = jwt.StringList{allowedSubject, removedSubject}
+		claims.SigningKeys.AddScopedSigner(scope)
+	})
+
+	server, sysConn := runServer(t, operator)
+	require.NoError(t, applyAccountJWT(t, server, sysConn, account))
+
+	observerKey := testutil.CreateNatsTestUserKey()
+	observerClaims := jwt.NewUserClaims(observerKey.PublicKey)
+	observerClaims.IssuerAccount = account.key.PublicKey
+	observerClaims.Sub.Allow = jwt.StringList{"scoped.permissions.>"}
+	observerJWT, err := observerClaims.Encode(accountKey.Key)
+	require.NoError(t, err)
+	observerCreds, err := jwt.FormatUserConfig(observerJWT, observerKey.Seed)
+	require.NoError(t, err)
+	observerConn := connectWithUserCreds(t, server, observerCreds)
+	sub, err := observerConn.SubscribeSync("scoped.permissions.>")
+	require.NoError(t, err)
+	require.NoError(t, observerConn.Flush())
+
+	userClaims := jwt.NewUserClaims(userKey.PublicKey)
+	userClaims.IssuerAccount = account.key.PublicKey
+	userClaims.SetScoped(true)
+	userJWT, err := userClaims.Encode(scopedSignerKey.Key)
+	require.NoError(t, err)
+	userCreds, err := jwt.FormatUserConfig(userJWT, userKey.Seed)
+	require.NoError(t, err)
+
+	permissionErrors := make(chan error, 4)
+	reconnected := make(chan struct{}, 1)
+	existingConn, err := nats.Connect(server.ClientURL(),
+		nats.UserCredentialBytes(userCreds),
+		nats.ReconnectWait(10*time.Millisecond),
+		nats.ReconnectHandler(func(_ *nats.Conn) {
+			reconnected <- struct{}{}
+		}),
+		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
+			permissionErrors <- err
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(existingConn.Close)
+
+	assertPublishAllowed := func(conn *nats.Conn, subject string) {
+		t.Helper()
+		require.NoError(t, conn.Publish(subject, []byte("allowed")))
+		require.NoError(t, conn.Flush())
+		msg, err := sub.NextMsg(time.Second)
+		require.NoError(t, err)
+		require.Equal(t, subject, msg.Subject)
+		require.Equal(t, []byte("allowed"), msg.Data)
+	}
+	assertPublishDenied := func(conn *nats.Conn, errors <-chan error, subject string) {
+		t.Helper()
+		require.NoError(t, conn.Publish(subject, []byte("denied")))
+		require.NoError(t, conn.Flush())
+		select {
+		case err := <-errors:
+			require.ErrorContains(t, err, fmt.Sprintf(`Permissions Violation for Publish to %q`, subject))
+		case <-time.After(time.Second):
+			t.Fatalf("expected NATS Server to reject publish to %q", subject)
+		}
+		_, err := sub.NextMsg(100 * time.Millisecond)
+		require.ErrorIs(t, err, nats.ErrTimeout)
+	}
+
+	assertPublishAllowed(existingConn, allowedSubject)
+	assertPublishAllowed(existingConn, removedSubject)
+
+	updatedAccount := newAccountWithKey(t, operator, accountKey, func(_ string, claims *jwt.AccountClaims) {
+		scope := jwt.NewUserScope()
+		scope.Key = scopedSignerKey.PublicKey
+		scope.Template.Pub.Allow = jwt.StringList{allowedSubject}
+		claims.SigningKeys.AddScopedSigner(scope)
+	})
+	require.NoError(t, applyAccountJWT(t, server, sysConn, updatedAccount))
+
+	// A fresh connection immediately after the update sees the reduced scope.
+	freshPermissionErrors := make(chan error, 2)
+	freshConn, err := nats.Connect(server.ClientURL(),
+		nats.UserCredentialBytes(userCreds),
+		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
+			freshPermissionErrors <- err
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(freshConn.Close)
+
+	assertPublishAllowed(freshConn, allowedSubject)
+	assertPublishDenied(freshConn, freshPermissionErrors, removedSubject)
+
+	// The old TCP connection is closed by the server. The NATS client reconnects
+	// with the same credentials, which are checked against the new signer scope.
+	select {
+	case <-reconnected:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected existing NATS client to reconnect after the signer scope changed")
+	}
+	assertPublishAllowed(existingConn, allowedSubject)
+	assertPublishDenied(existingConn, permissionErrors, removedSubject)
+}
