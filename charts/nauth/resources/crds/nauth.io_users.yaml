@@ -342,6 +342,10 @@ spec:
               reconcileTimestamp:
                 format: date-time
                 type: string
+              userID:
+                description: UserID is the NATS public key for the reconciled User
+                  identity.
+                type: string
             type: object
         type: object
     served: true
