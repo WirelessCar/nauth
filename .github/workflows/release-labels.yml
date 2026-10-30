@@ -1,0 +1,29 @@
+name: Release Labels
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  group: release-labels-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label Breaking Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Read PR metadata through the API; execute only trusted base-branch code.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/label-breaking-change
+        with:
+          github-token: ${{ github.token }}

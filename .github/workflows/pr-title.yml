@@ -10,6 +10,21 @@ on:
 permissions: {}
 
 jobs:
+  test-labeler:
+    name: Test Breaking-change Labeler
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: node --check .github/actions/label-breaking-change/index.cjs
+      - run: node --test .github/actions/label-breaking-change/index.test.cjs
+
   validate-title:
     name: Validate Conventional PR Title
     runs-on: ubuntu-latest

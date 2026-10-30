@@ -64,6 +64,7 @@ See the [observe existing accounts guide](https://nauth.io/guides/observe-existi
 
 ## Contributing
 Contributions are welcome. Open an issue for bugs, ideas, or larger changes, and read the [CONTRIBUTING](./CONTRIBUTING.md) guide for local setup and PR guidance.
+Maintainers can find triage and release procedures in [MAINTENANCE.md](./MAINTENANCE.md).
 
 ### Community
 NAuth discussions happen in the project [Slack channel](https://natsio.slack.com/archives/C0AFYH76KPD)

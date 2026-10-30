@@ -1,0 +1,19 @@
+name: Label Breaking Change
+description: Maintain the breaking-change label from the PR title and all commit messages.
+
+inputs:
+  github-token:
+    description: GitHub token with pull-requests write permission.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v8
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const labelBreakingChange = require(`${process.env.ACTION_PATH}/index.cjs`);
+          await labelBreakingChange({ github, context, core });
