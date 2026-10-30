@@ -7,6 +7,8 @@ end-to-end suite.
 
 - mise (installs toolchain via `mise install`)
 - Docker (for building/loading images)
+- kubectl (for interacting with the local cluster)
+- make (for the `Makefile` targets)
 
 ## Quick start
 
@@ -24,23 +26,25 @@ the tests finish.
 
 ## Local dev stack
 
-To bring up a local Kind cluster with NATS, NAuth, and example scenarios:
+To bring up a local Kind cluster with NATS and NAuth:
 
 ```sh
 mise nauth:install
 ```
 
+This task recreates the default Kind cluster and installs NATS, NAuth, and a local operator fixture.
+Apply the [example scenarios](../examples/README.md) separately to create Accounts and Users.
 The task scripts live under `.mise-tasks/nauth` and can be run individually.
 
 ## Local overrides
 
-- `local/nats/values.yaml`: NATS chart overrides for the test environment.
-- `local/nauth/values.yaml`: NAuth chart overrides for the test environment.
+- `local/nats/values.yaml`: chart overrides for NATS in the test environment.
+- `local/nauth/values.yaml`: chart overrides for NAuth in the test environment.
 - `local/nauth/manifests/operator.yaml`: shared bootstrap manifests applied during setup, including `NatsCluster` (`local-nats`) and referenced secrets.
-- `local/prometheus/values.yaml`: Prometheus chart overrides (if used).
+- `local/prometheus/values.yaml`: chart overrides for Prometheus (if used).
 
 ## Cleanup
 
 ```sh
-kind delete kind
+kind delete cluster
 ```
