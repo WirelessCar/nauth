@@ -1,0 +1,10 @@
+changelog:
+  categories:
+    - title: Breaking Changes ⚠️
+      labels: [breaking-change]
+    - title: Deprecations
+      labels: [deprecation]
+      exclude:
+        labels: [breaking-change]
+    - title: Other Changes
+      labels: ["*"]
