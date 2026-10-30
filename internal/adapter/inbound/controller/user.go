@@ -183,7 +183,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// Apply result to User resource labels
-	user.SetLabel(v1alpha1.UserLabelUserID, result.UserPublicKey)
+	user.SetLabel(v1alpha1.UserLabelUserID, string(result.UserID))
 	user.SetLabel(v1alpha1.UserLabelAccountID, result.AccountID)
 	user.SetLabel(v1alpha1.UserLabelSignedBy, result.SignedBy)
 
