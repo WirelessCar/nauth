@@ -29,6 +29,7 @@ type AccountSigningKeyManager interface {
 
 type UserManager interface {
 	CreateOrUpdate(ctx context.Context, request nauth.UserRequest) (*nauth.UserResult, error)
+	ValidateIdentity(ctx context.Context, userRef domain.NamespacedName, expectedUserID nauth.UserID) error
 }
 
 type ClusterManager interface {
