@@ -22,7 +22,7 @@ jobs:
       # Read PR metadata through the API; execute only trusted base-branch code.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
       - uses: ./.github/actions/label-breaking-change
         with:
