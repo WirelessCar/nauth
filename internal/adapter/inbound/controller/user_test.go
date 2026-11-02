@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/WirelessCar/nauth/api/v1alpha1"
@@ -99,6 +101,61 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpd
 	t.NotEmpty(user.Status.UserID)
 	t.Equal(user.Status.UserID, user.GetLabel(v1alpha1.UserLabelUserID))
 	t.Empty(t.fakeRecorder.Events)
+}
+
+func (t *UserControllerTestSuite) Test_Create_ShouldKeepOmittedCredentialsSecretUnset() {
+	user := &v1alpha1.User{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      t.userNamespacedName.Name + "-default-key",
+			Namespace: t.userNamespacedName.Namespace,
+		},
+		Spec: v1alpha1.UserSpec{AccountName: "test-account"},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, user))
+
+	stored := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(user), stored))
+	t.Nil(stored.Spec.CredentialsSecret)
+}
+
+func (t *UserControllerTestSuite) Test_Create_ShouldAcceptCustomCredentialsSecretKey() {
+	user := &v1alpha1.User{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testutil.ScopedTestName("custom-key", t.T().Name()),
+			Namespace: t.userNamespacedName.Namespace,
+		},
+		Spec: v1alpha1.UserSpec{
+			AccountName: "test-account",
+			CredentialsSecret: &v1alpha1.UserCredentialsSecretSpec{
+				Key: "payments.user-creds",
+			},
+		},
+	}
+	t.Require().NoError(k8sClient.Create(t.ctx, user))
+
+	stored := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, client.ObjectKeyFromObject(user), stored))
+	t.Require().NotNil(stored.Spec.CredentialsSecret)
+	t.Equal("payments.user-creds", stored.Spec.CredentialsSecret.Key)
+}
+
+func (t *UserControllerTestSuite) Test_Create_ShouldRejectInvalidCredentialsSecretKey() {
+	invalidKeys := []string{"invalid/key", ".", "..backup", strings.Repeat("a", 254)}
+	for index, invalidKey := range invalidKeys {
+		t.Run(fmt.Sprintf("key_%d", index), func() {
+			user := &v1alpha1.User{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testutil.ScopedTestName(fmt.Sprintf("invalid-key-%d", index), t.T().Name()),
+					Namespace: t.userNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.UserSpec{
+					AccountName:       "test-account",
+					CredentialsSecret: &v1alpha1.UserCredentialsSecretSpec{Key: invalidKey},
+				},
+			}
+			t.Error(k8sClient.Create(t.ctx, user))
+		})
+	}
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldRestoreRemovedUserIDLabelFromManagerResult() {
@@ -761,4 +818,15 @@ func TestUserIDLabelChangedPredicate(t *testing.T) {
 	newUser = oldUser.DeepCopy()
 	newUser.SetLabel(v1alpha1.UserLabelSignedBy, "new-signer")
 	require.False(t, userIDLabelChangedPredicate().Update(event.UpdateEvent{ObjectOld: oldUser, ObjectNew: newUser}))
+}
+
+func TestToUserRequestPassesCredentialsSecretKey(t *testing.T) {
+	user := &v1alpha1.User{Spec: v1alpha1.UserSpec{
+		CredentialsSecret: &v1alpha1.UserCredentialsSecretSpec{Key: "payments.creds"},
+	}}
+
+	request, err := toUserRequest(user, nil, "")
+
+	require.NoError(t, err)
+	require.Equal(t, "payments.creds", request.CredentialsSecretKey)
 }
