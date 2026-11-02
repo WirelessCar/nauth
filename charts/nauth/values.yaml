@@ -87,6 +87,11 @@ serviceAccount:
   # -- Override the ServiceAccount name. Defaults to the generated full name when empty.
   nameOverride: ""
 
+# @schema type: [array, null]; item: object; itemProperties: {name: {type: string}}
+# -- Image pull secrets for the NAuth operator Pod, for example when the image is mirrored to a private registry.
+imagePullSecrets: []
+# - name: my-registry-secret
+
 # @schema type: [object, null]; additionalProperties: {type: string}
 # -- Annotations to add to the NAuth operator Pod.
 podAnnotations: {}
