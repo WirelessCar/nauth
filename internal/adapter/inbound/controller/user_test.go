@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -94,7 +96,134 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldSucceed_WhenCreatingOrUpd
 		t.Equal(conditionReasonReconciled, c.Reason)
 	}
 	t.Equal(t.operatorVersion, user.Status.OperatorVersion)
+	t.NotEmpty(user.Status.UserID)
+	t.Equal(user.Status.UserID, user.GetLabel(v1alpha1.UserLabelUserID))
 	t.Empty(t.fakeRecorder.Events)
+}
+
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldRestoreRemovedUserIDLabelFromManagerResult() {
+	// Given
+	originalUserID := testutil.CreateNatsTestUserKey().PublicKey
+	recoveredUserID := testutil.CreateNatsTestUserKey().PublicKey
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.Anything).
+		Return(nil, &nauth.UserResult{UserID: nauth.UserID(originalUserID)}).Once()
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
+	t.createSecret(t.userNamespacedName)
+
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	delete(user.Labels, string(v1alpha1.UserLabelUserID))
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.MatchedBy(func(request nauth.UserRequest) bool {
+		return request.ExpectedUserID == ""
+	})).Return(nil, &nauth.UserResult{UserID: nauth.UserID(recoveredUserID)}).Once()
+
+	// When
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+
+	// Then
+	t.Require().NoError(err)
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	t.Equal(recoveredUserID, user.GetLabel(v1alpha1.UserLabelUserID))
+	t.Equal(recoveredUserID, user.Status.UserID)
+	t.NotEqual(originalUserID, user.Status.UserID)
+}
+
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldPassBoundUserIDToManager() {
+	// Given
+	expectedUserID := testutil.CreateNatsTestUserKey().PublicKey
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	user.SetLabel(v1alpha1.UserLabelUserID, expectedUserID)
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+	t.createSecret(t.userNamespacedName)
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.MatchedBy(func(request nauth.UserRequest) bool {
+		return request.ExpectedUserID == nauth.UserID(expectedUserID)
+	})).Return(nil, &nauth.UserResult{UserID: nauth.UserID(expectedUserID)}).Once()
+
+	// When
+	_, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+
+	// Then
+	t.Require().NoError(err)
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	t.Equal(expectedUserID, user.Status.UserID)
+	t.Equal(expectedUserID, user.GetLabel(v1alpha1.UserLabelUserID))
+}
+
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldMarkNotReady_WhenStoredCredentialsDoNotMatchUserID() {
+	// Given
+	expectedUserID := testutil.CreateNatsTestUserKey().PublicKey
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	user.SetLabel(v1alpha1.UserLabelUserID, expectedUserID)
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+	t.createSecret(t.userNamespacedName)
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	user.Status.ObservedGeneration = user.Generation
+	user.Status.OperatorVersion = t.operatorVersion
+	t.Require().NoError(k8sClient.Status().Update(t.ctx, user))
+	t.userManagerMock.On("ValidateIdentity", mock.Anything,
+		domain.NewNamespacedName(t.namespace(), t.userNamespacedName.Name), nauth.UserID(expectedUserID)).
+		Return(domain.ErrUserIdentityNotReady.WithCause(errors.New("stored credentials do not match the bound User ID"))).Once()
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+
+	// Then
+	t.NoError(err)
+	t.Equal(requeueDependencyNotReady, result.RequeueAfter)
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	condition := meta.FindStatusCondition(user.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionFalse, condition.Status)
+	t.Equal(conditionReasonNotReady, condition.Reason)
+	t.userManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+
+	// When the owner restores matching credentials, validation should restore Ready without minting a new JWT.
+	t.userManagerMock.On("ValidateIdentity", mock.Anything,
+		domain.NewNamespacedName(t.namespace(), t.userNamespacedName.Name), nauth.UserID(expectedUserID)).
+		Return(nil).Once()
+	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+	t.Require().NoError(err)
+
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	condition = meta.FindStatusCondition(user.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionTrue, condition.Status)
+	t.Equal(conditionReasonReconciled, condition.Reason)
+	t.userManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate", mock.Anything, mock.Anything)
+}
+
+func (t *UserControllerTestSuite) Test_Reconcile_ShouldMarkNotReady_WhenBoundUserIDHasNoCredentialsSecret() {
+	// Given
+	expectedUserID := testutil.CreateNatsTestUserKey().PublicKey
+	user := &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	user.SetLabel(v1alpha1.UserLabelUserID, expectedUserID)
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+	t.userManagerMock.On("CreateOrUpdate", mock.Anything, mock.MatchedBy(func(request nauth.UserRequest) bool {
+		return request.ExpectedUserID == nauth.UserID(expectedUserID)
+	})).Return(domain.ErrUserIdentityNotReady.WithCause(errors.New("credentials are missing"))).Once()
+
+	// When
+	result, err := t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
+
+	// Then
+	t.NoError(err)
+	t.Equal(requeueDependencyNotReady, result.RequeueAfter)
+	user = &v1alpha1.User{}
+	t.Require().NoError(k8sClient.Get(t.ctx, t.userNamespacedName, user))
+	condition := meta.FindStatusCondition(user.Status.Conditions, conditionTypeReady)
+	t.Require().NotNil(condition)
+	t.Equal(metav1.ConditionFalse, condition.Status)
+	t.Equal(conditionReasonNotReady, condition.Reason)
 }
 
 func (t *UserControllerTestSuite) Test_Reconcile_ShouldFail_WhenCreateOrUpdateFailsBecauseNoAccountExists() {
@@ -209,6 +338,7 @@ func (t *UserControllerTestSuite) Test_Reconcile_ShouldRecreateSecret_WhenSecret
 	}
 	t.Require().NoError(k8sClient.Create(t.ctx, secret))
 
+	t.userManagerMock.On("ValidateIdentity", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
 	_, err = t.unitUnderTest.Reconcile(t.ctx, reconcile.Request{NamespacedName: t.userNamespacedName})
 	t.Require().NoError(err)
 	t.userManagerMock.AssertNotCalled(t.T(), "CreateOrUpdate")
@@ -280,11 +410,12 @@ func (t *UserControllerTestSuite) markUserReconciled(nn ktypes.NamespacedName, s
 	user := &v1alpha1.User{}
 	t.Require().NoError(k8sClient.Get(t.ctx, nn, user))
 
+	user.SetLabel(v1alpha1.UserLabelUserID, testutil.CreateNatsTestUserKey().PublicKey)
 	if signedBy != "" {
-		user.Labels = map[string]string{string(v1alpha1.UserLabelSignedBy): signedBy}
-		t.Require().NoError(k8sClient.Update(t.ctx, user))
-		t.Require().NoError(k8sClient.Get(t.ctx, nn, user))
+		user.SetLabel(v1alpha1.UserLabelSignedBy, signedBy)
 	}
+	t.Require().NoError(k8sClient.Update(t.ctx, user))
+	t.Require().NoError(k8sClient.Get(t.ctx, nn, user))
 
 	user.Status.ObservedGeneration = user.Generation
 	user.Status.OperatorVersion = t.operatorVersion
@@ -558,7 +689,18 @@ func (u *UserManagerMock) CreateOrUpdate(ctx context.Context, request nauth.User
 	if err := args.Error(0); err != nil {
 		return nil, err
 	}
-	return &nauth.UserResult{}, nil
+	if len(args) > 1 && args.Get(1) != nil {
+		return args.Get(1).(*nauth.UserResult), nil
+	}
+	userID := request.ExpectedUserID
+	if userID == "" {
+		userID = nauth.UserID(testutil.CreateNatsTestUserKey().PublicKey)
+	}
+	return &nauth.UserResult{UserID: userID}, nil
+}
+
+func (u *UserManagerMock) ValidateIdentity(ctx context.Context, userRef domain.NamespacedName, expectedUserID nauth.UserID) error {
+	return u.Called(ctx, userRef, expectedUserID).Error(0)
 }
 
 func TestUserAPI_PreservesLimitFieldsAcrossWrites(t *testing.T) {
@@ -606,4 +748,17 @@ func TestUserAPI_PreservesLimitFieldsAcrossWrites(t *testing.T) {
 			require.Equal(t, want.Spec, user.Spec, "status writes must preserve spec")
 		})
 	}
+}
+
+func TestUserIDLabelChangedPredicate(t *testing.T) {
+	oldUser := &v1alpha1.User{ObjectMeta: metav1.ObjectMeta{
+		Labels: map[string]string{string(v1alpha1.UserLabelUserID): "bound-user-id"},
+	}}
+	newUser := oldUser.DeepCopy()
+	delete(newUser.Labels, string(v1alpha1.UserLabelUserID))
+	require.True(t, userIDLabelChangedPredicate().Update(event.UpdateEvent{ObjectOld: oldUser, ObjectNew: newUser}))
+
+	newUser = oldUser.DeepCopy()
+	newUser.SetLabel(v1alpha1.UserLabelSignedBy, "new-signer")
+	require.False(t, userIDLabelChangedPredicate().Update(event.UpdateEvent{ObjectOld: oldUser, ObjectNew: newUser}))
 }

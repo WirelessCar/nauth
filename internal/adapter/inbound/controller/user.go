@@ -112,7 +112,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	operatorVersion := os.Getenv(envOperatorVersion)
 
-	// Missing secret means credentials are gone — force reconciling to recreate them regardless of generation.
+	// A missing Secret forces identity reconciliation regardless of generation.
 	secretMissing := false
 	if err := r.Get(ctx, client.ObjectKey{Name: user.GetUserSecretName(), Namespace: user.Namespace}, &corev1.Secret{}); err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -127,10 +127,23 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	// Nothing has changed
-	if !secretMissing &&
+	userIDMissing := user.GetLabel(v1alpha1.UserLabelUserID) == ""
+	nothingChanged := !secretMissing &&
 		!signingKeyStale &&
+		!userIDMissing &&
 		user.Status.ObservedGeneration == user.Generation &&
-		user.Status.OperatorVersion == operatorVersion {
+		user.Status.OperatorVersion == operatorVersion
+	if nothingChanged {
+		userRef := domain.NewNamespacedName(user.Namespace, user.Name)
+		if err := r.manager.ValidateIdentity(ctx, userRef, nauth.UserID(user.GetLabel(v1alpha1.UserLabelUserID))); err != nil {
+			if errors.Is(err, domain.ErrUserIdentityNotReady) {
+				return r.reportNotReady(ctx, user, err)
+			}
+			return r.reporter.error(ctx, user, err)
+		}
+		if readyCondition := meta.FindStatusCondition(user.Status.Conditions, conditionTypeReady); readyCondition == nil || readyCondition.Status != metav1.ConditionTrue {
+			return r.reporter.status(ctx, user)
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -158,16 +171,7 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	signingSecretRef, signingPublicKey, err := r.resolveSigningKeyRef(ctx, user)
 	if err != nil {
 		if errors.Is(err, errDependencyNotReady) {
-			meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
-				Type:    conditionTypeReady,
-				Status:  metav1.ConditionFalse,
-				Reason:  conditionReasonNotReady,
-				Message: err.Error(),
-			})
-			if updateErr := r.Status().Update(ctx, user); updateErr != nil {
-				return ctrl.Result{}, updateErr
-			}
-			return ctrl.Result{RequeueAfter: requeueDependencyNotReady}, nil
+			return r.reportNotReady(ctx, user, err)
 		}
 		return r.reporter.error(ctx, user, err)
 	}
@@ -179,15 +183,19 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	result, err := r.manager.CreateOrUpdate(ctx, request)
 	if err != nil {
+		if errors.Is(err, domain.ErrUserIdentityNotReady) {
+			return r.reportNotReady(ctx, user, err)
+		}
 		return r.reporter.error(ctx, user, err)
 	}
 
 	// Apply result to User resource labels
-	user.SetLabel(v1alpha1.UserLabelUserID, result.UserPublicKey)
+	user.SetLabel(v1alpha1.UserLabelUserID, string(result.UserID))
 	user.SetLabel(v1alpha1.UserLabelAccountID, result.AccountID)
 	user.SetLabel(v1alpha1.UserLabelSignedBy, result.SignedBy)
 
 	// UPDATE USER STATUS
+	user.Status.UserID = string(result.UserID)
 	user.Status.Claims = specToClaims(user.Spec)
 	user.Status.ObservedGeneration = user.Generation
 	user.Status.ReconcileTimestamp = metav1.Now()
@@ -212,9 +220,25 @@ func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	return r.reporter.status(ctx, user)
 }
 
+func (r *UserReconciler) reportNotReady(ctx context.Context, user *v1alpha1.User, err error) (ctrl.Result, error) {
+	meta.SetStatusCondition(&user.Status.Conditions, metav1.Condition{
+		Type:    conditionTypeReady,
+		Status:  metav1.ConditionFalse,
+		Reason:  conditionReasonNotReady,
+		Message: err.Error(),
+	})
+	if updateErr := r.Status().Update(ctx, user); updateErr != nil {
+		return ctrl.Result{}, updateErr
+	}
+	return ctrl.Result{RequeueAfter: requeueDependencyNotReady}, nil
+}
+
 func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.User{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		For(&v1alpha1.User{}, builder.WithPredicates(predicate.Or(
+			predicate.GenerationChangedPredicate{},
+			userIDLabelChangedPredicate(),
+		))).
 		Owns(&corev1.Secret{}).
 		Named("user").
 		WithOptions(controller.Options{
@@ -230,6 +254,16 @@ func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+func userIDLabelChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldUser, oldOK := e.ObjectOld.(*v1alpha1.User)
+			newUser, newOK := e.ObjectNew.(*v1alpha1.User)
+			return oldOK && newOK && oldUser.GetLabel(v1alpha1.UserLabelUserID) != newUser.GetLabel(v1alpha1.UserLabelUserID)
+		},
+	}
+}
+
 func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName, signingPublicKey string) (nauth.UserRequest, error) {
 	expiresAt, err := user.Spec.ExpiresAtAsTime()
 	if err != nil {
@@ -237,6 +271,7 @@ func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName,
 	}
 	return nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName(user.Namespace, user.Name),
+		ExpectedUserID:             nauth.UserID(user.GetLabel(v1alpha1.UserLabelUserID)),
 		AccountRef:                 domain.NewNamespacedName(user.Namespace, user.Spec.AccountName),
 		AccountID:                  nauth.AccountID(user.GetLabel(v1alpha1.UserLabelAccountID)),
 		DisplayName:                user.Spec.DisplayName,

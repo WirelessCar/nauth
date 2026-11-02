@@ -8,11 +8,15 @@ import (
 )
 
 type UserRef domain.NamespacedName
+type UserID string
 
 // UserRequest carries all inputs needed to reconcile a User resource.
 type UserRequest struct {
 	// UserRef identifies the User resource being reconciled.
 	UserRef domain.NamespacedName
+	// ExpectedUserID is the identity bound to the User by its controller label.
+	// When set, the persisted credentials must exist and derive to this ID.
+	ExpectedUserID UserID
 	// AccountRef references the Account resource this user belongs to.
 	AccountRef domain.NamespacedName
 	// AccountID is the NATS public key of the account (used as IssuerAccount in the JWT).
@@ -44,8 +48,9 @@ type UserRequest struct {
 
 // UserResult is returned by UserManager.CreateOrUpdate upon success.
 type UserResult struct {
-	// UserPublicKey is the freshly generated NATS user public key (JWT subject).
-	UserPublicKey string
+	// UserID is the NATS user public key (JWT subject) recovered from or created
+	// for the persisted credentials.
+	UserID UserID
 	// AccountID is the NATS account public key this user belongs to.
 	AccountID string
 	// SignedBy is the public key of the key that signed this user's JWT.

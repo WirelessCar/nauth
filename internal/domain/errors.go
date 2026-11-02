@@ -8,12 +8,13 @@ import (
 type Error string
 
 const (
-	ErrUnknownError      Error = "UnknownError"
-	ErrBadRequest        Error = "BadRequest"
-	ErrAccountNotFound   Error = "AccountNotFound"
-	ErrAccountNotReady   Error = "AccountNotReady"
-	ErrConfigMapNotFound Error = "ConfigMapNotFound"
-	ErrConfigMapConflict Error = "ConfigMapConflict"
+	ErrUnknownError         Error = "UnknownError"
+	ErrBadRequest           Error = "BadRequest"
+	ErrAccountNotFound      Error = "AccountNotFound"
+	ErrAccountNotReady      Error = "AccountNotReady"
+	ErrUserIdentityNotReady Error = "UserIdentityNotReady"
+	ErrConfigMapNotFound    Error = "ConfigMapNotFound"
+	ErrConfigMapConflict    Error = "ConfigMapConflict"
 )
 
 func (e Error) Error() string {

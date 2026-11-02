@@ -92,6 +92,9 @@ type UserClaims struct {
 
 // UserStatus defines the observed state of User.
 type UserStatus struct {
+	// UserID is the NATS public key for the reconciled User identity.
+	// +optional
+	UserID string `json:"userID,omitempty"`
 	// +listType=map
 	// +listMapKey=type
 	// +patchStrategy=merge
