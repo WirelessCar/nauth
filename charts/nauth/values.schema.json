@@ -82,6 +82,21 @@
       },
       "additionalProperties": false
     },
+    "imagePullSecrets": {
+      "description": "Image pull secrets for the NAuth operator Pod, for example when the image is mirrored to a private registry.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "livenessProbe": {
       "description": "Liveness probe for the NAuth operator container.",
       "type": [
