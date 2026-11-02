@@ -1,0 +1,35 @@
+apiVersion: nauth.io/v1alpha1
+kind: User
+metadata:
+  name: customized-user
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: User
+    name: customized-user
+    ref: customized_user
+  - apiVersion: v1
+    kind: Secret
+    name: customized-user-nats-user-creds
+    ref: customized_user_creds
+assertAll:
+  - celExpr: matches(customized_user.metadata.labels["user.nauth.io/id"], "^U.{55}$")
+  - celExpr: '"payments.creds" in customized_user_creds.data'
+  - celExpr: size(customized_user_creds.data) == 1
+commands:
+  - command: >-
+      e2e-ctl assert user-creds-secret --user customized-user
+      --secret customized-user-nats-user-creds --key payments.creds
+collectors:
+  - type: command
+    command: >-
+      kubectl get accounts.nauth.io,users.nauth.io -n $NAMESPACE
+      -o 'custom-columns=KIND:.kind,NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,REASON:.status.conditions[?(@.type=="Ready")].reason,MESSAGE:.status.conditions[?(@.type=="Ready")].message'
+  - type: events

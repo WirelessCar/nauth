@@ -50,6 +50,16 @@ spec:
                 description: AccountName references the account used to create the
                   user.
                 type: string
+              credentialsSecret:
+                description: CredentialsSecret configures this User's generated credentials
+                  Secret.
+                properties:
+                  key:
+                    description: Key is the data key used for this User's credentials.
+                    maxLength: 253
+                    pattern: ^($|[A-Za-z0-9_-][A-Za-z0-9._-]*|\.[A-Za-z0-9_-][A-Za-z0-9._-]*)$
+                    type: string
+                type: object
               displayName:
                 description: DisplayName is an optional name for the NATS resource
                   representing the user. May be derived if absent.

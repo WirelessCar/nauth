@@ -269,9 +269,14 @@ func toUserRequest(user *v1alpha1.User, signingSecretRef *domain.NamespacedName,
 	if err != nil {
 		return nauth.UserRequest{}, err
 	}
+	credentialsSecretKey := ""
+	if user.Spec.CredentialsSecret != nil {
+		credentialsSecretKey = user.Spec.CredentialsSecret.Key
+	}
 	return nauth.UserRequest{
 		UserRef:                    domain.NewNamespacedName(user.Namespace, user.Name),
 		ExpectedUserID:             nauth.UserID(user.GetLabel(v1alpha1.UserLabelUserID)),
+		CredentialsSecretKey:       credentialsSecretKey,
 		AccountRef:                 domain.NewNamespacedName(user.Namespace, user.Spec.AccountName),
 		AccountID:                  nauth.AccountID(user.GetLabel(v1alpha1.UserLabelAccountID)),
 		DisplayName:                user.Spec.DisplayName,

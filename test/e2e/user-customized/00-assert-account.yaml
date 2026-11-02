@@ -1,0 +1,10 @@
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: user-customized-account
+status:
+  conditions:
+    - type: NATSAccountComplete
+      status: "True"
+    - type: Ready
+      status: "True"

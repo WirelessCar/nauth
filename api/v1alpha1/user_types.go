@@ -36,6 +36,9 @@ const (
 type UserSpec struct {
 	// AccountName references the account used to create the user.
 	AccountName string `json:"accountName"`
+	// CredentialsSecret configures this User's generated credentials Secret.
+	// +optional
+	CredentialsSecret *UserCredentialsSecretSpec `json:"credentialsSecret,omitempty"`
 	// DisplayName is an optional name for the NATS resource representing the user. May be derived if absent.
 	// +optional
 	DisplayName string `json:"displayName,omitempty"`
@@ -56,6 +59,17 @@ type UserSpec struct {
 	// at reconciliation time.
 	// +optional
 	SigningKeyRef *AccountSigningKeyRef `json:"signingKeyRef,omitempty"`
+}
+
+// UserCredentialsSecretSpec configures the generated User credentials Secret.
+// NAuth names this Secret `<user>-nats-user-creds` in the same namespace as the User.
+// When the key is omitted or empty, the data key defaults to user.creds.
+type UserCredentialsSecretSpec struct {
+	// Key is the data key used for this User's credentials.
+	// +optional
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^($|[A-Za-z0-9_-][A-Za-z0-9._-]*|\.[A-Za-z0-9_-][A-Za-z0-9._-]*)$`
+	Key string `json:"key,omitempty"`
 }
 
 // ExpiresAtAsTime parses the optional expiration timestamp from its RFC 3339 representation.

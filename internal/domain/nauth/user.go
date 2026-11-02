@@ -17,6 +17,9 @@ type UserRequest struct {
 	// ExpectedUserID is the identity bound to the User by its controller label.
 	// When set, the persisted credentials must exist and derive to this ID.
 	ExpectedUserID UserID
+	// CredentialsSecretKey is the requested key for the generated credentials Secret.
+	// When empty, the default user.creds key is used.
+	CredentialsSecretKey string
 	// AccountRef references the Account resource this user belongs to.
 	AccountRef domain.NamespacedName
 	// AccountID is the NATS public key of the account (used as IssuerAccount in the JWT).

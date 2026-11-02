@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -12,6 +14,7 @@ import (
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 type SignedUserJWT struct {
@@ -23,6 +26,12 @@ type SignedUserJWT struct {
 type userIdentity struct {
 	userID nauth.UserID
 	seed   []byte
+	// userJWT is the JWT parsed from the persisted credentials file, used to compare claims.
+	userJWT string
+	// credentialsRaw preserves the full existing file for key-only changes with unchanged claims.
+	credentialsRaw string
+	// credentialKey is the Secret data key where the persisted file was found.
+	credentialKey string
 }
 
 // UserSigningRequest is the parameter to UserJWTSigner.SignUserJWT.
@@ -56,6 +65,10 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequ
 	}
 	if err := request.AccountRef.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid account reference %q: %w", request.AccountRef, err)
+	}
+	credentialsSecretKey, err := normalizeUserCredentialsSecretKey(request.CredentialsSecretKey)
+	if err != nil {
+		return nil, err
 	}
 
 	displayName := request.DisplayName
@@ -94,7 +107,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequ
 		}
 	}
 
-	identity, err := u.loadOrCreateUserIdentity(ctx, request)
+	identity, err := u.loadOrCreateUserIdentity(ctx, request, credentialsSecretKey)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +130,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequ
 		return nil, fmt.Errorf("failed to sign user jwt for %s/%s: %w", request.UserRef.Namespace, request.UserRef.Name, err)
 	}
 
-	userCreds, err := jwt.FormatUserConfig(signedUserJWT.UserJWT, identity.seed)
+	userCreds, err := userCredentialsForJWT(identity, credentialsSecretKey, signedUserJWT.UserJWT)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format user credentials: %w", err)
 	}
@@ -132,7 +145,7 @@ func (u *UserManager) CreateOrUpdate(ctx context.Context, request nauth.UserRequ
 		},
 	}
 	secretValue := map[string]string{
-		k8s.UserCredentialSecretKeyName: string(userCreds),
+		credentialsSecretKey: string(userCreds),
 	}
 	if err := u.secretClient.Apply(ctx, request.Owner, secretMeta, secretValue); err != nil {
 		return nil, err
@@ -152,7 +165,7 @@ func (u *UserManager) ValidateIdentity(ctx context.Context, userRef domain.Names
 	if err := userRef.Validate(); err != nil {
 		return fmt.Errorf("invalid user reference %q: %w", userRef, err)
 	}
-	identity, found, err := u.readUserIdentity(ctx, userRef)
+	identity, found, err := u.readUserIdentity(ctx, userRef, "")
 	if err != nil {
 		return err
 	}
@@ -162,8 +175,8 @@ func (u *UserManager) ValidateIdentity(ctx context.Context, userRef domain.Names
 	return validateUserIdentityID(userRef, identity, expectedUserID)
 }
 
-func (u *UserManager) loadOrCreateUserIdentity(ctx context.Context, request nauth.UserRequest) (userIdentity, error) {
-	identity, found, err := u.readUserIdentity(ctx, request.UserRef)
+func (u *UserManager) loadOrCreateUserIdentity(ctx context.Context, request nauth.UserRequest, credentialsSecretKey string) (userIdentity, error) {
+	identity, found, err := u.readUserIdentity(ctx, request.UserRef, credentialsSecretKey)
 	if err != nil {
 		return userIdentity{}, err
 	}
@@ -192,7 +205,7 @@ func (u *UserManager) loadOrCreateUserIdentity(ctx context.Context, request naut
 	return userIdentity{userID: nauth.UserID(userPublicKey), seed: userSeed}, nil
 }
 
-func (u *UserManager) readUserIdentity(ctx context.Context, userRef domain.NamespacedName) (userIdentity, bool, error) {
+func (u *UserManager) readUserIdentity(ctx context.Context, userRef domain.NamespacedName, preferredKey string) (userIdentity, bool, error) {
 	secretRef := userCredentialsSecretRef(userRef)
 	secretData, found, err := u.secretClient.Get(ctx, secretRef)
 	if err != nil {
@@ -202,9 +215,9 @@ func (u *UserManager) readUserIdentity(ctx context.Context, userRef domain.Names
 		return userIdentity{}, false, nil
 	}
 
-	userCreds, ok := secretData[k8s.UserCredentialSecretKeyName]
+	credentialKey, userCreds, ok := existingUserCredentials(secretData, preferredKey)
 	if !ok {
-		return userIdentity{}, true, domain.ErrUserIdentityNotReady.WithCause(fmt.Errorf("user credentials secret %q is missing key %q", secretRef, k8s.UserCredentialSecretKeyName))
+		return userIdentity{}, true, domain.ErrUserIdentityNotReady.WithCause(fmt.Errorf("user credentials secret %q has no unambiguous credential data key (preferred %q)", secretRef, preferredKey))
 	}
 
 	userJWT, err := jwt.ParseDecoratedJWT([]byte(userCreds))
@@ -230,7 +243,64 @@ func (u *UserManager) readUserIdentity(ctx context.Context, userRef domain.Names
 	if err != nil {
 		return userIdentity{}, true, domain.ErrUserIdentityNotReady.WithCause(fmt.Errorf("failed to get user seed from credentials secret %q: %w", secretRef, err))
 	}
-	return userIdentity{userID: nauth.UserID(userPublicKey), seed: userSeed}, true, nil
+	return userIdentity{
+		userID:         nauth.UserID(userPublicKey),
+		seed:           userSeed,
+		userJWT:        userJWT,
+		credentialsRaw: userCreds,
+		credentialKey:  credentialKey,
+	}, true, nil
+}
+
+func existingUserCredentials(secretData map[string]string, preferredKey string) (string, string, bool) {
+	if preferredKey != "" {
+		if credentials, ok := secretData[preferredKey]; ok {
+			return preferredKey, credentials, true
+		}
+	}
+	if credentials, ok := secretData[k8s.UserCredentialSecretKeyName]; ok {
+		return k8s.UserCredentialSecretKeyName, credentials, true
+	}
+	if len(secretData) == 1 {
+		for key, credentials := range secretData {
+			return key, credentials, true
+		}
+	}
+	return "", "", false
+}
+
+func normalizeUserCredentialsSecretKey(key string) (string, error) {
+	if key == "" {
+		return k8s.UserCredentialSecretKeyName, nil
+	}
+	if validationErrors := validation.IsConfigMapKey(key); len(validationErrors) > 0 {
+		return "", domain.ErrBadRequest.WithCause(fmt.Errorf("invalid User credentials Secret data key %q: %s", key, strings.Join(validationErrors, "; ")))
+	}
+	return key, nil
+}
+
+func userCredentialsForJWT(identity userIdentity, requestedKey, userJWT string) ([]byte, error) {
+	if identity.credentialsRaw != "" && identity.credentialKey != requestedKey && sameUserJWTClaims(identity.userJWT, userJWT) {
+		return []byte(identity.credentialsRaw), nil
+	}
+	return jwt.FormatUserConfig(userJWT, identity.seed)
+}
+
+func sameUserJWTClaims(existingJWT, desiredJWT string) bool {
+	existingClaims, err := jwt.DecodeUserClaims(existingJWT)
+	if err != nil {
+		return false
+	}
+	desiredClaims, err := jwt.DecodeUserClaims(desiredJWT)
+	if err != nil {
+		return false
+	}
+	// NATS changes these fields on every encode, even when desired claims are unchanged.
+	existingClaims.IssuedAt = 0
+	existingClaims.ID = ""
+	desiredClaims.IssuedAt = 0
+	desiredClaims.ID = ""
+	return reflect.DeepEqual(existingClaims, desiredClaims)
 }
 
 func userCredentialsSecretRef(userRef domain.NamespacedName) domain.NamespacedName {

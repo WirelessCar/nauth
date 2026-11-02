@@ -1230,6 +1230,24 @@ _Appears in:_
 | `userLimits` _[UserLimits](#userlimits)_ |  |  |  |
 
 
+#### UserCredentialsSecretSpec
+
+
+
+UserCredentialsSecretSpec configures the generated User credentials Secret.
+NAuth names this Secret `<user>-nats-user-creds` in the same namespace as the User.
+When the key is omitted or empty, the data key defaults to user.creds.
+
+
+
+_Appears in:_
+- [UserSpec](#userspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `key` _string_ | Key is the data key used for this User's credentials. |  | MaxLength: 253 <br />Pattern: `^($\|[A-Za-z0-9_-][A-Za-z0-9._-]*\|\.[A-Za-z0-9_-][A-Za-z0-9._-]*)$` <br /> |
+
+
 
 
 #### UserLimits
@@ -1283,6 +1301,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `accountName` _string_ | AccountName references the account used to create the user. |  |  |
+| `credentialsSecret` _[UserCredentialsSecretSpec](#usercredentialssecretspec)_ | CredentialsSecret configures this User's generated credentials Secret. |  |  |
 | `displayName` _string_ | DisplayName is an optional name for the NATS resource representing the user. May be derived if absent. |  |  |
 | `expiresAt` _string_ | ExpiresAt is an optional absolute time when the generated user JWT expires.<br />It must be a valid RFC 3339 timestamp. |  | Pattern: `^[0-9]\{4\}-(0[1-9]\|1[0-2])-(0[1-9]\|[12][0-9]\|3[01])T([01][0-9]\|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]+)?(Z\|[+-]([01][0-9]\|2[0-3]):[0-5][0-9])$` <br /> |
 | `permissions` _[Permissions](#permissions)_ |  |  |  |
@@ -1304,6 +1323,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `userID` _string_ | UserID is the NATS public key for the reconciled User identity. |  |  |
 | `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#condition-v1-meta) array_ |  |  |  |
 | `claims` _[UserClaims](#userclaims)_ |  |  |  |
 | `observedGeneration` _integer_ |  |  |  |

@@ -29,6 +29,7 @@ type assertUserCredsSecretOptions struct {
 	namespace  string
 	userName   string
 	secretName string
+	key        string
 	log        logger
 }
 
@@ -105,6 +106,7 @@ func newAssertUserCredsSecretCommand(ctx context.Context, log logger) *cobra.Com
 	cmd.Flags().StringVar(&opts.namespace, "namespace", "", "user namespace; defaults to KUTTL NAMESPACE")
 	cmd.Flags().StringVar(&opts.userName, "user", "", "user name")
 	cmd.Flags().StringVar(&opts.secretName, "secret", "", "user creds Secret name")
+	cmd.Flags().StringVar(&opts.key, "key", "user.creds", "user creds Secret data key")
 	mustMarkFlagRequired(cmd, "user")
 	mustMarkFlagRequired(cmd, "secret")
 	return cmd
@@ -182,8 +184,8 @@ func runAssertUserCredsSecret(ctx context.Context, opts assertUserCredsSecretOpt
 	if err != nil {
 		return err
 	}
-	if len(secret.Data["user.creds"]) == 0 {
-		return fmt.Errorf("secret %s/%s does not contain user.creds", namespace, opts.secretName)
+	if len(secret.Data[opts.key]) == 0 {
+		return fmt.Errorf("secret %s/%s does not contain %q", namespace, opts.secretName, opts.key)
 	}
 	secretType := secret.Labels["nauth.io/secret-type"]
 	if secretType != "user-creds" {

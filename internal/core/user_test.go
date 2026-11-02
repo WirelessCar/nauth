@@ -232,6 +232,199 @@ func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldReuseExistingUserCreden
 	t.verifySecret(accountKeys.Sign.PublicKey, accountKeys.AccountID(), existingUserKey.PublicKey, nil, caughtSecrets)
 }
 
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldWriteCredentialsUnderConfiguredKey() {
+	// Given
+	const credentialsKey = "payments.creds"
+	accountKeys := testutil.CreateNatsTestAccount()
+	user := &v1alpha1.User{ObjectMeta: v1.ObjectMeta{Name: "my-user", Namespace: "my-namespace"}}
+	userRef := domain.NewNamespacedName("my-namespace", "my-user")
+	t.secretClientMock.mockGetNotFound(domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"))
+	t.userJWTSignerMock.mockSignUserJWT(t.ctx, domain.NewNamespacedName("my-namespace", "my-account"), func(claims *jwt.UserClaims) *SignedUserJWT {
+		claims.IssuerAccount = accountKeys.AccountID()
+		token, err := claims.Encode(accountKeys.Sign.Key)
+		t.Require().NoError(err)
+		return &SignedUserJWT{UserJWT: token, AccountID: accountKeys.AccountID(), SignedBy: accountKeys.Sign.PublicKey}
+	})
+	var writtenData map[string]string
+	t.secretClientMock.mockApplyWithCatch(t.ctx, user, mock.Anything, mock.Anything, func(data map[string]string) {
+		writtenData = data
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+		UserRef:              userRef,
+		AccountRef:           domain.NewNamespacedName("my-namespace", "my-account"),
+		AccountID:            nauth.AccountID(accountKeys.AccountID()),
+		Owner:                user,
+		CredentialsSecretKey: credentialsKey,
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.NotNil(result)
+	t.Len(writtenData, 1)
+	t.Contains(writtenData, credentialsKey)
+	t.NotContains(writtenData, k8s.UserCredentialSecretKeyName)
+	t.NotEmpty(writtenData[credentialsKey])
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenCredentialsSecretKeyIsInvalid() {
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+		UserRef:              domain.NewNamespacedName("my-namespace", "my-user"),
+		AccountRef:           domain.NewNamespacedName("my-namespace", "my-account"),
+		CredentialsSecretKey: "invalid/key",
+	})
+
+	t.ErrorIs(err, domain.ErrBadRequest)
+	t.Nil(result)
+	t.secretClientMock.AssertNotCalled(t.T(), "Get", mock.Anything, mock.Anything)
+	t.secretClientMock.AssertNotCalled(t.T(), "Apply", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	t.userJWTSignerMock.AssertNotCalled(t.T(), "SignUserJWT", mock.Anything, mock.Anything)
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldPreserveCredentialsPayload_WhenRekeyingOnly() {
+	// Given
+	const oldKey = "legacy.creds"
+	const newKey = "payments.creds"
+	accountKeys := testutil.CreateNatsTestAccount()
+	existingUserKey := testutil.CreateNatsTestUserKey()
+	userRef := domain.NewNamespacedName("my-namespace", "my-user")
+	accountRef := domain.NewNamespacedName("my-namespace", "my-account")
+	claims := newUserClaimsBuilder(existingUserKey.PublicKey).
+		displayName("my-namespace/my-user").
+		issuerAccountID(accountKeys.AccountID()).
+		build()
+	existingJWT, err := claims.Encode(accountKeys.Sign.Key)
+	t.Require().NoError(err)
+	existingCredentials, err := jwt.FormatUserConfig(existingJWT, existingUserKey.Seed)
+	t.Require().NoError(err)
+	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"), map[string]string{
+		oldKey: string(existingCredentials),
+	})
+	t.userJWTSignerMock.mockSignUserJWT(t.ctx, accountRef, func(claims *jwt.UserClaims) *SignedUserJWT {
+		claims.IssuerAccount = accountKeys.AccountID()
+		token, encodeErr := claims.Encode(accountKeys.Sign.Key)
+		t.Require().NoError(encodeErr)
+		return &SignedUserJWT{UserJWT: token, AccountID: accountKeys.AccountID(), SignedBy: accountKeys.Sign.PublicKey}
+	})
+	var writtenData map[string]string
+	t.secretClientMock.mockApplyWithCatch(t.ctx, mock.Anything, mock.Anything, mock.Anything, func(data map[string]string) {
+		writtenData = data
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+		UserRef:              userRef,
+		ExpectedUserID:       nauth.UserID(existingUserKey.PublicKey),
+		AccountRef:           accountRef,
+		AccountID:            nauth.AccountID(accountKeys.AccountID()),
+		CredentialsSecretKey: newKey,
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Equal(nauth.UserID(existingUserKey.PublicKey), result.UserID)
+	t.Len(writtenData, 1)
+	t.Contains(writtenData, newKey)
+	t.NotContains(writtenData, oldKey)
+	t.Equal(string(existingCredentials), writtenData[newKey])
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldRefreshCredentials_WhenKeyIsUnchanged() {
+	// Given
+	accountKeys := testutil.CreateNatsTestAccount()
+	existingUserKey := testutil.CreateNatsTestUserKey()
+	userRef := domain.NewNamespacedName("my-namespace", "my-user")
+	accountRef := domain.NewNamespacedName("my-namespace", "my-account")
+	claims := newUserClaimsBuilder(existingUserKey.PublicKey).
+		displayName("my-namespace/my-user").
+		issuerAccountID(accountKeys.AccountID()).
+		build()
+	existingJWT, err := claims.Encode(accountKeys.Sign.Key)
+	t.Require().NoError(err)
+	existingCredentials, err := jwt.FormatUserConfig(existingJWT, existingUserKey.Seed)
+	t.Require().NoError(err)
+	for time.Now().UTC().Unix() == claims.IssuedAt {
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"), map[string]string{
+		k8s.UserCredentialSecretKeyName: string(existingCredentials),
+	})
+	t.userJWTSignerMock.mockSignUserJWT(t.ctx, accountRef, func(claims *jwt.UserClaims) *SignedUserJWT {
+		claims.IssuerAccount = accountKeys.AccountID()
+		token, encodeErr := claims.Encode(accountKeys.Sign.Key)
+		t.Require().NoError(encodeErr)
+		return &SignedUserJWT{UserJWT: token, AccountID: accountKeys.AccountID(), SignedBy: accountKeys.Sign.PublicKey}
+	})
+	var writtenData map[string]string
+	t.secretClientMock.mockApplyWithCatch(t.ctx, mock.Anything, mock.Anything, mock.Anything, func(data map[string]string) {
+		writtenData = data
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+		UserRef:        userRef,
+		ExpectedUserID: nauth.UserID(existingUserKey.PublicKey),
+		AccountRef:     accountRef,
+		AccountID:      nauth.AccountID(accountKeys.AccountID()),
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Equal(nauth.UserID(existingUserKey.PublicKey), result.UserID)
+	t.NotEqual(string(existingCredentials), writtenData[k8s.UserCredentialSecretKeyName])
+}
+
+func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldUpdateCredentials_WhenClaimsChangeAlongsideRekey() {
+	// Given
+	const newKey = "payments.creds"
+	accountKeys := testutil.CreateNatsTestAccount()
+	existingUserKey := testutil.CreateNatsTestUserKey()
+	userRef := domain.NewNamespacedName("my-namespace", "my-user")
+	accountRef := domain.NewNamespacedName("my-namespace", "my-account")
+	existingClaims := newUserClaimsBuilder(existingUserKey.PublicKey).
+		displayName("my-namespace/my-user").
+		issuerAccountID(accountKeys.AccountID()).
+		build()
+	existingJWT, err := existingClaims.Encode(accountKeys.Sign.Key)
+	t.Require().NoError(err)
+	existingCredentials, err := jwt.FormatUserConfig(existingJWT, existingUserKey.Seed)
+	t.Require().NoError(err)
+	t.secretClientMock.mockGet(t.ctx, domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds"), map[string]string{
+		"legacy.creds": string(existingCredentials),
+	})
+	t.userJWTSignerMock.mockSignUserJWT(t.ctx, accountRef, func(claims *jwt.UserClaims) *SignedUserJWT {
+		claims.IssuerAccount = accountKeys.AccountID()
+		token, encodeErr := claims.Encode(accountKeys.Sign.Key)
+		t.Require().NoError(encodeErr)
+		return &SignedUserJWT{UserJWT: token, AccountID: accountKeys.AccountID(), SignedBy: accountKeys.Sign.PublicKey}
+	})
+	var writtenData map[string]string
+	t.secretClientMock.mockApplyWithCatch(t.ctx, mock.Anything, mock.Anything, mock.Anything, func(data map[string]string) {
+		writtenData = data
+	})
+
+	// When
+	result, err := t.unitUnderTest.CreateOrUpdate(t.ctx, nauth.UserRequest{
+		UserRef:              userRef,
+		ExpectedUserID:       nauth.UserID(existingUserKey.PublicKey),
+		AccountRef:           accountRef,
+		AccountID:            nauth.AccountID(accountKeys.AccountID()),
+		DisplayName:          "updated-display-name",
+		CredentialsSecretKey: newKey,
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.Equal(nauth.UserID(existingUserKey.PublicKey), result.UserID)
+	t.NotEqual(string(existingCredentials), writtenData[newKey])
+	userJWT, err := jwt.ParseDecoratedJWT([]byte(writtenData[newKey]))
+	t.Require().NoError(err)
+	claims, err := jwt.DecodeUserClaims(userJWT)
+	t.Require().NoError(err)
+	t.Equal("updated-display-name", claims.Name)
+}
+
 func (t *UserManagerTestSuite) Test_CreateOrUpdate_ShouldFail_WhenExpectedUserIDHasNoCredentialsSecret() {
 	// Given
 	secretRef := domain.NewNamespacedName("my-namespace", "my-user-nats-user-creds")
