@@ -37,7 +37,7 @@ func (k *SecretClient) Apply(ctx context.Context, owner metav1.Object, meta meta
 		}
 		newSecret := &v1.Secret{
 			ObjectMeta: meta,
-			StringData: valueMap,
+			Data:       toSecretData(valueMap),
 		}
 		if owner != nil {
 			if err := controllerutil.SetControllerReference(owner, newSecret, k.client.Scheme()); err != nil {
@@ -54,7 +54,8 @@ func (k *SecretClient) Apply(ctx context.Context, owner metav1.Object, meta meta
 		}
 		maps.Insert(currentSecret.Labels, maps.All(meta.Labels))
 
-		currentSecret.StringData = valueMap
+		currentSecret.Data = toSecretData(valueMap)
+		currentSecret.StringData = nil
 		if owner != nil {
 			if err := controllerutil.SetControllerReference(owner, currentSecret, k.client.Scheme()); err != nil {
 				return fmt.Errorf("failed to set controller reference on existing secret: %w", err)
@@ -68,6 +69,14 @@ func (k *SecretClient) Apply(ctx context.Context, owner metav1.Object, meta meta
 	}
 
 	return nil
+}
+
+func toSecretData(valueMap map[string]string) map[string][]byte {
+	data := make(map[string][]byte, len(valueMap))
+	for key, value := range valueMap {
+		data[key] = []byte(value)
+	}
+	return data
 }
 
 func (k *SecretClient) Get(ctx context.Context, secretRef domain.NamespacedName) (map[string]string, bool, error) {

@@ -23,6 +23,7 @@ type SecretReader interface {
 
 type SecretClient interface {
 	SecretReader
+	// Apply writes the complete Secret data map, replacing any previously managed entries.
 	Apply(ctx context.Context, owner metav1.Object, meta metav1.ObjectMeta, valueMap map[string]string) error
 	Delete(ctx context.Context, secretRef domain.NamespacedName) error
 	DeleteByLabels(ctx context.Context, namespace domain.Namespace, labels map[string]string) error

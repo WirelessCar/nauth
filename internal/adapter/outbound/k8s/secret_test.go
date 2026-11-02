@@ -51,7 +51,7 @@ func (t *SecretClientTestSuite) TearDownTest() {
 
 func (t *SecretClientTestSuite) Test_Apply_ShouldSucceed_WhenCreatingAndUpdatingSecret() {
 	// Given
-	secret := map[string]string{"key": "value"}
+	secret := map[string]string{"old-key": "value"}
 
 	// When
 	err := t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, secret)
@@ -64,7 +64,7 @@ func (t *SecretClientTestSuite) Test_Apply_ShouldSucceed_WhenCreatingAndUpdating
 	t.True(found)
 	t.Equal(secret, fetchedSecret)
 
-	newSecret := map[string]string{"key": "new value"}
+	newSecret := map[string]string{"new-key": "new value"}
 	err = t.unitUnderTest.Apply(t.ctx, nil, t.secretMeta, newSecret)
 
 	t.NoError(err)
