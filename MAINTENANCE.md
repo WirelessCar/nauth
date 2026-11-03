@@ -8,6 +8,7 @@ This guide is the entry point for NAuth maintainers. When submitting changes, fo
 - [Issue triage](./docs/triage.md): assess community issues and apply triage labels.
 - [CRDs-catalog](./docs/crds-catalog.md): publish changed CRD schemas to the external catalog.
 - [Operator bootstrap](./operator-bootstrap/README.md): provision NATS operator credentials and rotate keys.
+- [Upgrading NAuth](./www/src/content/docs/guides/upgrading.mdx): publish user-facing migration steps for breaking releases.
 
 ## Release classification
 
@@ -51,6 +52,8 @@ The leading `v` is stripped before publishing artifacts.
 Before merging a stable release PR:
 
 - Review the proposed version, release notes, and migration guidance for breaking changes or deprecations.
+- Update the [Upgrading NAuth guide](./www/src/content/docs/guides/upgrading.mdx) with breaking-release migration steps,
+  including any required intermediate NAuth versions.
 - Confirm that breaking-change labels are correct and apply deprecation labels where appropriate.
   Resolve labeling failures and refresh the release PR after label changes.
 - If the release changes NAuth CRDs, regenerate them and update the external CRDs catalog:
