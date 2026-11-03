@@ -43,6 +43,7 @@ export default defineConfig({
 					label: "Guides",
 					items: [
 						{ label: "Getting Started", slug: "guides/getting-started" },
+						{ label: "Upgrading NAuth", slug: "guides/upgrading" },
 						{ label: "Observe Existing Accounts", slug: "guides/observe-existing-accounts" },
 						{ label: "Account Imports and Exports", slug: "guides/account-import-export" },
 						{ label: "Account Signing Keys", slug: "guides/account-signing-keys" },

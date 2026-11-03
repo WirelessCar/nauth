@@ -1,0 +1,80 @@
+---
+title: Upgrading NAuth
+description: Migration steps for breaking NAuth releases
+---
+
+NAuth is below `1.0.0`, so breaking changes increase the minor version. This guide records migration steps for
+breaking releases.
+
+## Upgrade paths
+
+Apply each migration section between your current version and the target version in ascending order. Complete its
+manual steps before upgrading to the release named in that section. `None specified` means the published migration
+instructions do not name an intermediate NAuth version; it is not a general direct-upgrade compatibility guarantee.
+
+| Migration release | Previous release line | Intermediate NAuth version required by release guidance |
+| --- | --- | --- |
+| `v0.2.0` | `v0.1.x` | None specified |
+| `v0.5.0` | `v0.4.x` | None specified |
+| `v0.7.0` | `v0.6.x` | None specified |
+
+For example, an upgrade from `v0.1.x` to `v0.7.x` crosses all three boundaries. Complete the `v0.2.0`, `v0.5.0`,
+and `v0.7.0` steps in order. The historical release guidance does not specify a general direct-upgrade
+compatibility matrix.
+
+## `v0.2.0` from `v0.1.x`
+
+Before upgrading to `v0.2.0`:
+
+1. Add the `nauth.io/secret-type` label to the operator signing-key Secret and system-account credentials Secret.
+   NAuth finds these Secrets by label in this release. Keep the secret data under the `default` key.
+
+   ```yaml
+   metadata:
+     labels:
+       nauth.io/secret-type: operator-sign
+   ```
+
+   ```yaml
+   metadata:
+     labels:
+       nauth.io/secret-type: system-account-user-creds
+   ```
+
+   NAuth-managed Account and User Secrets are labeled during reconciliation; they do not need a manual label
+   migration.
+
+2. For CRDs managed by the `nauth` Helm release, add Helm ownership metadata to the existing `accounts.nauth.io`
+   and `users.nauth.io` CRDs before upgrading. Use the actual Helm release name and namespace:
+
+   ```yaml
+   metadata:
+     annotations:
+       meta.helm.sh/release-name: REPLACE_WITH_HELM_RELEASE_NAME
+       meta.helm.sh/release-namespace: REPLACE_WITH_HELM_RELEASE_NAMESPACE
+     labels:
+       app.kubernetes.io/managed-by: Helm
+   ```
+
+The published `v0.2.0` migration instructions do not name an intermediate NAuth version.
+
+## `v0.5.0` from `v0.4.x`
+
+NAuth no longer populates `User.status.claims.accountName`; the field is deprecated. If a client needs the Account
+name associated with a User, read `User.spec.accountName`. No CRD data migration is required, and the field remains
+in the API for compatibility.
+
+The published `v0.5.0` migration instructions do not name an intermediate NAuth version.
+
+## `v0.7.0` from `v0.6.x`
+
+The implicit NATS configuration path using `NATS_URL` and label-based Secret lookup was removed. Move the URL into
+`NatsCluster.spec.url` (or `spec.urlFrom`) and reference the existing credential Secrets through
+`spec.operatorSigningKeySecretRef` and `spec.systemAccountUserCredsSecretRef`.
+
+For a single-cluster deployment, set the operator's `NATS_CLUSTER_REF` to `<namespace>/<name>`. For Account-specific
+clusters, set `spec.natsClusterRef` on each Account. When an operator-level reference should be a default that
+Accounts can override, set `NATS_CLUSTER_REF_OPTIONAL=true`.
+
+The [Getting Started guide](/guides/getting-started/) shows a complete `NatsCluster` and both reference patterns.
+The published `v0.7.0` migration instructions do not name an intermediate NAuth version.

@@ -51,6 +51,8 @@ out the [operator-bootstrap](./operator-bootstrap) utility which comes with NAut
 
 You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator and system account.
 
+For release migration steps, see the [Upgrading NAuth guide](https://nauth.io/guides/upgrading/).
+
 ## More on decentralized JWT Auth
 Check out this video for a comprehensive description on how decentralized JWT Auth works. In order to work with NAuth,
 it's important to have an understanding of how the basics work.
