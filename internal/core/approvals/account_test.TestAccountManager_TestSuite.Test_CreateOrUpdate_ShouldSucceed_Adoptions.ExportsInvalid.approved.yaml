@@ -20,14 +20,8 @@ Claims:
   - name: inline export
     subject: inline.foor.*
     type: stream
-  jetStreamEnabled: true
-  jetStreamLimits:
-    consumer: -1
-    diskStorage: -1
-    maxAckPending: -1
-    memStorage: -1
-    streams: -1
+  jetStreamEnabled: false
   signingKeys:
   - key: ADZUBQ2ZAWRNON6VNSZHGLOJ5SOYE6GY2YDBQV3I2ZBQIWWP5YBR3KWT
 State:
-  claimsHash: 9797433c8ecc1359a07789ca11c48ce1204acc8751b624a5dcfcb8dccf4cab6e
+  claimsHash: 4ef9f104308177bb9bcac084406b24ee4a4a21786b8b70e4070c76604764f5ed

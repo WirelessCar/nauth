@@ -32,6 +32,19 @@ status:
       streams: 5
       consumer: 50
 ---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-default-disabled
+status:
+  conditions:
+    - type: NATSAccountComplete
+      status: "True"
+    - type: Ready
+      status: "True"
+  claims:
+    jetStreamEnabled: false
+---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 timeout: 30
@@ -44,6 +57,10 @@ resourceRefs:
     kind: Account
     name: limits-jetstream-disabled
     ref: jetstream_disabled_account
+  - apiVersion: nauth.io/v1alpha1
+    kind: Account
+    name: limits-default-disabled
+    ref: default_disabled_account
 assertAll:
   - celExpr: size(partial_account.spec.accountLimits) == 1 && partial_account.spec.accountLimits.conn == 5
   - celExpr: size(partial_account.spec.natsLimits) == 1 && partial_account.spec.natsLimits.subs == 7
@@ -53,6 +70,8 @@ assertAll:
   - celExpr: '!has(partial_account.status.claims.jetStreamLimits.memMaxStreamBytes) && !has(partial_account.status.claims.jetStreamLimits.diskMaxStreamBytes)'
   - celExpr: size(jetstream_disabled_account.spec.jetStreamLimits) == 2 && jetstream_disabled_account.spec.jetStreamLimits.streams == 5 && jetstream_disabled_account.spec.jetStreamLimits.consumer == 50
   - celExpr: '!has(jetstream_disabled_account.status.claims.jetStreamLimits.memStorage) && !has(jetstream_disabled_account.status.claims.jetStreamLimits.diskStorage)'
+  - celExpr: '!has(default_disabled_account.spec.jetStreamEnabled) && !has(default_disabled_account.spec.jetStreamLimits)'
+  - celExpr: 'default_disabled_account.status.claims.jetStreamEnabled == false && !has(default_disabled_account.status.claims.jetStreamLimits)'
 collectors:
   - type: command
     command: >-

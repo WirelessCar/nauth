@@ -23,6 +23,7 @@ spec:
     - name: export-test
       subject: foo.>
       type: stream
+  jetStreamEnabled: true
   jetStreamLimits:
     consumer: 5
     diskMaxStreamBytes: 209715200

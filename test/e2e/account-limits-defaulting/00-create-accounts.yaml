@@ -26,3 +26,12 @@ spec:
   jetStreamLimits:
     streams: 5
     consumer: 50
+---
+apiVersion: nauth.io/v1alpha1
+kind: Account
+metadata:
+  name: limits-default-disabled
+spec:
+  natsClusterRef:
+    namespace: nats
+    name: local-nats

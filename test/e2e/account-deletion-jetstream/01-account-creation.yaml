@@ -6,5 +6,6 @@ spec:
   natsClusterRef:
     namespace: nats
     name: local-nats
+  jetStreamEnabled: true
   accountLimits:
     conn: 100

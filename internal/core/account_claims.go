@@ -21,9 +21,8 @@ func newAccountClaimsBuilder(
 	jetStreamEnabled *bool,
 ) *accountClaimsBuilder {
 	claim := jwt.NewAccountClaims(accountPublicKey)
-	if jetStreamEnabled == nil || *jetStreamEnabled {
-		// TODO: [#245] Switch to opt-in (enabled != nil && enabled) once we are ready to release a breaking change
-		// Initialize claims with unlimited JetStream (to comply with current NAuth behaviour, later this will be due to explicit request)
+	if jetStreamEnabled != nil && *jetStreamEnabled {
+		// ADR-7: Explicit enablement defaults omitted JetStream quotas to unlimited.
 		claim.Limits.DiskStorage = jwt.NoLimit
 		claim.Limits.MemoryStorage = jwt.NoLimit
 		claim.Limits.Streams = jwt.NoLimit
