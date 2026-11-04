@@ -71,23 +71,24 @@ Merge the release PR to create the GitHub Release and publish the operator image
 ### Release candidates
 
 Create a branch from `main` named `release/X.Y.Z`, for example `release/0.7.9`.
-Release Please uses its prerelease configuration on that branch and creates release PRs with SemVer prerelease
-versions such as `v0.7.9-rc.1`. Merge each release PR manually to create its GitHub prerelease and publish artifacts.
-To request a specific version, add a `Release-As: X.Y.Z-rc.N` footer to a commit on the release branch.
+Release Please's prerelease strategy generates the configured prerelease type without an ordinal for the initial
+candidate, such as `vX.Y.Z-rc`. Later release candidates increment the prerelease number, such as `vX.Y.Z-rc.1` and
+`vX.Y.Z-rc.2`. Release Please creates a release PR for each candidate; merge each PR to create its GitHub prerelease
+and publish artifacts. Use a `Release-As: X.Y.Z` commit footer only when intentionally overriding the version Release
+Please calculates.
 
 Release tags use these formats:
 
 - Stable: `vX.Y.Z`, for example `v0.7.9`.
-- Release candidate: `vX.Y.Z-rc.N`, for example `v0.7.9-rc.1`.
+- Release candidate: `vX.Y.Z-rc` for the initial candidate, followed by `vX.Y.Z-rc.N`, for example `v0.8.0-rc.1`.
 
-Do not use `v0.7.9-rc-1`; use `v0.7.9-rc.1`.
 Install an RC explicitly:
 
 ```sh
 helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
   --namespace nauth \
   --create-namespace \
-  --version 0.7.9-rc.1
+  --version 0.8.0-rc
 ```
 
 To promote a tested RC line to stable, merge its release branch into `main`.
