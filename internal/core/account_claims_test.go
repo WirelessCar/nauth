@@ -104,6 +104,22 @@ func Test_AccountClaims(t *testing.T) {
 	}
 }
 
+func TestAccountClaimsEnableJetStreamWithDiskStorageWhenEnablementIsOmitted(t *testing.T) {
+	diskStorage := int64(1000)
+	defaultLimits := jwt.NewAccountClaims(testClaimsAccountPubKey).Limits.JetStreamLimits
+	expectedLimits := defaultLimits
+	expectedLimits.DiskStorage = diskStorage
+
+	claims, err := newAccountClaimsBuilder(testClaimsAccountPubKey, nil).
+		jetStreamLimits(&nauth.JetStreamLimits{DiskStorage: &diskStorage}).
+		build()
+
+	require.NoError(t, err)
+	require.Equal(t, expectedLimits, claims.Limits.JetStreamLimits)
+	require.Zero(t, claims.Limits.MemoryStorage)
+	require.True(t, claims.Limits.IsJSEnabled())
+}
+
 func Test_AccountClaims_addExportGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
 	// Given
 	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
