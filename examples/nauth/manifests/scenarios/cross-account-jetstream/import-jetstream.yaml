@@ -38,6 +38,7 @@ spec:
     conn: 100
     exports: 100
     imports: 100
+  jetStreamEnabled: true
   jetStreamLimits:
     consumer: 50
     diskMaxStreamBytes: 209715200

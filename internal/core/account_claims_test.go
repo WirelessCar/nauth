@@ -104,6 +104,22 @@ func Test_AccountClaims(t *testing.T) {
 	}
 }
 
+func TestAccountClaimsEnableJetStreamWithDiskStorageWhenEnablementIsOmitted(t *testing.T) {
+	diskStorage := int64(1000)
+	defaultLimits := jwt.NewAccountClaims(testClaimsAccountPubKey).Limits.JetStreamLimits
+	expectedLimits := defaultLimits
+	expectedLimits.DiskStorage = diskStorage
+
+	claims, err := newAccountClaimsBuilder(testClaimsAccountPubKey, nil).
+		jetStreamLimits(&nauth.JetStreamLimits{DiskStorage: &diskStorage}).
+		build()
+
+	require.NoError(t, err)
+	require.Equal(t, expectedLimits, claims.Limits.JetStreamLimits)
+	require.Zero(t, claims.Limits.MemoryStorage)
+	require.True(t, claims.Limits.IsJSEnabled())
+}
+
 func Test_AccountClaims_addExportGroup_ShouldNotAlterExistingRulesOnConflict(t *testing.T) {
 	// Given
 	builder := newAccountClaimsBuilder(testClaimsAccountPubKey, nil)
@@ -530,13 +546,26 @@ func normalizeClaimsForApproval(claims *jwt.AccountClaims) *jwt.AccountClaims {
 func TestAccountClaimsUseJWTDefaultsAndPreserveExplicitLimits(t *testing.T) {
 	unlimited, conn, subs, ack := int64(-1), int64(5), int64(7), int64(1000)
 	wildcards, required := true, true
+	defaultJetStreamLimits := jwt.NewAccountClaims(testClaimsAccountPubKey).Limits.JetStreamLimits
+	defaultJetStreamLimits.MaxAckPending = ack
+	defaultJetStreamLimits.MaxBytesRequired = required
+	explicitUnlimitedJetStreamLimits := jwt.NewAccountClaims(testClaimsAccountPubKey).Limits.JetStreamLimits
+	explicitUnlimitedJetStreamLimits.MemoryStorage = unlimited
+	explicitUnlimitedJetStreamLimits.DiskStorage = unlimited
+	explicitUnlimitedJetStreamLimits.Streams = unlimited
+	explicitUnlimitedJetStreamLimits.Consumer = unlimited
+	explicitUnlimitedJetStreamLimits.MaxAckPending = ack
+	explicitUnlimitedJetStreamLimits.MaxBytesRequired = required
+	explicitUnlimitedJetStreamLimits.MemoryMaxStreamBytes = unlimited
+	explicitUnlimitedJetStreamLimits.DiskMaxStreamBytes = unlimited
 	tests := []struct {
-		name            string
-		spec            TestAccountClaimsSpec
-		wantStreamBytes int64
+		name                string
+		spec                TestAccountClaimsSpec
+		wantJetStreamLimits jwt.JetStreamLimits
 	}{
 		{
-			name: "sparse",
+			name:                "sparse",
+			wantJetStreamLimits: defaultJetStreamLimits,
 			spec: TestAccountClaimsSpec{
 				AccountLimits:   &nauth.AccountLimits{Conn: &conn},
 				NatsLimits:      &nauth.NatsLimits{Subs: &subs},
@@ -544,8 +573,8 @@ func TestAccountClaimsUseJWTDefaultsAndPreserveExplicitLimits(t *testing.T) {
 			},
 		},
 		{
-			name:            "explicit_unlimited",
-			wantStreamBytes: -1,
+			name:                "explicit_unlimited",
+			wantJetStreamLimits: explicitUnlimitedJetStreamLimits,
 			spec: TestAccountClaimsSpec{
 				AccountLimits: &nauth.AccountLimits{
 					Conn: &conn, Imports: &unlimited, Exports: &unlimited, LeafNodeConn: &unlimited, WildcardExports: &wildcards,
@@ -562,10 +591,6 @@ func TestAccountClaimsUseJWTDefaultsAndPreserveExplicitLimits(t *testing.T) {
 	want := jwt.OperatorLimits{
 		AccountLimits: jwt.AccountLimits{Conn: 5, Imports: -1, Exports: -1, LeafNodeConn: -1, WildcardExports: true},
 		NatsLimits:    jwt.NatsLimits{Subs: 7, Data: -1, Payload: -1},
-		JetStreamLimits: jwt.JetStreamLimits{
-			MemoryStorage: -1, DiskStorage: -1, Streams: -1, Consumer: -1, MaxAckPending: 1000,
-			MaxBytesRequired: true,
-		},
 	}
 	key := testutil.CreateNatsTestKeyFromSeed(testClaimsOperatorSeed)
 	for _, tt := range tests {
@@ -583,8 +608,7 @@ func TestAccountClaimsUseJWTDefaultsAndPreserveExplicitLimits(t *testing.T) {
 			decoded, err := jwt.DecodeAccountClaims(token)
 			require.NoError(t, err)
 			expected := want
-			expected.MemoryMaxStreamBytes = tt.wantStreamBytes
-			expected.DiskMaxStreamBytes = tt.wantStreamBytes
+			expected.JetStreamLimits = tt.wantJetStreamLimits
 			require.Equal(t, expected, decoded.Limits)
 			after, err := json.Marshal(tt.spec)
 			require.NoError(t, err)
@@ -597,13 +621,16 @@ func TestAccountClaimsHonorExplicitAndOmittedLimits(t *testing.T) {
 	zero, unlimited, bytes := int64(0), int64(-1), int64(1024)
 	streams, consumers := int64(5), int64(50)
 	enabled, disabled := true, false
-	defaultJS := jwt.JetStreamLimits{
-		MemoryStorage: -1, DiskStorage: -1, Streams: -1, Consumer: -1, MaxAckPending: -1,
+	defaultJS := jwt.NewAccountClaims(testClaimsAccountPubKey).Limits.JetStreamLimits
+	enabledJS := jwt.JetStreamLimits{
+		MemoryStorage: jwt.NoLimit, DiskStorage: jwt.NoLimit, Streams: jwt.NoLimit,
+		Consumer: jwt.NoLimit, MaxAckPending: jwt.NoLimit,
+		MemoryMaxStreamBytes: 0, DiskMaxStreamBytes: 0, MaxBytesRequired: false,
 	}
-	overridden := defaultJS
+	overridden := enabledJS
 	overridden.MemoryStorage, overridden.MemoryMaxStreamBytes, overridden.DiskMaxStreamBytes = 0, 0, 1024
-	disabledStorage := defaultJS
-	disabledStorage.MemoryStorage, disabledStorage.DiskStorage = 0, 0
+	storageEnabled := defaultJS
+	storageEnabled.MemoryStorage = bytes
 	tests := []struct {
 		name    string
 		enabled *bool
@@ -611,10 +638,15 @@ func TestAccountClaimsHonorExplicitAndOmittedLimits(t *testing.T) {
 		want    jwt.JetStreamLimits
 		wantErr string
 	}{
-		{name: "legacy_unspecified_enablement", want: defaultJS},
-		{name: "enabled_without_object", enabled: &enabled, want: defaultJS},
-		{name: "legacy_empty_object", limits: &nauth.JetStreamLimits{}, want: defaultJS},
-		{name: "enabled_empty_object", enabled: &enabled, limits: &nauth.JetStreamLimits{}, want: defaultJS},
+		{name: "unspecified_enablement_uses_jwt_defaults", want: defaultJS},
+		{name: "explicit_enablement_without_object", enabled: &enabled, want: enabledJS},
+		{name: "empty_limits_use_jwt_defaults", limits: &nauth.JetStreamLimits{}, want: defaultJS},
+		{name: "explicit_enablement_with_empty_limits", enabled: &enabled, limits: &nauth.JetStreamLimits{}, want: enabledJS},
+		{
+			name:   "explicit_storage_limit_implies_enablement",
+			limits: &nauth.JetStreamLimits{MemoryStorage: &bytes},
+			want:   storageEnabled,
+		},
 		{
 			name: "explicit_zero_and_byte_limit", enabled: &enabled,
 			limits: &nauth.JetStreamLimits{
@@ -628,8 +660,8 @@ func TestAccountClaimsHonorExplicitAndOmittedLimits(t *testing.T) {
 			want:   jwt.JetStreamLimits{Streams: 5, Consumer: 50},
 		},
 		{
-			name:   "legacy_explicit_disabled_storage",
-			limits: &nauth.JetStreamLimits{MemoryStorage: &zero, DiskStorage: &zero}, want: disabledStorage,
+			name:   "explicit_disabled_storage_uses_jwt_defaults",
+			limits: &nauth.JetStreamLimits{MemoryStorage: &zero, DiskStorage: &zero}, want: defaultJS,
 		},
 		{
 			name: "enabled_conflicting_storage", enabled: &enabled,

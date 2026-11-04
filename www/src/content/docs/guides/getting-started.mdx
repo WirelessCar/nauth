@@ -106,6 +106,21 @@ You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a th
 
 NAuth's main workflow is to declare NATS accounts and users as Kubernetes resources. The controller creates the NATS account JWT, keeps it updated from `Account.spec`, and creates user credentials for each `User`.
 
+### JetStream
+
+JetStream is disabled by default. Set `jetStreamEnabled: true` to enable it;
+without explicit `jetStreamLimits`, the account's quotas are unlimited. Set
+limits to cap usage. If `jetStreamEnabled` is omitted, positive or unlimited
+memory or disk storage limits also imply enablement.
+
+```yaml
+spec:
+  jetStreamEnabled: true
+```
+
+Set memory and disk storage limits when the account should have a specific
+quota.
+
 Create an account:
 
 ```yaml

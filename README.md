@@ -50,6 +50,8 @@ Running a large NATS cluster requires that the operator is secured properly. If 
 out the [operator-bootstrap](./operator-bootstrap) utility which comes with NAuth.
 
 You can also use [`nsc`](https://github.com/nats-io/nsc) directly to create a throw-away operator and system account.
+For creating Accounts and Users and configuring JetStream, see the
+[Getting Started guide](https://nauth.io/guides/getting-started/).
 
 For release migration steps, see the [Upgrading NAuth guide](https://nauth.io/guides/upgrading/).
 

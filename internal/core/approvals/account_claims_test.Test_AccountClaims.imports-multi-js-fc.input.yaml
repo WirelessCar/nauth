@@ -1,3 +1,4 @@
+jetStreamEnabled: true
 imports:
   - name: account-a-fc
     accountID: ACCA
