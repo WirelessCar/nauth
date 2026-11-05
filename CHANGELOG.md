@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0-rc.1 (2026-11-05)
+
+<!-- Release notes generated using configuration in .github/release.yml at release/0.8.0 -->
+
+## What's Changed
+### Other Changes
+* ci(release): accept Release Please's initial RC tag by @choufraise in https://github.com/WirelessCar/nauth/pull/421
+* ci(release): enforce checks for release candidates by @choufraise in https://github.com/WirelessCar/nauth/pull/423
+
+
+**Full Changelog**: https://github.com/WirelessCar/nauth/compare/v0.8.0-rc...v0.8.0-rc.1
+
 ## 0.8.0-rc (2026-11-04)
 
 <!-- Release notes generated using configuration in .github/release.yml at release/0.8.0 -->
