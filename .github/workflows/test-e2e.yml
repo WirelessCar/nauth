@@ -14,33 +14,45 @@
 
 name: E2E Tests
 
-# Requires manual trigger
 on:
   pull_request:
-    paths:
-      - 'api/**'
-      - 'dir/**'
-      - 'charts/**'
-      - 'cmd/**'
-      - 'internal/**'
-      - 'test/**'
-      - Dockerfile
-      - go.*
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   test-e2e:
     name: Run E2E Tests
     runs-on: ubuntu-latest
     steps:
+      - name: Detect E2E-relevant changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            e2e:
+              - 'api/**'
+              - 'dir/**'
+              - 'charts/**'
+              - 'cmd/**'
+              - 'internal/**'
+              - 'test/**'
+              - Dockerfile
+              - go.*
+
       - name: Clone the code
+        if: steps.changes.outputs.e2e == 'true'
         uses: actions/checkout@v6
 
       - name: Setup Go
+        if: steps.changes.outputs.e2e == 'true'
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Setup mise tools
+        if: steps.changes.outputs.e2e == 'true'
         uses: jdx/mise-action@v4
         with:
           install: true
@@ -48,15 +60,17 @@ jobs:
           experimental: true
 
       - name: Verify test tools
+        if: steps.changes.outputs.e2e == 'true'
         run: |
           kubectl kuttl version
           kind version
 
       - name: Running E2E Tests
+        if: steps.changes.outputs.e2e == 'true'
         run: make test-e2e
 
       - name: Upload E2E logs
-        if: always()
+        if: always() && steps.changes.outputs.e2e == 'true'
         id: upload-e2e-logs
         uses: actions/upload-artifact@v4
         with:
@@ -66,7 +80,7 @@ jobs:
           retention-days: 7
 
       - name: Summarize failed E2E logs
-        if: always()
+        if: always() && steps.changes.outputs.e2e == 'true'
         env:
           ARTIFACT_URL: ${{ steps.upload-e2e-logs.outputs.artifact-url }}
         run: |
