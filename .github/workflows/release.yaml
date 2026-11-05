@@ -21,7 +21,8 @@ on:
         required: true
         type: string
 env:
-  RELEASE_TAG_REGEX: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.(0|[1-9][0-9]*))?$'
+  # Accept vX.Y.Z, vX.Y.Z-rc (first Release Please RC), and vX.Y.Z-rc.N tags.
+  RELEASE_TAG_REGEX: '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc(\.(0|[1-9][0-9]*))?)?$'
   RELEASE_TAG: ${{ inputs.release_tag }}
 jobs:
   docker-build:
