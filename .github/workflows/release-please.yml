@@ -18,11 +18,11 @@ on:
   push:
     branches:
       - main
-      - 'release/**'
 
 jobs:
   release-please:
     name: Update Release PR
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -37,8 +37,8 @@ jobs:
         uses: googleapis/release-please-action@v5
         with:
           token: ${{ github.token }}
-          target-branch: ${{ github.ref_name }}
-          config-file: ${{ github.ref_name == 'main' && 'release-please-config.json' || 'release-please-prerelease-config.json' }}
+          target-branch: main
+          config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
   publish-release:
