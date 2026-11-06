@@ -16,6 +16,9 @@ name: E2E Tests
 
 on:
   pull_request:
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
 
 permissions:
   contents: read
@@ -26,9 +29,12 @@ jobs:
     name: Run E2E Tests
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the code
+        uses: actions/checkout@v6
+
       - name: Detect E2E-relevant changes
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             e2e:
@@ -40,10 +46,6 @@ jobs:
               - 'test/**'
               - Dockerfile
               - go.*
-
-      - name: Clone the code
-        if: steps.changes.outputs.e2e == 'true'
-        uses: actions/checkout@v6
 
       - name: Setup Go
         if: steps.changes.outputs.e2e == 'true'
