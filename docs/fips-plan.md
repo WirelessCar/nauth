@@ -180,19 +180,35 @@ Status: done.
 
 ### 3.2 GitHub workflows
 
-- `release.yaml` / `prerelease.yml`: add a matrix `variant: [standard, fips]` to the `docker-build`
-  job.
-  - `fips` passes `build-args: GOFIPS140=v1.0.0`.
-  - `docker/metadata-action` adds `suffix=-fips` for the fips variant.
-  - Each variant gets its own SBOM and provenance attestation.
-- `trivy.yaml`: scan both variants.
+Status: done. `prerelease.yml` calls `release.yaml`, so only `release.yaml` changed.
+
+- The `docker-build` job has a matrix `variant: [standard, fips]`. The standard leg keeps its
+  original name (`Build & Push Operator`); the FIPS leg is `Build & Push Operator (fips)`.
+- The `fips` leg passes `GOFIPS140=v1.0.0` as a build arg and adds the `-fips` tag suffix through
+  `docker/metadata-action` (`flavor: suffix=...`), e.g. `nauth-operator:0.9.0-fips`.
+- New step `Verify FIPS mode` (fips leg only): runs the pushed image with `--require-fips` and fails
+  unless the startup log shows `"enabled": true` with the expected module version and no
+  "FIPS 140-3 check failed". Tested locally against a FIPS image (pass) and a standard image (fail).
+- Trivy SARIF uploads use the category `trivy-<variant>` so the two scans do not overwrite each
+  other. This also changes the category of the existing standard-image results in the Security tab.
+- Not done: SBOM/provenance attestations. The workflow does not produce them for the standard image
+  today either; adding them is a separate change.
+- `trivy.yaml` (weekly scheduled scan) still builds only the standard image. The FIPS image shares its
+  dependencies and base image, and every release scans both variants.
 
 ### 3.3 Helm chart (`charts/nauth`)
 
-- New value `image.variant: ""` (`"fips"` appends `-fips` to the tag).
-- When `image.variant == "fips"`, add the `--require-fips` arg.
+Status: done.
+
+- New value `image.variant` (`""` or `fips`, enforced by `values.schema.json`).
+- `fips` appends `-fips` to the image tag (app version or `image.tag`), unless the tag already ends
+  in `-fips` (helper `nauth.imageTag` in `_helpers.tpl`), and adds `--require-fips` to the manager args.
 - No `fips140=only` option for now (see "Strict mode").
-- Update the chart README and `values.schema.json` if one exists.
+- Tests: `charts/nauth/tests/deployment_fips_test.yaml` (4 cases); all 34 chart tests pass.
+- `README.md` regenerated with `helm-docs`.
+- `values.schema.json` was edited by hand: `mise run nauth:generate-values-schema` fails locally with
+  `circular dependency detected: nats` even on the unchanged `values.yaml`. Re-run the generator
+  where it works to confirm the hand edit matches its output.
 
 ## Phase 4: Verification
 

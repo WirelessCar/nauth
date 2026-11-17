@@ -14,6 +14,7 @@
 | image.registry | string | `"ghcr.io/wirelesscar"` | Container image registry for the NAuth operator. |
 | image.repository | string | `"nauth-operator"` | Container image repository for the NAuth operator. |
 | image.tag | string | appVersion | Override the container image tag. Defaults to the chart app version when empty. |
+| image.variant | string | `""` | Image variant. `fips` uses the FIPS 140-3 image (tag suffix `-fips`) and starts the operator with `--require-fips`, so it refuses to run unless FIPS mode is active. |
 | imagePullSecrets | list | `[]` | Image pull secrets for the NAuth operator Pod, for example when the image is mirrored to a private registry. |
 | livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the NAuth operator container. |
 | logging.format | string | `""` | Operator log output format. Leave empty to use the operator default. Set to `json` for structured log ingestion. Supported values: `text`, `json`. |

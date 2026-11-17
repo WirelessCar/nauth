@@ -78,6 +78,14 @@
         "tag": {
           "description": "Override the container image tag. Defaults to the chart app version when empty.",
           "type": "string"
+        },
+        "variant": {
+          "description": "Image variant. `fips` uses the FIPS 140-3 image (tag suffix `-fips`) and starts the operator with `--require-fips`, so it refuses to run unless FIPS mode is active.",
+          "type": "string",
+          "enum": [
+            "",
+            "fips"
+          ]
         }
       },
       "additionalProperties": false
