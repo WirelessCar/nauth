@@ -1,0 +1,74 @@
+---
+title: FIPS 140-3
+description: Run NAuth with a FIPS 140-3 validated cryptographic module
+---
+
+NAuth publishes a FIPS variant of the operator image for environments that require FIPS 140-3. It is
+tagged with a `-fips` suffix, for example `ghcr.io/wirelesscar/nauth-operator:0.9.0-fips`.
+
+## What the FIPS image is
+
+- The operator binary is built with `GOFIPS140=v1.0.0`, which uses the frozen, CMVP-validated
+  [Go Cryptographic Module](https://go.dev/doc/security/fips140) v1.0.0 instead of the regular Go
+  crypto code.
+- The binary runs in FIPS 140-3 mode by default (`GODEBUG=fips140=on`). No environment variable is
+  needed.
+- It is otherwise identical to the standard image: same code, same static distroless base image.
+
+The FIPS image uses a validated module in its approved mode. That does not make NAuth itself, or your
+deployment, certified. The module's security policy lists the operating environments it was tested
+on; whether your platform meets your compliance requirements is up to you.
+
+## Install
+
+Set `image.variant` to `fips`:
+
+```bash
+helm upgrade --install nauth oci://ghcr.io/wirelesscar/nauth \
+  --namespace nauth \
+  --create-namespace \
+  --set image.variant=fips
+```
+
+This selects the `-fips` image tag and starts the operator with `--require-fips`. If you set
+`image.tag` yourself, the chart appends `-fips` unless the tag already ends with it.
+
+## Verify
+
+`--require-fips` makes the operator exit at startup unless it runs in FIPS 140-3 mode with a frozen
+module. A running pod is therefore already a FIPS pod. The startup log shows the status:
+
+```bash
+kubectl logs -n nauth deploy/nauth | grep "FIPS 140-3 status"
+```
+
+```text
+INFO  setup  FIPS 140-3 status  {"enabled": true, "moduleVersion": "v1.0.0", "required": true}
+```
+
+The image also carries the label `io.nauth.fips140` with the module version (`off` for the standard
+image).
+
+## TLS requirements
+
+In FIPS mode, Go only negotiates approved TLS settings: TLS 1.2 or later, approved cipher suites,
+and approved key-exchange groups such as P-256 and P-384. This applies to NAuth's connections to the
+Kubernetes API server and to NATS.
+
+Most clusters already meet this. A NATS server configured to allow only X25519 key exchange, or only
+non-approved cipher suites, will reject the FIPS operator's connections.
+
+## Strict mode is not supported
+
+Go also has a stricter `GODEBUG=fips140=only` mode, which turns any use of a non-approved algorithm
+into an error. NAuth does not support it yet. The NATS key library (`nkeys`) derives Ed25519 keys in
+a way that this mode rejects, even though the algorithm itself is approved. Do not set
+`GODEBUG=fips140=only` on the operator.
+
+## Secret names
+
+The FIPS work changed how NAuth names the Secrets it creates for account keys: the short hash at the
+end of the name now comes from SHA-256 instead of MD5. This applies to both images.
+
+- Existing Secrets are unchanged and keep working. NAuth finds them by label, not by name.
+- Only accounts created after the upgrade get Secrets with the new suffix.

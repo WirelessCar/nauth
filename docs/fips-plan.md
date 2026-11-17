@@ -23,7 +23,7 @@ standard image.
 
 The FIPS image **uses a CMVP-validated module in approved mode**. That does not make the image or
 nauth itself certified. The module's security policy lists the tested operating environments, and
-operators remain responsible for their platform. `docs/fips.md` (Phase 5) must say this explicitly.
+operators remain responsible for their platform. The user guide (Phase 5) says this explicitly.
 
 ## Current state
 
@@ -212,26 +212,40 @@ Status: done.
 
 ## Phase 4: Verification
 
-| # | Check | Where | Pass criteria |
+Status: all checks implemented. 4.2 has run locally for `basic-test` only; the full e2e suite runs in CI.
+
+| # | Check | Where | Status |
 |---|---|---|---|
-| 4.1a | `make test` with `GOFIPS140=v1.0.0` | `test.yml` matrix leg `go test (fips)` (implemented) | All tests pass with the binary defaulting to `fips140=on`. |
-| 4.1b | `depguard` denies `crypto/md5`, `crypto/sha1`, `crypto/des`, `crypto/rc4`, `golang.org/x/crypto` | `.golangci.yml` (implemented) | `make lint` reports 0 issues. Verified the rule fires on a probe MD5 import. |
-| 4.2 | E2E against kind + NATS with the FIPS image | `test-e2e.yml` matrix | Accounts and users reconcile; TLS to kube-apiserver and NATS succeeds. |
-| 4.3 | Binary metadata | Dockerfile build step | `go version -m` shows `GOFIPS140=v1.0.0` and `DefaultGODEBUG` contains `fips140=on`. |
-| 4.4 | Startup log | E2E | Log line reports FIPS enabled and module `v1.0.0`. |
-| 4.5 | Negative test | E2E or unit | Standard image with `--require-fips` exits non-zero. |
-| 4.6 | Secret migration regression | Unit (`internal/core`) | Account with pre-existing MD5-named Secrets reconciles without creating new Secrets or keys (see 1.1). |
+| 4.1a | `make test` with `GOFIPS140=v1.0.0` | `test.yml` matrix leg `go test (fips)` | Done. Full suite passed locally with `GOFIPS140=v1.0.0`. |
+| 4.1b | `depguard` denies `crypto/md5`, `crypto/sha1`, `crypto/des`, `crypto/rc4`, `golang.org/x/crypto` | `.golangci.yml` | Done. 0 issues; verified the rule fires on a probe MD5 import. |
+| 4.2 | E2E against kind + NATS with the FIPS image | `test-e2e.yml` matrix leg `Run E2E Tests (fips)`; `kuttl-test.yaml` reads `NAUTH_E2E_IMAGE_VARIANT` / `NAUTH_E2E_GOFIPS140` | Done. Local run of `basic-test` with the FIPS image passed (2026-11-17). |
+| 4.3 | Binary metadata | Dockerfile build step | Done. Fails the build unless `GOFIPS140` and `fips140=on` are embedded. |
+| 4.4 | Startup log | E2E logs; `Verify FIPS mode` step in `release.yaml` | Done. E2E pod logged `{"enabled": true, "moduleVersion": "v1.0.0", "required": true}`. |
+| 4.5 | Negative test | `cmd/fips_test.go`, manual image run | Done. Standard image with `--require-fips` exits 1; `GOFIPS140=latest` is rejected too. |
+| 4.6 | Secret migration regression | `internal/core/secret_test.go` | Done. Secrets with MD5-derived names are still found by label. |
+
+Running the FIPS e2e variant locally:
+
+```sh
+make build-e2e-runner
+NAUTH_E2E_IMAGE_VARIANT=fips NAUTH_E2E_GOFIPS140=v1.0.0 PATH="$PWD/bin:$PATH" e2e-runner --test basic-test
+```
 
 ## Phase 5: Documentation
 
-Add `docs/fips.md` covering:
+Status: done. The user guide lives with the other guides on the docs site rather than in `docs/`:
+`www/src/content/docs/guides/fips.mdx`, linked from the sidebar in `www/astro.config.mjs` as
+"FIPS 140-3". It covers:
 
-- What the `-fips` image is, and the Go module version with its CMVP certificate reference.
-- The image runs with `fips140=on`; `fips140=only` is not supported yet and why (nkeys).
-- TLS peer requirements: TLS 1.2 or later, approved cipher suites, and key-exchange groups such as P-256
-  or P-384. NATS servers configured for X25519-only key exchange will fail to connect.
-- The Secret naming change: new accounts get SHA-256 suffixes, existing Secrets are untouched.
-- Compliance scope and the operating-environment disclaimer (see "Scope of the compliance claim").
+- What the `-fips` image is and how it is built (module `v1.0.0`, `fips140=on` by default).
+- Compliance scope and the operating-environment disclaimer.
+- Installing with `image.variant=fips` and verifying via the startup log and image label.
+- TLS peer requirements (TLS 1.2+, approved suites, groups such as P-256/P-384; X25519-only NATS fails).
+- Why `fips140=only` is not supported (nkeys).
+- The Secret naming change and why existing Secrets keep working.
+
+The CMVP certificate number is not in the guide yet (see Open items); it links to Go's FIPS 140-3 page.
+The docs site builds locally (`bun run build`) and renders `/guides/fips/`.
 
 ## Order of work
 
@@ -244,7 +258,8 @@ Add `docs/fips.md` covering:
 ## Open items
 
 - Upstream change to nats-io/nkeys: use `ed25519.NewKeyFromSeed` so nauth can run under `fips140=only`.
-- Get the CMVP certificate number for Go Cryptographic Module `v1.0.0` and reference it in `docs/fips.md`.
+- Get the CMVP certificate number for Go Cryptographic Module `v1.0.0` and add it to
+  `www/src/content/docs/guides/fips.mdx`.
 - Re-check `$GOROOT/lib/fips140/certified.txt` on each Go toolchain bump. Move to `v1.26.0` once it is
   certified.
 - Confirm the TLS settings of the NATS clusters nauth targets in production (Phase 4.2 surfaces problems).

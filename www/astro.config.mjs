@@ -48,6 +48,7 @@ export default defineConfig({
 						{ label: "Account Imports and Exports", slug: "guides/account-import-export" },
 						{ label: "Account Signing Keys", slug: "guides/account-signing-keys" },
 						{ label: "Observability", slug: "guides/observability" },
+						{ label: "FIPS 140-3", slug: "guides/fips" },
 					],
 				},
 				{
