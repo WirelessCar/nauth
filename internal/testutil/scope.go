@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"strings"
 )
@@ -29,6 +29,6 @@ func ScopedTestName(prefix, testName string) string {
 }
 
 func ShortHash(value string) string {
-	sum := md5.Sum([]byte(value))
+	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])[:6]
 }

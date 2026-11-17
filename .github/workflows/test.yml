@@ -23,8 +23,17 @@ on:
 
 jobs:
   test:
-    name: go test
+    # Keep the standard leg named "go test" so existing required status checks still match.
+    name: ${{ matrix.gofips140 == 'off' && 'go test' || 'go test (fips)' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # off: standard image. v1.0.0: FIPS image, built against the CMVP-validated
+        # Go Cryptographic Module, which defaults the binary to GODEBUG=fips140=on.
+        gofips140: ["off", "v1.0.0"]
+    env:
+      GOFIPS140: ${{ matrix.gofips140 }}
     steps:
       - name: Clone the code
         uses: actions/checkout@v7
