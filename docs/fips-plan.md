@@ -65,19 +65,19 @@ which does not exist.
 
 ## Phase 1: Code changes
 
-Status: 1.1, 1.2 and the CI/lint guards (4.1, 4.6) are implemented. 1.3 and 1.4 are next.
+Status: complete. 1.1 and 1.2 (with the CI/lint guards 4.1 and 4.6) landed in `9a9b28f`; 1.3 and 1.4
+are done as described below.
 
 ### 1.1 Replace MD5 in Secret naming (`internal/core/secret.go`)
 
 ```go
-func mustGenerateShortHashFromID(id string) string {
+func shortHashFromID(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	return hex.EncodeToString(sum[:])[:6]
 }
 ```
 
-The `must` prefix and panic path can go: `sha256.Sum256` cannot fail. Rename to
-`shortHashFromID`.
+Replaces `mustGenerateShortHashFromID`. The panic path is gone: `sha256.Sum256` cannot fail.
 
 **Migration impact (verified against the current code):**
 
@@ -99,22 +99,44 @@ Secrets and asserts that no new Secrets are created and the account keys are unc
 
 Same change for `ShortHash`. The output only names test resources, so there is nothing to migrate.
 
-### 1.3 Startup FIPS self-check (`cmd/main.go`)
+### 1.3 Startup FIPS self-check (`cmd/fips.go`, `cmd/main.go`)
 
-- Log `fips140.Enabled()` (package `crypto/fips140`) and the module version at startup.
-- Add a `--require-fips` flag. When set and `fips140.Enabled()` is false, log an error and exit
-  non-zero.
+- At startup the manager logs `FIPS 140-3 status` with `enabled` (`crypto/fips140.Enabled()`),
+  `moduleVersion` (`crypto/fips140.Version()`) and `required`.
+- New flag `--require-fips` (default `false`). When set, the manager exits non-zero unless FIPS mode
+  is enabled **and** the module is a frozen snapshot. A binary built with `GOFIPS140=latest` reports
+  version `latest` and is rejected, because only frozen snapshots are CMVP-validated.
 - The Helm chart sets `--require-fips` automatically for the FIPS variant (Phase 3.3).
+- `Dockerfile` and `Makefile` (`build`, `run`) now build the `./cmd` package instead of the single
+  file `cmd/main.go`, so `cmd/fips.go` is included.
 
-### 1.4 Dependency audit
+Verified with real binaries:
+
+| Build | `--require-fips` result |
+|---|---|
+| standard (`GOFIPS140=off`), also the current `Dockerfile` image | exits 1: "FIPS 140-3 mode is required but not enabled" |
+| `GOFIPS140=latest` | exits 1: module "latest" is not a frozen, validated module |
+| `GOFIPS140=v1.0.0` | check passes (`enabled: true`, `moduleVersion: v1.0.0`) |
+
+### 1.4 Dependency audit (2026-11-17)
+
+Non-FIPS-approved packages linked into `./cmd` and why each is acceptable under `fips140=on`:
+
+| Package | Imported by | Reached at runtime? |
+|---|---|---|
+| `crypto/des`, `crypto/rc4`, `crypto/dsa` | standard library only (`crypto/tls`, `crypto/x509`) | No. In FIPS mode `crypto/tls` offers only approved suites and `crypto/x509` rejects DSA. |
+| `crypto/md5`, `crypto/sha1` | `github.com/google/uuid` | No. Only name-based UUIDs (`NewMD5`, `NewSHA1`, `NewHash`) use them; a scan of all 894 dependency packages found no callers. |
+| `crypto/sha1` | `github.com/nats-io/nats.go` (`ws.go:837`), `golang.org/x/net/websocket` | Only for WebSocket connections (`ws://`, `wss://`), to compute the RFC 6455 handshake accept key. That is a protocol requirement, not a security function, and SHA-1 remains available under `fips140=on`. |
+| `golang.org/x/crypto/{curve25519,nacl/box,nacl/secretbox,salsa20,poly1305,blake2b}` | `github.com/nats-io/nkeys` (xkeys) | No. Neither nauth nor nats.go calls the xkeys API (`CreateCurveKeys`, `FromCurveSeed`, `Seal`, `Open`). |
+
+Re-run on dependency bumps:
 
 ```sh
-go list -deps ./cmd | grep -E 'golang.org/x/crypto/(curve25519|nacl|chacha20|salsa20)'
+go list -deps ./cmd | grep -E '^(crypto/(md5|sha1|des|rc4|dsa)|golang.org/x/crypto)'
 ```
 
-Record which non-approved packages are linked and confirm none are reachable from nauth code paths.
-Direct imports are blocked by the `depguard` rule in Phase 4.1; transitive use through dependencies
-still needs this manual audit while strict mode is unavailable.
+Direct imports in nauth are blocked by the `depguard` rule (Phase 4.1b). Use through dependencies
+is only covered by this manual audit until strict mode becomes available.
 
 ## Phase 2: Dockerfile
 
@@ -130,12 +152,12 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 RUN go mod download
 
-COPY cmd/main.go cmd/main.go
+COPY cmd/ cmd/
 COPY api/ api/
 COPY internal/ internal/
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GOFIPS140=${GOFIPS140} \
-    go build -trimpath -a -o manager cmd/main.go
+    go build -trimpath -a -o manager ./cmd
 
 # Fail the build if FIPS settings did not land in the binary
 RUN if [ "${GOFIPS140}" != "off" ]; then \
