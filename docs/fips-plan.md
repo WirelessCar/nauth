@@ -60,9 +60,6 @@ Consequences:
 - Follow-up: propose upstream to nats-io/nkeys switching to `ed25519.NewKeyFromSeed`. Once released,
   reinstate a `fips140=only` CI job.
 
-Unrelated bug found during review: `Makefile` target `docker-buildx` references `Dockerfile.cross`,
-which does not exist.
-
 ## Phase 1: Code changes
 
 Status: complete. 1.1 and 1.2 (with the CI/lint guards 4.1 and 4.6) landed in `9a9b28f`; 1.3 and 1.4
@@ -140,65 +137,46 @@ is only covered by this manual audit until strict mode becomes available.
 
 ## Phase 2: Dockerfile
 
-```dockerfile
-FROM golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc AS builder
-ARG TARGETOS
-ARG TARGETARCH
-# off = standard image; v1.0.0 = FIPS image (CMVP-validated Go module snapshot)
-ARG GOFIPS140=off
+Status: done. Implemented in `Dockerfile` (single file, both variants):
 
-WORKDIR /workspace
-COPY go.mod go.mod
-COPY go.sum go.sum
-RUN go mod download
-
-COPY cmd/ cmd/
-COPY api/ api/
-COPY internal/ internal/
-
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} GOFIPS140=${GOFIPS140} \
-    go build -trimpath -a -o manager ./cmd
-
-# Fail the build if FIPS settings did not land in the binary
-RUN if [ "${GOFIPS140}" != "off" ]; then \
-      go version -m manager | grep -q 'GOFIPS140=v1.0.0' && \
-      go version -m manager | grep -q 'fips140=on' \
-      || { echo "FIPS build verification failed"; go version -m manager; exit 1; }; \
-    fi
-
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:<pin>
-ARG GOFIPS140=off
-LABEL io.nauth.fips140="${GOFIPS140}"
-WORKDIR /
-COPY --from=builder /workspace/manager .
-USER 65532:65532
-ENTRYPOINT ["/manager"]
-```
+- `ARG GOFIPS140=off`. Allowed values are `off` or a frozen module version (`v<digits>...`); anything
+  else, including `latest`, fails the build before compiling.
+- The build passes `GOFIPS140` to `go build` and adds `-trimpath` for both variants.
+- A verification step fails the FIPS build unless `go version -m manager` shows the requested
+  `GOFIPS140` and `DefaultGODEBUG` containing `fips140=on`. Checked that the same test passes on a FIPS
+  binary and fails on a standard one.
+- The distroless runtime image is pinned to the multi-arch index digest
+  `sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab` (2026-11-17).
+  Renovate/Dependabot should keep it current.
+- Label `io.nauth.fips140` records the module version (`off` for the standard image).
 
 Notes:
 
 - Any `GOFIPS140` value other than `off` makes `GODEBUG=fips140=on` the binary's default. No runtime
   env var is needed.
-- `go.mod` has `godebug default=go1.25`. That does not override `fips140`; confirm with the build
-  verification step above.
-- Pin the distroless runtime image by digest (it currently floats on `:nonroot`). Renovate/Dependabot
-  can keep the digest current.
-- `-trimpath` is added for reproducibility in both variants.
+- `go.mod` has `godebug default=go1.25`. It does not override `fips140` (verified: the FIPS binary's
+  `DefaultGODEBUG` contains `fips140=on`).
+
+Verified locally (2026-11-17):
+
+| Build | Result |
+|---|---|
+| `make docker-build` | label `off`; `--require-fips` exits 1 |
+| `make docker-build-fips` | label `v1.0.0`; `--require-fips` passes, `moduleVersion: v1.0.0` |
+| `--build-arg GOFIPS140=latest` | build fails with the allowed-values message |
+| `GOFIPS140=v1.0.0` cross-compile for amd64, arm64, s390x, ppc64le | all build; each embeds `GOFIPS140=v1.0.0-c2097c7c` and `fips140=on` |
 
 ## Phase 3: Build, release and Helm
 
 ### 3.1 Makefile
 
-```make
-GOFIPS140_VERSION ?= v1.0.0
+Status: done.
 
-.PHONY: docker-build-fips
-docker-build-fips: ## Build the FIPS variant of the manager image
-	$(CONTAINER_TOOL) build --build-arg GOFIPS140=$(GOFIPS140_VERSION) -t ${IMG}-fips .
-```
-
-Also add `docker-buildx-fips`, and fix `docker-buildx` to use `Dockerfile` instead of the missing
-`Dockerfile.cross`.
+- `GOFIPS140_VERSION ?= v1.0.0`.
+- `docker-build-fips`: single-arch FIPS image tagged `${IMG}-fips`.
+- `docker-buildx-fips`: multi-arch FIPS image tagged `${IMG}-fips`. It calls `docker-buildx` with
+  `DOCKER_GOFIPS140=$(GOFIPS140_VERSION)`; `docker-buildx` now passes `--build-arg GOFIPS140`
+  (default `off`) to its generated `Dockerfile.cross`.
 
 ### 3.2 GitHub workflows
 
