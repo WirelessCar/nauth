@@ -30,7 +30,6 @@
   "packageRules": [
     {
       "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true,
       "addLabels": ["major"]
     },
     {
