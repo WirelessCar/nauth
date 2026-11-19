@@ -33,16 +33,11 @@
       "addLabels": ["major"]
     },
     {
-      "description": "Skip routine patch updates; vulnerability fixes are handled separately.",
-      "matchUpdateTypes": ["patch"],
-      "enabled": false
-    },
-    {
-      "description": "Group routine minor dependency updates into one weekly PR",
-      "matchUpdateTypes": ["minor"],
+      "description": "Group routine minor and patch dependency updates into one weekly PR",
+      "matchUpdateTypes": ["minor", "patch"],
       "matchPackageNames": ["*"],
-      "groupName": "minor dependency updates",
-      "groupSlug": "minor-dependencies"
+      "groupName": "routine dependency updates",
+      "groupSlug": "routine-dependencies"
     },
     {
       "description": "Keep go.mod's Go directive as the minimum compatibility version",
