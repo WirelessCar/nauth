@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const timers = require('node:timers/promises');
 const labelBreakingChange = require('./index.cjs');
 
 function fixture({ title = 'fix: repair', messages = ['fix: repair'], labels = [] } = {}) {
@@ -86,22 +87,105 @@ test('documentation examples and deprecation footers do not declare a breaking c
   }
 });
 
-test('incomplete or changing API data reports a failure without changing labels', async t => {
-  for (const kind of ['missing', 'duplicate', 'head', 'title', 'stalled']) {
+test('a title change retries with fresh metadata before changing labels', async t => {
+  t.mock.method(timers, 'setTimeout', async () => {});
+  const mock = fixture({ title: 'fix!: remove a field', labels: ['breaking-change', 'deprecation'] });
+  const graphql = mock.github.graphql;
+  let reads = 0;
+  mock.github.graphql = async (...args) => {
+    const result = await graphql(...args);
+    if (++reads === 1) mock.pr.title = 'fix: preserve compatibility';
+    assert.deepEqual(mock.calls, []);
+    return result;
+  };
+  await mock.run();
+  assert.equal(reads, 2);
+  assert.deepEqual(mock.calls, [['remove', 'breaking-change']]);
+  assert.deepEqual(mock.pr.labels, [{ name: 'deprecation' }]);
+});
+
+test('a head change restarts pagination and discards stale breaking declarations', async t => {
+  t.mock.method(timers, 'setTimeout', async () => {});
+  const messages = Array(101).fill('fix: repair');
+  messages[0] = 'fix!: remove a field';
+  const mock = fixture({ messages, labels: ['breaking-change'] });
+  const graphql = mock.github.graphql;
+  const cursors = [];
+  mock.github.graphql = async (...args) => {
+    cursors.push(args[1].cursor);
+    const result = await graphql(...args);
+    if (cursors.length === 2) {
+      mock.pr.head.sha = 'new-head';
+      messages.splice(0, messages.length, 'fix: preserve compatibility');
+      mock.pr.commits = messages.length;
+    }
+    assert.deepEqual(mock.calls, []);
+    return result;
+  };
+  await mock.run();
+  assert.deepEqual(cursors, [null, '100', null]);
+  assert.deepEqual(mock.calls, [['remove', 'breaking-change']]);
+});
+
+test('changing commit metadata is retried from a fresh snapshot', async t => {
+  for (const kind of ['head', 'count']) {
+    await t.test(kind, async t => {
+      t.mock.method(timers, 'setTimeout', async () => {});
+      const mock = fixture({ messages: ['fix!: remove a field'] });
+      const graphql = mock.github.graphql;
+      let reads = 0;
+      mock.github.graphql = async (...args) => {
+        const result = await graphql(...args);
+        if (++reads === 1) {
+          const pull = result.repository.pullRequest;
+          if (kind === 'head') pull.headRefOid = 'new-head';
+          if (kind === 'count') pull.commits.totalCount++;
+        }
+        assert.deepEqual(mock.calls, []);
+        return result;
+      };
+      await mock.run();
+      assert.equal(reads, 2);
+      assert.deepEqual(mock.calls, [['add', ['breaking-change']]]);
+    });
+  }
+});
+
+test('continuous PR changes stop after three attempts without changing labels', async t => {
+  const delays = [];
+  t.mock.method(timers, 'setTimeout', async delay => { delays.push(delay); });
+  const mock = fixture({ labels: ['breaking-change'] });
+  const graphql = mock.github.graphql;
+  let reads = 0;
+  mock.github.graphql = async (...args) => {
+    const result = await graphql(...args);
+    mock.pr.title = `fix: edit ${++reads}`;
+    return result;
+  };
+  await assert.rejects(mock.run(), /PR changed during classification/);
+  assert.equal(reads, 3);
+  assert.deepEqual(delays, [1000, 2000]);
+  assert.deepEqual(mock.calls, []);
+});
+
+test('incomplete API data fails without retrying or changing labels', async t => {
+  for (const kind of ['missing', 'missing-pull', 'duplicate', 'stalled']) {
     await t.test(kind, async () => {
       const mock = fixture({ messages: Array(101).fill('fix: repair'), labels: ['breaking-change'] });
       const graphql = mock.github.graphql;
+      let reads = 0;
       mock.github.graphql = async (...args) => {
+        reads++;
         const result = await graphql(...args);
         const pull = result.repository.pullRequest;
         if (kind === 'missing') pull.commits.nodes = [];
+        if (kind === 'missing-pull') result.repository.pullRequest = null;
         if (kind === 'duplicate') pull.commits.nodes.push(pull.commits.nodes[0]);
-        if (kind === 'head') pull.headRefOid = 'new-head';
-        if (kind === 'title') mock.pr.title = 'fix!: changed during classification';
         if (kind === 'stalled') pull.commits.pageInfo.endCursor = args[1].cursor;
         return result;
       };
       await assert.rejects(mock.run(), /commit|changed|page/i);
+      assert.equal(reads, 1);
       assert.deepEqual(mock.calls, []);
     });
   }
@@ -127,10 +211,16 @@ test('GitHub permission errors are reported instead of silently skipping labelin
     await t.test(operation, async () => {
       const mock = fixture({ title: 'fix!: remove a field' });
       const denied = async () => { throw Object.assign(new Error('permission denied'), { status: 403 }); };
-      if (operation === 'read commits') mock.github.graphql = denied;
+      const graphql = mock.github.graphql;
+      let reads = 0;
+      mock.github.graphql = async (...args) => {
+        reads++;
+        return operation === 'read commits' ? denied() : graphql(...args);
+      };
       if (operation === 'read label') mock.github.rest.issues.getLabel = denied;
       if (operation === 'apply label') mock.github.rest.issues.addLabels = denied;
       await assert.rejects(mock.run(), /permission denied/);
+      assert.equal(reads, 1);
       assert.deepEqual(mock.calls, []);
     });
   }
