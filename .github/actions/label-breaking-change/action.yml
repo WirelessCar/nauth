@@ -9,7 +9,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/github-script@v8
+    - uses: actions/github-script@v9
       env:
         ACTION_PATH: ${{ github.action_path }}
       with:
