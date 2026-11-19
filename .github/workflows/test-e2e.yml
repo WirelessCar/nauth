@@ -55,7 +55,7 @@ jobs:
 
       - name: Setup mise tools
         if: steps.changes.outputs.e2e == 'true'
-        uses: jdx/mise-action@v4
+        uses: jdx/mise-action@v5
         with:
           install: true
           install_args: "kubectl-kuttl kind jq"
