@@ -34,10 +34,12 @@ jobs:
       matrix:
         include:
           - variant: standard
+            job_name: Build & Push Operator
             image_variant: ""
             gofips140: "off"
           # FIPS 140-3 image installed with image.variant=fips (adds --require-fips).
           - variant: fips
+            job_name: Build & Push Operator (fips)
             image_variant: fips
             gofips140: "v1.0.0"
     env:
