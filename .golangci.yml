@@ -26,7 +26,6 @@ linters:
     depguard:
       rules:
         # Algorithms that are not FIPS 140-3 approved. Using them breaks the FIPS image
-        # (see docs/fips-plan.md).
         fips-approved-crypto:
           deny:
             - pkg: crypto/md5

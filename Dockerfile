@@ -4,7 +4,7 @@ ARG TARGETARCH
 # Go Cryptographic Module used for the build.
 # - off (default): standard image.
 # - a frozen, CMVP-validated snapshot such as v1.0.0: FIPS image. The binary then defaults to
-#   GODEBUG=fips140=on. See docs/fips-plan.md.
+#   GODEBUG=fips140=on.
 ARG GOFIPS140=off
 
 WORKDIR /workspace

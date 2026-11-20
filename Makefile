@@ -125,7 +125,7 @@ docker-build: ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} .
 
 # GOFIPS140_VERSION is the frozen, CMVP-validated Go Cryptographic Module used for FIPS images.
-# Check $(go env GOROOT)/lib/fips140/certified.txt before changing it. See docs/fips-plan.md.
+# Check $(go env GOROOT)/lib/fips140/certified.txt before changing it.
 GOFIPS140_VERSION ?= v1.0.0
 
 .PHONY: docker-build-fips

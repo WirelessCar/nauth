@@ -15,7 +15,7 @@ commands:
     timeout: 120
   # Optional FIPS run: NAUTH_E2E_IMAGE_VARIANT=fips NAUTH_E2E_GOFIPS140=v1.0.0. The image is then
   # tagged test-fips and installed with image.variant=fips, which adds --require-fips. Unset means the
-  # standard image. See docs/fips-plan.md.
+  # standard image.
   - script: >-
       docker build --build-arg GOFIPS140="${NAUTH_E2E_GOFIPS140:-off}"
       -t "local/nauth:test${NAUTH_E2E_IMAGE_VARIANT:+-$NAUTH_E2E_IMAGE_VARIANT}"
