@@ -27,7 +27,7 @@ env:
 jobs:
   docker-build:
     # Keep the standard leg's name unchanged so existing references still match.
-    name: ${{ matrix.variant == 'standard' && 'Build & Push Operator' || 'Build & Push Operator (fips)' }}
+    name: ${{ matrix.job_name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -73,7 +73,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=${{ steps.semver.outputs.version }}
           flavor: |
-            suffix=${{ matrix.tag_suffix }}
+            suffix=${{ matrix.tag_suffix }},onlatest=true
           labels: |
             io.nauth.version=${{ steps.semver.outputs.version }}
             org.opencontainers.image.title=nauth-operator

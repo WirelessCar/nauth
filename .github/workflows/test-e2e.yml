@@ -27,19 +27,21 @@ permissions:
 jobs:
   test-e2e:
     # Keep the standard leg named "Run E2E Tests" so existing required status checks still match.
-    name: ${{ matrix.variant == 'standard' && 'Run E2E Tests' || 'Run E2E Tests (fips)' }}
+    name: ${{ matrix.job_name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - variant: standard
-            job_name: Build & Push Operator
+            job_name: Run E2E Tests
+            artifact_name: kuttl-logs
             image_variant: ""
             gofips140: "off"
           # FIPS 140-3 image installed with image.variant=fips (adds --require-fips).
           - variant: fips
-            job_name: Build & Push Operator (fips)
+            job_name: Run E2E Tests (fips)
+            artifact_name: kuttl-logs-fips
             image_variant: fips
             gofips140: "v1.0.0"
     env:
@@ -93,7 +95,7 @@ jobs:
         id: upload-e2e-logs
         uses: actions/upload-artifact@v7
         with:
-          name: kuttl-logs${{ matrix.variant == 'fips' && '-fips' || '' }}
+          name: ${{ matrix.artifact_name }}
           path: test/logs/
           if-no-files-found: warn
           retention-days: 7
