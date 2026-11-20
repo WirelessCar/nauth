@@ -54,8 +54,7 @@ image:
   # @default -- appVersion
   tag: ""
   # @schema enum: ["", fips]
-  # -- Image variant. `fips` uses the FIPS 140-3 image (tag suffix `-fips`) and starts the operator
-  # with `--require-fips`, so it refuses to run unless FIPS mode is active.
+  # -- Image variant. `fips` uses the FIPS 140-3 image (tag suffix `-fips`) and starts the operator with `--require-fips`, so it refuses to run unless FIPS mode is active.
   variant: ""
 
 # -- Override the chart name used in generated resource names.
