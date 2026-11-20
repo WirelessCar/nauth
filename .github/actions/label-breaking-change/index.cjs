@@ -1,4 +1,9 @@
+const timers = require('node:timers/promises');
+
 const BREAKING_HEADER = /^[a-z][a-z0-9-]*(\([A-Za-z0-9._/-]+\))?!: .+/;
+const MAX_CLASSIFICATION_ATTEMPTS = 3;
+
+class PullRequestChangedError extends Error {}
 
 function hasBreakingChange(message) {
   const lines = message.replace(/\r\n/g, '\n').split('\n');
@@ -16,10 +21,7 @@ function hasBreakingChange(message) {
   return false;
 }
 
-module.exports = async function labelBreakingChange({ github, context, core }) {
-  if (context.eventName !== 'pull_request_target') throw new Error('Labeling requires pull_request_target metadata.');
-  const repo = context.repo;
-  const pull_number = context.payload.pull_request.number;
+async function classifyPullRequest({ github, repo, pull_number }) {
   const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number });
   let breaking = BREAKING_HEADER.test(pr.title);
   const seen = new Set();
@@ -38,8 +40,9 @@ module.exports = async function labelBreakingChange({ github, context, core }) {
       }
     }`, { ...repo, number: pull_number, cursor });
     const pull = result.repository?.pullRequest;
-    if (!pull || pull.headRefOid !== pr.head.sha || pull.commits.totalCount !== pr.commits) {
-      throw new Error('PR commits changed during classification; rerun Release Labels.');
+    if (!pull) throw new Error('Could not read PR commit data.');
+    if (pull.headRefOid !== pr.head.sha || pull.commits.totalCount !== pr.commits) {
+      throw new PullRequestChangedError('PR commits changed during classification; rerun Release Labels.');
     }
     const commits = pull.commits;
     for (const node of commits.nodes) {
@@ -57,9 +60,28 @@ module.exports = async function labelBreakingChange({ github, context, core }) {
   if (seen.size !== pr.commits || seen.size === 0) throw new Error('Could not read every PR commit.');
   const { data: latest } = await github.rest.pulls.get({ ...repo, pull_number });
   if (latest.head.sha !== pr.head.sha || latest.title !== pr.title) {
-    throw new Error('PR changed during classification; rerun Release Labels.');
+    throw new PullRequestChangedError('PR changed during classification; rerun Release Labels.');
   }
-  const labeled = latest.labels.some(label => label.name === 'breaking-change');
+  return { breaking, pr: latest };
+}
+
+module.exports = async function labelBreakingChange({ github, context, core }) {
+  if (context.eventName !== 'pull_request_target') throw new Error('Labeling requires pull_request_target metadata.');
+  const repo = context.repo;
+  const pull_number = context.payload.pull_request.number;
+  let classification;
+  for (let attempt = 1; attempt <= MAX_CLASSIFICATION_ATTEMPTS; attempt++) {
+    try {
+      classification = await classifyPullRequest({ github, repo, pull_number });
+      break;
+    } catch (error) {
+      if (!(error instanceof PullRequestChangedError) || attempt === MAX_CLASSIFICATION_ATTEMPTS) throw error;
+      core.info(`PR #${pull_number}: metadata changed during classification; retrying (${attempt + 1}/${MAX_CLASSIFICATION_ATTEMPTS}).`);
+      await timers.setTimeout(attempt * 1000);
+    }
+  }
+  const { breaking, pr } = classification;
+  const labeled = pr.labels.some(label => label.name === 'breaking-change');
   if (breaking && !labeled) {
     try {
       await github.rest.issues.getLabel({ ...repo, name: 'breaking-change' });
