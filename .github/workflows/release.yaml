@@ -34,10 +34,12 @@ jobs:
       matrix:
         include:
           - variant: standard
+            job_name: Build & Push Operator
             gofips140: "off"
             tag_suffix: ""
           # FIPS 140-3 image: built against the CMVP-validated Go Cryptographic Module.
           - variant: fips
+            job_name: Build & Push Operator (fips)
             gofips140: "v1.0.0"
             tag_suffix: "-fips"
     steps:
