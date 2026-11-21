@@ -89,6 +89,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var accountReconciliationInterval time.Duration
+	var requireFIPS bool
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&namespace, "namespace", "", "Limits the scope of nauth to a single namespace. "+
 		"If not specified, all namespaces will be watched.")
@@ -113,6 +114,8 @@ func main() {
 	flag.DurationVar(&accountReconciliationInterval, "account-reconciliation-interval",
 		defaultAccountReconciliationInterval,
 		"How often Accounts are periodically reconciled and how long successful NATS Account state validation remains fresh.")
+	flag.BoolVar(&requireFIPS, "require-fips", false,
+		"If set, exit at startup unless the binary runs in FIPS 140-3 mode with a frozen Go Cryptographic Module.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -121,6 +124,13 @@ func main() {
 
 	if _, err := initLogger(&opts, logFormat, logLevel); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid logging configuration: %s\n", err.Error())
+		os.Exit(1)
+	}
+	fipsState := currentFIPSStatus()
+	setupLog.Info("FIPS 140-3 status",
+		"enabled", fipsState.Enabled, "moduleVersion", fipsState.Version, "required", requireFIPS)
+	if err := checkFIPS(fipsState, requireFIPS); err != nil {
+		setupLog.Error(err, "FIPS 140-3 check failed")
 		os.Exit(1)
 	}
 	if accountReconciliationInterval <= 0 {

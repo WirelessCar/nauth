@@ -1,0 +1,44 @@
+suite: .Values.image.variant fips on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: uses the standard image without --require-fips by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/wirelesscar/nauth-operator:0.0.1-SNAPSHOT
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --require-fips
+
+  - it: appends -fips to the app version tag and requires FIPS mode
+    set:
+      image:
+        variant: fips
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/wirelesscar/nauth-operator:0.0.1-SNAPSHOT-fips
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --require-fips
+
+  - it: appends -fips to an explicit tag
+    set:
+      image:
+        variant: fips
+        tag: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/wirelesscar/nauth-operator:1.2.3-fips
+
+  - it: does not append -fips twice when the tag already has it
+    set:
+      image:
+        variant: fips
+        tag: 1.2.3-fips
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/wirelesscar/nauth-operator:1.2.3-fips

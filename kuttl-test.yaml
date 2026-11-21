@@ -13,11 +13,20 @@ commands:
   - command: helm dependency update local/nats --skip-refresh
   - command: helm upgrade --install nats local/nats --wait -n nats -f local/nats/values.yaml
     timeout: 120
-  - command: docker build -t local/nauth:test --cache-from local/nauth:test .
+  # Optional FIPS run: NAUTH_E2E_IMAGE_VARIANT=fips NAUTH_E2E_GOFIPS140=v1.0.0. The image is then
+  # tagged test-fips and installed with image.variant=fips, which adds --require-fips. Unset means the
+  # standard image.
+  - script: >-
+      docker build --build-arg GOFIPS140="${NAUTH_E2E_GOFIPS140:-off}"
+      -t "local/nauth:test${NAUTH_E2E_IMAGE_VARIANT:+-$NAUTH_E2E_IMAGE_VARIANT}"
+      --cache-from "local/nauth:test${NAUTH_E2E_IMAGE_VARIANT:+-$NAUTH_E2E_IMAGE_VARIANT}" .
     # Cold CI builds download modules and compile all dependencies.
     timeout: 180
-  - command: kind load docker-image local/nauth:test
+  - script: kind load docker-image "local/nauth:test${NAUTH_E2E_IMAGE_VARIANT:+-$NAUTH_E2E_IMAGE_VARIANT}"
   - command: helm dependency update charts/nauth --skip-refresh
-  - command: helm upgrade --install nauth charts/nauth --wait -n nats -f "charts/nauth/values.yaml" -f "local/nauth/values.yaml"
+  - script: >-
+      helm upgrade --install nauth charts/nauth --wait -n nats
+      -f "charts/nauth/values.yaml" -f "local/nauth/values.yaml"
+      --set-string image.variant="${NAUTH_E2E_IMAGE_VARIANT:-}"
     timeout: 120
   - command: kubectl apply -n nats -f "local/nauth/manifests/operator.yaml"

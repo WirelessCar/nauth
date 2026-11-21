@@ -111,11 +111,11 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: build
 build: verify-go-version-sync manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build -o bin/manager ./cmd
 
 .PHONY: run
 run: verify-go-version-sync manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+	go run ./cmd
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -123,6 +123,14 @@ run: verify-go-version-sync manifests generate fmt vet ## Run a controller from 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
 	$(CONTAINER_TOOL) build -t ${IMG} .
+
+# GOFIPS140_VERSION is the frozen, CMVP-validated Go Cryptographic Module used for FIPS images.
+# Check $(go env GOROOT)/lib/fips140/certified.txt before changing it.
+GOFIPS140_VERSION ?= v1.0.0
+
+.PHONY: docker-build-fips
+docker-build-fips: ## Build the FIPS 140-3 variant of the manager image, tagged ${IMG}-fips.
+	$(CONTAINER_TOOL) build --build-arg GOFIPS140=$(GOFIPS140_VERSION) -t ${IMG}-fips .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
@@ -135,13 +143,20 @@ docker-push: ## Push docker image with the manager.
 # - be able to push the image to your registry (i.e. if you do not set a valid value via IMG=<myregistry/image:<tag>> then the export will fail)
 # To adequately provide solutions that are compatible with multiple platforms, you should consider using this option.
 PLATFORMS ?= linux/arm64,linux/amd64,linux/s390x,linux/ppc64le
+# DOCKER_GOFIPS140 selects the Go Cryptographic Module for docker-buildx; docker-buildx-fips sets it.
+DOCKER_GOFIPS140 ?= off
+
+.PHONY: docker-buildx-fips
+docker-buildx-fips: ## Build and push the FIPS 140-3 variant for cross-platform support, tagged ${IMG}-fips.
+	$(MAKE) docker-buildx IMG=${IMG}-fips DOCKER_GOFIPS140=$(GOFIPS140_VERSION)
+
 .PHONY: docker-buildx
 docker-buildx: ## Build and push docker image for the manager for cross-platform support
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	- $(CONTAINER_TOOL) buildx create --name nauth-builder
 	$(CONTAINER_TOOL) buildx use nauth-builder
-	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
+	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --build-arg GOFIPS140=$(DOCKER_GOFIPS140) --tag ${IMG} -f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm nauth-builder
 	rm Dockerfile.cross
 

@@ -2,11 +2,10 @@ package core
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 
 	"github.com/WirelessCar/nauth/internal/adapter/outbound/k8s" // TODO: [#185] Core must not depend on adapter code
@@ -69,7 +68,7 @@ func (m *secretManagerImpl) applyAccountSecret(ctx context.Context, accountRef d
 		return fmt.Errorf("account ID cannot be empty")
 	}
 
-	secretName := fmt.Sprintf(nameTemplate, accountRef.Name, mustGenerateShortHashFromID(accountID))
+	secretName := fmt.Sprintf(nameTemplate, accountRef.Name, shortHashFromID(accountID))
 	secretMeta := metav1.ObjectMeta{
 		Name:      secretName,
 		Namespace: accountRef.Namespace,
@@ -111,18 +110,12 @@ func (m *secretManagerImpl) DeleteAll(ctx context.Context, accountRef domain.Nam
 	return m.secretClient.DeleteByLabels(ctx, accountRef.GetNamespace(), labels)
 }
 
-func mustGenerateShortHashFromID(ID string) string {
-	hasher := md5.New()
-	_, err := io.WriteString(hasher, ID)
-	if err != nil {
-		panic(fmt.Sprintf("failed to generate hash from ID: %v", err))
-	}
-
-	hash := hex.EncodeToString(hasher.Sum(nil))
-	if len(hash) > 6 {
-		return hash[:6]
-	}
-	return hash
+// shortHashFromID returns the first 6 hex characters of the SHA-256 digest of id. It is used only to
+// make Secret names unique. Secrets created by earlier versions use an MD5-derived suffix; they are
+// still found because lookups go through labels, not names.
+func shortHashFromID(id string) string {
+	sum := sha256.Sum256([]byte(id))
+	return hex.EncodeToString(sum[:])[:6]
 }
 
 func (m *secretManagerImpl) GetSecrets(ctx context.Context, accountRef domain.NamespacedName, accountID string) (*Secrets, bool, error) {

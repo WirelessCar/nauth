@@ -88,6 +88,42 @@ func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountID
 	t.Equal(&Secrets{Root: account.Root.Key, Sign: account.Sign.Key}, result)
 }
 
+// Secrets created before the FIPS migration carry an MD5-derived name suffix. Lookup is label based,
+// so they must still be found after the suffix algorithm changed to SHA-256.
+func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_WhenSecretsHaveLegacyMD5NameSuffix() {
+	// Given
+	account := testutil.CreateNatsTestAccount()
+
+	t.secretClientMock.mockGetByLabelsSimplified("account-namespace", map[string]string{
+		SecretLabelAccountID: account.Root.PublicKey,
+		k8s.LabelManaged:     k8s.LabelManagedValue,
+	}, []mockSecret{
+		{
+			Name:       "account-name-ac-root-879b0f",
+			SecretType: k8s.SecretTypeAccountRoot,
+			Value:      account.Root.Seed,
+		},
+		{
+			Name:       "account-name-ac-sign-879b0f",
+			SecretType: k8s.SecretTypeAccountSign,
+			Value:      account.Sign.Seed,
+		},
+	})
+
+	// When
+	result, found, err := t.unitUnderTest.GetSecrets(t.ctx, domain.NewNamespacedName("account-namespace", "account-name"), account.Root.PublicKey)
+
+	// Then
+	t.NoError(err)
+	t.True(found)
+	t.Equal(&Secrets{Root: account.Root.Key, Sign: account.Sign.Key}, result)
+}
+
+func (t *SecretManagerTestSuite) Test_shortHashFromID_ShouldUseSHA256() {
+	// printf '%s' 'ADXYZTESTACCOUNTID' | shasum -a 256 | cut -c1-6
+	t.Equal("37b741", shortHashFromID("ADXYZTESTACCOUNTID"))
+}
+
 func (t *SecretManagerTestSuite) Test_GetSecrets_ShouldSucceed_LookupByAccountNameLabel() {
 	// Given
 	account := testutil.CreateNatsTestAccount()
@@ -305,7 +341,7 @@ func (t *SecretManagerTestSuite) Test_ApplyRootSecret_ShouldSucceed() {
 	t.NoError(err)
 	t.NotNil(caughtMeta)
 	t.Equal("account-namespace", caughtMeta.Namespace)
-	t.Contains(caughtMeta.Name, "account-name-ac-root-")
+	t.Equal("account-name-ac-root-"+shortHashFromID(account.Root.PublicKey), caughtMeta.Name)
 	t.Equal(account.Root.PublicKey, caughtMeta.Labels[SecretLabelAccountID])
 	t.Equal("account-name", caughtMeta.Labels[SecretLabelAccountName])
 	t.Equal(k8s.SecretTypeAccountRoot, caughtMeta.Labels[k8s.LabelSecretType])
@@ -335,7 +371,7 @@ func (t *SecretManagerTestSuite) Test_ApplySignSecret_ShouldSucceed() {
 	t.NoError(err)
 	t.NotNil(caughtMeta)
 	t.Equal("account-namespace", caughtMeta.Namespace)
-	t.Contains(caughtMeta.Name, "account-name-ac-sign-")
+	t.Equal("account-name-ac-sign-"+shortHashFromID(account.Root.PublicKey), caughtMeta.Name)
 	t.Equal(account.Root.PublicKey, caughtMeta.Labels[SecretLabelAccountID])
 	t.Equal("account-name", caughtMeta.Labels[SecretLabelAccountName])
 	t.Equal(k8s.SecretTypeAccountSign, caughtMeta.Labels[k8s.LabelSecretType])

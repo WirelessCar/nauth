@@ -76,3 +76,15 @@ Create labels for the NAuth operator Pod.
 {{- $_ := merge $labels (.Values.podLabels | default dict) -}}
 {{- toYaml $labels -}}
 {{- end }}
+
+{{/*
+Operator image tag. Defaults to the chart app version; image.variant "fips" appends "-fips"
+unless the tag already ends with it.
+*/}}
+{{- define "nauth.imageTag" -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion | toString -}}
+{{- if and (eq .Values.image.variant "fips") (not (hasSuffix "-fips" $tag)) -}}
+{{- $tag = printf "%s-fips" $tag -}}
+{{- end -}}
+{{- $tag -}}
+{{- end }}

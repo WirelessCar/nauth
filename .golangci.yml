@@ -5,6 +5,7 @@ linters:
   default: none
   enable:
     - copyloopvar
+    - depguard
     - dupl
     - errcheck
     - ginkgolinter
@@ -22,6 +23,21 @@ linters:
     - unparam
     - unused
   settings:
+    depguard:
+      rules:
+        # Algorithms that are not FIPS 140-3 approved. Using them breaks the FIPS image
+        fips-approved-crypto:
+          deny:
+            - pkg: crypto/md5
+              desc: MD5 is not FIPS 140-3 approved; use crypto/sha256
+            - pkg: crypto/sha1
+              desc: SHA-1 is not FIPS 140-3 approved for new use; use crypto/sha256
+            - pkg: crypto/des
+              desc: DES/3DES is not FIPS 140-3 approved; use crypto/aes
+            - pkg: crypto/rc4
+              desc: RC4 is not FIPS 140-3 approved
+            - pkg: golang.org/x/crypto
+              desc: golang.org/x/crypto is outside the Go FIPS 140-3 module; use the standard library
     revive:
       rules:
         - name: comment-spacings
