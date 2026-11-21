@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.1 (2026-11-21)
+
+<!-- Release notes generated using configuration in .github/release.yml at main -->
+
+## What's Changed
+### Other Changes
+* chore(deps): update dependency node to v26 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/442
+* chore(deps): update jdx/mise-action action to v5 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/446
+* chore(deps): update actions/checkout action to v7 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/437
+* chore(deps): update actions/github-script action to v9 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/438
+* chore(deps): update actions/setup-go action to v7 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/439
+* chore(deps): update actions/setup-node action to v7 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/440
+* chore(deps): update actions/upload-artifact action to v7 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/441
+* chore(deps): update actions/cache action to v6 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/436
+* chore(deps): update dependency unplugin-icons to v24 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/444
+* chore(deps): update helm release kube-prometheus-stack to v93 by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/445
+* chore(deps): update minor dependency updates by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/432
+* chore(deps): update security vulnerability updates [security] by @renovate[bot] in https://github.com/WirelessCar/nauth/pull/431
+* chore(renovate): enable patch updates and automatic major PRs by @choufraise in https://github.com/WirelessCar/nauth/pull/447
+* fix(ci): stabilize release labeling and allow its trusted workflow by @choufraise in https://github.com/WirelessCar/nauth/pull/450
+* fix(deps): resolve NATS security alerts and restore Renovate updates by @choufraise in https://github.com/WirelessCar/nauth/pull/451
+* feat(fips): add FIPS 140-3 operator image by @mkm29 in https://github.com/WirelessCar/nauth/pull/434
+
+## New Contributors
+* @mkm29 made their first contribution in https://github.com/WirelessCar/nauth/pull/434
+
+**Full Changelog**: https://github.com/WirelessCar/nauth/compare/v0.8.0...v0.8.1
+
 ## 0.8.0 (2026-11-06)
 
 <!-- Release notes generated using configuration in .github/release.yml at main -->
