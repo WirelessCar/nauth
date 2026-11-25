@@ -205,6 +205,17 @@
             }
           },
           "additionalProperties": false
+        },
+        "tls": {
+          "description": "Operator-wide TLS settings for NATS connections.",
+          "type": "object",
+          "properties": {
+            "caFile": {
+              "description": "Path to a PEM CA bundle (mounted via volumes/volumeMounts) trusted for NATS TLS when a NatsCluster has no spec.tls.caRef.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

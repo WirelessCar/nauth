@@ -30,6 +30,8 @@
 | nats.clusterRef.name | string | `""` | NatsCluster resource name. Leave empty to disable operator-level binding. |
 | nats.clusterRef.namespace | string | `""` | NatsCluster resource namespace. When empty and `name` is set, the chart namespace is used. |
 | nats.clusterRef.optional | bool | `false` | Whether account-level `spec.natsClusterRef` values may override this operator-level cluster. |
+| nats.tls | object | `{"caFile":""}` | Operator-wide TLS settings for NATS connections. |
+| nats.tls.caFile | string | `""` | Path to a PEM CA bundle (mounted via volumes/volumeMounts) trusted for NATS TLS when a NatsCluster has no spec.tls.caRef. |
 | nodeSelector | object | `{}` | Node selector for scheduling the NAuth operator Pod. |
 | podAnnotations | object | `{}` | Annotations to add to the NAuth operator Pod. |
 | podLabels | object | `{}` | Additional labels to add to the NAuth operator Pod. |

@@ -11,6 +11,8 @@ type ClusterTarget struct {
 	NatsURL            string
 	SystemAdminCreds   domain.NatsUserCreds
 	OperatorSigningKey domain.NatsOperatorSigningKey
+	// TLS holds the NatsCluster's spec.tls material. Nil means the cluster declares no TLS settings.
+	TLS *domain.NatsTLSConfig
 }
 
 func NewClusterTarget(uid string, natsURL string, systemAdminCreds domain.NatsUserCreds, operatorSigningKey domain.NatsOperatorSigningKey) (*ClusterTarget, error) {

@@ -1,0 +1,14 @@
+# The CA now resolves and is applied. The test NATS server is plain, and a user-set caRef requires
+# TLS, so the cluster reports the TLS mismatch rather than a missing ConfigMap.
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 30
+resourceRefs:
+  - apiVersion: nauth.io/v1alpha1
+    kind: NatsCluster
+    name: tls-cluster
+    ref: cluster
+assertAll:
+  - celExpr: cluster.status.conditions.exists(c, c.type == "Ready" && c.status == "False" && c.reason == "Errored")
+  - celExpr: cluster.status.conditions.exists(c, c.type == "Ready" && c.message.contains("tls configured but server does not offer TLS"))
+  - celExpr: cluster.status.conditions.exists(c, c.type == "Ready" && !c.message.contains("nats-ca"))

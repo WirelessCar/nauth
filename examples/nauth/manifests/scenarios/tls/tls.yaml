@@ -1,0 +1,28 @@
+# NatsCluster for a NATS server with a private CA and tls { handshake_first: true }.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tls-example
+---
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: tls-cluster
+  namespace: tls-example
+spec:
+  url: tls://nats.nats.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds
+  tls:
+    caRef:
+      kind: ConfigMap
+      name: nats-ca
+      key: ca.crt
+    handshakeFirst: true
+    # Uncomment for servers with `verify: true` (mutual TLS).
+    # clientCertSecretRef:
+    #   name: nauth-client-tls

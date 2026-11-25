@@ -9,7 +9,7 @@ type NatsConnection interface {
 
 // NatsSysClient is used for connecting to a NATS SYS account
 type NatsSysClient interface {
-	Connect(natsURL string, userCreds domain.NatsUserCreds) (NatsSysConnection, error)
+	Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (NatsSysConnection, error)
 }
 
 // NatsSysConnection represents a NATS connection bound to a SYS account
@@ -28,7 +28,7 @@ type NatsSysConnection interface {
 
 // NatsAccountClient is used for connecting to a regular NATS account
 type NatsAccountClient interface {
-	Connect(natsURL string, userCreds domain.NatsUserCreds) (NatsAccountConnection, error)
+	Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (NatsAccountConnection, error)
 }
 
 // NatsAccountConnection represents a NATS connection bound to a regular (non-sys) account

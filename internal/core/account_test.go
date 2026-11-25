@@ -1402,6 +1402,42 @@ func (t *AccountManagerTestSuite) Test_FindAccountID_ShouldFailWhenAccountSecret
 	t.Empty(result)
 }
 
+func (t *AccountManagerTestSuite) Test_Delete_ShouldPassTLSConfigToSysAndAccountConnections() {
+	// Given
+	tlsConfig := &domain.NatsTLSConfig{HandshakeFirst: true}
+	clusterTarget := t.clusterTarget
+	clusterTarget.TLS = tlsConfig
+	accountRef := domain.NewNamespacedName("account-namespace", "account-name")
+	account := testutil.CreateNatsTestAccount()
+
+	t.secretManagerMock.mockGetSecrets(t.ctx, accountRef, account.AccountID(), &Secrets{
+		Root: account.Root.Key,
+		Sign: account.Sign.Key,
+	})
+	t.natsSysClientMock.mockConnectWithTLS(t.natsURL, tlsConfig, t.sauCreds, t.natsSysConnMock).Once()
+	t.natsSysConnMock.mockLookupAccountJWT(account.AccountID(), "account-jwt").Once()
+	t.natsAccClientMock.mockConnectMatchingCredsWithTLS(t.natsURL, tlsConfig, func(userCreds domain.NatsUserCreds) bool {
+		return userCreds.AccountID == account.AccountID()
+	}, t.natsAccConnMock).Once()
+	t.natsAccConnMock.mockListAccountStreams([]string{}).Once()
+	t.natsAccConnMock.mockDisconnect().Once()
+	t.natsSysConnMock.mockDeleteAccountJWTCatch(func(string) {}).Once()
+	t.natsSysConnMock.mockDisconnect().Once()
+	t.secretManagerMock.mockDeleteAll(t.ctx, accountRef, account.AccountID()).Once()
+
+	// When
+	err := t.unitUnderTest.Delete(t.ctx, nauth.AccountReference{
+		AccountRef:    accountRef,
+		AccountID:     nauth.AccountID(account.AccountID()),
+		ClusterTarget: clusterTarget,
+	})
+
+	// Then
+	t.Require().NoError(err)
+	t.natsSysClientMock.AssertExpectations(t.T())
+	t.natsAccClientMock.AssertExpectations(t.T())
+}
+
 func (t *AccountManagerTestSuite) Test_Delete_ShouldSucceed() {
 	// Given
 	var (

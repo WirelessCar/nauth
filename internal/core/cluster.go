@@ -56,7 +56,7 @@ func (r *ClusterManager) Validate(ctx context.Context, target nauth.ClusterTarge
 		return fmt.Errorf("invalid cluster target: %w", err)
 	}
 
-	sysConn, err := r.natsSysClient.Connect(target.NatsURL, target.SystemAdminCreds)
+	sysConn, err := r.natsSysClient.Connect(target.NatsURL, target.TLS, target.SystemAdminCreds)
 	if err != nil {
 		return fmt.Errorf("connect to NATS cluster using System Account User Credentials: %w", err)
 	}

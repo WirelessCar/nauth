@@ -1,0 +1,17 @@
+# NatsCluster whose spec.tls.caRef points at a ConfigMap that does not exist yet
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: tls-cluster
+spec:
+  url: nats://nats.nats.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds
+  tls:
+    caRef:
+      kind: ConfigMap
+      name: nats-ca

@@ -249,7 +249,7 @@ func (a *AccountManager) reconcileAccountJWT(
 		"stateValidatedAt", request.State.StateValidatedAt,
 		"reason", freshnessReason)
 
-	sysConn, err := a.natsSysClient.Connect(request.ClusterTarget.NatsURL, request.ClusterTarget.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(request.ClusterTarget.NatsURL, request.ClusterTarget.TLS, request.ClusterTarget.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
 	}
@@ -487,7 +487,7 @@ func (a *AccountManager) Import(ctx context.Context, reference nauth.AccountRefe
 		return nil, fmt.Errorf("account root seed does not match account ID during import: expected %s, got %s", accountID, accountRootPublicKey)
 	}
 
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.TLS, cluster.SystemAdminCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster during import: %w", err)
 	}
@@ -552,7 +552,7 @@ func (a *AccountManager) Delete(ctx context.Context, reference nauth.AccountRefe
 	if err != nil {
 		return fmt.Errorf("failed to get secrets for account: %w", err)
 	}
-	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.SystemAdminCreds)
+	sysConn, err := a.natsSysClient.Connect(cluster.NatsURL, cluster.TLS, cluster.SystemAdminCreds)
 	if err != nil {
 		return fmt.Errorf("failed to connect to NATS: %w", err)
 	}
@@ -620,7 +620,7 @@ func (a *AccountManager) listAccountStreams(cluster nauth.ClusterTarget, account
 		return nil, fmt.Errorf("failed to create temporary account JetStream credentials: %w", err)
 	}
 
-	accConn, err := a.natsAccClient.Connect(cluster.NatsURL, *tempUserCreds)
+	accConn, err := a.natsAccClient.Connect(cluster.NatsURL, cluster.TLS, *tempUserCreds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster for JetStream streams lookup: %w", err)
 	}

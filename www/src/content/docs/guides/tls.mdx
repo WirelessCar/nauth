@@ -1,0 +1,131 @@
+---
+title: TLS
+description: Connect NAuth to NATS clusters that use a private CA, a TLS-first handshake or mutual TLS
+---
+
+> **Since v0.8.1:** NatsCluster supports custom CA bundles, TLS-first handshakes, and mutual TLS.
+> An operator-wide default CA bundle can be configured through `nats.tls.caFile`.
+
+NAuth connects to each NATS cluster with the system account credentials of its `NatsCluster`. When the
+cluster uses TLS, configure how NAuth verifies the server and, optionally, which client certificate it
+presents. TLS settings apply to every NAuth connection to that cluster, including the short-lived
+connections NAuth uses to look up JetStream streams.
+
+## Configure TLS on a NatsCluster
+
+```yaml
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: nats
+  namespace: nauth
+spec:
+  url: tls://nats.nats.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: operator-sk
+  systemAccountUserCredsSecretRef:
+    name: sys-creds
+  tls:
+    # PEM CA bundle that verifies the server certificate, from a ConfigMap or a Secret.
+    caRef:
+      kind: ConfigMap # or Secret
+      name: nats-ca
+      key: ca.crt # default
+    # Must match the server's `tls { handshake_first: true }` setting.
+    handshakeFirst: true
+    # Optional client certificate for mutual TLS (a kubernetes.io/tls Secret with tls.crt and tls.key).
+    clientCertSecretRef:
+      name: nauth-client-tls
+```
+
+All referenced ConfigMaps and Secrets must be in the `NatsCluster` namespace.
+
+| Field | Description |
+|---|---|
+| `tls.caRef.kind` | `ConfigMap` or `Secret`. |
+| `tls.caRef.name` | Name of the ConfigMap or Secret holding the PEM CA bundle. |
+| `tls.caRef.key` | Key holding the bundle. Defaults to `ca.crt`. |
+| `tls.handshakeFirst` | Perform the TLS handshake before the NATS `INFO` exchange. |
+| `tls.clientCertSecretRef.name` | `kubernetes.io/tls` Secret holding `tls.crt` and `tls.key`. |
+
+## Trusted CA precedence
+
+NAuth picks one CA source for each connection:
+
+1. If `NatsCluster.spec.tls.caRef` is set, trust only that bundle.
+2. Otherwise, if `NATS_TLS_CA_FILE`/`nats.tls.caFile` is configured, trust only that bundle.
+3. Otherwise, use the normal system roots.
+
+A bundle can contain several CA certificates. NAuth reads only the selected source; a problem with a
+source that was not selected does not affect the connection.
+
+## Operator-wide CA
+
+When several clusters share a corporate PKI, configure the common CA once with the `nats.tls.caFile`
+chart value and mount the file with the existing `volumes` and `volumeMounts` values:
+
+```yaml
+nats:
+  tls:
+    caFile: /etc/nauth/nats-ca/ca.crt
+volumes:
+  - name: nats-ca
+    configMap:
+      name: corporate-ca
+volumeMounts:
+  - name: nats-ca
+    mountPath: /etc/nauth/nats-ca
+    readOnly: true
+```
+
+The operator checks the file at startup and fails fast if it is missing or holds no PEM certificates.
+
+The operator-wide CA is only used for clusters that ask for TLS, through a `tls://` URL or a
+`spec.tls` block. Clusters on plain `nats://` URLs without `spec.tls` keep connecting without TLS. If
+a `nats://` server requires TLS, use a `tls://` URL or add `spec.tls` so the operator-wide CA applies.
+
+## Require TLS
+
+A `spec.tls` block, even an empty `tls: {}`, makes NAuth require TLS for that cluster whatever the URL
+scheme. NAuth rejects a server that does not offer TLS instead of falling back to plaintext, and verifies
+the server certificate against `caRef`, the operator-wide CA, or the system roots, in that order.
+
+`handshakeFirst: true` also always uses TLS, because the TLS handshake happens before any NATS protocol
+traffic. Still prefer a `tls://` URL so the intent is visible in the URL itself.
+
+## Rotate certificates
+
+NAuth reads CA bundles and client certificates for every new connection, so updates need no operator
+restart:
+
+1. Add the new CA to the bundle next to the old one.
+2. Rotate the server certificates.
+3. Remove the old CA from the bundle.
+
+Kubernetes refreshes mounted ConfigMap and Secret volumes after a short delay. Volumes mounted with
+`subPath` are never refreshed; mount the whole volume when you rely on rotation.
+
+Changes to a referenced ConfigMap or Secret do not trigger a new `NatsCluster` validation by
+themselves. The next reconcile of the `NatsCluster` or of its Accounts uses the new material. Periodic
+revalidation of `NatsCluster` readiness is tracked in
+[#376](https://github.com/WirelessCar/nauth/issues/376).
+
+## Troubleshooting
+
+When a connection fails, the `NatsCluster` reports `Ready=False` with a cause in the condition message. Known errors get a short description; any other cause is the original error from the NATS client or the Go TLS stack, with credentials redacted:
+
+```sh
+kubectl get natscluster -n nauth nats -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
+```
+
+| Cause in the message | Fix |
+|---|---|
+| `server certificate signed by unknown authority (trusted CAs from <source>)` | The named source does not contain the CA that issued the server certificate. `configured CA bundle` is `spec.tls.caRef`; `default CA file` is `nats.tls.caFile`. |
+| `server certificate is not valid for host <host>` | The URL host is not in the server certificate's SANs. Use a host name the certificate covers. |
+| `server certificate expired or not yet valid` | Renew the server certificate or check clock skew. |
+| `first record does not look like a TLS handshake` | The client uses a TLS-first handshake but the server does not. Set `spec.tls.handshakeFirst: false` or enable `handshake_first` on the server. |
+| `timeout` or `i/o timeout` | Check network reachability first. A server with `handshake_first: true` and a cluster without `spec.tls.handshakeFirst` also times out. |
+| `tls configured but server does not offer TLS` | The server has no TLS. Remove `spec.tls` or enable TLS on the server. |
+| `server requires TLS` | Use a `tls://` URL or add `spec.tls`. |
+| `remote error: tls: certificate required`, `unknown certificate authority`, `expired certificate`, or `bad certificate` | The server rejected the client certificate. Set or fix `spec.tls.clientCertSecretRef` and check that the server trusts its issuer. |
+| `resolve TLS for NatsCluster ...` | A referenced ConfigMap, Secret, or key is missing or empty, or the content is not valid PEM. A client certificate Secret needs non-empty `tls.crt` and `tls.key`. |

@@ -1,0 +1,36 @@
+# Provide the CA bundle and point caRef at its key. Changing the key bumps the generation so the
+# NatsCluster is reconciled again; periodic revalidation is out of scope (issue #376).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-ca
+data:
+  bundle.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIBbjCCARSgAwIBAgIUPz0rMdFidtEx2gMOyfp18lil0LEwCgYIKoZIzj0EAwIw
+    HDEaMBgGA1UEAwwRbmF1dGgtZTJlLXRlc3QtY2EwIBcNMjYxMTIzMDExMzQ5WhgP
+    MjEyNjEwMzAwMTEzNDlaMBwxGjAYBgNVBAMMEW5hdXRoLWUyZS10ZXN0LWNhMFkw
+    EwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHzACCzXhH5F8E5HjrBs0bToAGE1kGQ5Y
+    EwjKIho7/I9rqBPE+0ZCoiXtNLEUlgbf4pxIBniL5d24aL8XKUrsSqMyMDAwHQYD
+    VR0OBBYEFH8gOrJ4habpnq/oXbjj9EKrYMQvMA8GA1UdEwEB/wQFMAMBAf8wCgYI
+    KoZIzj0EAwIDSAAwRQIgSlvGoUQ7R40J5E0D93F2yV4zqZAVqOzqcuNUy7agucMC
+    IQDsEHaeRVipvZpqdjYLrYXRAuV+jMa9GWiIWmu4h0/PwQ==
+    -----END CERTIFICATE-----
+---
+apiVersion: nauth.io/v1alpha1
+kind: NatsCluster
+metadata:
+  name: tls-cluster
+spec:
+  url: nats://nats.nats.svc.cluster.local:4222
+  operatorSigningKeySecretRef:
+    name: my-operator-signing-key
+    key: seed
+  systemAccountUserCredsSecretRef:
+    name: my-system-account-creds
+    key: user.creds
+  tls:
+    caRef:
+      kind: ConfigMap
+      name: nats-ca
+      key: bundle.pem

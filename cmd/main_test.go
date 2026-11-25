@@ -19,8 +19,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/WirelessCar/nauth/internal/testutil"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
@@ -191,4 +195,19 @@ func Test_initLogger_ShouldRejectInvalidValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_loadOperatorCAFile(t *testing.T) {
+	pki := testutil.NewTestPKI(t)
+	dir := t.TempDir()
+	valid := filepath.Join(dir, "ca.crt")
+	require.NoError(t, os.WriteFile(valid, pki.CAPEM, 0o600))
+	garbage := filepath.Join(dir, "garbage.crt")
+	require.NoError(t, os.WriteFile(garbage, []byte("garbage"), 0o600))
+	missing := filepath.Join(dir, "missing.crt")
+
+	require.NoError(t, loadOperatorCAFile(""))
+	require.NoError(t, loadOperatorCAFile(valid))
+	require.ErrorContains(t, loadOperatorCAFile(missing), missing)
+	require.ErrorContains(t, loadOperatorCAFile(garbage), "CA bundle contains no PEM certificates")
 }

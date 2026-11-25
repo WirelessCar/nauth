@@ -293,8 +293,17 @@ func main() {
 	configMapClient := k8s.NewConfigMapClient(mgr.GetClient())
 	accountClient := k8s.NewAccountClient(mgr.GetClient())
 	clusterClient := k8s.NewClusterClient(mgr.GetClient(), secretClient, configMapClient)
-	natsSysClient := nats.NewSysClient()
-	natsAccClient := nats.NewAccountClient()
+	natsTLSCAFile := strings.TrimSpace(os.Getenv("NATS_TLS_CA_FILE"))
+	if err := loadOperatorCAFile(natsTLSCAFile); err != nil {
+		setupLog.Error(err, "invalid NATS_TLS_CA_FILE", "NATS_TLS_CA_FILE", natsTLSCAFile)
+		os.Exit(1)
+	}
+	if natsTLSCAFile != "" {
+		setupLog.Info("manager configured with operator-wide NATS TLS CA bundle", "NATS_TLS_CA_FILE", natsTLSCAFile)
+	}
+	natsClientOptions := nats.ClientOptions{DefaultCAFile: natsTLSCAFile}
+	natsSysClient := nats.NewSysClient(natsClientOptions)
+	natsAccClient := nats.NewAccountClient(natsClientOptions)
 
 	clusterManager, err := core.NewClusterManager(
 		clusterClient,
@@ -449,6 +458,22 @@ func initLogger(opts *zap.Options, format string, level string) (logr.Logger, er
 	}
 
 	return logger, nil
+}
+
+// loadOperatorCAFile fails fast on a missing or invalid operator-wide CA bundle. The file is still re-read on
+// every NATS connection, so rotated contents are picked up without a restart.
+func loadOperatorCAFile(path string) error {
+	if path == "" {
+		return nil
+	}
+	bundle, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if _, _, err := domain.ParseCABundle(bundle); err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	return nil
 }
 
 func parseNatsClusterRef(refStr string) (*nauth.ClusterRef, error) {
