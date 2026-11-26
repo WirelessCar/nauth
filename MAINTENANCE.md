@@ -13,9 +13,19 @@ This guide is the entry point for NAuth maintainers. When submitting changes, fo
 ## Release classification
 
 Release notes use GitHub's built-in generator. Each PR appears once.
-The sections are Breaking Changes ⚠️, Deprecations, and Other Changes, in that order.
-A PR carrying both release-impact labels appears under Breaking Changes.
+The sections in [`.github/release.yml`](./.github/release.yml) are Breaking Changes ⚠️, Deprecations,
+Features, Fixes, and Maintenance, in that order. A PR carrying multiple matching labels appears only
+in the first matching section.
 Migration explanations belong in the linked PR or documentation.
+
+Before each release, manually apply at most one category label to each included PR:
+
+- `release: feature` for new user-facing functionality, listed under Features.
+- `release: fix` for user-facing bug fixes, listed under Fixes.
+
+Create these repository labels if they do not already exist. Maintenance, dependency updates, and CI
+changes need neither label and fall back to Maintenance. Conventional PR titles do not assign category
+labels or select release-note sections.
 
 The `Release Labels` workflow checks the PR title and every commit message for
 [breaking-change declarations](./CONTRIBUTING.md#breaking-changes-and-deprecations).
@@ -29,7 +39,9 @@ The [action guide](./.github/actions/label-breaking-change/README.md) describes 
 Labeling failures appear in GitHub Actions. They do not block merges or release publication.
 Maintainers review the labels and generated notes before merging each release PR.
 For PRs merged before the labeler was installed, review and apply release-impact labels manually.
-After correcting labels, rerun the `Release Please` workflow to refresh the release PR and changelog.
+After correcting labels, rerun the `Release Please` workflow on `main` to refresh the release PR and
+changelog. Label changes alone do not refresh already generated notes; review the refreshed notes
+before merging the release PR.
 
 ## Releases
 
@@ -55,8 +67,10 @@ Before merging a stable release PR:
 - Review the proposed version, release notes, and migration guidance for breaking changes or deprecations.
 - Update the [Upgrading NAuth guide](./www/src/content/docs/guides/upgrading.mdx) with breaking-release migration steps,
   including any required intermediate NAuth versions.
-- Confirm that breaking-change labels are correct and apply deprecation labels where appropriate.
-  Resolve labeling failures and refresh the release PR after label changes.
+- Apply `release: feature` or `release: fix` to included PRs where appropriate; leave maintenance PRs
+  without either category label. Confirm that breaking-change labels are correct and apply deprecation
+  labels where appropriate. Resolve labeling failures, rerun `Release Please` after label changes,
+  and review the refreshed release PR and changelog.
 - If the release changes NAuth CRDs, regenerate them and update the external CRDs catalog:
   ```sh
   make manifests

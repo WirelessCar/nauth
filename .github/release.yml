@@ -6,5 +6,15 @@ changelog:
       labels: [deprecation]
       exclude:
         labels: [breaking-change]
-    - title: Other Changes
+    - title: Features
+      labels: ["release: feature"]
+      exclude:
+        labels: [breaking-change, deprecation]
+    - title: Fixes
+      labels: ["release: fix"]
+      exclude:
+        labels: [breaking-change, deprecation, "release: feature"]
+    - title: Maintenance
       labels: ["*"]
+      exclude:
+        labels: [breaking-change, deprecation, "release: feature", "release: fix"]
