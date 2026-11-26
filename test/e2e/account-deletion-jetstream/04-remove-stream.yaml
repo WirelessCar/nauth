@@ -1,5 +1,8 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestStep
 commands:
-  - command: 'e2e-ctl jetstream delete-stream --account example-account --stream ORDERS --timeout 20'
+  # Deleting the last stream lets the pending Account deletion invalidate our
+  # credentials before the JetStream reply arrives. Confirm Account deletion
+  # independently in that case; 04-errors.yaml still requires secret cleanup.
+  - command: 'e2e-ctl jetstream delete-stream --account example-account --stream ORDERS --timeout 20 --expect-account-deletion'
     timeout: 30

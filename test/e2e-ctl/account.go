@@ -14,6 +14,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const systemClaimsUpdateSubject = "$SYS.REQ.CLAIMS.UPDATE"
@@ -40,6 +41,55 @@ type accountDeleteOptions struct {
 	accountName string
 	wait        bool
 	log         logger
+}
+
+type accountDeletionTarget struct {
+	namespace string
+	name      string
+	uid       types.UID
+}
+
+func getAccount(ctx context.Context, namespace, name string) (*v1alpha1.Account, error) {
+	output, err := kubectl(ctx, "get", "accounts.nauth.io", name, "-n", namespace, "--ignore-not-found", "-o", "json")
+	if err != nil {
+		return nil, fmt.Errorf("get Account %s/%s: %w", namespace, name, err)
+	}
+	if output == "" {
+		return nil, nil
+	}
+	account := &v1alpha1.Account{}
+	if err := json.Unmarshal([]byte(output), account); err != nil {
+		return nil, fmt.Errorf("decode Account %s/%s: %w", namespace, name, err)
+	}
+	if account.UID == "" {
+		return nil, fmt.Errorf("account %s/%s has no UID", namespace, name)
+	}
+	return account, nil
+}
+
+func newAccountDeletionTarget(ctx context.Context, namespace, name string) (*accountDeletionTarget, error) {
+	account, err := getAccount(ctx, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	if account == nil || account.DeletionTimestamp.IsZero() {
+		return nil, fmt.Errorf("--expect-account-deletion requires a terminating Account %s/%s", namespace, name)
+	}
+	return &accountDeletionTarget{namespace: namespace, name: name, uid: account.UID}, nil
+}
+
+func (a *accountDeletionTarget) deleted(ctx context.Context) (bool, error) {
+	account, err := getAccount(ctx, a.namespace, a.name)
+	if err != nil {
+		return false, err
+	}
+	if account == nil {
+		return true, nil
+	}
+	if account.UID != a.uid {
+		return false, fmt.Errorf("account %s/%s was replaced while waiting for deletion", a.namespace, a.name)
+	}
+	return false, nil
 }
 
 func newAccountCommand(ctx context.Context, log logger) *cobra.Command {
