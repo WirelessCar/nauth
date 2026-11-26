@@ -9,8 +9,12 @@ import (
 	"github.com/WirelessCar/nauth/internal/domain/nauth"
 	"github.com/WirelessCar/nauth/internal/ports/outbound"
 	"github.com/nats-io/nkeys"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// defaultCABundleKey is the caRef key used when none is set. It matches the key cert-manager writes.
+const defaultCABundleKey = "ca.crt"
 
 type ClusterClient struct {
 	k8sReader       client.Reader
@@ -66,7 +70,93 @@ func (c *ClusterClient) ResolveClusterTarget(ctx context.Context, cluster *v1alp
 	if err = target.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid cluster target resolved for NatsCluster %s: %w", clusterRef, err)
 	}
+	tlsConfig, err := c.resolveTLS(ctx, cluster)
+	if err != nil {
+		return nil, fmt.Errorf("resolve TLS for NatsCluster %s: %w", clusterRef, err)
+	}
+	target.TLS = tlsConfig
 	return target, nil
+}
+
+// resolveTLS reads spec.tls material from the NatsCluster's namespace. It returns nil when spec.tls is unset.
+func (c *ClusterClient) resolveTLS(ctx context.Context, cluster *v1alpha1.NatsCluster) (*domain.NatsTLSConfig, error) {
+	spec := cluster.Spec.TLS
+	if spec == nil {
+		return nil, nil
+	}
+	result := &domain.NatsTLSConfig{HandshakeFirst: spec.HandshakeFirst}
+
+	if spec.CARef != nil {
+		bundle, source, err := c.resolveCABundle(ctx, cluster.GetNamespace(), spec.CARef)
+		if err != nil {
+			return nil, fmt.Errorf("resolve caRef: %w", err)
+		}
+		if _, _, err := domain.ParseCABundle(bundle); err != nil {
+			return nil, fmt.Errorf("resolve caRef: %s: %w", source, err)
+		}
+		result.CABundlePEM = bundle
+	}
+
+	if spec.ClientCertSecretRef != nil {
+		secretRef := domain.NewNamespacedName(cluster.GetNamespace(), spec.ClientCertSecretRef.Name)
+		certPEM, err := c.resolveSecret(ctx, secretRef, corev1.TLSCertKey)
+		if err != nil {
+			return nil, fmt.Errorf("resolve clientCertSecretRef: %w", err)
+		}
+		keyPEM, err := c.resolveSecret(ctx, secretRef, corev1.TLSPrivateKeyKey)
+		if err != nil {
+			return nil, fmt.Errorf("resolve clientCertSecretRef: %w", err)
+		}
+		// A referenced Secret must hold a real pair. Empty values would otherwise read as "no client
+		// certificate" downstream and the connection would proceed without presenting one.
+		if len(certPEM) == 0 || len(keyPEM) == 0 {
+			return nil, fmt.Errorf("resolve clientCertSecretRef: secret %s: %s and %s must not be empty",
+				secretRef, corev1.TLSCertKey, corev1.TLSPrivateKeyKey)
+		}
+		result.ClientCertPEM = certPEM
+		result.ClientKeyPEM = keyPEM
+		if err := (&domain.NatsTLSConfig{ClientCertPEM: certPEM, ClientKeyPEM: keyPEM}).Validate(); err != nil {
+			return nil, fmt.Errorf("resolve clientCertSecretRef: secret %s: %w", secretRef, err)
+		}
+	}
+
+	if err := result.Validate(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// resolveCABundle reads the PEM CA bundle that ref points to in namespace. It also returns a
+// description of the source, such as `configMap ns/name key "ca.crt"`, for error messages.
+func (c *ClusterClient) resolveCABundle(ctx context.Context, namespace string, ref *v1alpha1.TLSCAReference) ([]byte, string, error) {
+	resourceRef := domain.NewNamespacedName(namespace, ref.Name)
+	key := caBundleKey(ref.Key)
+	switch ref.Kind {
+	case v1alpha1.TLSCARefKindConfigMap:
+		source := fmt.Sprintf("configMap %s key %q", resourceRef, key)
+		data, err := c.configMapReader.Get(ctx, resourceRef)
+		if err != nil {
+			return nil, source, fmt.Errorf("get ConfigMap %s: %w", resourceRef, err)
+		}
+		value, ok := data[key]
+		if !ok {
+			return nil, source, fmt.Errorf("configMap %s has no key %q", resourceRef, key)
+		}
+		return []byte(value), source, nil
+	case v1alpha1.TLSCARefKindSecret:
+		value, err := c.resolveSecret(ctx, resourceRef, key)
+		return value, fmt.Sprintf("secret %s key %q", resourceRef, key), err
+	default:
+		return nil, "", fmt.Errorf("unsupported caRef.kind %q", ref.Kind)
+	}
+}
+
+// caBundleKey returns key, or defaultCABundleKey when key is empty.
+func caBundleKey(key string) string {
+	if key == "" {
+		return defaultCABundleKey
+	}
+	return key
 }
 
 func (c *ClusterClient) resolveSysAdminCreds(ctx context.Context, cluster *v1alpha1.NatsCluster) (*domain.NatsUserCreds, error) {

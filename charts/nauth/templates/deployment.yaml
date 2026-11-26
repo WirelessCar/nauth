@@ -61,6 +61,10 @@ spec:
             - name: NATS_CLUSTER_REF_OPTIONAL
               value: {{ .Values.nats.clusterRef.optional | quote }}
             {{- end }}
+            {{- with .Values.nats.tls.caFile }}
+            - name: NATS_TLS_CA_FILE
+              value: {{ . | quote }}
+            {{- end }}
             - name: ALLOW_ACCOUNT_NATS_CLUSTER_REBIND
               value: {{ .Values.nats.allowAccountNatsClusterRebind | quote }}
             - name: OPERATOR_VERSION

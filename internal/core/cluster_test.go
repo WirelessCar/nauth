@@ -196,6 +196,23 @@ func (t *ClusterTestSuite) Test_Validate_ShouldSucceed() {
 	t.NoError(err)
 }
 
+func (t *ClusterTestSuite) Test_Validate_ShouldPassTLSConfigToConnect() {
+	// Given
+	unitUnderTest := t.newUnitUnderTestWithDefaults()
+	clusterTarget := t.generateClusterTarget()
+	clusterTarget.TLS = &domain.NatsTLSConfig{HandshakeFirst: true}
+	t.natsSysClientMock.mockConnectWithTLS(clusterTarget.NatsURL, clusterTarget.TLS, clusterTarget.SystemAdminCreds, t.natsSysConnMock)
+	t.natsSysConnMock.mockVerifySystemAccountAccess()
+	t.natsSysConnMock.mockDisconnect()
+
+	// When
+	err := unitUnderTest.Validate(t.ctx, clusterTarget)
+
+	// Then
+	t.NoError(err)
+	t.natsSysClientMock.AssertExpectations(t.T())
+}
+
 func (t *ClusterTestSuite) Test_Validate_ShouldFail_WhenOperatorSigningKeySecretMissing() {
 	// Given
 	unitUnderTest := t.newUnitUnderTestWithDefaults()

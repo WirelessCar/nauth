@@ -395,7 +395,7 @@ func TestAccountClient_ConnectToDeletedAccount_ShouldReportAuthorizationFailureO
 	require.NoError(t, err)
 	userCreds, err := domain.NewNatsUserCreds(userCredsBytes)
 	require.NoError(t, err)
-	accountConn, err := NewAccountClient().Connect(server.ClientURL(), *userCreds)
+	accountConn, err := NewAccountClient(ClientOptions{}).Connect(server.ClientURL(), nil, *userCreds)
 	require.NoError(t, err)
 	defer accountConn.Disconnect()
 	accountNatsConn := accountConn.(*connection)

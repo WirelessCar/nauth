@@ -74,6 +74,59 @@ spec:
                 required:
                 - name
                 type: object
+              tls:
+                description: |-
+                  TLS configures how NAuth secures connections to this NATS cluster. When present, even as an empty
+                  object, NAuth requires TLS and verifies the server certificate against `caRef`, else the operator-wide
+                  CA (`NATS_TLS_CA_FILE`), else the system roots. When omitted, a `tls://` URL requires TLS with the same
+                  defaults and a `nats://` URL keeps TLS opt-in.
+                properties:
+                  caRef:
+                    description: |-
+                      CARef references a PEM CA bundle used to verify the NATS server certificate. The bundle may contain
+                      several CAs, for example during rotation. When set, only this bundle is trusted and the operator-wide
+                      CA (`NATS_TLS_CA_FILE`) is ignored.
+                    properties:
+                      key:
+                        default: ca.crt
+                        description: Key whose value is the PEM CA bundle.
+                        type: string
+                      kind:
+                        description: 'Kind is the type of resource holding the CA
+                          bundle: ConfigMap or Secret.'
+                        enum:
+                        - ConfigMap
+                        - Secret
+                        type: string
+                      name:
+                        description: Name of the ConfigMap or Secret.
+                        minLength: 1
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  clientCertSecretRef:
+                    description: |-
+                      ClientCertSecretRef references a `kubernetes.io/tls` Secret in the NatsCluster's namespace holding the
+                      client certificate (`tls.crt`) and private key (`tls.key`) for mutual TLS. The `key` field is ignored.
+                    properties:
+                      key:
+                        description: Key in the Secret, when not specified an implementation-specific
+                          default key is used.
+                        type: string
+                      name:
+                        description: Name of the Secret.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  handshakeFirst:
+                    description: |-
+                      HandshakeFirst performs the TLS handshake before the NATS protocol INFO exchange.
+                      It must match the server's `tls { handshake_first: true }` setting.
+                    type: boolean
+                type: object
               url:
                 description: URL is the NATS server URL for this cluster. Mutually
                   exclusive with `urlFrom`.

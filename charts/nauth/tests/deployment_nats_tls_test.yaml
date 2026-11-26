@@ -1,0 +1,23 @@
+suite: nats tls env on deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: does not include NATS_TLS_CA_FILE env var when nats.tls.caFile is not set
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_TLS_CA_FILE
+          any: true
+
+  - it: includes NATS_TLS_CA_FILE env var when nats.tls.caFile is set
+    set:
+      nats:
+        tls:
+          caFile: /etc/nauth/ca/ca.crt
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NATS_TLS_CA_FILE
+            value: /etc/nauth/ca/ca.crt

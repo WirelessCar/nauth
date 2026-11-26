@@ -870,6 +870,7 @@ _Appears in:_
 | `urlFrom` _[URLFromReference](#urlfromreference)_ | URLFrom loads the NATS URL from a ConfigMap or Secret. Mutually exclusive with `url`. |  |  |
 | `operatorSigningKeySecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
 | `systemAccountUserCredsSecretRef` _[SecretKeyReference](#secretkeyreference)_ |  |  |  |
+| `tls` _[NatsClusterTLS](#natsclustertls)_ | TLS configures how NAuth secures connections to this NATS cluster. When present, even as an empty<br />object, NAuth requires TLS and verifies the server certificate against `caRef`, else the operator-wide<br />CA (`NATS_TLS_CA_FILE`), else the system roots. When omitted, a `tls://` URL requires TLS with the same<br />defaults and a `nats://` URL keeps TLS opt-in. |  |  |
 
 
 #### NatsClusterStatus
@@ -889,6 +890,24 @@ _Appears in:_
 | `observedGeneration` _integer_ |  |  |  |
 | `reconcileTimestamp` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.37/#time-v1-meta)_ |  |  |  |
 | `operatorVersion` _string_ |  |  |  |
+
+
+#### NatsClusterTLS
+
+
+
+NatsClusterTLS configures TLS for connections from NAuth to a NATS cluster.
+
+
+
+_Appears in:_
+- [NatsClusterSpec](#natsclusterspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `caRef` _[TLSCAReference](#tlscareference)_ | CARef references a PEM CA bundle used to verify the NATS server certificate. The bundle may contain<br />several CAs, for example during rotation. When set, only this bundle is trusted and the operator-wide<br />CA (`NATS_TLS_CA_FILE`) is ignored. |  |  |
+| `handshakeFirst` _boolean_ | HandshakeFirst performs the TLS handshake before the NATS protocol INFO exchange.<br />It must match the server's `tls \{ handshake_first: true \}` setting. |  |  |
+| `clientCertSecretRef` _[SecretKeyReference](#secretkeyreference)_ | ClientCertSecretRef references a `kubernetes.io/tls` Secret in the NatsCluster's namespace holding the<br />client certificate (`tls.crt`) and private key (`tls.key`) for mutual TLS. The `key` field is ignored. |  |  |
 
 
 #### NatsLimits
@@ -1032,6 +1051,7 @@ SecretKeyReference contains information to locate a secret in the same namespace
 
 _Appears in:_
 - [NatsClusterSpec](#natsclusterspec)
+- [NatsClusterTLS](#natsclustertls)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -1119,6 +1139,42 @@ _Appears in:_
 - [RenamingSubject](#renamingsubject)
 - [ServiceLatency](#servicelatency)
 
+
+
+#### TLSCARefKind
+
+_Underlying type:_ _string_
+
+TLSCARefKind is the type of resource holding a PEM CA bundle.
+
+_Validation:_
+- Enum: [ConfigMap Secret]
+
+_Appears in:_
+- [TLSCAReference](#tlscareference)
+
+| Field | Description |
+| --- | --- |
+| `ConfigMap` |  |
+| `Secret` |  |
+
+
+#### TLSCAReference
+
+
+
+TLSCAReference references a key holding a PEM CA bundle in a ConfigMap or Secret in the NatsCluster's namespace.
+
+
+
+_Appears in:_
+- [NatsClusterTLS](#natsclustertls)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `kind` _[TLSCARefKind](#tlscarefkind)_ | Kind is the type of resource holding the CA bundle: ConfigMap or Secret. |  | Enum: [ConfigMap Secret] <br />Required <br /> |
+| `name` _string_ | Name of the ConfigMap or Secret. |  | MinLength: 1 <br />Required <br /> |
+| `key` _string_ | Key whose value is the PEM CA bundle. | ca.crt |  |
 
 
 #### TagList

@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"os"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/WirelessCar/nauth/internal/domain"
@@ -16,6 +20,8 @@ import (
 
 const (
 	natsMaxTimeout = 3 * time.Second
+	// connectErrorWait bounds how long a failed connection waits for nats.go to report its first error.
+	connectErrorWait = 500 * time.Millisecond
 )
 
 type ServerAPIClaimUpdateResponse struct {
@@ -33,38 +39,86 @@ type ClaimUpdateError struct {
 	Description string `json:"description,omitempty"`
 }
 
-type SysClient struct{}
-
-func NewSysClient() *SysClient {
-	return &SysClient{}
+// ClientOptions configures operator-wide behaviour shared by all NATS connections.
+type ClientOptions struct {
+	// DefaultCAFile is the path to the operator-wide PEM CA bundle. Empty means none.
+	DefaultCAFile string
 }
 
-func (n *SysClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
-	return connect(natsURL, userCreds)
+// SysClient connects to NATS as a system account user.
+type SysClient struct {
+	opts ClientOptions
 }
 
-type AccountClient struct{}
-
-func NewAccountClient() *AccountClient {
-	return &AccountClient{}
+// NewSysClient returns a SysClient that applies opts to every connection.
+func NewSysClient(opts ClientOptions) *SysClient {
+	return &SysClient{opts: opts}
 }
 
-func (c AccountClient) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
-	return connect(natsURL, userCreds)
+// Connect opens a system account connection to natsURL using tlsConfig and userCreds.
+func (n *SysClient) Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
+	return connect(natsURL, tlsConfig, userCreds, n.opts)
 }
 
-func connect(natsURL string, userCreds domain.NatsUserCreds) (*connection, error) {
+// AccountClient connects to NATS as a regular account user.
+type AccountClient struct {
+	opts ClientOptions
+}
+
+// NewAccountClient returns an AccountClient that applies opts to every connection.
+func NewAccountClient(opts ClientOptions) *AccountClient {
+	return &AccountClient{opts: opts}
+}
+
+// Connect opens an account connection to natsURL using tlsConfig and userCreds.
+func (c AccountClient) Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
+	return connect(natsURL, tlsConfig, userCreds, c.opts)
+}
+
+// validateNATSURLs parses each entry of a comma-separated NATS URL list the way nats.go does. Errors
+// name only the entry position: URL parse errors echo the URL, including any embedded credentials.
+func validateNATSURLs(natsURL string) error {
+	entry := 0
+	for _, u := range strings.Split(natsURL, ",") {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		entry++
+		if !strings.Contains(u, "://") {
+			u = "nats://" + u
+		}
+		if _, err := url.Parse(u); err != nil {
+			return fmt.Errorf("invalid NATS URL (entry %d): check its format", entry)
+		}
+	}
+	return nil
+}
+
+// connect validates its inputs, builds the TLS options and opens a connection.
+func connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds, clientOpts ClientOptions) (*connection, error) {
 	if natsURL == "" {
 		return nil, fmt.Errorf("NATS URL is required")
+	}
+	if err := validateNATSURLs(natsURL); err != nil {
+		return nil, err
 	}
 
 	if err := userCreds.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid NATS user credentials: %w", err)
 	}
 
+	tlsOpts, caSource, err := buildTLSOptions(tlsConfig, clientOpts.DefaultCAFile, urlRequestsTLS(natsURL), os.ReadFile)
+	if err != nil {
+		return nil, fmt.Errorf("configure NATS TLS: %w", err)
+	}
+
 	c := &connection{
 		natsURL:   natsURL,
 		userCreds: userCreds,
+		tlsOpts:   tlsOpts,
+		caSource:  caSource,
+		redactor:  newCredentialRedactor(natsURL, userCreds.Creds),
 	}
 	if err := c.EnsureConnected(); err != nil {
 		return nil, fmt.Errorf("failed to connect to NATS cluster: %w", err)
@@ -76,7 +130,46 @@ func connect(natsURL string, userCreds domain.NatsUserCreds) (*connection, error
 type connection struct {
 	natsURL   string
 	userCreds domain.NatsUserCreds
+	tlsOpts   []nats.Option
+	caSource  domain.NatsCASource
+	redactor  credentialRedactor
 	conn      *nats.Conn
+
+	errMu    sync.Mutex
+	lastErr  error
+	firstErr chan struct{}
+}
+
+// recordConnectError keeps the latest connect error. With RetryOnFailedConnect, nats.go reports
+// initial-connect failures (TLS, auth, timeouts) only through ReconnectErrCB, not through LastError().
+func (n *connection) recordConnectError(_ *nats.Conn, err error) {
+	if err == nil {
+		return
+	}
+	n.errMu.Lock()
+	defer n.errMu.Unlock()
+	if n.lastErr == nil && n.firstErr != nil {
+		close(n.firstErr)
+	}
+	n.lastErr = err
+}
+
+// connectError returns the most recent connect error, waiting briefly for the first one because
+// nats.go delivers it asynchronously.
+func (n *connection) connectError() error {
+	n.errMu.Lock()
+	err, first := n.lastErr, n.firstErr
+	n.errMu.Unlock()
+	if err != nil || first == nil {
+		return err
+	}
+	select {
+	case <-first:
+	case <-time.After(connectErrorWait):
+	}
+	n.errMu.Lock()
+	defer n.errMu.Unlock()
+	return n.lastErr
 }
 
 func (n *connection) checkConnection() error {
@@ -88,37 +181,14 @@ func (n *connection) checkConnection() error {
 	}
 
 	status := n.conn.Status()
-	if cause := describeNATSConnectionError(n.conn.LastError()); cause != "" {
+	err := n.conn.LastError()
+	if err == nil {
+		err = n.connectError()
+	}
+	if cause := describeNATSConnectionError(err, n.caSource, n.redactor); cause != "" {
 		return fmt.Errorf("NATS connection is unavailable (status: %s; cause: %s)", status, cause)
 	}
 	return fmt.Errorf("NATS connection is unavailable (status: %s)", status)
-}
-
-func describeNATSConnectionError(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	switch {
-	case errors.Is(err, nats.ErrAuthorization):
-		return "authentication failed: authorization violation"
-	case errors.Is(err, nats.ErrAuthExpired):
-		return "authentication expired"
-	case errors.Is(err, nats.ErrAuthRevoked):
-		return "authentication revoked"
-	case errors.Is(err, nats.ErrAccountAuthExpired):
-		return "account authentication expired"
-	case errors.Is(err, nats.ErrNoServers):
-		return "no NATS servers available"
-	case errors.Is(err, nats.ErrTimeout):
-		return "connection attempt timed out"
-	case errors.Is(err, nats.ErrConnectionClosed):
-		return "connection closed"
-	case errors.Is(err, nats.ErrConnectionReconnecting):
-		return "connection is reconnecting"
-	default:
-		return "connection failed"
-	}
 }
 
 func (n *connection) EnsureConnected() error {
@@ -245,15 +315,21 @@ func (n *connection) updateClaimsJWT(subject string, jwt string) error {
 func (n *connection) connect() error {
 	var err error
 
-	n.conn, err = nats.Connect(
-		n.natsURL,
+	n.errMu.Lock()
+	n.lastErr = nil
+	n.firstErr = make(chan struct{})
+	n.errMu.Unlock()
+
+	opts := []nats.Option{
+		nats.ReconnectErrHandler(n.recordConnectError),
 		nats.UserCredentialBytes(n.userCreds.Creds),
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(7),
 		nats.ReconnectWait(time.Second),
-	)
+	}
+	n.conn, err = nats.Connect(n.natsURL, append(opts, n.tlsOpts...)...)
 	if err != nil {
-		return fmt.Errorf("unable to connect to NATS cluster: %w", err)
+		return fmt.Errorf("unable to connect to NATS cluster: %w", redactedError{err: err, redactor: n.redactor})
 	}
 
 	return err

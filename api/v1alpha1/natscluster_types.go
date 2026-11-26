@@ -72,6 +72,58 @@ type NatsClusterSpec struct {
 
 	OperatorSigningKeySecretRef     SecretKeyReference `json:"operatorSigningKeySecretRef"`
 	SystemAccountUserCredsSecretRef SecretKeyReference `json:"systemAccountUserCredsSecretRef"`
+
+	// TLS configures how NAuth secures connections to this NATS cluster. When present, even as an empty
+	// object, NAuth requires TLS and verifies the server certificate against `caRef`, else the operator-wide
+	// CA (`NATS_TLS_CA_FILE`), else the system roots. When omitted, a `tls://` URL requires TLS with the same
+	// defaults and a `nats://` URL keeps TLS opt-in.
+	// +optional
+	TLS *NatsClusterTLS `json:"tls,omitempty"`
+}
+
+// TLSCARefKind is the type of resource holding a PEM CA bundle.
+// +kubebuilder:validation:Enum=ConfigMap;Secret
+type TLSCARefKind string
+
+const (
+	TLSCARefKindConfigMap TLSCARefKind = "ConfigMap"
+	TLSCARefKindSecret    TLSCARefKind = "Secret"
+)
+
+// TLSCAReference references a key holding a PEM CA bundle in a ConfigMap or Secret in the NatsCluster's namespace.
+type TLSCAReference struct {
+	// Kind is the type of resource holding the CA bundle: ConfigMap or Secret.
+	// +required
+	Kind TLSCARefKind `json:"kind"`
+
+	// Name of the ConfigMap or Secret.
+	// +required
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Key whose value is the PEM CA bundle.
+	// +optional
+	// +kubebuilder:default=ca.crt
+	Key string `json:"key,omitempty"`
+}
+
+// NatsClusterTLS configures TLS for connections from NAuth to a NATS cluster.
+type NatsClusterTLS struct {
+	// CARef references a PEM CA bundle used to verify the NATS server certificate. The bundle may contain
+	// several CAs, for example during rotation. When set, only this bundle is trusted and the operator-wide
+	// CA (`NATS_TLS_CA_FILE`) is ignored.
+	// +optional
+	CARef *TLSCAReference `json:"caRef,omitempty"`
+
+	// HandshakeFirst performs the TLS handshake before the NATS protocol INFO exchange.
+	// It must match the server's `tls { handshake_first: true }` setting.
+	// +optional
+	HandshakeFirst bool `json:"handshakeFirst,omitempty"`
+
+	// ClientCertSecretRef references a `kubernetes.io/tls` Secret in the NatsCluster's namespace holding the
+	// client certificate (`tls.crt`) and private key (`tls.key`) for mutual TLS. The `key` field is ignored.
+	// +optional
+	ClientCertSecretRef *SecretKeyReference `json:"clientCertSecretRef,omitempty"`
 }
 
 // NatsClusterStatus defines the observed state of NatsCluster.

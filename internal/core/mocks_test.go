@@ -196,8 +196,8 @@ type NatsSysClientMock struct {
 	mock.Mock
 }
 
-func (n *NatsSysClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
-	args := n.Called(natsURL, userCreds)
+func (n *NatsSysClientMock) Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (outbound.NatsSysConnection, error) {
+	args := n.Called(natsURL, tlsConfig, userCreds)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -205,11 +205,16 @@ func (n *NatsSysClientMock) Connect(natsURL string, userCreds domain.NatsUserCre
 }
 
 func (n *NatsSysClientMock) mockConnect(natsURL string, userCreds domain.NatsUserCreds, result outbound.NatsSysConnection) *mock.Call {
-	return n.On("Connect", natsURL, userCreds).Return(result, nil)
+	return n.mockConnectWithTLS(natsURL, nil, userCreds, result)
+}
+
+// mockConnectWithTLS expects Connect with exactly these arguments and returns result.
+func (n *NatsSysClientMock) mockConnectWithTLS(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds, result outbound.NatsSysConnection) *mock.Call {
+	return n.On("Connect", natsURL, tlsConfig, userCreds).Return(result, nil)
 }
 
 func (n *NatsSysClientMock) mockConnectError(natsURL string, userCreds domain.NatsUserCreds, err error) {
-	n.On("Connect", natsURL, userCreds).Return(nil, err)
+	n.On("Connect", natsURL, (*domain.NatsTLSConfig)(nil), userCreds).Return(nil, err)
 }
 
 var _ outbound.NatsSysClient = (*NatsSysClientMock)(nil)
@@ -334,8 +339,8 @@ type NatsAccountClientMock struct {
 	mock.Mock
 }
 
-func (n *NatsAccountClientMock) Connect(natsURL string, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
-	args := n.Called(natsURL, userCreds)
+func (n *NatsAccountClientMock) Connect(natsURL string, tlsConfig *domain.NatsTLSConfig, userCreds domain.NatsUserCreds) (outbound.NatsAccountConnection, error) {
+	args := n.Called(natsURL, tlsConfig, userCreds)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -343,7 +348,12 @@ func (n *NatsAccountClientMock) Connect(natsURL string, userCreds domain.NatsUse
 }
 
 func (n *NatsAccountClientMock) mockConnectMatchingCreds(natsURL string, credsMatcher func(userCreds domain.NatsUserCreds) bool, result outbound.NatsAccountConnection) *mock.Call {
-	return n.On("Connect", natsURL, mock.MatchedBy(credsMatcher)).Return(result, nil)
+	return n.mockConnectMatchingCredsWithTLS(natsURL, nil, credsMatcher, result)
+}
+
+// mockConnectMatchingCredsWithTLS expects Connect with tlsConfig and creds accepted by credsMatcher.
+func (n *NatsAccountClientMock) mockConnectMatchingCredsWithTLS(natsURL string, tlsConfig *domain.NatsTLSConfig, credsMatcher func(userCreds domain.NatsUserCreds) bool, result outbound.NatsAccountConnection) *mock.Call {
+	return n.On("Connect", natsURL, tlsConfig, mock.MatchedBy(credsMatcher)).Return(result, nil)
 }
 
 var _ outbound.NatsAccountClient = (*NatsAccountClientMock)(nil)
