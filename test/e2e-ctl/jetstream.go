@@ -20,15 +20,16 @@ const (
 )
 
 type jetStreamOptions struct {
-	namespace      string
-	accountName    string
-	natsNamespace  string
-	natsService    string
-	natsURL        string
-	stream         string
-	subjects       []string
-	timeoutSeconds int
-	log            logger
+	namespace             string
+	accountName           string
+	natsNamespace         string
+	natsService           string
+	natsURL               string
+	stream                string
+	subjects              []string
+	timeoutSeconds        int
+	expectAccountDeletion bool
+	log                   logger
 }
 
 func newJetStreamCommand(ctx context.Context, log logger) *cobra.Command {
@@ -72,6 +73,7 @@ func newJetStreamDeleteStreamCommand(ctx context.Context, log logger) *cobra.Com
 		},
 	}
 	addJetStreamFlags(cmd, opts)
+	cmd.Flags().BoolVar(&opts.expectAccountDeletion, "expect-account-deletion", false, "also accept independently confirmed deletion of the terminating Account")
 	return cmd
 }
 
@@ -109,10 +111,59 @@ func runJetStreamCreateStream(ctx context.Context, opts *jetStreamOptions) error
 }
 
 func runJetStreamDeleteStream(ctx context.Context, opts *jetStreamOptions) error {
-	return withJetStream(ctx, opts, func(ctx context.Context, js nats.JetStreamContext) error {
-		return retryJetStream(ctx, opts, fmt.Sprintf("delete JetStream stream %s", opts.stream), func(ctx context.Context) error {
-			return js.DeleteStream(opts.stream, nats.Context(ctx))
+	if opts.timeoutSeconds < 1 {
+		return fmt.Errorf("--timeout must be at least 1")
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(opts.timeoutSeconds)*time.Second)
+	defer cancel()
+
+	// A terminating Account can lose its JWT immediately after its last stream
+	// disappears, before the delete reply reaches us. Only this explicit mode
+	// accepts Account deletion as independent evidence of the intended outcome.
+	var deletingAccount *accountDeletionTarget
+	if opts.expectAccountDeletion {
+		namespace, err := namespaceFromFlagOrEnv(opts.namespace)
+		if err != nil {
+			return err
+		}
+		target, err := newAccountDeletionTarget(ctx, namespace, opts.accountName)
+		if err != nil {
+			return err
+		}
+		deletingAccount = target
+	}
+	confirmDeletion := func(ctx context.Context, deleteErr error) error {
+		if deleteErr == nil || deletingAccount == nil || ctx.Err() != nil {
+			return deleteErr
+		}
+		deleted, err := deletingAccount.deleted(ctx)
+		if err != nil {
+			return errors.Join(deleteErr, err)
+		}
+		if !deleted {
+			return deleteErr
+		}
+		opts.log.Infof("independently confirmed deletion of Account %s/%s after JetStream error: %s", deletingAccount.namespace, opts.accountName, describeNATSError(deleteErr))
+		return nil
+	}
+
+	err := withJetStream(ctx, opts, func(ctx context.Context, js nats.JetStreamContext) error {
+		return retryJetStream(ctx, opts, fmt.Sprintf("delete JetStream stream %s", opts.stream), func(attemptCtx context.Context) error {
+			err := js.DeleteStream(opts.stream, nats.Context(attemptCtx))
+			if errors.Is(err, nats.ErrStreamNotFound) {
+				// This server reply independently confirms absence after a lost ACK.
+				return nil
+			}
+			return confirmDeletion(ctx, err)
 		})
+	})
+	if err == nil || deletingAccount == nil || ctx.Err() != nil {
+		return err
+	}
+	// Account cleanup can also remove credentials between the initial snapshot
+	// and connection setup. Confirmation shares the original operation deadline.
+	return retryJetStream(ctx, opts, "confirm Account deletion", func(attemptCtx context.Context) error {
+		return confirmDeletion(attemptCtx, err)
 	})
 }
 
